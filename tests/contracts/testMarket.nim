@@ -34,7 +34,7 @@ ethersuite "On-Chain Market":
   proc expectedPayout(
       r: StorageRequest, startTimestamp: UInt256, endTimestamp: UInt256
   ): UInt256 =
-    return (endTimestamp - startTimestamp) * r.ask.reward
+    return (endTimestamp - startTimestamp) * r.ask.pricePerSlotPerSecond
 
   proc switchAccount(account: Signer) =
     marketplace = marketplace.connect(account)
@@ -121,7 +121,7 @@ ethersuite "On-Chain Market":
 
     let endBalanceClient = await token.balanceOf(clientAddress)
 
-    check endBalanceClient == (startBalanceClient + request.price)
+    check endBalanceClient == (startBalanceClient + request.totalPrice)
 
   test "supports request subscriptions":
     var receivedIds: seq[RequestId]
@@ -138,19 +138,19 @@ ethersuite "On-Chain Market":
   test "supports filling of slots":
     await market.requestStorage(request)
     await market.reserveSlot(request.id, slotIndex)
-    await market.fillSlot(request.id, slotIndex, proof, request.ask.collateral)
+    await market.fillSlot(request.id, slotIndex, proof, request.ask.collateralPerSlot)
 
   test "can retrieve host that filled slot":
     await market.requestStorage(request)
     check (await market.getHost(request.id, slotIndex)) == none Address
     await market.reserveSlot(request.id, slotIndex)
-    await market.fillSlot(request.id, slotIndex, proof, request.ask.collateral)
+    await market.fillSlot(request.id, slotIndex, proof, request.ask.collateralPerSlot)
     check (await market.getHost(request.id, slotIndex)) == some accounts[0]
 
   test "supports freeing a slot":
     await market.requestStorage(request)
     await market.reserveSlot(request.id, slotIndex)
-    await market.fillSlot(request.id, slotIndex, proof, request.ask.collateral)
+    await market.fillSlot(request.id, slotIndex, proof, request.ask.collateralPerSlot)
     await market.freeSlot(slotId(request.id, slotIndex))
     check (await market.getHost(request.id, slotIndex)) == none Address
 
@@ -163,7 +163,7 @@ ethersuite "On-Chain Market":
   test "submits proofs":
     await market.requestStorage(request)
     await market.reserveSlot(request.id, slotIndex)
-    await market.fillSlot(request.id, slotIndex, proof, request.ask.collateral)
+    await market.fillSlot(request.id, slotIndex, proof, request.ask.collateralPerSlot)
     await advanceToNextPeriod()
     await market.submitProof(slotId(request.id, slotIndex), proof)
 
@@ -171,7 +171,7 @@ ethersuite "On-Chain Market":
     let slotId = slotId(request, slotIndex)
     await market.requestStorage(request)
     await market.reserveSlot(request.id, slotIndex)
-    await market.fillSlot(request.id, slotIndex, proof, request.ask.collateral)
+    await market.fillSlot(request.id, slotIndex, proof, request.ask.collateralPerSlot)
     await waitUntilProofRequired(slotId)
     let missingPeriod = periodicity.periodOf(await ethProvider.currentTime())
     await advanceToNextPeriod()
@@ -182,7 +182,7 @@ ethersuite "On-Chain Market":
     let slotId = slotId(request, slotIndex)
     await market.requestStorage(request)
     await market.reserveSlot(request.id, slotIndex)
-    await market.fillSlot(request.id, slotIndex, proof, request.ask.collateral)
+    await market.fillSlot(request.id, slotIndex, proof, request.ask.collateralPerSlot)
     await waitUntilProofRequired(slotId)
     let missingPeriod = periodicity.periodOf(await ethProvider.currentTime())
     await advanceToNextPeriod()
@@ -198,7 +198,7 @@ ethersuite "On-Chain Market":
 
     let subscription = await market.subscribeSlotFilled(onSlotFilled)
     await market.reserveSlot(request.id, slotIndex)
-    await market.fillSlot(request.id, slotIndex, proof, request.ask.collateral)
+    await market.fillSlot(request.id, slotIndex, proof, request.ask.collateralPerSlot)
     check eventually receivedIds == @[request.id] and receivedSlotIndices == @[
       slotIndex
     ]
@@ -214,16 +214,16 @@ ethersuite "On-Chain Market":
     let subscription =
       await market.subscribeSlotFilled(request.id, slotIndex, onSlotFilled)
     await market.reserveSlot(request.id, otherSlot)
-    await market.fillSlot(request.id, otherSlot, proof, request.ask.collateral)
+    await market.fillSlot(request.id, otherSlot, proof, request.ask.collateralPerSlot)
     await market.reserveSlot(request.id, slotIndex)
-    await market.fillSlot(request.id, slotIndex, proof, request.ask.collateral)
+    await market.fillSlot(request.id, slotIndex, proof, request.ask.collateralPerSlot)
     check eventually receivedSlotIndices == @[slotIndex]
     await subscription.unsubscribe()
 
   test "supports slot freed subscriptions":
     await market.requestStorage(request)
     await market.reserveSlot(request.id, slotIndex)
-    await market.fillSlot(request.id, slotIndex, proof, request.ask.collateral)
+    await market.fillSlot(request.id, slotIndex, proof, request.ask.collateralPerSlot)
     var receivedRequestIds: seq[RequestId] = @[]
     var receivedIdxs: seq[UInt256] = @[]
     proc onSlotFreed(requestId: RequestId, idx: UInt256) =
@@ -272,7 +272,9 @@ ethersuite "On-Chain Market":
     let subscription = await market.subscribeFulfillment(request.id, onFulfillment)
     for slotIndex in 0 ..< request.ask.slots:
       await market.reserveSlot(request.id, slotIndex.u256)
-      await market.fillSlot(request.id, slotIndex.u256, proof, request.ask.collateral)
+      await market.fillSlot(
+        request.id, slotIndex.u256, proof, request.ask.collateralPerSlot
+      )
     check eventually receivedIds == @[request.id]
     await subscription.unsubscribe()
 
@@ -291,11 +293,13 @@ ethersuite "On-Chain Market":
 
     for slotIndex in 0 ..< request.ask.slots:
       await market.reserveSlot(request.id, slotIndex.u256)
-      await market.fillSlot(request.id, slotIndex.u256, proof, request.ask.collateral)
+      await market.fillSlot(
+        request.id, slotIndex.u256, proof, request.ask.collateralPerSlot
+      )
     for slotIndex in 0 ..< otherRequest.ask.slots:
       await market.reserveSlot(otherRequest.id, slotIndex.u256)
       await market.fillSlot(
-        otherRequest.id, slotIndex.u256, proof, otherRequest.ask.collateral
+        otherRequest.id, slotIndex.u256, proof, otherRequest.ask.collateralPerSlot
       )
 
     check eventually receivedIds == @[request.id]
@@ -328,7 +332,9 @@ ethersuite "On-Chain Market":
 
     for slotIndex in 0 ..< request.ask.slots:
       await market.reserveSlot(request.id, slotIndex.u256)
-      await market.fillSlot(request.id, slotIndex.u256, proof, request.ask.collateral)
+      await market.fillSlot(
+        request.id, slotIndex.u256, proof, request.ask.collateralPerSlot
+      )
     for slotIndex in 0 .. request.ask.maxSlotLoss:
       let slotId = request.slotId(slotIndex.u256)
       while true:
@@ -363,7 +369,7 @@ ethersuite "On-Chain Market":
   test "supports proof submission subscriptions":
     await market.requestStorage(request)
     await market.reserveSlot(request.id, slotIndex)
-    await market.fillSlot(request.id, slotIndex, proof, request.ask.collateral)
+    await market.fillSlot(request.id, slotIndex, proof, request.ask.collateralPerSlot)
     await advanceToNextPeriod()
     var receivedIds: seq[SlotId]
     proc onProofSubmission(id: SlotId) =
@@ -391,15 +397,19 @@ ethersuite "On-Chain Market":
     await market.requestStorage(request)
     for slotIndex in 0 ..< request.ask.slots:
       await market.reserveSlot(request.id, slotIndex.u256)
-      await market.fillSlot(request.id, slotIndex.u256, proof, request.ask.collateral)
+      await market.fillSlot(
+        request.id, slotIndex.u256, proof, request.ask.collateralPerSlot
+      )
     check (await market.requestState(request.id)) == some RequestState.Started
 
   test "can retrieve active slots":
     await market.requestStorage(request)
     await market.reserveSlot(request.id, slotIndex - 1)
-    await market.fillSlot(request.id, slotIndex - 1, proof, request.ask.collateral)
+    await market.fillSlot(
+      request.id, slotIndex - 1, proof, request.ask.collateralPerSlot
+    )
     await market.reserveSlot(request.id, slotIndex)
-    await market.fillSlot(request.id, slotIndex, proof, request.ask.collateral)
+    await market.fillSlot(request.id, slotIndex, proof, request.ask.collateralPerSlot)
     let slotId1 = request.slotId(slotIndex - 1)
     let slotId2 = request.slotId(slotIndex)
     check (await market.mySlots()) == @[slotId1, slotId2]
@@ -412,7 +422,7 @@ ethersuite "On-Chain Market":
   test "can retrieve request details from slot id":
     await market.requestStorage(request)
     await market.reserveSlot(request.id, slotIndex)
-    await market.fillSlot(request.id, slotIndex, proof, request.ask.collateral)
+    await market.fillSlot(request.id, slotIndex, proof, request.ask.collateralPerSlot)
     let slotId = request.slotId(slotIndex)
     let expected = Slot(request: request, slotIndex: slotIndex)
     check (await market.getActiveSlot(slotId)) == some expected
@@ -424,7 +434,7 @@ ethersuite "On-Chain Market":
   test "retrieves correct slot state once filled":
     await market.requestStorage(request)
     await market.reserveSlot(request.id, slotIndex)
-    await market.fillSlot(request.id, slotIndex, proof, request.ask.collateral)
+    await market.fillSlot(request.id, slotIndex, proof, request.ask.collateralPerSlot)
     let slotId = request.slotId(slotIndex)
     check (await market.slotState(slotId)) == SlotState.Filled
 
@@ -454,9 +464,9 @@ ethersuite "On-Chain Market":
     await market.reserveSlot(request.id, 0.u256)
     await market.reserveSlot(request.id, 1.u256)
     await market.reserveSlot(request.id, 2.u256)
-    await market.fillSlot(request.id, 0.u256, proof, request.ask.collateral)
-    await market.fillSlot(request.id, 1.u256, proof, request.ask.collateral)
-    await market.fillSlot(request.id, 2.u256, proof, request.ask.collateral)
+    await market.fillSlot(request.id, 0.u256, proof, request.ask.collateralPerSlot)
+    await market.fillSlot(request.id, 1.u256, proof, request.ask.collateralPerSlot)
+    await market.fillSlot(request.id, 2.u256, proof, request.ask.collateralPerSlot)
     let slotId = request.slotId(slotIndex)
 
     # `market.fill` executes an `approve` tx before the `fillSlot` tx, so that's
@@ -474,7 +484,7 @@ ethersuite "On-Chain Market":
   test "can query past SlotFilled events since given timestamp":
     await market.requestStorage(request)
     await market.reserveSlot(request.id, 0.u256)
-    await market.fillSlot(request.id, 0.u256, proof, request.ask.collateral)
+    await market.fillSlot(request.id, 0.u256, proof, request.ask.collateralPerSlot)
 
     # The SlotFilled event will be included in the same block as
     # the fillSlot transaction. If we want to ignore the SlotFilled event
@@ -487,8 +497,8 @@ ethersuite "On-Chain Market":
 
     await market.reserveSlot(request.id, 1.u256)
     await market.reserveSlot(request.id, 2.u256)
-    await market.fillSlot(request.id, 1.u256, proof, request.ask.collateral)
-    await market.fillSlot(request.id, 2.u256, proof, request.ask.collateral)
+    await market.fillSlot(request.id, 1.u256, proof, request.ask.collateralPerSlot)
+    await market.fillSlot(request.id, 2.u256, proof, request.ask.collateralPerSlot)
 
     let events = await market.queryPastSlotFilledEvents(
       fromTime = fromTime.truncate(SecondsSince1970)
@@ -506,9 +516,9 @@ ethersuite "On-Chain Market":
     await market.reserveSlot(request.id, 0.u256)
     await market.reserveSlot(request.id, 1.u256)
     await market.reserveSlot(request.id, 2.u256)
-    await market.fillSlot(request.id, 0.u256, proof, request.ask.collateral)
-    await market.fillSlot(request.id, 1.u256, proof, request.ask.collateral)
-    await market.fillSlot(request.id, 2.u256, proof, request.ask.collateral)
+    await market.fillSlot(request.id, 0.u256, proof, request.ask.collateralPerSlot)
+    await market.fillSlot(request.id, 1.u256, proof, request.ask.collateralPerSlot)
+    await market.fillSlot(request.id, 2.u256, proof, request.ask.collateralPerSlot)
 
     await ethProvider.advanceTime(10.u256)
 
@@ -534,12 +544,14 @@ ethersuite "On-Chain Market":
     let address = await host.getAddress()
     switchAccount(host)
     await market.reserveSlot(request.id, 0.u256)
-    await market.fillSlot(request.id, 0.u256, proof, request.ask.collateral)
+    await market.fillSlot(request.id, 0.u256, proof, request.ask.collateralPerSlot)
     let filledAt = (await ethProvider.currentTime()) - 1.u256
 
     for slotIndex in 1 ..< request.ask.slots:
       await market.reserveSlot(request.id, slotIndex.u256)
-      await market.fillSlot(request.id, slotIndex.u256, proof, request.ask.collateral)
+      await market.fillSlot(
+        request.id, slotIndex.u256, proof, request.ask.collateralPerSlot
+      )
 
     let requestEnd = await market.getRequestEnd(request.id)
     await ethProvider.advanceTimeTo(requestEnd.u256 + 1)
@@ -549,7 +561,7 @@ ethersuite "On-Chain Market":
     let endBalance = await token.balanceOf(address)
 
     let expectedPayout = request.expectedPayout(filledAt, requestEnd.u256)
-    check endBalance == (startBalance + expectedPayout + request.ask.collateral)
+    check endBalance == (startBalance + expectedPayout + request.ask.collateralPerSlot)
 
   test "pays rewards to reward recipient, collateral to host":
     market = OnChainMarket.new(
@@ -561,12 +573,14 @@ ethersuite "On-Chain Market":
 
     switchAccount(host)
     await market.reserveSlot(request.id, 0.u256)
-    await market.fillSlot(request.id, 0.u256, proof, request.ask.collateral)
+    await market.fillSlot(request.id, 0.u256, proof, request.ask.collateralPerSlot)
     let filledAt = (await ethProvider.currentTime()) - 1.u256
 
     for slotIndex in 1 ..< request.ask.slots:
       await market.reserveSlot(request.id, slotIndex.u256)
-      await market.fillSlot(request.id, slotIndex.u256, proof, request.ask.collateral)
+      await market.fillSlot(
+        request.id, slotIndex.u256, proof, request.ask.collateralPerSlot
+      )
 
     let requestEnd = await market.getRequestEnd(request.id)
     await ethProvider.advanceTimeTo(requestEnd.u256 + 1)
@@ -580,7 +594,7 @@ ethersuite "On-Chain Market":
     let endBalanceReward = await token.balanceOf(hostRewardRecipient)
 
     let expectedPayout = request.expectedPayout(filledAt, requestEnd.u256)
-    check endBalanceHost == (startBalanceHost + request.ask.collateral)
+    check endBalanceHost == (startBalanceHost + request.ask.collateralPerSlot)
     check endBalanceReward == (startBalanceReward + expectedPayout)
 
   test "the request is added in cache after the fist access":

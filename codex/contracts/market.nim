@@ -118,7 +118,7 @@ method mySlots*(market: OnChainMarket): Future[seq[SlotId]] {.async.} =
 method requestStorage(market: OnChainMarket, request: StorageRequest) {.async.} =
   convertEthersError:
     debug "Requesting storage"
-    await market.approveFunds(request.price())
+    await market.approveFunds(request.totalPrice())
     discard await market.contract.requestStorage(request).confirm(1)
 
 method getRequest*(
@@ -174,6 +174,12 @@ method getHost(
       return some address
     else:
       return none Address
+
+method currentCollateral*(
+    market: OnChainMarket, slotId: SlotId
+): Future[UInt256] {.async.} =
+  convertEthersError:
+    return await market.contract.currentCollateral(slotId)
 
 method getActiveSlot*(market: OnChainMarket, slotId: SlotId): Future[?Slot] {.async.} =
   convertEthersError:

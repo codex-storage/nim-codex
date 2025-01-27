@@ -45,16 +45,28 @@ template marketplacesuite*(name: string, body: untyped) =
     proc periods(p: int): uint64 =
       p.uint64 * period
 
-    proc createAvailabilities(datasetSize: int, duration: uint64) =
+    proc slotSize(blocks: int): UInt256 =
+      (DefaultBlockSize * blocks.NBytes).Natural.u256
+
+    proc datasetSize(blocks, nodes, tolerance: int): UInt256 =
+      (nodes + tolerance).u256 * slotSize(blocks)
+
+    proc createAvailabilities(
+        datasetSize: UInt256,
+        duration: uint64,
+        collateralPerByte: UInt256,
+        minPricePerBytePerSecond: UInt256,
+    ) =
+      let totalCollateral = datasetSize * collateralPerByte
       # post availability to each provider
       for i in 0 ..< providers().len:
         let provider = providers()[i].client
 
         discard provider.postAvailability(
-          totalSize = datasetSize.u256, # should match 1 slot only
+          totalSize = datasetSize,
           duration = duration.u256,
-          minPrice = 300.u256,
-          maxCollateral = 200.u256,
+          minPricePerBytePerSecond = minPricePerBytePerSecond,
+          totalCollateral = totalCollateral,
         )
 
     proc requestStorage(
@@ -62,8 +74,8 @@ template marketplacesuite*(name: string, body: untyped) =
         cid: Cid,
         proofProbability = 1,
         duration: uint64 = 12.periods,
-        reward = 400.u256,
-        collateral = 100.u256,
+        pricePerBytePerSecond = 1.u256,
+        collateralPerByte = 1.u256,
         expiry: uint64 = 4.periods,
         nodes = providers().len,
         tolerance = 0,
@@ -73,8 +85,8 @@ template marketplacesuite*(name: string, body: untyped) =
         expiry = expiry.uint,
         duration = duration.u256,
         proofProbability = proofProbability.u256,
-        collateral = collateral,
-        reward = reward,
+        collateralPerByte = collateralPerByte,
+        pricePerBytePerSecond = pricePerBytePerSecond,
         nodes = nodes.uint,
         tolerance = tolerance.uint,
       ).get

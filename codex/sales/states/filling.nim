@@ -28,8 +28,7 @@ method onFailed*(state: SaleFilling, request: StorageRequest): ?State =
 method run(state: SaleFilling, machine: Machine): Future[?State] {.async.} =
   let data = SalesAgent(machine).data
   let market = SalesAgent(machine).context.market
-
-  without (fullCollateral =? data.request .? ask .? collateral):
+  without (request =? data.request):
     raiseAssert "Request not set"
 
   logScope:
