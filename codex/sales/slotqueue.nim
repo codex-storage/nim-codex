@@ -234,24 +234,6 @@ proc unpause*(self: SlotQueue) =
   # set unpaused flag to true -- unblocks coroutines waiting on unpaused.wait()
   self.unpaused.fire()
 
-proc populateItem*(
-    self: SlotQueue, requestId: RequestId, slotIndex: uint16
-): ?SlotQueueItem =
-  trace "populate item, items in queue", len = self.queue.len
-  for item in self.queue.items:
-    trace "populate item search", itemRequestId = item.requestId, requestId
-    if item.requestId == requestId:
-      return some SlotQueueItem(
-        requestId: requestId,
-        slotIndex: slotIndex,
-        slotSize: item.slotSize,
-        duration: item.duration,
-        reward: item.reward,
-        collateral: item.collateral,
-        expiry: item.expiry,
-      )
-  return none SlotQueueItem
-
 proc push*(self: SlotQueue, item: SlotQueueItem): ?!void =
   logScope:
     requestId = item.requestId

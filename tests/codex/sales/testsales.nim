@@ -290,9 +290,23 @@ asyncchecksuite "Sales":
 
     createAvailability()
     market.requested.add request # "contract" must be able to return request
+
     market.emitSlotFreed(request.id, 2.u256)
 
-    let expected = SlotQueueItem.init(request, 2.uint16)
+    let slotCollateral = await market.slotCollateral(request.id, 2.u256)
+
+    let expected = SlotQueueItem.init(
+      request.id,
+      2.uint16,
+      StorageAsk(
+        collateral: slotCollateral,
+        duration: request.ask.duration,
+        reward: request.ask.reward,
+        slotSize: request.ask.slotSize,
+      ),
+      request.expiry,
+    )
+
     check eventually itemsProcessed.contains(expected)
 
   test "items in queue are readded (and marked seen) once ignored":
@@ -612,7 +626,3 @@ asyncchecksuite "Sales":
     await sales.load()
     check (await reservations.all(Reservation)).get.len == 0
     check getAvailability().freeSize == availability.freeSize # was restored
-
-  test "calculates correctly the collateral when the slot is being repaired":
-    let collateral = await market.calculateRepairCollateral(collateral = 100.u256)
-    check collateral == 90.u256

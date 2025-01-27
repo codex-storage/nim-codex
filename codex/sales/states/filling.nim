@@ -28,6 +28,7 @@ method onFailed*(state: SaleFilling, request: StorageRequest): ?State =
 method run(state: SaleFilling, machine: Machine): Future[?State] {.async.} =
   let data = SalesAgent(machine).data
   let market = SalesAgent(machine).context.market
+
   without (fullCollateral =? data.request .? ask .? collateral):
     raiseAssert "Request not set"
 
@@ -35,17 +36,11 @@ method run(state: SaleFilling, machine: Machine): Future[?State] {.async.} =
     requestId = data.requestId
     slotIndex = data.slotIndex
 
-  let slotId = slotId(data.requestId, data.slotIndex)
-  let slotState = await market.slotState(slotId)
-  let collateral =
-    if slotState == SlotState.Repair:
-      await market.calculateRepairCollateral(fullCollateral)
-    else:
-      fullCollateral
+  let slotCollateral = await market.slotCollateral(data.requestId, data.slotIndex)
 
   debug "Filling slot"
   try:
-    await market.fillSlot(data.requestId, data.slotIndex, state.proof, collateral)
+    await market.fillSlot(data.requestId, data.slotIndex, state.proof, slotCollateral)
   except MarketError as e:
     if e.msg.contains "Slot is not free":
       debug "Slot is already filled, ignoring slot"

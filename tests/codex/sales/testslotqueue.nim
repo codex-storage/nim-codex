@@ -313,28 +313,6 @@ suite "Slot queue":
     check isOk queue.push(item3)
     check isOk queue.push(item4)
 
-  test "populates item with exisiting request metadata":
-    newSlotQueue(maxSize = 8, maxWorkers = 1, processSlotDelay = 10.millis)
-    let request0 = StorageRequest.example
-    var request1 = StorageRequest.example
-    request1.ask.collateral += 1.u256
-    let items0 = SlotQueueItem.init(request0)
-    let items1 = SlotQueueItem.init(request1)
-    check queue.push(items0).isOk
-    check queue.push(items1).isOk
-    let populated = !queue.populateItem(request1.id, 12'u16)
-    check populated.requestId == request1.id
-    check populated.slotIndex == 12'u16
-    check populated.slotSize == request1.ask.slotSize
-    check populated.duration == request1.ask.duration
-    check populated.reward == request1.ask.reward
-    check populated.collateral == request1.ask.collateral
-
-  test "does not find exisiting request metadata":
-    newSlotQueue(maxSize = 2, maxWorkers = 2)
-    let item = SlotQueueItem.example
-    check queue.populateItem(item.requestId, 12'u16).isNone
-
   test "can support uint16.high slots":
     var request = StorageRequest.example
     let maxUInt16 = uint16.high

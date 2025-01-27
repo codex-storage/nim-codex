@@ -152,20 +152,15 @@ proc cleanUp(
   # Re-add items back into the queue to prevent small availabilities from
   # draining the queue. Seen items will be ordered last.
   if reprocessSlot and request =? data.request:
-    let slotId = slotId(data.requestId, data.slotIndex)
-    let slotState = await sales.context.market.slotState(slotId)
-    let collateral =
-      if slotState == SlotState.Repair:
-        await sales.context.market.calculateRepairCollateral(data.ask.collateral)
-      else:
-        data.ask.collateral
+    let slotCollateral =
+      await sales.context.market.slotCollateral(data.requestId, data.slotIndex)
 
     let queue = sales.context.slotQueue
     var seenItem = SlotQueueItem.init(
       data.requestId,
       data.slotIndex.truncate(uint16),
       StorageAsk(
-        collateral: collateral,
+        collateral: slotCollateral,
         duration: request.ask.duration,
         reward: request.ask.reward,
         slotSize: request.ask.slotSize,
@@ -332,43 +327,39 @@ proc onSlotFreed(sales: Sales, requestId: RequestId, slotIndex: UInt256) =
     let context = sales.context
     let market = context.market
     let queue = context.slotQueue
+    var slotQueueItem: SlotQueueItem
 
-    # first attempt to populate request using existing slot metadata in queue
-    without var found =? queue.populateItem(requestId, slotIndex.truncate(uint16)):
-      trace "no existing request metadata, getting request info from contract"
-      # if there's no existing slot for that request, retrieve the request
-      # from the contract.
-      try:
-        without request =? await market.getRequest(requestId):
-          error "unknown request in contract"
-          return
+    try:
+      without request =? await market.getRequest(requestId):
+        error "unknown request in contract"
+        return
 
-        # Take the repairing state into consideration to calculate the collateral.
-        # This is particularly needed because it will affect the priority in the queue
-        # and we want to give the user the ability to tweak the parameters.
-        # Adding the repairing state directly in the queue priority calculation
-        # would not allow this flexibility.
-        let collateral = await market.calculateRepairCollateral(request.ask.collateral)
+      # Take the repairing state into consideration to calculate the collateral.
+      # This is particularly needed because it will affect the priority in the queue
+      # and we want to give the user the ability to tweak the parameters.
+      # Adding the repairing state directly in the queue priority calculation
+      # would not allow this flexibility.
+      let slotCollateral = await market.slotCollateral(request.id, slotIndex)
 
-        found = SlotQueueItem.init(
-          request.id,
-          slotIndex.truncate(uint16),
-          StorageAsk(
-            collateral: collateral,
-            duration: request.ask.duration,
-            reward: request.ask.reward,
-            slotSize: request.ask.slotSize,
-          ),
-          request.expiry,
-        )
-      except CancelledError:
-        discard # do not propagate as addSlotToQueue was asyncSpawned
-      except CatchableError as e:
-        error "failed to get request from contract and add slots to queue",
-          error = e.msgDetail
+      slotQueueItem = SlotQueueItem.init(
+        request.id,
+        slotIndex.truncate(uint16),
+        StorageAsk(
+          collateral: slotCollateral,
+          duration: request.ask.duration,
+          reward: request.ask.reward,
+          slotSize: request.ask.slotSize,
+        ),
+        request.expiry,
+      )
 
-    if err =? queue.push(found).errorOption:
-      error "failed to push slot items to queue", error = err.msgDetail
+      if err =? queue.push(slotQueueItem).errorOption:
+        error "failed to push slot items to queue", error = err.msgDetail
+    except CancelledError:
+      discard # do not propagate as addSlotToQueue was asyncSpawned
+    except CatchableError as e:
+      error "failed to get request from contract and add slots to queue",
+        error = e.msgDetail
 
   let fut = addSlotToQueue()
   sales.trackedFutures.track(fut)

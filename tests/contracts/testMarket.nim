@@ -2,6 +2,7 @@ import std/options
 import std/importutils
 import pkg/chronos
 import pkg/ethers/erc20
+import pkg/lrucache
 import codex/contracts
 import ../ethertest
 import ./examples
@@ -18,6 +19,7 @@ logScope:
 
 ethersuite "On-Chain Market":
   let proof = Groth16Proof.example
+  let requestCacheSize = 128.uint16
 
   var market: OnChainMarket
   var marketplace: Marketplace
@@ -37,7 +39,7 @@ ethersuite "On-Chain Market":
   proc switchAccount(account: Signer) =
     marketplace = marketplace.connect(account)
     token = token.connect(account)
-    market = OnChainMarket.new(marketplace, market.rewardRecipient)
+    market = OnChainMarket.new(marketplace, market.rewardRecipient, requestCacheSize)
 
   setup:
     let address = Marketplace.address(dummyVerifier = true)
@@ -45,7 +47,7 @@ ethersuite "On-Chain Market":
     let config = await marketplace.configuration()
     hostRewardRecipient = accounts[2]
 
-    market = OnChainMarket.new(marketplace)
+    market = OnChainMarket.new(marketplace, requestCacheSize = requestCacheSize)
     let tokenAddress = await marketplace.token()
     token = Erc20Token.new(tokenAddress, ethProvider.getSigner())
 
@@ -83,7 +85,8 @@ ethersuite "On-Chain Market":
   test "fails to instantiate when contract does not have a signer":
     let storageWithoutSigner = marketplace.connect(ethProvider)
     expect AssertionDefect:
-      discard OnChainMarket.new(storageWithoutSigner)
+      discard
+        OnChainMarket.new(storageWithoutSigner, requestCacheSize = requestCacheSize)
 
   test "knows signer address":
     check (await market.getSigner()) == (await ethProvider.getSigner().getAddress())
@@ -549,7 +552,9 @@ ethersuite "On-Chain Market":
     check endBalance == (startBalance + expectedPayout + request.ask.collateral)
 
   test "pays rewards to reward recipient, collateral to host":
-    market = OnChainMarket.new(marketplace, hostRewardRecipient.some)
+    market = OnChainMarket.new(
+      marketplace, hostRewardRecipient.some, requestCacheSize = requestCacheSize
+    )
     let hostAddress = await host.getAddress()
 
     await market.requestStorage(request)
@@ -577,3 +582,37 @@ ethersuite "On-Chain Market":
     let expectedPayout = request.expectedPayout(filledAt, requestEnd.u256)
     check endBalanceHost == (startBalanceHost + request.ask.collateral)
     check endBalanceReward == (startBalanceReward + expectedPayout)
+
+  test "the request is added in cache after the fist access":
+    await market.requestStorage(request)
+
+    check market.requestCache.contains($request.id) == false
+    discard await market.getRequest(request.id)
+
+    check market.requestCache.contains($request.id) == true
+    let cacheValue = market.requestCache[$request.id]
+    check cacheValue == request
+
+  test "returns the collateral when the slot is not being repaired":
+    await market.requestStorage(request)
+    await market.reserveSlot(request.id, 0.u256)
+    await market.fillSlot(request.id, 0.u256, proof, request.ask.collateral)
+
+    let slotId = request.slotId(0.u256)
+    let collateral = await market.slotCollateral(request.id, 0.u256)
+
+    check collateral == request.ask.collateral
+
+  test "calculates correctly the collateral when the slot is being repaired":
+    await market.requestStorage(request)
+    await market.reserveSlot(request.id, 0.u256)
+    await market.fillSlot(request.id, 0.u256, proof, request.ask.collateral)
+    await market.freeSlot(slotId(request.id, 0.u256))
+
+    let slotId = request.slotId(0.u256)
+    let collateral = await market.slotCollateral(request.id, 0.u256)
+
+    # slotCollateral = 200
+    # repairRewardPercentage = 10
+    # expected collateral = 200 - 200 * 0.1 = 180
+    check collateral == 180
