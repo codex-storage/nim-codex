@@ -301,15 +301,15 @@ asyncchecksuite "Sales":
 
     market.emitSlotFreed(request.id, 2.u256)
 
-    let slotCollateral = await market.slotCollateral(request.id, 2.u256)
+    let collateralPerSlot = await market.slotCollateral(request.id, 2.u256)
 
     let expected = SlotQueueItem.init(
       request.id,
       2.uint16,
       StorageAsk(
-        collateral: slotCollateral,
+        collateralPerByte: request.ask.collateralPerByte,
+        pricePerBytePerSecond: request.ask.pricePerBytePerSecond,
         duration: request.ask.duration,
-        reward: request.ask.reward,
         slotSize: request.ask.slotSize,
       ),
       request.expiry,

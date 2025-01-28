@@ -23,4 +23,5 @@ proc toSlotQueueItem*(item: MockSlotQueueItem): SlotQueueItem =
     ),
     expiry = item.expiry,
     seen = item.seen,
+    collateralPerSlot = item.collateralPerByte * item.slotSize,
   )

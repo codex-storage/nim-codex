@@ -153,7 +153,7 @@ proc cleanUp(
   # Re-add items back into the queue to prevent small availabilities from
   # draining the queue. Seen items will be ordered last.
   if reprocessSlot and request =? data.request:
-    let slotCollateral =
+    let collateralPerSlot =
       await sales.context.market.slotCollateral(data.requestId, data.slotIndex)
 
     let queue = sales.context.slotQueue
@@ -161,13 +161,14 @@ proc cleanUp(
       data.requestId,
       data.slotIndex.truncate(uint16),
       StorageAsk(
-        collateral: slotCollateral,
+        collateralPerByte: request.ask.collateralPerByte,
+        pricePerBytePerSecond: request.ask.pricePerBytePerSecond,
         duration: request.ask.duration,
-        reward: request.ask.reward,
         slotSize: request.ask.slotSize,
       ),
       request.expiry,
       seen = true,
+      collateralPerSlot = collateralPerSlot,
     )
     trace "pushing ignored item to queue, marked as seen"
     if err =? queue.push(seenItem).errorOption:
@@ -344,18 +345,22 @@ proc onSlotFreed(sales: Sales, requestId: RequestId, slotIndex: UInt256) =
       # and we want to give the user the ability to tweak the parameters.
       # Adding the repairing state directly in the queue priority calculation
       # would not allow this flexibility.
-      let slotCollateral = await market.slotCollateral(request.id, slotIndex)
+      # Note: The slotCollateral function will invoke the contract method slotState,
+      # but this is unnecessary since we already know the slot's state (Repair).
+      # To avoid an unnecessary RPC call, we could eliminate this redundant call.
+      let collateralPerSlot = await market.slotCollateral(request.id, slotIndex)
 
       slotQueueItem = SlotQueueItem.init(
         request.id,
         slotIndex.truncate(uint16),
         StorageAsk(
-          collateral: slotCollateral,
+          collateralPerByte: request.ask.collateralPerByte,
+          pricePerBytePerSecond: request.ask.pricePerBytePerSecond,
           duration: request.ask.duration,
-          reward: request.ask.reward,
           slotSize: request.ask.slotSize,
         ),
         request.expiry,
+        collateralPerSlot = collateralPerSlot,
       )
 
       if err =? queue.push(slotQueueItem).errorOption:

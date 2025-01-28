@@ -34,6 +34,7 @@ type
     duration: UInt256
     pricePerBytePerSecond: UInt256
     collateralPerByte: UInt256
+    collateralPerSlot: UInt256
     expiry: UInt256
     seen: bool
 
@@ -74,9 +75,6 @@ proc profitability(item: SlotQueueItem): UInt256 =
     pricePerBytePerSecond: item.pricePerBytePerSecond,
     slotSize: item.slotSize,
   ).pricePerSlot
-
-proc collateralPerSlot(item: SlotQueueItem): UInt256 =
-  StorageAsk(collateralPerByte: item.collateralPerByte, slotSize: item.slotSize).collateralPerSlot
 
 proc `<`*(a, b: SlotQueueItem): bool =
   # for A to have a higher priority than B (in a min queue), A must be less than
@@ -137,6 +135,7 @@ proc init*(
     ask: StorageAsk,
     expiry: UInt256,
     seen = false,
+    collateralPerSlot: UInt256 = 0.u256,
 ): SlotQueueItem =
   SlotQueueItem(
     requestId: requestId,
@@ -145,6 +144,8 @@ proc init*(
     duration: ask.duration,
     pricePerBytePerSecond: ask.pricePerBytePerSecond,
     collateralPerByte: ask.collateralPerByte,
+    collateralPerSlot:
+      if collateralPerSlot.isZero: ask.collateralPerSlot else: collateralPerSlot,
     expiry: expiry,
     seen: seen,
   )

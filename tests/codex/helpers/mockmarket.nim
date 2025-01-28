@@ -539,7 +539,7 @@ method slotCollateral*(
   if s == SlotState.Repair:
     let repairRewardPercentage = market.config.collateral.repairRewardPercentage.u256
     return
-      request.ask.collateral -
-      (request.ask.collateral * repairRewardPercentage).div(100.u256)
+      request.ask.collateralPerSlot -
+      (request.ask.collateralPerSlot * repairRewardPercentage).div(100.u256)
 
-  return request.ask.collateral
+  return request.ask.collateralPerSlot

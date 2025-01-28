@@ -428,11 +428,16 @@ suite "Slot queue":
     let item1 = SlotQueueItem.init(request, 1)
     check item1 < item0
 
-  test "sorts items by collateral ascending (higher required collateralPerByte = lower priority == comes later in the list)":
+  test "sorts items by collateral ascending (higher required collateralPerSlot = lower priority == comes later in the list)":
     var request = StorageRequest.example
     let item0 = SlotQueueItem.init(request, 0)
-    request.ask.collateralPerByte += 1.u256
-    let item1 = SlotQueueItem.init(request, 1)
+    let item1 = SlotQueueItem.init(
+      request.id,
+      1.uint16,
+      request.ask,
+      request.expiry,
+      collateralPerSlot = request.ask.collateralPerSlot + 1.u256,
+    )
     check item1 > item0
 
   test "sorts items by expiry descending (longer expiry = higher priority)":
