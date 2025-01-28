@@ -29,7 +29,7 @@ type
     maxSlotLoss* {.serialize.}: uint64
 
   StorageContent* = object
-    cid*: seq[byte]
+    cid* {.serialize.}: seq[byte]
     merkleRoot*: array[32, byte]
 
   Slot* = object
