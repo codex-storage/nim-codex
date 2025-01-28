@@ -160,12 +160,7 @@ proc cleanUp(
     var seenItem = SlotQueueItem.init(
       data.requestId,
       data.slotIndex.truncate(uint16),
-      StorageAsk(
-        collateralPerByte: request.ask.collateralPerByte,
-        pricePerBytePerSecond: request.ask.pricePerBytePerSecond,
-        duration: request.ask.duration,
-        slotSize: request.ask.slotSize,
-      ),
+      request.ask,
       request.expiry,
       seen = true,
       collateralPerSlot = collateralPerSlot,
@@ -353,12 +348,7 @@ proc onSlotFreed(sales: Sales, requestId: RequestId, slotIndex: UInt256) =
       slotQueueItem = SlotQueueItem.init(
         request.id,
         slotIndex.truncate(uint16),
-        StorageAsk(
-          collateralPerByte: request.ask.collateralPerByte,
-          pricePerBytePerSecond: request.ask.pricePerBytePerSecond,
-          duration: request.ask.duration,
-          slotSize: request.ask.slotSize,
-        ),
+        request.ask,
         request.expiry,
         collateralPerSlot = collateralPerSlot,
       )

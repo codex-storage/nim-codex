@@ -303,17 +303,7 @@ asyncchecksuite "Sales":
 
     let collateralPerSlot = await market.slotCollateral(request.id, 2.u256)
 
-    let expected = SlotQueueItem.init(
-      request.id,
-      2.uint16,
-      StorageAsk(
-        collateralPerByte: request.ask.collateralPerByte,
-        pricePerBytePerSecond: request.ask.pricePerBytePerSecond,
-        duration: request.ask.duration,
-        slotSize: request.ask.slotSize,
-      ),
-      request.expiry,
-    )
+    let expected = SlotQueueItem.init(request, 2.uint16)
 
     check eventually itemsProcessed.contains(expected)
 
