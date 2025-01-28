@@ -28,7 +28,7 @@ jobs:
         with:
           matrix: |
             os {linux},   cpu {amd64}, builder {runner-node-01-linux-01-eu-hel1},   tests {integration}, nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
-            os {windows}, cpu {amd64}, builder {windows-latest-amd64-32vcpu}, tests {integration}, nim_version {${{ env.nim_version }}}, shell {msys2}
+            os {macos},   cpu {amd64}, builder {macos-14-large},       tests {integration}, nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
 
 
   build:
