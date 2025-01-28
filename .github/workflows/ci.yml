@@ -50,39 +50,3 @@ jobs:
           fail: true
           suggest: true
 
-  coverage:
-    # Force to stick to ubuntu 20.04 for coverage because
-    # lcov was updated to 2.x version in ubuntu-latest
-    # and cause a lot of issues.
-    # See https://github.com/linux-test-project/lcov/issues/238
-    runs-on: ubuntu-20.04
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          ref: ${{ github.event.pull_request.head.sha }}
-
-      - name: Setup Nimbus Build System
-        uses: ./.github/actions/nimbus-build-system
-        with:
-          os: linux
-          nim_version: ${{ env.nim_version }}
-          coverage: true
-
-      - name: Generate coverage data
-        run: |
-          # make -j${ncpu} coverage
-          make -j${ncpu} coverage-script
-        shell: bash
-
-      - name: Upload coverage data to Codecov
-        uses: codecov/codecov-action@v4
-        with:
-          directory: ./coverage/
-          fail_ci_if_error: true
-          files: ./coverage/coverage.f.info
-          flags: unittests
-          name: codecov-umbrella
-          token: ${{ secrets.CODECOV_TOKEN }}
-          verbose: true
