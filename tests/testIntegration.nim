@@ -16,7 +16,7 @@ const TestConfigs =
     IntegrationTestConfig.init("./integration/testmarketplace", startHardhat = true),
     IntegrationTestConfig.init("./integration/testproofs", startHardhat = true),
     IntegrationTestConfig.init("./integration/testvalidator", startHardhat = true),
-    # IntegrationTestConfig.init("./integration/testecbug", startHardhat = true),
+    IntegrationTestConfig.init("./integration/testecbug", startHardhat = true),
   ]
 
 # Echoes stderr if there's a test failure (eg test failed, compilation error)
