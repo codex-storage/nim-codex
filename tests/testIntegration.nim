@@ -75,4 +75,10 @@ proc run() {.async.} =
     trace "stopping test manager"
     await manager.stop()
 
+  without wasSuccessful =? manager.testsStatus, error:
+    raiseAssert "Failed to get test status: " & error.msg
+
+  if not wasSuccessful:
+    quit(1) # indicate with a non-zero exit code that the tests failed
+
 waitFor run()
