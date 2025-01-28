@@ -28,6 +28,7 @@ jobs:
         with:
           matrix: |
             os {linux},   cpu {amd64}, builder {ubuntu-latest-amd64-8vcpu},   tests {integration}, nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
+            os {windows}, cpu {amd64}, builder {windows-latest-amd64-8vcpu}, tests {integration}, nim_version {${{ env.nim_version }}}, shell {msys2}
 
   build:
     needs: matrix
