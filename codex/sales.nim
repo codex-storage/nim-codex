@@ -288,7 +288,7 @@ proc onAvailabilityAdded(sales: Sales, availability: Availability) {.async.} =
 
 proc onStorageRequested(
     sales: Sales, requestId: RequestId, ask: StorageAsk, expiry: UInt256
-) =
+) {.async.} =
   logScope:
     topics = "marketplace sales onStorageRequested"
     requestId
@@ -299,8 +299,10 @@ proc onStorageRequested(
 
   trace "storage requested, adding slots to queue"
 
-  without items =?
-    SlotQueueItem.init(requestId, ask, expiry, ask.collateralPerSlot).catch, err:
+  let market = sales.context.market
+  let collateral = await market.slotCollateral(requestId, SlotState.Free)
+
+  without items =? SlotQueueItem.init(requestId, ask, expiry, collateral).catch, err:
     if err of SlotsOutOfRangeError:
       warn "Too many slots, cannot add to queue"
     else:
@@ -341,10 +343,7 @@ proc onSlotFreed(sales: Sales, requestId: RequestId, slotIndex: UInt256) =
       # and we want to give the user the ability to tweak the parameters.
       # Adding the repairing state directly in the queue priority calculation
       # would not allow this flexibility.
-      # Note: The slotCollateral function will invoke the contract method slotState,
-      # but this is unnecessary since we already know the slot's state (Repair).
-      # To avoid an unnecessary RPC call, we could eliminate this redundant call.
-      let collateral = await market.slotCollateral(request.id, slotIndex)
+      let collateral = await market.slotCollateral(request.id, SlotState.Repair)
 
       slotQueueItem =
         SlotQueueItem.init(request, slotIndex.truncate(uint16), collateral = collateral)
@@ -366,7 +365,7 @@ proc subscribeRequested(sales: Sales) {.async.} =
   let market = context.market
 
   proc onStorageRequested(requestId: RequestId, ask: StorageAsk, expiry: UInt256) =
-    sales.onStorageRequested(requestId, ask, expiry)
+    discard sales.onStorageRequested(requestId, ask, expiry)
 
   try:
     let sub = await market.subscribeRequests(onStorageRequested)

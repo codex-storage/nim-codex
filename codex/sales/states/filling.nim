@@ -35,7 +35,7 @@ method run(state: SaleFilling, machine: Machine): Future[?State] {.async.} =
     requestId = data.requestId
     slotIndex = data.slotIndex
 
-  let slotCollateral = await market.slotCollateral(data.requestId, data.slotIndex)
+  let slotCollateral = await market.slotCollateral(data.requestId, SlotState.Free)
 
   debug "Filling slot"
   try:

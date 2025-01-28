@@ -530,13 +530,17 @@ method unsubscribe*(subscription: SlotReservationsFullSubscription) {.async.} =
 method slotCollateral*(
     market: MockMarket, requestId: RequestId, slotIndex: UInt256
 ): Future[UInt256] {.async.} =
+  let slotid = slotId(requestId, slotIndex)
+  let state = await slotState(market, slotid)
+  return await market.slotCollateral(requestId, state)
+
+method slotCollateral*(
+    market: MockMarket, requestId: RequestId, slotState: SlotState
+): Future[UInt256] {.async.} =
   without request =? await market.getRequest(requestId):
     raise newException(MarketError, "Cannot retrieve the request.")
 
-  let slotid = slotId(requestId, slotIndex)
-  let s: SlotState = await slotState(market, slotid)
-
-  if s == SlotState.Repair:
+  if slotState == SlotState.Repair:
     let repairRewardPercentage = market.config.collateral.repairRewardPercentage.u256
     return
       request.ask.collateralPerSlot -

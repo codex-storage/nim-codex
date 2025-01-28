@@ -490,17 +490,21 @@ method queryPastStorageRequestedEvents*(
 method slotCollateral*(
     market: OnChainMarket, requestId: RequestId, slotIndex: UInt256
 ): Future[UInt256] {.async.} =
+  let slotid = slotId(requestId, slotIndex)
+  let slotState = await market.slotState(slotid)
+
+  return await market.slotCollateral(requestId, slotState)
+
+method slotCollateral*(
+    market: OnChainMarket, requestId: RequestId, slotState: SlotState
+): Future[UInt256] {.async.} =
   without request =? await market.getRequest(requestId):
     raise newException(MarketError, "Cannot retrieve the request.")
 
-  convertEthersError:
-    let slotid = slotId(requestId, slotIndex)
-    let slotState = await market.slotState(slotid)
+  if slotState == SlotState.Repair:
+    let repairRewardPercentage = (await market.repairRewardPercentage).u256
+    return
+      request.ask.collateralPerSlot -
+      (request.ask.collateralPerSlot * repairRewardPercentage).div(100.u256)
 
-    if slotState == SlotState.Repair:
-      let repairRewardPercentage = (await market.repairRewardPercentage).u256
-      return
-        request.ask.collateralPerSlot -
-        (request.ask.collateralPerSlot * repairRewardPercentage).div(100.u256)
-
-    return request.ask.collateralPerSlot
+  return request.ask.collateralPerSlot
