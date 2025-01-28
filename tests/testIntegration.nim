@@ -75,7 +75,7 @@ proc run() {.async.} =
     trace "stopping test manager"
     await manager.stop()
 
-  without wasSuccessful =? manager.testsStatus, error:
+  without wasSuccessful =? manager.allTestsPassed, error:
     raiseAssert "Failed to get test status: " & error.msg
 
   if not wasSuccessful:

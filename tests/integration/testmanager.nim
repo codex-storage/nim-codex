@@ -157,15 +157,15 @@ proc duration(manager: TestManager): Duration =
   let now = Moment.now()
   (manager.timeEnd |? now) - (manager.timeStart |? now)
 
-proc testsStatus*(manager: TestManager): ?!bool =
+proc allTestsPassed*(manager: TestManager): ?!bool =
   for test in manager.tests:
     if test.status in {IntegrationTestStatus.New, IntegrationTestStatus.Running}:
       return failure "Integration tests not complete"
 
     if test.status != IntegrationTestStatus.Ok:
-      return success true
+      return success false
 
-  return success false
+  return success true
 
 proc duration(test: IntegrationTest): Duration =
   let now = Moment.now()
