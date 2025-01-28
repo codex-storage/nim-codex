@@ -224,7 +224,7 @@ asyncchecksuite "Sales":
     availability = a.get # update id
 
   proc notProcessed(itemsProcessed: seq[SlotQueueItem], request: StorageRequest): bool =
-    let items = SlotQueueItem.init(request)
+    let items = SlotQueueItem.init(request, collateral = request.ask.collateralPerSlot)
     for i in 0 ..< items.len:
       if itemsProcessed.contains(items[i]):
         return false
@@ -261,7 +261,7 @@ asyncchecksuite "Sales":
       done.complete()
     createAvailability()
     await market.requestStorage(request)
-    let items = SlotQueueItem.init(request)
+    let items = SlotQueueItem.init(request, collateral = request.ask.collateralPerSlot)
     check eventually items.allIt(itemsProcessed.contains(it))
 
   test "removes slots from slot queue once RequestCancelled emitted":
@@ -282,13 +282,15 @@ asyncchecksuite "Sales":
   test "removes slot index from slot queue once SlotFilled emitted":
     let request1 = await addRequestToSaturatedQueue()
     market.emitSlotFilled(request1.id, 1.u256)
-    let expected = SlotQueueItem.init(request1, 1'u16)
+    let expected =
+      SlotQueueItem.init(request1, 1'u16, collateral = request1.ask.collateralPerSlot)
     check always (not itemsProcessed.contains(expected))
 
   test "removes slot index from slot queue once SlotReservationsFull emitted":
     let request1 = await addRequestToSaturatedQueue()
     market.emitSlotReservationsFull(request1.id, 1.u256)
-    let expected = SlotQueueItem.init(request1, 1'u16)
+    let expected =
+      SlotQueueItem.init(request1, 1'u16, collateral = request1.ask.collateralPerSlot)
     check always (not itemsProcessed.contains(expected))
 
   test "adds slot index to slot queue once SlotFreed emitted":
@@ -303,13 +305,14 @@ asyncchecksuite "Sales":
 
     let collateralPerSlot = await market.slotCollateral(request.id, 2.u256)
 
-    let expected = SlotQueueItem.init(request, 2.uint16)
+    let expected =
+      SlotQueueItem.init(request, 2.uint16, collateral = request.ask.collateralPerSlot)
 
     check eventually itemsProcessed.contains(expected)
 
   test "items in queue are readded (and marked seen) once ignored":
     await market.requestStorage(request)
-    let items = SlotQueueItem.init(request)
+    let items = SlotQueueItem.init(request, collateral = request.ask.collateralPerSlot)
     check eventually queue.len > 0
       # queue starts paused, allow items to be added to the queue
     check eventually queue.paused
@@ -330,7 +333,7 @@ asyncchecksuite "Sales":
   test "queue is paused once availability is insufficient to service slots in queue":
     createAvailability() # enough to fill a single slot
     await market.requestStorage(request)
-    let items = SlotQueueItem.init(request)
+    let items = SlotQueueItem.init(request, collateral = request.ask.collateralPerSlot)
     check eventually queue.len > 0
       # queue starts paused, allow items to be added to the queue
     check eventually queue.paused

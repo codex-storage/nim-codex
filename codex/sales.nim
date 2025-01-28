@@ -153,7 +153,7 @@ proc cleanUp(
   # Re-add items back into the queue to prevent small availabilities from
   # draining the queue. Seen items will be ordered last.
   if reprocessSlot and request =? data.request:
-    let collateralPerSlot =
+    let collateral =
       await sales.context.market.slotCollateral(data.requestId, data.slotIndex)
 
     let queue = sales.context.slotQueue
@@ -163,7 +163,7 @@ proc cleanUp(
       data.ask,
       request.expiry,
       seen = true,
-      collateralPerSlot = collateralPerSlot,
+      collateral = collateral,
     )
     trace "pushing ignored item to queue, marked as seen"
     if err =? queue.push(seenItem).errorOption:
@@ -299,7 +299,8 @@ proc onStorageRequested(
 
   trace "storage requested, adding slots to queue"
 
-  without items =? SlotQueueItem.init(requestId, ask, expiry).catch, err:
+  without items =?
+    SlotQueueItem.init(requestId, ask, expiry, ask.collateralPerSlot).catch, err:
     if err of SlotsOutOfRangeError:
       warn "Too many slots, cannot add to queue"
     else:
@@ -343,11 +344,10 @@ proc onSlotFreed(sales: Sales, requestId: RequestId, slotIndex: UInt256) =
       # Note: The slotCollateral function will invoke the contract method slotState,
       # but this is unnecessary since we already know the slot's state (Repair).
       # To avoid an unnecessary RPC call, we could eliminate this redundant call.
-      let collateralPerSlot = await market.slotCollateral(request.id, slotIndex)
+      let collateral = await market.slotCollateral(request.id, slotIndex)
 
-      slotQueueItem = SlotQueueItem.init(
-        request, slotIndex.truncate(uint16), collateralPerSlot = collateralPerSlot
-      )
+      slotQueueItem =
+        SlotQueueItem.init(request, slotIndex.truncate(uint16), collateral = collateral)
 
       if err =? queue.push(slotQueueItem).errorOption:
         error "failed to push slot items to queue", error = err.msgDetail

@@ -7,7 +7,7 @@ type MockSlotQueueItem* = object
   slotSize*: UInt256
   duration*: UInt256
   pricePerBytePerSecond*: UInt256
-  collateralPerByte*: UInt256
+  collateral*: UInt256
   expiry*: UInt256
   seen*: bool
 
@@ -19,9 +19,8 @@ proc toSlotQueueItem*(item: MockSlotQueueItem): SlotQueueItem =
       slotSize: item.slotSize,
       duration: item.duration,
       pricePerBytePerSecond: item.pricePerBytePerSecond,
-      collateralPerByte: item.collateralPerByte,
     ),
     expiry = item.expiry,
     seen = item.seen,
-    collateralPerSlot = item.collateralPerByte * item.slotSize,
+    collateral = item.collateral,
   )

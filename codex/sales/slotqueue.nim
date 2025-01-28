@@ -33,8 +33,7 @@ type
     slotSize: UInt256
     duration: UInt256
     pricePerBytePerSecond: UInt256
-    collateralPerByte: UInt256
-    collateralPerSlot: UInt256
+    collateral: UInt256 # Collateral computed
     expiry: UInt256
     seen: bool
 
@@ -92,8 +91,8 @@ proc `<`*(a, b: SlotQueueItem): bool =
   scoreA.addIf(a.profitability > b.profitability, 3)
   scoreB.addIf(a.profitability < b.profitability, 3)
 
-  scoreA.addIf(a.collateralPerSlot < b.collateralPerSlot, 2)
-  scoreB.addIf(a.collateralPerSlot > b.collateralPerSlot, 2)
+  scoreA.addIf(a.collateral < b.collateral, 2)
+  scoreB.addIf(a.collateral > b.collateral, 2)
 
   scoreA.addIf(a.expiry > b.expiry, 1)
   scoreB.addIf(a.expiry < b.expiry, 1)
@@ -134,8 +133,8 @@ proc init*(
     slotIndex: uint16,
     ask: StorageAsk,
     expiry: UInt256,
+    collateral: UInt256,
     seen = false,
-    collateralPerSlot: UInt256 = 0.u256,
 ): SlotQueueItem =
   SlotQueueItem(
     requestId: requestId,
@@ -143,9 +142,7 @@ proc init*(
     slotSize: ask.slotSize,
     duration: ask.duration,
     pricePerBytePerSecond: ask.pricePerBytePerSecond,
-    collateralPerByte: ask.collateralPerByte,
-    collateralPerSlot:
-      if collateralPerSlot.isZero: ask.collateralPerSlot else: collateralPerSlot,
+    collateral: collateral,
     expiry: expiry,
     seen: seen,
   )
@@ -154,25 +151,25 @@ proc init*(
     _: type SlotQueueItem,
     request: StorageRequest,
     slotIndex: uint16,
-    collateralPerSlot: UInt256 = 0.u256,
+    collateral: UInt256,
 ): SlotQueueItem =
   SlotQueueItem.init(
-    request.id,
-    slotIndex,
-    request.ask,
-    request.expiry,
-    collateralPerSlot = collateralPerSlot,
+    request.id, slotIndex, request.ask, request.expiry, collateral = collateral
   )
 
 proc init*(
-    _: type SlotQueueItem, requestId: RequestId, ask: StorageAsk, expiry: UInt256
+    _: type SlotQueueItem,
+    requestId: RequestId,
+    ask: StorageAsk,
+    expiry: UInt256,
+    collateral: UInt256,
 ): seq[SlotQueueItem] =
   if not ask.slots.inRange:
     raise newException(SlotsOutOfRangeError, "Too many slots")
 
   var i = 0'u16
   proc initSlotQueueItem(): SlotQueueItem =
-    let item = SlotQueueItem.init(requestId, i, ask, expiry)
+    let item = SlotQueueItem.init(requestId, i, ask, expiry, collateral)
     inc i
     return item
 
@@ -180,8 +177,10 @@ proc init*(
   Rng.instance.shuffle(items)
   return items
 
-proc init*(_: type SlotQueueItem, request: StorageRequest): seq[SlotQueueItem] =
-  return SlotQueueItem.init(request.id, request.ask, request.expiry)
+proc init*(
+    _: type SlotQueueItem, request: StorageRequest, collateral: UInt256
+): seq[SlotQueueItem] =
+  return SlotQueueItem.init(request.id, request.ask, request.expiry, collateral)
 
 proc inRange*(val: SomeUnsignedInt): bool =
   val.uint16 in SlotQueueSize.low .. SlotQueueSize.high

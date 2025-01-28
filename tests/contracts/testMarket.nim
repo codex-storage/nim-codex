@@ -2,7 +2,6 @@ import std/options
 import std/importutils
 import pkg/chronos
 import pkg/ethers/erc20
-import pkg/lrucache
 import codex/contracts
 import ../ethertest
 import ./examples
