@@ -160,7 +160,7 @@ proc cleanUp(
     var seenItem = SlotQueueItem.init(
       data.requestId,
       data.slotIndex.truncate(uint16),
-      request.ask,
+      data.ask,
       request.expiry,
       seen = true,
       collateralPerSlot = collateralPerSlot,
@@ -346,11 +346,7 @@ proc onSlotFreed(sales: Sales, requestId: RequestId, slotIndex: UInt256) =
       let collateralPerSlot = await market.slotCollateral(request.id, slotIndex)
 
       slotQueueItem = SlotQueueItem.init(
-        request.id,
-        slotIndex.truncate(uint16),
-        request.ask,
-        request.expiry,
-        collateralPerSlot = collateralPerSlot,
+        request, slotIndex.truncate(uint16), collateralPerSlot = collateralPerSlot
       )
 
       if err =? queue.push(slotQueueItem).errorOption:

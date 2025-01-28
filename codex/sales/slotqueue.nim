@@ -151,9 +151,18 @@ proc init*(
   )
 
 proc init*(
-    _: type SlotQueueItem, request: StorageRequest, slotIndex: uint16
+    _: type SlotQueueItem,
+    request: StorageRequest,
+    slotIndex: uint16,
+    collateralPerSlot: UInt256 = 0.u256,
 ): SlotQueueItem =
-  SlotQueueItem.init(request.id, slotIndex, request.ask, request.expiry)
+  SlotQueueItem.init(
+    request.id,
+    slotIndex,
+    request.ask,
+    request.expiry,
+    collateralPerSlot = collateralPerSlot,
+  )
 
 proc init*(
     _: type SlotQueueItem, requestId: RequestId, ask: StorageAsk, expiry: UInt256

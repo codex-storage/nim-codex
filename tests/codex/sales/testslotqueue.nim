@@ -432,11 +432,7 @@ suite "Slot queue":
     var request = StorageRequest.example
     let item0 = SlotQueueItem.init(request, 0)
     let item1 = SlotQueueItem.init(
-      request.id,
-      1.uint16,
-      request.ask,
-      request.expiry,
-      collateralPerSlot = request.ask.collateralPerSlot + 1.u256,
+      request, 1, collateralPerSlot = request.ask.collateralPerSlot + 1.u256
     )
     check item1 > item0
 
