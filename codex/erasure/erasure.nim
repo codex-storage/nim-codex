@@ -91,14 +91,14 @@ type
     minSize*: NBytes
 
   EncodeTask = object
-    result: Atomic[bool]
+    success: Atomic[bool]
     encoder: EncoderBackend
     blocks: ref seq[seq[byte]]
     parity: ptr seq[seq[byte]]
     signal: ThreadSignalPtr
 
   DecodeTask = object
-    result: Atomic[bool]
+    success: Atomic[bool]
     decoder: DecoderBackend
     data: ref seq[seq[byte]]
     parity: ref seq[seq[byte]]
@@ -291,22 +291,22 @@ proc leopardEncodeTask(tp: Taskpool, task: ptr EncodeTask) =
   # Task suitable for running in taskpools - look, no GC!
   if (let res = task[].encoder.encode(task[].blocks[], task[].parity[]); res.isErr):
     warn "Error from leopard encoder backend!", error = $res.error
-    task[].result.store(false)
+    task[].success.store(false)
   else:
-    task[].result.store(true)
+    task[].success.store(true)
 
   discard task[].signal.fireSync()
 
-proc asyncEncode(
+proc encodeAsync(
     self: Erasure,
     blockSize, ecK, ecM: int,
     data: ref seq[seq[byte]],
     parity: ptr seq[seq[byte]],
-): Future[Result[void, string]] {.async.} =
+): Future[?!void] {.async: (raises: []).} =
   ## Create an encoder backend instance
   let encoder = self.encoderProvider(blockSize, ecK, ecM)
   without threadPtr =? ThreadSignalPtr.new():
-    return err("Unable to create thread signal")
+    return failure("Unable to create thread signal")
 
   ## Create an ecode task with block data 
   var task =
@@ -321,15 +321,17 @@ proc asyncEncode(
     await threadPtr.wait()
   except AsyncError as exc:
     warn "Async thread error", err = exc.msg
-    return err(exc.msg)
+    return failure(exc.msg)
+  except CancelledError:
+    return failure("Thread cancelled")
   finally:
     # release the encoder
     t.encoder.release()
 
-  if not t.result.load():
-    return err("Leopard encoding failed")
+  if not t.success.load():
+    return failure("Leopard encoding failed")
 
-  ok()
+  success()
 
 proc encodeData(
     self: Erasure, manifest: Manifest, params: EncodingParams
@@ -374,11 +376,13 @@ proc encodeData(
         return failure(err)
 
       trace "Erasure coding data", data = data[].len, parity = parityData.len
-      let encodeResult = await self.asyncEncode(
-        manifest.blockSize.int, params.ecK, params.ecM, data, addr parityData
-      )
-      if encodeResult.isErr:
-        return failure(encodeResult.error)
+
+      if err =? (
+        await self.encodeAsync(
+          manifest.blockSize.int, params.ecK, params.ecM, data, addr parityData
+        )
+      ).errorOption:
+        return failure(err)
 
       var idx = params.rounded + step
       for j in 0 ..< params.ecM:
@@ -449,9 +453,9 @@ proc leopardDecodeTask(tp: Taskpool, task: ptr DecodeTask) =
     res.isErr
   ):
     warn "Error from leopard decoder backend!", error = $res.error
-    task[].result.store(false)
+    task[].success.store(false)
   else:
-    task[].result.store(true)
+    task[].success.store(true)
 
   discard task[].signal.fireSync()
 
@@ -460,10 +464,10 @@ proc decodeAsync(
     blockSize, ecK, ecM: int,
     data, parity: ref seq[seq[byte]],
     recovered: ptr seq[seq[byte]],
-): Future[Result[void, string]] {.async.} =
+): Future[?!void] {.async: (raises: []).} =
   let decoder = self.decoderProvider(blockSize, ecK, ecM)
   without threadPtr =? ThreadSignalPtr.new():
-    return err("Unable to create thread signal")
+    return failure("Unable to create thread signal")
 
   ## Create an decode task with block data 
   var task = DecodeTask(
@@ -474,7 +478,9 @@ proc decodeAsync(
     signal: threadPtr,
   )
 
+  # Hold the task pointer until the signal is received
   let t = addr task
+
   doAssert self.taskPool.numThreads > 1,
     "Must have at least one separate thread or signal will never be fired"
   self.taskPool.spawn leopardDecodeTask(self.taskPool, t)
@@ -483,15 +489,17 @@ proc decodeAsync(
     await threadPtr.wait()
   except AsyncError as exc:
     warn "Async thread error", err = exc.msg
-    return err(exc.msg)
+    return failure(exc.msg)
+  except CancelledError:
+    return failure("Thread cancelled")
   finally:
     # release the encoder
     t.decoder.release()
 
-  if not t.result.load():
-    return err("Leopard decoding failed")
+  if not t.success.load():
+    return failure("Leopard decoding failed")
 
-  ok()
+  success()
 
 proc decode*(self: Erasure, encoded: Manifest): Future[?!Manifest] {.async.} =
   ## Decode a protected manifest into it's original
@@ -543,16 +551,17 @@ proc decode*(self: Erasure, encoded: Manifest): Future[?!Manifest] {.async.} =
 
       trace "Erasure decoding data"
 
-      let err = await self.decodeAsync(
-        encoded.blockSize.int,
-        encoded.ecK,
-        encoded.ecM,
-        data,
-        parityData,
-        addr recovered,
-      )
-      if err.isErr:
-        return failure(err.error)
+      if err =? (
+        await self.decodeAsync(
+          encoded.blockSize.int,
+          encoded.ecK,
+          encoded.ecM,
+          data,
+          parityData,
+          addr recovered,
+        )
+      ).errorOption:
+        return failure(err)
 
       for i in 0 ..< encoded.ecK:
         let idx = i * encoded.steps + step
