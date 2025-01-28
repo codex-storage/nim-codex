@@ -126,6 +126,7 @@ proc new*(
     debugTestHarness: debugTestHarness,
     debugHardhat: debugHardhat,
     debugCodexNodes: debugCodexNodes,
+    showContinuousStatusUpdates: showContinuousStatusUpdates,
     testTimeout: testTimeout,
     trackedFutures: TrackedFutures.new(),
   )
