@@ -21,7 +21,6 @@ type
     signer: Signer
     rewardRecipient: ?Address
     configuration: ?MarketplaceConfig
-    requestCache: LruCache[string, StorageRequest]
 
   MarketSubscription = market.Subscription
   EventSubscription = ethers.Subscription
@@ -29,22 +28,12 @@ type
     eventSubscription: EventSubscription
 
 func new*(
-    _: type OnChainMarket,
-    contract: Marketplace,
-    rewardRecipient = Address.none,
-    requestCacheSize: uint16 = 0,
+    _: type OnChainMarket, contract: Marketplace, rewardRecipient = Address.none
 ): OnChainMarket =
   without signer =? contract.signer:
     raiseAssert("Marketplace contract should have a signer")
 
-  var requestCache = newLruCache[string, StorageRequest](int(requestCacheSize))
-
-  OnChainMarket(
-    contract: contract,
-    signer: signer,
-    rewardRecipient: rewardRecipient,
-    requestCache: requestCache,
-  )
+  OnChainMarket(contract: contract, signer: signer, rewardRecipient: rewardRecipient)
 
 proc raiseMarketError(message: string) {.raises: [MarketError].} =
   raise newException(MarketError, message)
@@ -126,14 +115,9 @@ method getRequest*(
 ): Future[?StorageRequest] {.async.} =
   let key = $id
 
-  if market.requestCache.contains(key):
-    return some market.requestCache[key]
-
   convertEthersError:
     try:
-      let request = await market.contract.getRequest(id)
-      market.requestCache[key] = request
-      return some request
+      return some await market.contract.getRequest(id)
     except Marketplace_UnknownRequest:
       return none StorageRequest
 

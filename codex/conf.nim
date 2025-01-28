@@ -347,15 +347,6 @@ type
         name: "reward-recipient"
       .}: Option[EthAddress]
 
-      marketplaceRequestCacheSize* {.
-        desc:
-          "The size of the request cache - " &
-          "reduce the contract calls to get the request data.",
-        defaultValue: 128,
-        defaultValueDesc: "128",
-        name: "request-cache-size"
-      .}: uint16
-
       case persistenceCmd* {.defaultValue: noCmd, command.}: PersistenceCmd
       of PersistenceCmd.prover:
         circuitDir* {.
