@@ -35,11 +35,11 @@ method run(state: SaleFilling, machine: Machine): Future[?State] {.async.} =
     requestId = data.requestId
     slotIndex = data.slotIndex
 
-  let slotCollateral = await market.slotCollateral(data.requestId, SlotState.Free)
+  let collateral = await market.slotCollateral(data.requestId, SlotState.Free)
 
   debug "Filling slot"
   try:
-    await market.fillSlot(data.requestId, data.slotIndex, state.proof, slotCollateral)
+    await market.fillSlot(data.requestId, data.slotIndex, state.proof, collateral)
   except MarketError as e:
     if e.msg.contains "Slot is not free":
       debug "Slot is already filled, ignoring slot"
