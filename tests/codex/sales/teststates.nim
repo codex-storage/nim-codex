@@ -1,6 +1,7 @@
 import ./states/testunknown
 import ./states/testdownloading
 import ./states/testfilling
+import ./states/testpayout
 import ./states/testfinished
 import ./states/testinitialproving
 import ./states/testfilled

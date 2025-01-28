@@ -1,7 +1,8 @@
 import pkg/questionable
 import pkg/chronos
 import pkg/codex/contracts/requests
-import pkg/codex/sales/states/cancelled
+import pkg/codex/sales/states/payout
+import pkg/codex/sales/states/finished
 import pkg/codex/sales/salesagent
 import pkg/codex/sales/salescontext
 import pkg/codex/market
@@ -12,7 +13,7 @@ import ../../helpers
 import ../../helpers/mockmarket
 import ../../helpers/mockclock
 
-asyncchecksuite "sales state 'cancelled'":
+asyncchecksuite "sales state 'payout'":
   let request = StorageRequest.example
   let slotIndex = (request.ask.slots div 2).u256
   let clock = MockClock.new()
@@ -20,27 +21,17 @@ asyncchecksuite "sales state 'cancelled'":
   let currentCollateral = UInt256.example
 
   var market: MockMarket
-  var state: SaleCancelled
+  var state: SalePayout
   var agent: SalesAgent
-  var returnBytesWas = bool.none
-  var reprocessSlotWas = bool.none
-  var returnedCollateralValue = UInt256.none
 
   setup:
     market = MockMarket.new()
-    let onCleanUp = proc(
-        returnBytes = false, reprocessSlot = false, returnedCollateral = UInt256.none
-    ) {.async.} =
-      returnBytesWas = some returnBytes
-      reprocessSlotWas = some reprocessSlot
-      returnedCollateralValue = returnedCollateral
 
     let context = SalesContext(market: market, clock: clock)
     agent = newSalesAgent(context, request.id, slotIndex, request.some)
-    agent.onCleanUp = onCleanUp
-    state = SaleCancelled.new()
+    state = SalePayout.new()
 
-  test "calls onCleanUp with returnBytes = false, reprocessSlot = true, and returnedCollateral = currentCollateral":
+  test "switches to 'finished' state and provides returnedCollateral":
     market.fillSlot(
       requestId = request.id,
       slotIndex = slotIndex,
@@ -48,7 +39,6 @@ asyncchecksuite "sales state 'cancelled'":
       host = Address.example,
       collateral = currentCollateral,
     )
-    discard await state.run(agent)
-    check eventually returnBytesWas == some true
-    check eventually reprocessSlotWas == some false
-    check eventually returnedCollateralValue == some currentCollateral
+    let next = await state.run(agent)
+    check !next of SaleFinished
+    check SaleFinished(!next).returnedCollateral == some currentCollateral

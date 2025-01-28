@@ -21,8 +21,14 @@ twonodessuite "REST API":
 
   test "node shows used and available space", twoNodesConfig:
     discard client1.upload("some file contents").get
+    let totalSize = 12.u256
+    let minPricePerBytePerSecond = 1.u256
+    let totalCollateral = totalSize * minPricePerBytePerSecond
     discard client1.postAvailability(
-      totalSize = 12.u256, duration = 2.u256, minPrice = 3.u256, maxCollateral = 4.u256
+      totalSize = totalSize,
+      duration = 2.u256,
+      minPricePerBytePerSecond = minPricePerBytePerSecond,
+      totalCollateral = totalCollateral,
     ).get
     let space = client1.space().tryGet()
     check:
@@ -47,9 +53,9 @@ twonodessuite "REST API":
     let response = client1.requestStorageRaw(
       cid,
       duration = 10.u256,
-      reward = 2.u256,
+      pricePerBytePerSecond = 1.u256,
       proofProbability = 3.u256,
-      collateral = 200.u256,
+      collateralPerByte = 1.u256,
       expiry = 9,
     )
 
@@ -65,9 +71,9 @@ twonodessuite "REST API":
     let response = client1.requestStorageRaw(
       cid,
       duration = 10.u256,
-      reward = 2.u256,
+      pricePerBytePerSecond = 1.u256,
       proofProbability = 3.u256,
-      collateral = 200.u256,
+      collateralPerByte = 1.u256,
       expiry = 9,
     )
 
@@ -78,16 +84,16 @@ twonodessuite "REST API":
     let data = await RandomChunker.example(blocks = 2)
     let cid = client1.upload(data).get
     let duration = 100.u256
-    let reward = 2.u256
+    let pricePerBytePerSecond = 1.u256
     let proofProbability = 3.u256
     let expiry = 30.uint
-    let collateral = 200.u256
+    let collateralPerByte = 1.u256
     let nodes = 3
     let tolerance = 0
 
     var responseBefore = client1.requestStorageRaw(
-      cid, duration, reward, proofProbability, collateral, expiry, nodes.uint,
-      tolerance.uint,
+      cid, duration, pricePerBytePerSecond, proofProbability, collateralPerByte, expiry,
+      nodes.uint, tolerance.uint,
     )
 
     check responseBefore.status == "400 Bad Request"
@@ -97,18 +103,18 @@ twonodessuite "REST API":
     let data = await RandomChunker.example(blocks = 2)
     let cid = client1.upload(data).get
     let duration = 100.u256
-    let reward = 2.u256
+    let pricePerBytePerSecond = 1.u256
     let proofProbability = 3.u256
     let expiry = 30.uint
-    let collateral = 200.u256
+    let collateralPerByte = 1.u256
     let ecParams = @[(1, 1), (2, 1), (3, 2), (3, 3)]
 
     for ecParam in ecParams:
       let (nodes, tolerance) = ecParam
 
       var responseBefore = client1.requestStorageRaw(
-        cid, duration, reward, proofProbability, collateral, expiry, nodes.uint,
-        tolerance.uint,
+        cid, duration, pricePerBytePerSecond, proofProbability, collateralPerByte,
+        expiry, nodes.uint, tolerance.uint,
       )
 
       check responseBefore.status == "400 Bad Request"
@@ -120,18 +126,18 @@ twonodessuite "REST API":
     let data = await RandomChunker.example(blocks = 2)
     let cid = client1.upload(data).get
     let duration = 100.u256
-    let reward = 2.u256
+    let pricePerBytePerSecond = 1.u256
     let proofProbability = 3.u256
     let expiry = 30.uint
-    let collateral = 200.u256
+    let collateralPerByte = 1.u256
     let ecParams = @[(0, 1), (1, 2), (2, 3)]
 
     for ecParam in ecParams:
       let (nodes, tolerance) = ecParam
 
       var responseBefore = client1.requestStorageRaw(
-        cid, duration, reward, proofProbability, collateral, expiry, nodes.uint,
-        tolerance.uint,
+        cid, duration, pricePerBytePerSecond, proofProbability, collateralPerByte,
+        expiry, nodes.uint, tolerance.uint,
       )
 
       check responseBefore.status == "400 Bad Request"
@@ -142,18 +148,18 @@ twonodessuite "REST API":
     let data = await RandomChunker.example(blocks = 2)
     let cid = client1.upload(data).get
     let duration = 100.u256
-    let reward = 2.u256
+    let pricePerBytePerSecond = 1.u256
     let proofProbability = 3.u256
     let expiry = 30.uint
-    let collateral = 200.u256
+    let collateralPerByte = 1.u256
     let ecParams = @[(3, 1), (5, 2)]
 
     for ecParam in ecParams:
       let (nodes, tolerance) = ecParam
 
       var responseBefore = client1.requestStorageRaw(
-        cid, duration, reward, proofProbability, collateral, expiry, nodes.uint,
-        tolerance.uint,
+        cid, duration, pricePerBytePerSecond, proofProbability, collateralPerByte,
+        expiry, nodes.uint, tolerance.uint,
       )
 
       check responseBefore.status == "200 OK"

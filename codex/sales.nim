@@ -115,6 +115,7 @@ proc cleanUp(
     agent: SalesAgent,
     returnBytes: bool,
     reprocessSlot: bool,
+    returnedCollateral: ?UInt256,
     processing: Future[void],
 ) {.async.} =
   let data = agent.data
@@ -144,7 +145,7 @@ proc cleanUp(
   if reservation =? data.reservation and
       deleteErr =? (
         await sales.context.reservations.deleteReservation(
-          reservation.id, reservation.availabilityId
+          reservation.id, reservation.availabilityId, returnedCollateral
         )
       ).errorOption:
     error "failure deleting reservation", error = deleteErr.msg
@@ -187,8 +188,10 @@ proc processSlot(sales: Sales, item: SlotQueueItem, done: Future[void]) =
     sales.context, item.requestId, item.slotIndex.u256, none StorageRequest
   )
 
-  agent.onCleanUp = proc(returnBytes = false, reprocessSlot = false) {.async.} =
-    await sales.cleanUp(agent, returnBytes, reprocessSlot, done)
+  agent.onCleanUp = proc(
+      returnBytes = false, reprocessSlot = false, returnedCollateral = UInt256.none
+  ) {.async.} =
+    await sales.cleanUp(agent, returnBytes, reprocessSlot, returnedCollateral, done)
 
   agent.onFilled = some proc(request: StorageRequest, slotIndex: UInt256) =
     sales.filled(request, slotIndex, done)
@@ -253,11 +256,13 @@ proc load*(sales: Sales) {.async.} =
     let agent =
       newSalesAgent(sales.context, slot.request.id, slot.slotIndex, some slot.request)
 
-    agent.onCleanUp = proc(returnBytes = false, reprocessSlot = false) {.async.} =
+    agent.onCleanUp = proc(
+        returnBytes = false, reprocessSlot = false, returnedCollateral = UInt256.none
+    ) {.async.} =
       # since workers are not being dispatched, this future has not been created
       # by a worker. Create a dummy one here so we can call sales.cleanUp
       let done: Future[void] = nil
-      await sales.cleanUp(agent, returnBytes, reprocessSlot, done)
+      await sales.cleanUp(agent, returnBytes, reprocessSlot, returnedCollateral, done)
 
     # There is no need to assign agent.onFilled as slots loaded from `mySlots`
     # are inherently already filled and so assigning agent.onFilled would be

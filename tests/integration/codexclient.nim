@@ -105,9 +105,9 @@ proc requestStorageRaw*(
     client: CodexClient,
     cid: Cid,
     duration: UInt256,
-    reward: UInt256,
+    pricePerBytePerSecond: UInt256,
     proofProbability: UInt256,
-    collateral: UInt256,
+    collateralPerByte: UInt256,
     expiry: uint = 0,
     nodes: uint = 3,
     tolerance: uint = 1,
@@ -118,9 +118,9 @@ proc requestStorageRaw*(
   let json =
     %*{
       "duration": duration,
-      "reward": reward,
+      "pricePerBytePerSecond": pricePerBytePerSecond,
       "proofProbability": proofProbability,
-      "collateral": collateral,
+      "collateralPerByte": collateralPerByte,
       "nodes": nodes,
       "tolerance": tolerance,
     }
@@ -134,17 +134,18 @@ proc requestStorage*(
     client: CodexClient,
     cid: Cid,
     duration: UInt256,
-    reward: UInt256,
+    pricePerBytePerSecond: UInt256,
     proofProbability: UInt256,
     expiry: uint,
-    collateral: UInt256,
+    collateralPerByte: UInt256,
     nodes: uint = 3,
     tolerance: uint = 1,
 ): ?!PurchaseId =
   ## Call request storage REST endpoint
   ##
   let response = client.requestStorageRaw(
-    cid, duration, reward, proofProbability, collateral, expiry, nodes, tolerance
+    cid, duration, pricePerBytePerSecond, proofProbability, collateralPerByte, expiry,
+    nodes, tolerance,
   )
   if response.status != "200 OK":
     doAssert(false, response.body)
@@ -172,7 +173,8 @@ proc getSlots*(client: CodexClient): ?!seq[Slot] =
   seq[Slot].fromJson(body)
 
 proc postAvailability*(
-    client: CodexClient, totalSize, duration, minPrice, maxCollateral: UInt256
+    client: CodexClient,
+    totalSize, duration, minPricePerBytePerSecond, totalCollateral: UInt256,
 ): ?!Availability =
   ## Post sales availability endpoint
   ##
@@ -181,8 +183,8 @@ proc postAvailability*(
     %*{
       "totalSize": totalSize,
       "duration": duration,
-      "minPrice": minPrice,
-      "maxCollateral": maxCollateral,
+      "minPricePerBytePerSecond": minPricePerBytePerSecond,
+      "totalCollateral": totalCollateral,
     }
   let response = client.http.post(url, $json)
   doAssert response.status == "201 Created",
@@ -192,7 +194,8 @@ proc postAvailability*(
 proc patchAvailabilityRaw*(
     client: CodexClient,
     availabilityId: AvailabilityId,
-    totalSize, freeSize, duration, minPrice, maxCollateral: ?UInt256 = UInt256.none,
+    totalSize, freeSize, duration, minPricePerBytePerSecond, totalCollateral: ?UInt256 =
+      UInt256.none,
 ): Response =
   ## Updates availability
   ##
@@ -210,25 +213,26 @@ proc patchAvailabilityRaw*(
   if duration =? duration:
     json["duration"] = %duration
 
-  if minPrice =? minPrice:
-    json["minPrice"] = %minPrice
+  if minPricePerBytePerSecond =? minPricePerBytePerSecond:
+    json["minPricePerBytePerSecond"] = %minPricePerBytePerSecond
 
-  if maxCollateral =? maxCollateral:
-    json["maxCollateral"] = %maxCollateral
+  if totalCollateral =? totalCollateral:
+    json["totalCollateral"] = %totalCollateral
 
   client.http.patch(url, $json)
 
 proc patchAvailability*(
     client: CodexClient,
     availabilityId: AvailabilityId,
-    totalSize, duration, minPrice, maxCollateral: ?UInt256 = UInt256.none,
+    totalSize, duration, minPricePerBytePerSecond, totalCollateral: ?UInt256 =
+      UInt256.none,
 ): void =
   let response = client.patchAvailabilityRaw(
     availabilityId,
     totalSize = totalSize,
     duration = duration,
-    minPrice = minPrice,
-    maxCollateral = maxCollateral,
+    minPricePerBytePerSecond = minPricePerBytePerSecond,
+    totalCollateral = totalCollateral,
   )
   doAssert response.status == "200 OK", "expected 200 OK, got " & response.status
 
