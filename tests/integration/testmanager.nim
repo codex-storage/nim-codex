@@ -294,14 +294,14 @@ proc buildCommand(
     raiseTestManagerError "bad file name, testFile: " & test.config.testFile, parent
 
   withLock(test.manager.codexPortLock):
-    # Increase the port by 100 to allow each test to run 100 codex nodes
+    # Increase the port by 20 to allow each test to run 20 codex nodes
     # (clients, SPs, validators) giving a good chance the port will be free. We
     # cannot rely on `nextFreePort` in multinodes entirely as there could be a
     # concurrency issue where the port is determined free in mulitiple tests and
     # then there is a clash during the run.
-    let apiPort = await nextFreePort(test.manager.lastCodexApiPort + 100)
+    let apiPort = await nextFreePort(test.manager.lastCodexApiPort + 20)
     test.manager.lastCodexApiPort = apiPort
-    let discPort = await nextFreePort(test.manager.lastCodexDiscPort + 100)
+    let discPort = await nextFreePort(test.manager.lastCodexDiscPort + 20)
     test.manager.lastCodexDiscPort = discPort
 
     withLock(test.manager.hardhatPortLock):
