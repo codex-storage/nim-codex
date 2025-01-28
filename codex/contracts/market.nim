@@ -2,7 +2,6 @@ import std/strutils
 import pkg/ethers
 import pkg/upraises
 import pkg/questionable
-import pkg/lrucache
 import ../utils/exceptions
 import ../logutils
 import ../market
@@ -113,8 +112,6 @@ method requestStorage(market: OnChainMarket, request: StorageRequest) {.async.} 
 method getRequest*(
     market: OnChainMarket, id: RequestId
 ): Future[?StorageRequest] {.async.} =
-  let key = $id
-
   convertEthersError:
     try:
       return some await market.contract.getRequest(id)
