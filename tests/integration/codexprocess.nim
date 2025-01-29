@@ -15,11 +15,27 @@ export codexclient
 export chronicles
 export nodeprocess
 
+{.push raises: [].}
+
 logScope:
   topics = "integration testing codex process"
 
-type CodexProcess* = ref object of NodeProcess
-  client: ?CodexClient
+type
+  CodexProcess* = ref object of NodeProcess
+    client: ?CodexClient
+
+  CodexProcessError* = object of NodeProcessError
+
+proc raiseCodexProcessError(
+    msg: string, parent: ref CatchableError
+) {.raises: [CodexProcessError].} =
+  raise newException(CodexProcessError, msg & ": " & parent.msg, parent)
+
+template convertError(msg, body: typed) =
+  try:
+    body
+  except CatchableError as parent:
+    raiseCodexProcessError(msg, parent)
 
 method workingDir(node: CodexProcess): string =
   return currentSourcePath() / ".." / ".." / ".."
@@ -33,27 +49,36 @@ method startedOutput(node: CodexProcess): string =
 method processOptions(node: CodexProcess): set[AsyncProcessOption] =
   return {AsyncProcessOption.StdErrToStdOut}
 
-method outputLineEndings(node: CodexProcess): string {.raises: [].} =
+method outputLineEndings(node: CodexProcess): string =
   return "\n"
 
-method onOutputLineCaptured(node: CodexProcess, line: string) {.raises: [].} =
+method onOutputLineCaptured(node: CodexProcess, line: string) =
   discard
 
-proc dataDir(node: CodexProcess): string =
-  let config = CodexConf.load(cmdLine = node.arguments, quitOnFailure = false)
-  return config.dataDir.string
+proc config(node: CodexProcess): CodexConf {.raises: [CodexProcessError].} =
+  # cannot use convertError here as it uses typed parameters which forces type
+  # resolution, while confutils.load uses untyped parameters and expects type
+  # resolution not to happen yet. In other words, it won't compile.
+  try:
+    return CodexConf.load(
+      cmdLine = node.arguments, quitOnFailure = false, secondarySources = nil
+    )
+  except ConfigurationError as parent:
+    raiseCodexProcessError "Failed to load node arguments into CodexConf", parent
 
-proc ethAccount*(node: CodexProcess): Address =
-  let config = CodexConf.load(cmdLine = node.arguments, quitOnFailure = false)
-  without ethAccount =? config.ethAccount:
+proc dataDir(node: CodexProcess): string {.raises: [CodexProcessError].} =
+  return node.config.dataDir.string
+
+proc ethAccount*(node: CodexProcess): Address {.raises: [CodexProcessError].} =
+  without ethAccount =? node.config.ethAccount:
     raiseAssert "eth account not set"
   return Address(ethAccount)
 
-proc apiUrl*(node: CodexProcess): string =
-  let config = CodexConf.load(cmdLine = node.arguments, quitOnFailure = false)
+proc apiUrl*(node: CodexProcess): string {.raises: [CodexProcessError].} =
+  let config = node.config
   return "http://" & config.apiBindAddress & ":" & $config.apiPort & "/api/codex/v1"
 
-proc client*(node: CodexProcess): CodexClient =
+proc client*(node: CodexProcess): CodexClient {.raises: [CodexProcessError].} =
   if client =? node.client:
     return client
   let client = CodexClient.new(node.apiUrl)
@@ -71,5 +96,6 @@ method stop*(node: CodexProcess) {.async.} =
     await client.close()
     node.client = none CodexClient
 
-method removeDataDir*(node: CodexProcess) =
-  removeDir(node.dataDir)
+method removeDataDir*(node: CodexProcess) {.raises: [CodexProcessError].} =
+  convertError("failed to remove codex node data directory"):
+    removeDir(node.dataDir)

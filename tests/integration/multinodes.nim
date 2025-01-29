@@ -126,14 +126,13 @@ template multinodesuite*(name: string, body: untyped) =
       args.add("--port")
       args.add($port)
 
-      let node = await HardhatProcess.startNode(args, config.debugEnabled, "hardhat")
       try:
+        let node = await HardhatProcess.startNode(args, config.debugEnabled, "hardhat")
         await node.waitUntilStarted()
+        trace "hardhat node started"
+        return node
       except NodeProcessError as e:
         raiseMultiNodeSuiteError "hardhat node not started: " & e.msg
-
-      trace "hardhat node started"
-      return node
 
     proc newCodexProcess(
         roleIdx: int, conf: CodexConfig, role: Role
