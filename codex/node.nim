@@ -332,7 +332,6 @@ proc store*(
     codec = dataCodec,
     filename = filename,
     mimetype = mimetype,
-    uploadedAt = now().utc.toTime.toUnix.some,
   )
 
   without manifestBlk =? await self.storeManifest(manifest), err:

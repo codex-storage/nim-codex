@@ -227,8 +227,6 @@ twonodessuite "REST API":
     check manifest["filename"].getStr() == "example.txt"
     check manifest.hasKey("mimetype") == true
     check manifest["mimetype"].getStr() == "text/plain"
-    check manifest.hasKey("uploadedAt") == true
-    check manifest["uploadedAt"].getInt() > 0
 
   test "node set the headers when for download", twoNodesConfig:
     let headers = newHttpHeaders(
