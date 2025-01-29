@@ -439,8 +439,11 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
 
       without availability =? (
         await reservations.createAvailability(
-          restAv.totalSize, restAv.duration, restAv.minPricePerBytePerSecond,
+          restAv.totalSize,
+          restAv.duration,
+          restAv.minPricePerBytePerSecond,
           restAv.totalCollateral,
+          enabled = restAv.enabled |? true,
         )
       ), error:
         return RestApiResponse.error(Http500, error.msg, headers = headers)
@@ -525,6 +528,8 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
 
       if totalCollateral =? restAv.totalCollateral:
         availability.totalCollateral = totalCollateral
+
+      availability.enabled = restAv.enabled |? true
 
       if err =? (await reservations.update(availability)).errorOption:
         return RestApiResponse.error(Http500, err.msg)

@@ -149,6 +149,7 @@ asyncchecksuite "Sales":
       duration = 60.u256,
       minPricePerBytePerSecond = minPricePerBytePerSecond,
       totalCollateral = totalCollateral,
+      enabled = true,
     )
     request = StorageRequest(
       ask: StorageAsk(
@@ -216,10 +217,10 @@ asyncchecksuite "Sales":
     let key = availability.id.key.get
     (waitFor reservations.get(key, Availability)).get
 
-  proc createAvailability() =
+  proc createAvailability(enabled = true) =
     let a = waitFor reservations.createAvailability(
       availability.totalSize, availability.duration,
-      availability.minPricePerBytePerSecond, availability.totalCollateral,
+      availability.minPricePerBytePerSecond, availability.totalCollateral, enabled,
     )
     availability = a.get # update id
 
@@ -410,6 +411,20 @@ asyncchecksuite "Sales":
     market.slotState[request.slotId(1.u256)] = SlotState.Filled
     market.slotState[request.slotId(2.u256)] = SlotState.Filled
     market.slotState[request.slotId(3.u256)] = SlotState.Filled
+    check wasIgnored()
+
+  test "ignores request when availability is not enabled":
+    createAvailability(enabled = false)
+    await market.requestStorage(request)
+    check wasIgnored()
+
+  test "ignores request when availability was disabled after the request storage is created":
+    createAvailability(enabled = true)
+    await market.requestStorage(request)
+
+    availability.enabled = false
+    discard await reservations.update(availability)
+
     check wasIgnored()
 
   test "retrieves and stores data locally":

@@ -175,6 +175,7 @@ proc getSlots*(client: CodexClient): ?!seq[Slot] =
 proc postAvailability*(
     client: CodexClient,
     totalSize, duration, minPricePerBytePerSecond, totalCollateral: UInt256,
+    enabled: ?bool = bool.none,
 ): ?!Availability =
   ## Post sales availability endpoint
   ##
@@ -185,6 +186,7 @@ proc postAvailability*(
       "duration": duration,
       "minPricePerBytePerSecond": minPricePerBytePerSecond,
       "totalCollateral": totalCollateral,
+      "enabled": enabled |? true,
     }
   let response = client.http.post(url, $json)
   doAssert response.status == "201 Created",
@@ -196,6 +198,7 @@ proc patchAvailabilityRaw*(
     availabilityId: AvailabilityId,
     totalSize, freeSize, duration, minPricePerBytePerSecond, totalCollateral: ?UInt256 =
       UInt256.none,
+    enabled: ?bool = bool.none,
 ): Response =
   ## Updates availability
   ##
@@ -219,6 +222,9 @@ proc patchAvailabilityRaw*(
   if totalCollateral =? totalCollateral:
     json["totalCollateral"] = %totalCollateral
 
+  if enabled =? enabled:
+    json["enabled"] = %enabled
+
   client.http.patch(url, $json)
 
 proc patchAvailability*(
@@ -226,6 +232,7 @@ proc patchAvailability*(
     availabilityId: AvailabilityId,
     totalSize, duration, minPricePerBytePerSecond, totalCollateral: ?UInt256 =
       UInt256.none,
+    enabled: ?bool = bool.none,
 ): void =
   let response = client.patchAvailabilityRaw(
     availabilityId,
@@ -233,6 +240,7 @@ proc patchAvailability*(
     duration = duration,
     minPricePerBytePerSecond = minPricePerBytePerSecond,
     totalCollateral = totalCollateral,
+    enabled = enabled,
   )
   doAssert response.status == "200 OK", "expected 200 OK, got " & response.status
 

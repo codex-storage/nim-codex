@@ -39,6 +39,7 @@ asyncchecksuite "sales state 'preparing'":
       duration = request.ask.duration + 60.u256,
       minPricePerBytePerSecond = request.ask.pricePerBytePerSecond,
       totalCollateral = request.ask.collateralPerSlot * request.ask.slots.u256,
+      enabled = true,
     )
     let repoDs = SQLiteDatastore.new(Memory).tryGet()
     let metaDs = SQLiteDatastore.new(Memory).tryGet()
@@ -67,10 +68,10 @@ asyncchecksuite "sales state 'preparing'":
     let next = state.onSlotFilled(request.id, slotIndex)
     check !next of SaleFilled
 
-  proc createAvailability() {.async.} =
+  proc createAvailability(enabled = true) {.async.} =
     let a = await reservations.createAvailability(
       availability.totalSize, availability.duration,
-      availability.minPricePerBytePerSecond, availability.totalCollateral,
+      availability.minPricePerBytePerSecond, availability.totalCollateral, enabled,
     )
     availability = a.get
 
@@ -80,6 +81,11 @@ asyncchecksuite "sales state 'preparing'":
     let ignored = SaleIgnored(next)
     check ignored.reprocessSlot
     check ignored.returnBytes == false
+
+  test "run switches to ignored when a availability is not enabled":
+    await createAvailability(enabled = false)
+    let next = !(await state.run(agent))
+    check next of SaleIgnored
 
   test "run switches to slot reserving state after reservation created":
     await createAvailability()

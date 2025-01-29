@@ -163,6 +163,10 @@ components:
         totalCollateral:
           type: string
           description: Total collateral (in amount of tokens) that can be used for matching requests
+        enabled:
+          type: boolean
+          description: Enable the ability to receive sales on this availability.
+          default: true
 
     SalesAvailabilityREAD:
       allOf:

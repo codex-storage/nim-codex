@@ -70,6 +70,10 @@ type
     minPricePerBytePerSecond* {.serialize.}: UInt256
     totalCollateral {.serialize.}: UInt256
     totalRemainingCollateral* {.serialize.}: UInt256
+    # If false, the availability will not be able to receive new slots.
+    # If it is turned on and the availability is already hosting slots,
+    # it will not affect those existing slots.
+    enabled* {.serialize.}: bool
 
   Reservation* = ref object
     id* {.serialize.}: ReservationId
@@ -86,8 +90,9 @@ type
 
   GetNext* = proc(): Future[?seq[byte]] {.upraises: [], gcsafe, closure.}
   IterDispose* = proc(): Future[?!void] {.gcsafe, closure.}
-  OnAvailabilityAdded* =
-    proc(availability: Availability): Future[void] {.upraises: [], gcsafe.}
+  OnAvailabilityAdded* = proc(availability: Availability): Future[void] {.
+    upraises: [], gcsafe, async: (raises: [])
+  .}
   StorableIter* = ref object
     finished*: bool
     next*: GetNext
@@ -128,6 +133,7 @@ proc init*(
     duration: UInt256,
     minPricePerBytePerSecond: UInt256,
     totalCollateral: UInt256,
+    enabled: bool,
 ): Availability =
   var id: array[32, byte]
   doAssert randomBytes(id) == 32
@@ -139,6 +145,7 @@ proc init*(
     minPricePerBytePerSecond: minPricePerBytePerSecond,
     totalCollateral: totalCollateral,
     totalRemainingCollateral: totalCollateral,
+    enabled: enabled,
   )
 
 func totalCollateral*(self: Availability): UInt256 {.inline.} =
@@ -268,18 +275,8 @@ proc updateAvailability(
       trace "Creating new Availability"
       let res = await self.updateImpl(obj)
       # inform subscribers that Availability has been added
-      if onAvailabilityAdded =? self.onAvailabilityAdded:
-        # when chronos v4 is implemented, and OnAvailabilityAdded is annotated
-        # with async:(raises:[]), we can remove this try/catch as we know, with
-        # certainty, that nothing will be raised
-        try:
-          await onAvailabilityAdded(obj)
-        except CancelledError as e:
-          raise e
-        except CatchableError as e:
-          # we don't have any insight into types of exceptions that
-          # `onAvailabilityAdded` can raise because it is caller-defined
-          warn "Unknown error during 'onAvailabilityAdded' callback", error = e.msg
+      if obj.enabled and onAvailabilityAdded =? self.onAvailabilityAdded:
+        await onAvailabilityAdded(obj)
       return res
     else:
       return failure(err)
@@ -304,22 +301,11 @@ proc updateAvailability(
 
   let res = await self.updateImpl(obj)
 
-  if oldAvailability.freeSize < obj.freeSize: # availability added
+  if obj.enabled and oldAvailability.freeSize < obj.freeSize: # availability added
     # inform subscribers that Availability has been modified (with increased
     # size)
     if onAvailabilityAdded =? self.onAvailabilityAdded:
-      # when chronos v4 is implemented, and OnAvailabilityAdded is annotated
-      # with async:(raises:[]), we can remove this try/catch as we know, with
-      # certainty, that nothing will be raised
-      try:
-        await onAvailabilityAdded(obj)
-      except CancelledError as e:
-        raise e
-      except CatchableError as e:
-        # we don't have any insight into types of exceptions that
-        # `onAvailabilityAdded` can raise because it is caller-defined
-        warn "Unknown error during 'onAvailabilityAdded' callback", error = e.msg
-
+      await onAvailabilityAdded(obj)
   return res
 
 proc update*(self: Reservations, obj: Reservation): Future[?!void] {.async.} =
@@ -393,12 +379,14 @@ proc createAvailability*(
     duration: UInt256,
     minPricePerBytePerSecond: UInt256,
     totalCollateral: UInt256,
+    enabled: bool,
 ): Future[?!Availability] {.async.} =
   trace "creating availability",
-    size, duration, minPricePerBytePerSecond, totalCollateral
+    size, duration, minPricePerBytePerSecond, totalCollateral, enabled
 
-  let availability =
-    Availability.init(size, size, duration, minPricePerBytePerSecond, totalCollateral)
+  let availability = Availability.init(
+    size, size, duration, minPricePerBytePerSecond, totalCollateral, enabled
+  )
   let bytes = availability.freeSize.truncate(uint)
 
   if reserveErr =? (await self.repo.reserve(bytes.NBytes)).errorOption:
@@ -651,11 +639,13 @@ proc findAvailability*(
 
   for item in storables.items:
     if bytes =? (await item) and availability =? Availability.fromJson(bytes):
-      if size <= availability.freeSize and duration <= availability.duration and
+      if availability.enabled and size <= availability.freeSize and
+          duration <= availability.duration and
           collateralPerByte <= availability.maxCollateralPerByte and
           pricePerBytePerSecond >= availability.minPricePerBytePerSecond:
         trace "availability matched",
           id = availability.id,
+          enabled = availability.enabled,
           size,
           availFreeSize = availability.freeSize,
           duration,
@@ -675,6 +665,7 @@ proc findAvailability*(
 
       trace "availability did not match",
         id = availability.id,
+        enabled = availability.enabled,
         size,
         availFreeSize = availability.freeSize,
         duration,
