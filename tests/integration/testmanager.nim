@@ -572,6 +572,7 @@ proc stop*(manager: TestManager) {.async: (raises: [CancelledError]).} =
 
   for hardhat in manager.hardhats:
     try:
-      await hardhat.process.stop()
+      if not hardhat.process.isNil:
+        await hardhat.process.stop()
     except CatchableError as e:
       trace "failed to stop hardhat node", error = e.msg
