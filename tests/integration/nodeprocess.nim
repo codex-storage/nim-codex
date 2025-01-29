@@ -14,6 +14,8 @@ import ./codexclient
 export codexclient
 export chronicles
 
+{.push raises:[].}
+
 logScope:
   topics = "integration testing node process"
 
@@ -39,12 +41,12 @@ method startedOutput(node: NodeProcess): string {.base, gcsafe.} =
 method processOptions(node: NodeProcess): set[AsyncProcessOption] {.base, gcsafe.} =
   raiseAssert "not implemented"
 
-method outputLineEndings(node: NodeProcess): string {.base, gcsafe, raises: [].} =
+method outputLineEndings(node: NodeProcess): string {.base, gcsafe.} =
   raiseAssert "not implemented"
 
 method onOutputLineCaptured(
     node: NodeProcess, line: string
-) {.base, gcsafe, raises: [].} =
+) {.base, gcsafe.} =
   raiseAssert "not implemented"
 
 method start*(node: NodeProcess) {.base, async.} =
@@ -180,5 +182,5 @@ proc restart*(node: NodeProcess) {.async.} =
   await node.start()
   await node.waitUntilStarted()
 
-method removeDataDir*(node: NodeProcess) {.base.} =
+method removeDataDir*(node: NodeProcess) {.base, raises: [NodeProcessError].} =
   raiseAssert "[removeDataDir] not implemented"
