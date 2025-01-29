@@ -19,6 +19,8 @@ export codexclient
 export chronicles
 export nodeprocess
 
+{.push raises: [].}
+
 logScope:
   topics = "integration testing hardhat process"
 
@@ -27,6 +29,8 @@ type
   HardhatProcess* = ref object of NodeProcess
     logFile: ?IoHandle
     onOutputLine: OnOutputLineCaptured
+
+  HardhatProcessError* = object of NodeProcessError
 
 method workingDir(node: HardhatProcess): string =
   return currentSourcePath() / ".." / ".." / ".." / "vendor" / "codex-contracts-eth"
@@ -40,7 +44,7 @@ method startedOutput(node: HardhatProcess): string =
 method processOptions(node: HardhatProcess): set[AsyncProcessOption] =
   return {}
 
-method outputLineEndings(node: HardhatProcess): string {.raises: [].} =
+method outputLineEndings(node: HardhatProcess): string =
   return "\n"
 
 proc openLogFile(node: HardhatProcess, logFilePath: string): IoHandle =
@@ -55,14 +59,19 @@ proc openLogFile(node: HardhatProcess, logFilePath: string): IoHandle =
 
   return fileHandle
 
-method start*(node: HardhatProcess) {.async.} =
+method start*(
+    node: HardhatProcess
+) {.async: (raises: [CancelledError, NodeProcessError]).} =
   logScope:
     nodeName = node.name
 
-  let binary = absolutePath(node.workingDir / node.executable)
-  if not fileExists(binary):
-    raiseAssert "cannot start hardhat, binary doesn't exist (looking for " &
-      &"{binary}). Try running `npm install` in {node.workingDir}."
+  try:
+    let binary = absolutePath(node.workingDir / node.executable)
+    if not fileExists(binary):
+      raiseAssert "cannot start hardhat, binary doesn't exist (looking for " &
+        &"{binary}). Try running `npm install` in {node.workingDir}."
+  except CatchableError as parent:
+    raiseAssert "failed build path to hardhat executable: " & parent.msg
 
   let poptions = node.processOptions + {AsyncProcessOption.StdErrToStdOut}
   trace "starting node",
@@ -81,8 +90,10 @@ method start*(node: HardhatProcess) {.async.} =
     )
   except CancelledError as error:
     raise error
-  except CatchableError as e:
-    error "failed to start hardhat process", error = e.msg
+  except CatchableError as parent:
+    raise newException(
+      HardhatProcessError, "failed to start hardhat process: " & parent.msg, parent
+    )
 
 proc startNode*(
     _: type HardhatProcess,
