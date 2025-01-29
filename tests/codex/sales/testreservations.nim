@@ -364,7 +364,7 @@ asyncchecksuite "Reservations module":
         a: Availability
     ) {.gcsafe, async: (raises: []).} =
       called = true
-    availability.freeSize -= 1.u256
+    availability.freeSize -= 1.uint64
     discard await reservations.update(availability)
 
     check not called

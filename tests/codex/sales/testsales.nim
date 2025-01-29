@@ -369,7 +369,7 @@ asyncchecksuite "Sales":
     ): Future[?!void] {.async.} =
       slotIndex = slot
       let blk = bt.Block.new(@[1.byte]).get
-      await onBatch(blk.repeat(request.ask.slotSize.truncate(int)))
+      await onBatch(blk.repeat(request.ask.slotSize))
 
     let sold = newFuture[void]()
     sales.onSale = proc(request: StorageRequest, slotIndex: uint64) =

@@ -135,6 +135,18 @@ multinodesuite "Sales":
     check updatedAvailability.totalSize == 100000
     check updatedAvailability.freeSize == 100000
 
+  test "updating availability - updating enabled", salesConfig:
+    let availability = host.postAvailability(
+      totalSize = 140000.u256,
+      duration = 200.u256,
+      minPricePerBytePerSecond = 3.u256,
+      totalCollateral = 300.u256,
+      enabled = true.some,
+    ).get
+    host.patchAvailability(availability.id, enabled = false.some)
+    let updatedAvailability = (host.getAvailabilities().get).findItem(availability).get
+    check updatedAvailability.enabled == false
+
   test "updating availability - updating totalSize does not allow bellow utilized",
     salesConfig:
     let originalSize = 0xFFFFFF.uint64
