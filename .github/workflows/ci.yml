@@ -24,7 +24,7 @@ jobs:
     steps:
       - name: Compute matrix
         id: matrix
-        uses: fabiocaccamo/create-matrix-action@v4
+        uses: fabiocaccamo/create-matrix-action@v5
         with:
           matrix: |
             os {linux},   cpu {amd64}, builder {ubuntu-latest},   tests {unittest},    nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
@@ -46,6 +46,19 @@ jobs:
     with:
       matrix: ${{ needs.matrix.outputs.matrix }}
       cache_nonce: ${{ needs.matrix.outputs.cache_nonce }}
+
+  linting:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check `nph` formatting
+        uses: arnetheduck/nph-action@v1
+        with:
+          version: 0.6.1
+          options: "codex/ tests/"
+          fail: true
+          suggest: true
 
   coverage:
     # Force to stick to ubuntu 20.04 for coverage because

@@ -31,15 +31,9 @@ asyncchecksuite "sales state 'SlotReserving'":
     clock = MockClock.new()
 
     state = SaleSlotReserving.new()
-    context = SalesContext(
-      market: market,
-      clock: clock
-    )
+    context = SalesContext(market: market, clock: clock)
 
-    agent = newSalesAgent(context,
-                          request.id,
-                          slotIndex,
-                          request.some)
+    agent = newSalesAgent(context, request.id, slotIndex, request.some)
 
   test "switches to cancelled state when request expires":
     let next = state.onCancelled(request)
@@ -65,3 +59,11 @@ asyncchecksuite "sales state 'SlotReserving'":
     check next of SaleErrored
     let errored = SaleErrored(next)
     check errored.error == error
+
+  test "catches reservation not allowed error":
+    let error = newException(MarketError, "SlotReservations_ReservationNotAllowed")
+    market.setReserveSlotThrowError(some error)
+    let next = !(await state.run(agent))
+    check next of SaleIgnored
+    check SaleIgnored(next).reprocessSlot == false
+    check SaleIgnored(next).returnBytes
