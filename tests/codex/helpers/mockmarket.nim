@@ -536,9 +536,9 @@ method slotCollateral*(
 
 method slotCollateral*(
     market: MockMarket, requestId: RequestId, slotState: SlotState
-): Future[UInt256] {.async.} =
+): Future[UInt256] {.async: (raises: [CancelledError, MarketError]).} =
   without request =? await market.getRequest(requestId):
-    raise newException(MarketError, "Cannot retrieve the request.")
+    raiseMarketError("Cannot retrieve the request.")
 
   if slotState == SlotState.Repair:
     let repairRewardPercentage = market.config.collateral.repairRewardPercentage.u256
