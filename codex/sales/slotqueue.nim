@@ -153,9 +153,7 @@ proc init*(
     slotIndex: uint16,
     collateral: UInt256,
 ): SlotQueueItem =
-  SlotQueueItem.init(
-    request.id, slotIndex, request.ask, request.expiry, collateral = collateral
-  )
+  SlotQueueItem.init(request.id, slotIndex, request.ask, request.expiry, collateral)
 
 proc init*(
     _: type SlotQueueItem,
