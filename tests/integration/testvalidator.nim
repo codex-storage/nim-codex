@@ -96,7 +96,7 @@ marketplacesuite "Validation":
     var currentTime = await ethProvider.currentTime()
     let requestEndTime = currentTime.truncate(uint64) + duration
 
-    let data = await RandomChunker.example(blocks = blocks)
+    let data = await RandomChunker.exampleBytes(blocks = blocks)
     let datasetSize =
       datasetSize(blocks = blocks, nodes = ecNodes, tolerance = ecTolerance)
     createAvailabilities(
@@ -163,7 +163,7 @@ marketplacesuite "Validation":
     var currentTime = await ethProvider.currentTime()
     let requestEndTime = currentTime.truncate(uint64) + duration
 
-    let data = await RandomChunker.example(blocks = blocks)
+    let data = await RandomChunker.exampleBytes(blocks = blocks)
     let datasetSize =
       datasetSize(blocks = blocks, nodes = ecNodes, tolerance = ecTolerance)
     createAvailabilities(

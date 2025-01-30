@@ -40,7 +40,7 @@ marketplacesuite "Hosts submit regular proofs":
     let expiry = 10.periods
     let duration = expiry + 5.periods
 
-    let data = await RandomChunker.example(blocks = blocks)
+    let data = await RandomChunker.exampleBytes(blocks = blocks)
     let datasetSize =
       datasetSize(blocks = blocks, nodes = ecNodes, tolerance = ecTolerance)
     createAvailabilities(
@@ -60,8 +60,7 @@ marketplacesuite "Hosts submit regular proofs":
     let purchase = client0.getPurchase(purchaseId).get
     check purchase.error == none string
 
-    let request = purchase.request.get
-    let slotSize = request.ask.slotSize
+    let slotSize = slotSize(blocks, ecNodes, ecTolerance)
 
     check eventually(
       client0.purchaseStateIs(purchaseId, "started"), timeout = expiry.int * 1000
@@ -115,7 +114,7 @@ marketplacesuite "Simulate invalid proofs":
     let expiry = 10.periods
     let duration = expiry + 10.periods
 
-    let data = await RandomChunker.example(blocks = blocks)
+    let data = await RandomChunker.exampleBytes(blocks = blocks)
     let datasetSize =
       datasetSize(blocks = blocks, nodes = ecNodes, tolerance = ecTolerance)
     createAvailabilities(
@@ -175,7 +174,7 @@ marketplacesuite "Simulate invalid proofs":
     let expiry = 10.periods
     let duration = expiry + 10.periods
 
-    let data = await RandomChunker.example(blocks = blocks)
+    let data = await RandomChunker.exampleBytes(blocks = blocks)
     let datasetSize =
       datasetSize(blocks = blocks, nodes = ecNodes, tolerance = ecTolerance)
     createAvailabilities(
@@ -258,7 +257,7 @@ marketplacesuite "Simulate invalid proofs":
   #   let totalPeriods = 25
 
   #   let datasetSizeInBlocks = 3
-  #   let data = await RandomChunker.example(blocks=datasetSizeInBlocks)
+  #   let data = await RandomChunker.exampleBytes(blocks=datasetSizeInBlocks)
   #   # original data = 3 blocks so slot size will be 4 blocks
   #   let slotSize = (DefaultBlockSize * 4.NBytes).Natural.u256
 
