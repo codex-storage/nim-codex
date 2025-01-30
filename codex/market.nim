@@ -276,5 +276,5 @@ method slotCollateral*(
 
 method slotCollateral*(
     market: Market, requestId: RequestId, slotState: SlotState
-): Future[UInt256] {.base, async.} =
+): Future[UInt256] {.base, async: (raises: [CancelledError, MarketError]).} =
   raiseAssert("not implemented")
