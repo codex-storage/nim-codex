@@ -234,9 +234,6 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
     finally:
       await reader.closeWait()
 
-    trace "Something went wrong error"
-    return RestApiResponse.error(Http500)
-
   router.api(MethodGet, "/api/codex/v1/data") do() -> RestApiResponse:
     let json = await formatManifestBlocks(node)
     return RestApiResponse.response($json, contentType = "application/json")
