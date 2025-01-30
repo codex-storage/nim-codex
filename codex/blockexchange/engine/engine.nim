@@ -246,7 +246,7 @@ proc blockPresenceHandler*(
   )
 
 proc scheduleTasks(b: BlockExcEngine, blocksDelivery: seq[BlockDelivery]) {.async.} =
-  let addresses = blocksDelivery.mapIt( it.address )
+  let addresses = blocksDelivery.mapIt(it.address)
   # schedule any new peers to provide blocks to
   for p in b.peers:
     for address in addresses:
