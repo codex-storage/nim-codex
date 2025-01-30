@@ -36,7 +36,10 @@ method workingDir(node: HardhatProcess): string =
   return currentSourcePath() / ".." / ".." / ".." / "vendor" / "codex-contracts-eth"
 
 method executable(node: HardhatProcess): string =
-  return "node_modules" / ".bin" / "hardhat"
+  return "node_modules" / ".bin" / (when defined(windows):
+                                      "hardhat.cmd"
+                                    else:
+                                      "hardhat")
 
 method startedOutput(node: HardhatProcess): string =
   return "Started HTTP and WebSocket JSON-RPC server at"
@@ -65,26 +68,28 @@ method start*(
   logScope:
     nodeName = node.name
 
+  var executable = ""
   try:
-    let binary = absolutePath(node.workingDir / node.executable)
-    if not fileExists(binary):
-      raiseAssert "cannot start hardhat, binary doesn't exist (looking for " &
-        &"{binary}). Try running `npm install` in {node.workingDir}."
+    executable = absolutePath(node.workingDir / node.executable)
+    if not fileExists(executable):
+      raiseAssert "cannot start hardhat, executable doesn't exist (looking for " &
+        &"{executable}). Try running `npm install` in {node.workingDir}."
   except CatchableError as parent:
     raiseAssert "failed build path to hardhat executable: " & parent.msg
 
   let poptions = node.processOptions + {AsyncProcessOption.StdErrToStdOut}
+  let args = @["node", "--export", "deployment-localhost.json"].concat(node.arguments)
   trace "starting node",
-    args = node.arguments,
-    executable = node.executable,
+    args,
+    executable,
     workingDir = node.workingDir,
     processOptions = poptions
 
   try:
     node.process = await startProcess(
-      node.executable,
+      executable,
       node.workingDir,
-      @["node", "--export", "deployment-localhost.json"].concat(node.arguments),
+      args,
       options = poptions,
       stdoutHandle = AsyncProcess.Pipe,
     )
