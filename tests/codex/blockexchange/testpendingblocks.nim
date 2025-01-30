@@ -58,9 +58,9 @@ checksuite "Pending Blocks":
   test "Should get wants list":
     let
       pendingBlocks = PendingBlocksManager.new()
-      blks = (0..9).mapIt( bt.Block.new(("Hello " & $it).toBytes).tryGet )
+      blks = (0 .. 9).mapIt(bt.Block.new(("Hello " & $it).toBytes).tryGet)
 
-    discard blks.mapIt( pendingBlocks.getWantHandle( it.cid ) )
+    discard blks.mapIt(pendingBlocks.getWantHandle(it.cid))
 
     check:
       blks.mapIt( $BlockAddress.init(it.cid) ).sorted(cmp[string]) ==
@@ -69,13 +69,13 @@ checksuite "Pending Blocks":
   test "Should get want handles list":
     let
       pendingBlocks = PendingBlocksManager.new()
-      blks = (0..9).mapIt( bt.Block.new(("Hello " & $it).toBytes).tryGet )
-      handles = blks.mapIt( pendingBlocks.getWantHandle( it.cid ) )
+      blks = (0 .. 9).mapIt(bt.Block.new(("Hello " & $it).toBytes).tryGet)
+      handles = blks.mapIt(pendingBlocks.getWantHandle(it.cid))
       wantHandles = toSeq(pendingBlocks.wantHandles)
 
     check wantHandles.len == handles.len
     pendingBlocks.resolve(blks.mapIt(BlockDelivery(blk: it, address: it.address)))
 
     check:
-      (await allFinished(wantHandles)).mapIt( $it.read.cid ).sorted(cmp[string]) ==
-      (await allFinished(handles)).mapIt( $it.read.cid ).sorted(cmp[string])
+      (await allFinished(wantHandles)).mapIt($it.read.cid).sorted(cmp[string]) ==
+        (await allFinished(handles)).mapIt($it.read.cid).sorted(cmp[string])

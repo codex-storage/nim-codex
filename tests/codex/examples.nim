@@ -34,10 +34,7 @@ proc example*(_: type SignedState): SignedState =
   wallet.pay(channel, asset, receiver, amount).get
 
 proc example*(_: type Pricing): Pricing =
-  Pricing(
-    address: EthAddress.example,
-    price: uint32.rand.u256
-  )
+  Pricing(address: EthAddress.example, price: uint32.rand.u256)
 
 proc example*(_: type bt.Block): bt.Block =
   let length = rand(4096)
@@ -58,20 +55,23 @@ proc example*(_: type MultiHash, mcodec = Sha256HashCodec): MultiHash =
   let bytes = newSeqWith(256, rand(uint8))
   MultiHash.digest($mcodec, bytes).tryGet()
 
-proc example*(_: type Availability): Availability =
+proc example*(
+    _: type Availability, collateralPerByte = uint8.example.u256
+): Availability =
+  let totalSize = uint16.example.u256
   Availability.init(
-    totalSize = uint16.example.u256,
+    totalSize = totalSize,
     freeSize = uint16.example.u256,
     duration = uint16.example.u256,
-    minPrice = uint64.example.u256,
-    maxCollateral = uint16.example.u256
+    minPricePerBytePerSecond = uint8.example.u256,
+    totalCollateral = totalSize * collateralPerByte,
   )
 
 proc example*(_: type Reservation): Reservation =
   Reservation.init(
     availabilityId = AvailabilityId(array[32, byte].example),
     size = uint16.example.u256,
-    slotId = SlotId.example
+    slotId = SlotId.example,
   )
 
 proc example*(_: type MerkleProof): MerkleProof =
@@ -80,5 +80,5 @@ proc example*(_: type MerkleProof): MerkleProof =
 proc example*(_: type Poseidon2Proof): Poseidon2Proof =
   var example = MerkleProof[Poseidon2Hash, PoseidonKeysEnum]()
   example.index = 123
-  example.path = @[1, 2, 3, 4].mapIt( it.toF )
+  example.path = @[1, 2, 3, 4].mapIt(it.toF)
   example
