@@ -12,21 +12,9 @@ when defined(metrics):
       return
 
     let timestamp = st.now()
-    output(
-      name = st.name & "_min",
-      value = st.min,
-      timestamp = timestamp
-    )
-    output(
-      name = st.name & "_max",
-      value = st.max,
-      timestamp = timestamp
-    )
-    output(
-      name = st.name & "_ravg",
-      value = st.ravg,
-      timestamp = timestamp
-    )
+    output(name = st.name & "_min", value = st.min, timestamp = timestamp)
+    output(name = st.name & "_max", value = st.max, timestamp = timestamp)
+    output(name = st.name & "_ravg", value = st.ravg, timestamp = timestamp)
 
 proc declareStatSummary*(name: string, help: string = ""): StatSummary =
   when defined(metrics):
