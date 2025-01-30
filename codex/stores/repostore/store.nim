@@ -27,8 +27,7 @@ import ../../logutils
 import ../../merkletree
 import ../../utils
 
-const
-  codex_enable_repostore_timinglogs* {.booldefine.} = false
+const codex_enable_repostore_timinglogs* {.booldefine.} = false
 
 when codex_enable_repostore_timinglogs:
   import std/monotimes
