@@ -32,7 +32,7 @@ func new*(
     _: type OnChainMarket,
     contract: Marketplace,
     rewardRecipient = Address.none,
-    requestCacheSize: uint16 = 0,
+    requestCacheSize: uint16 = DefaultRequestCacheSize,
 ): OnChainMarket =
   without signer =? contract.signer:
     raiseAssert("Marketplace contract should have a signer")

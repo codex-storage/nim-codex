@@ -19,7 +19,6 @@ logScope:
 
 ethersuite "On-Chain Market":
   let proof = Groth16Proof.example
-  let requestCacheSize = 128.uint16
 
   var market: OnChainMarket
   var marketplace: Marketplace
@@ -39,9 +38,7 @@ ethersuite "On-Chain Market":
   proc switchAccount(account: Signer) =
     marketplace = marketplace.connect(account)
     token = token.connect(account)
-    market = OnChainMarket.new(
-      marketplace, market.rewardRecipient, requestCacheSize = requestCacheSize
-    )
+    market = OnChainMarket.new(marketplace, market.rewardRecipient)
 
   setup:
     let address = Marketplace.address(dummyVerifier = true)
@@ -49,7 +46,7 @@ ethersuite "On-Chain Market":
     let config = await marketplace.configuration()
     hostRewardRecipient = accounts[2]
 
-    market = OnChainMarket.new(marketplace, requestCacheSize = requestCacheSize)
+    market = OnChainMarket.new(marketplace)
     let tokenAddress = await marketplace.token()
     token = Erc20Token.new(tokenAddress, ethProvider.getSigner())
 
@@ -87,8 +84,7 @@ ethersuite "On-Chain Market":
   test "fails to instantiate when contract does not have a signer":
     let storageWithoutSigner = marketplace.connect(ethProvider)
     expect AssertionDefect:
-      discard
-        OnChainMarket.new(storageWithoutSigner, requestCacheSize = requestCacheSize)
+      discard OnChainMarket.new(storageWithoutSigner)
 
   test "knows signer address":
     check (await market.getSigner()) == (await ethProvider.getSigner().getAddress())
@@ -566,9 +562,7 @@ ethersuite "On-Chain Market":
     check endBalance == (startBalance + expectedPayout + request.ask.collateralPerSlot)
 
   test "pays rewards to reward recipient, collateral to host":
-    market = OnChainMarket.new(
-      marketplace, hostRewardRecipient.some, requestCacheSize = requestCacheSize
-    )
+    market = OnChainMarket.new(marketplace, hostRewardRecipient.some)
     let hostAddress = await host.getAddress()
 
     await market.requestStorage(request)
