@@ -36,7 +36,9 @@ proc observeStatSummary(st: StatSummary, value: float64) =
     st.max = value
     st.ravg = value
 
-template observe*(statSummary: StatSummary | type IgnoredCollector, amount: int64 | float64 = 1) =
+template observe*(
+    statSummary: StatSummary | type IgnoredCollector, amount: int64 | float64 = 1
+) =
   when defined(metrics) and statSummary is not IgnoredCollector:
     {.gcsafe.}:
       observeStatSummary(statSummary, amount.float64)
