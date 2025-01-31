@@ -123,31 +123,31 @@ method stop*(node: NodeProcess, expectedErrCode: int = -1) {.base, async.} =
     nodeName = node.name
 
   await node.trackedFutures.cancelTracked()
-  if node.process != nil:
+  if not node.process.isNil:
+    trace "terminating node process..."
     try:
-      trace "terminating node process..."
-      if errCode =? node.process.terminate().errorOption:
-        error "failed to terminate process", errCode = $errCode
-
-      trace "waiting for node process to exit"
-      let exitCode = await node.process.waitForExit(3.seconds)
-
-      if exitCode > 0 and exitCode != 143 and # 143 = SIGTERM (initiated above)
-      exitCode != expectedErrCode:
-        error "failed to exit process, check for zombies", exitCode
+      let exitCode = await node.process.terminateAndWaitForExit(2.seconds)   
+      if exitCode > 0 and
+          exitCode != 143 and # 143 = SIGTERM (initiated above)
+          exitCode != expectedErrCode:
+        error "process exited with a non-zero exit code", exitCode
+      trace "node stopped", exitCode
     except CancelledError as error:
       raise error
-    except CatchableError as e:
-      error "error stopping node process", error = e.msg
-    finally:
+    except CatchableError:
       try:
+        let forcedExitCode = await node.process.killAndWaitForExit(3.seconds)
+        trace "node process forcibly killed with exit code: ", exitCode = forcedExitCode
+      except CatchableError as e:
+        error "failed to kill node process in time, it will be killed when the parent process exits", error = e.msg
+        writeStackTrace()
+    finally:
+      proc closeProcessStreams() {.async: (raises: []).} =
         trace "closing node process' streams"
         await node.process.closeWait()
-      except:
-        discard
-      node.process = nil
-
-    trace "node stopped"
+        node.process = nil
+        trace "node process' streams closed"
+      asyncSpawn closeProcessStreams()
 
 proc waitUntilOutput*(node: NodeProcess, output: string) {.async.} =
   logScope:
