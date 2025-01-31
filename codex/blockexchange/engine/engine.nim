@@ -152,10 +152,15 @@ proc sendWantHave(
 proc sendWantBlock(
     b: BlockExcEngine, addresses: seq[BlockAddress], blockPeer: BlockExcPeerCtx
 ): Future[void] {.async.} =
-  trace "Sending wantBlock request to", addresses, peer = blockPeer.id
+  let notInFlight = b.pendingBlocks.getNotInFlight(addresses)
+  if notInFlight.len == 0:
+    return
+  b.pendingBlocks.setInFlight(notInFlight)
+
+  trace "Sending wantBlock request to", addrs = notInFlight, peer = blockPeer.id
   await b.network.request.sendWantList(
-    blockPeer.id, addresses, wantType = WantType.WantBlock
-  ) # we want this remote to send us a block
+    blockPeer.id, notInFlight, wantType = WantType.WantBlock
+  )
   codex_block_exchange_want_block_lists_sent.inc()
 
 proc monitorBlockHandle(
@@ -197,7 +202,6 @@ proc requestBlock*(
     else:
       let selected = pickPseudoRandom(address, peers.with)
       asyncSpawn b.monitorBlockHandle(blockFuture, address, selected.id)
-      b.pendingBlocks.setInFlight(address)
       await b.sendWantBlock(@[address], selected)
 
     await b.sendWantHave(@[address], peers.without)

@@ -113,12 +113,23 @@ proc setInFlight*(p: PendingBlocksManager, address: BlockAddress, inFlight = tru
   p.blocks.withValue(address, pending):
     pending[].inFlight = inFlight
 
+proc setInFlight*(
+    p: PendingBlocksManager, addresses: seq[BlockAddress], inFlight = true
+) =
+  for addrs in addresses:
+    p.setInFlight(addrs, inFlight)
+
 proc isInFlight*(p: PendingBlocksManager, address: BlockAddress): bool =
   ## Check if a block is in flight
   ##
 
   p.blocks.withValue(address, pending):
     result = pending[].inFlight
+
+proc getNotInFlight*(
+    p: PendingBlocksManager, addresses: seq[BlockAddress]
+): seq[BlockAddress] =
+  addresses.filterIt(not p.isInFlight(it))
 
 proc contains*(p: PendingBlocksManager, cid: Cid): bool =
   BlockAddress.init(cid) in p.blocks
