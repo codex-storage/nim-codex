@@ -558,15 +558,13 @@ proc onStore(
   ## store data in local storage
   ##
 
+  let cid = request.content.cid
+
   logScope:
-    cid = request.content.cid
+    cid = $cid.data.buffer
     slotIdx = slotIdx
 
   trace "Received a request to store a slot"
-
-  without cid =? Cid.init(request.content.cid.data.buffer).mapFailure, err:
-    trace "Unable to parse Cid", cid
-    return failure(err)
 
   without manifest =? (await self.fetchManifest(cid)), err:
     trace "Unable to fetch manifest for cid", cid, err = err.msg
@@ -686,14 +684,9 @@ proc onProve(
     failure "Prover not enabled"
 
 proc onExpiryUpdate(
-    self: CodexNodeRef, rootCid: seq[byte], expiry: SecondsSince1970
+    self: CodexNodeRef, rootCid: Cid, expiry: SecondsSince1970
 ): Future[?!void] {.async.} =
-  without cid =? Cid.init(rootCid):
-    trace "Unable to parse Cid", cid
-    let error = newException(CodexError, "Unable to parse Cid")
-    return failure(error)
-
-  return await self.updateExpiry(cid, expiry)
+  return await self.updateExpiry(rootCid, expiry)
 
 proc onClear(self: CodexNodeRef, request: StorageRequest, slotIndex: UInt256) =
   # TODO: remove data from local storage
@@ -716,7 +709,7 @@ proc start*(self: CodexNodeRef) {.async.} =
       self.onStore(request, slot, onBatch)
 
     hostContracts.sales.onExpiryUpdate = proc(
-        rootCid: seq[byte], expiry: SecondsSince1970
+        rootCid: Cid, expiry: SecondsSince1970
     ): Future[?!void] =
       self.onExpiryUpdate(rootCid, expiry)
 

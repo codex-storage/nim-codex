@@ -66,7 +66,7 @@ asyncchecksuite "Sales - start":
       return success()
 
     sales.onExpiryUpdate = proc(
-        rootCid: seq[byte], expiry: SecondsSince1970
+        rootCid: Cid, expiry: SecondsSince1970
     ): Future[?!void] {.async.} =
       return success()
 
@@ -185,7 +185,7 @@ asyncchecksuite "Sales":
       return success()
 
     sales.onExpiryUpdate = proc(
-        rootCid: seq[byte], expiry: SecondsSince1970
+        rootCid: Cid, expiry: SecondsSince1970
     ): Future[?!void] {.async.} =
       return success()
 

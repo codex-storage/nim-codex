@@ -53,8 +53,7 @@ method run*(state: SaleFilled, machine: Machine): Future[?State] {.async.} =
       raiseAssert "onExpiryUpdate callback not set"
 
     let requestEnd = await market.getRequestEnd(data.requestId)
-    if err =?
-        (await onExpiryUpdate(request.content.cid.data.buffer, requestEnd)).errorOption:
+    if err =? (await onExpiryUpdate(request.content.cid, requestEnd)).errorOption:
       return some State(SaleErrored(error: err))
 
     when codex_enable_proof_failures:

@@ -98,7 +98,7 @@ asyncchecksuite "Test Node - Host contracts":
       expectedExpiry: SecondsSince1970 = clock.now + DefaultBlockTtl.seconds + 11123
       expiryUpdateCallback = !sales.onExpiryUpdate
 
-    (await expiryUpdateCallback(manifestCid.data.buffer, expectedExpiry)).tryGet()
+    (await expiryUpdateCallback(manifestCid, expectedExpiry)).tryGet()
 
     for index in 0 ..< manifest.blocksCount:
       let

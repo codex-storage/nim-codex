@@ -48,7 +48,7 @@ twonodessuite "Purchasing":
 
     let request = client1.getPurchase(id).get.request.get
 
-    check request.content.cid.len > 0
+    check request.content.cid.data.buffer.len > 0
     check request.ask.duration == 100.u256
     check request.ask.pricePerBytePerSecond == 1.u256
     check request.ask.proofProbability == 3.u256
