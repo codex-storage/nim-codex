@@ -91,7 +91,7 @@ checksuite "Pending Blocks - inFlight":
     blk = bt.Block.new("Hello".toBytes).tryGet
     addrs = BlockAddress.init(blk.cid)
     discard pendingBlocks.getWantHandle(addrs)
-  
+
   proc req(): BlockReq =
     pendingBlocks.blocks[addrs]
 
@@ -100,13 +100,13 @@ checksuite "Pending Blocks - inFlight":
 
     check:
       req().inFlight
-    
+
   test "Sets inFlight (multiple)":
     pendingBlocks.setInFlight(@[addrs])
 
     check:
       req().inFlight
-    
+
   test "IsInFlight":
     pendingBlocks.setInFlight(addrs)
 
