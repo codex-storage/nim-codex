@@ -561,7 +561,7 @@ proc onStore(
   let cid = request.content.cid
 
   logScope:
-    cid = $cid.data.buffer
+    cid = $cid
     slotIdx = slotIdx
 
   trace "Received a request to store a slot"
@@ -635,7 +635,7 @@ proc onProve(
   ##
 
   let
-    cidStr = $slot.request.content.cid.data.buffer
+    cidStr = $slot.request.content.cid
     slotIdx = slot.slotIndex.truncate(Natural)
 
   logScope:
