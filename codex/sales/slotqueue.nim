@@ -161,7 +161,7 @@ proc init*(
     ask: StorageAsk,
     expiry: UInt256,
     collateral: UInt256,
-): seq[SlotQueueItem] =
+): seq[SlotQueueItem] {.raises: [SlotsOutOfRangeError].} =
   if not ask.slots.inRange:
     raise newException(SlotsOutOfRangeError, "Too many slots")
 
@@ -240,7 +240,7 @@ proc unpause*(self: SlotQueue) =
   # set unpaused flag to true -- unblocks coroutines waiting on unpaused.wait()
   self.unpaused.fire()
 
-proc push*(self: SlotQueue, item: SlotQueueItem): ?!void =
+proc push*(self: SlotQueue, item: SlotQueueItem): ?!void {.raises: [].} =
   logScope:
     requestId = item.requestId
     slotIndex = item.slotIndex

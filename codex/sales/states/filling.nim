@@ -35,7 +35,9 @@ method run(state: SaleFilling, machine: Machine): Future[?State] {.async.} =
     requestId = data.requestId
     slotIndex = data.slotIndex
 
-  let collateral = await market.slotCollateral(data.requestId, data.slotIndex)
+  without collateral =? await market.slotCollateral(data.requestId, data.slotIndex):
+    error "Unable to calculate collateral; configuration data may not be retrievable."
+    return
 
   debug "Filling slot"
   try:

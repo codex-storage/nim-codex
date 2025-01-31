@@ -165,7 +165,7 @@ method mySlots*(market: MockMarket): Future[seq[SlotId]] {.async.} =
 
 method getRequest*(
     market: MockMarket, id: RequestId
-): Future[?StorageRequest] {.async.} =
+): Future[?StorageRequest] {.async: (raises: []).} =
   for request in market.requested:
     if request.id == id:
       return some request
@@ -183,10 +183,18 @@ method requestState*(
 ): Future[?RequestState] {.async.} =
   return market.requestState .? [requestId]
 
-method slotState*(market: MockMarket, slotId: SlotId): Future[SlotState] {.async.} =
-  if not market.slotState.hasKey(slotId):
+method slotState*(
+    market: MockMarket, slotId: SlotId
+): Future[SlotState] {.async: (raises: [CatchableError]).} =
+  if slotId notin market.slotState:
     return SlotState.Free
-  return market.slotState[slotId]
+
+  try:
+    return market.slotState[slotId]
+  except ref KeyError:
+    # Should never reach that case.
+    # Just returning a random slot state.
+    return SlotState.Repair
 
 method getRequestEnd*(
     market: MockMarket, id: RequestId
@@ -529,21 +537,27 @@ method unsubscribe*(subscription: SlotReservationsFullSubscription) {.async.} =
 
 method slotCollateral*(
     market: MockMarket, requestId: RequestId, slotIndex: UInt256
-): Future[UInt256] {.async.} =
+): Future[?UInt256] {.async: (raises: []).} =
   let slotid = slotId(requestId, slotIndex)
-  let state = await slotState(market, slotid)
-  return await market.slotCollateral(requestId, state)
+
+  try:
+    let state = await slotState(market, slotid)
+
+    without request =? await market.getRequest(requestId):
+      return UInt256.none
+
+    return market.slotCollateral(request.ask.collateralPerSlot, state)
+  except CatchableError:
+    return UInt256.none
 
 method slotCollateral*(
-    market: MockMarket, requestId: RequestId, slotState: SlotState
-): Future[UInt256] {.async: (raises: [CancelledError, MarketError]).} =
-  without request =? await market.getRequest(requestId):
-    raiseMarketError("Cannot retrieve the request.")
-
+    market: MockMarket, collateralPerSlot: UInt256, slotState: SlotState
+): ?UInt256 {.raises: [].} =
   if slotState == SlotState.Repair:
     let repairRewardPercentage = market.config.collateral.repairRewardPercentage.u256
-    return
-      request.ask.collateralPerSlot -
-      (request.ask.collateralPerSlot * repairRewardPercentage).div(100.u256)
 
-  return request.ask.collateralPerSlot
+    return (
+      collateralPerSlot - (collateralPerSlot * repairRewardPercentage).div(100.u256)
+    ).some
+
+  return collateralPerSlot.some

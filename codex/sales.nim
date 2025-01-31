@@ -153,8 +153,10 @@ proc cleanUp(
   # Re-add items back into the queue to prevent small availabilities from
   # draining the queue. Seen items will be ordered last.
   if reprocessSlot and request =? data.request:
-    let collateral =
-      await sales.context.market.slotCollateral(data.requestId, data.slotIndex)
+    without collateral =?
+      await sales.context.market.slotCollateral(data.requestId, data.slotIndex):
+      error "Unable to calculate collateral; configuration data may not be retrievable."
+      return
 
     let queue = sales.context.slotQueue
     var seenItem = SlotQueueItem.init(
@@ -288,7 +290,7 @@ proc onAvailabilityAdded(sales: Sales, availability: Availability) {.async.} =
 
 proc onStorageRequested(
     sales: Sales, requestId: RequestId, ask: StorageAsk, expiry: UInt256
-) {.async.} =
+) {.raises: [].} =
   logScope:
     topics = "marketplace sales onStorageRequested"
     requestId
@@ -300,7 +302,10 @@ proc onStorageRequested(
   trace "storage requested, adding slots to queue"
 
   let market = sales.context.market
-  let collateral = await market.slotCollateral(requestId, SlotState.Free)
+
+  without collateral =? market.slotCollateral(ask.collateralPerSlot, SlotState.Free):
+    error "Unable to calculate collateral; configuration data may not be retrievable."
+    return
 
   without items =? SlotQueueItem.init(requestId, ask, expiry, collateral).catch, err:
     if err of SlotsOutOfRangeError:
@@ -331,31 +336,39 @@ proc onSlotFreed(sales: Sales, requestId: RequestId, slotIndex: UInt256) =
     let context = sales.context
     let market = context.market
     let queue = context.slotQueue
-    var slotQueueItem: SlotQueueItem
 
-    try:
-      without request =? await market.getRequest(requestId):
-        error "unknown request in contract"
-        return
+    without request =? (await market.getRequest(requestId)), err:
+      error "unknown request in contract", error = err.msgDetail
+      return
 
-      # Take the repairing state into consideration to calculate the collateral.
-      # This is particularly needed because it will affect the priority in the queue
-      # and we want to give the user the ability to tweak the parameters.
-      # Adding the repairing state directly in the queue priority calculation
-      # would not allow this flexibility.
-      let collateral = await market.slotCollateral(request.id, SlotState.Repair)
+    # Take the repairing state into consideration to calculate the collateral.
+    # This is particularly needed because it will affect the priority in the queue
+    # and we want to give the user the ability to tweak the parameters.
+    # Adding the repairing state directly in the queue priority calculation
+    # would not allow this flexibility.
+    without collateral =?
+      market.slotCollateral(request.ask.collateralPerSlot, SlotState.Repair):
+      error "Unable to calculate collateral; configuration data may not be retrievable."
+      return
 
-      slotQueueItem =
-        SlotQueueItem.init(request, slotIndex.truncate(uint16), collateral = collateral)
+    without slotQueueItem =?
+      SlotQueueItem.init(request, slotIndex.truncate(uint16), collateral = collateral).catch,
+      err:
+      warn "Too many slots, cannot add to queue", error = err.msgDetail
+      return
 
-      if err =? queue.push(slotQueueItem).errorOption:
-        error "failed to push slot items to queue", error = err.msgDetail
-    except CancelledError:
-      discard # do not propagate as addSlotToQueue was asyncSpawned
-    except CatchableError as e:
-      error "failed to get request from contract and add slots to queue",
-        error = e.msgDetail
+    if err =? queue.push(slotQueueItem).errorOption:
+      if err of SlotQueueItemExistsError:
+        error "Failed to push item to queue becaue it already exists",
+          error = err.msgDetail
+      elif err of QueueNotRunningError:
+        warn "Failed to push item to queue becaue queue is not running",
+          error = err.msgDetail
 
+  # We could get rid of this by adding the storage ask in the SlotFreed event,
+  # so we would need to call getRequest to get the collateralPerSlot.
+  # Or when the request cache is merged, we could assume that the request will be
+  # in the cache.
   let fut = addSlotToQueue()
   sales.trackedFutures.track(fut)
   asyncSpawn fut
@@ -364,8 +377,13 @@ proc subscribeRequested(sales: Sales) {.async.} =
   let context = sales.context
   let market = context.market
 
-  proc onStorageRequested(requestId: RequestId, ask: StorageAsk, expiry: UInt256) =
-    discard sales.onStorageRequested(requestId, ask, expiry)
+  proc onStorageRequested(
+      requestId: RequestId, ask: StorageAsk, expiry: UInt256
+  ) {.raises: [].} =
+    sales.onStorageRequested(requestId, ask, expiry)
+
+  # Ensure that the config is loaded and repairRewardPercentage is available
+  discard await market.repairRewardPercentage()
 
   try:
     let sub = await market.subscribeRequests(onStorageRequested)

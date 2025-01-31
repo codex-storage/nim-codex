@@ -51,6 +51,9 @@ proc config(market: OnChainMarket): Future[MarketplaceConfig] {.async.} =
 
   return resolvedConfig
 
+proc configSync(market: OnChainMarket): ?MarketplaceConfig =
+  return market.configuration
+
 proc approveFunds(market: OnChainMarket, amount: UInt256) {.async.} =
   debug "Approving tokens", amount
   convertEthersError:
@@ -79,7 +82,7 @@ method proofTimeout*(market: OnChainMarket): Future[UInt256] {.async.} =
 
 method repairRewardPercentage*(market: OnChainMarket): Future[uint8] {.async.} =
   convertEthersError:
-    let config = await market.contract.configuration()
+    let config = await market.config()
     return config.collateral.repairRewardPercentage
 
 method proofDowntime*(market: OnChainMarket): Future[uint8] {.async.} =
@@ -111,12 +114,14 @@ method requestStorage(market: OnChainMarket, request: StorageRequest) {.async.} 
 
 method getRequest*(
     market: OnChainMarket, id: RequestId
-): Future[?StorageRequest] {.async.} =
-  convertEthersError:
-    try:
-      return some await market.contract.getRequest(id)
-    except Marketplace_UnknownRequest:
-      return none StorageRequest
+): Future[?StorageRequest] {.async: (raises: []).} =
+  try:
+    return some await market.contract.getRequest(id)
+  except Marketplace_UnknownRequest:
+    return none StorageRequest
+  except CatchableError as err:
+    warn "Cannot retrieve the request", error = err.msg
+    return none StorageRequest
 
 method requestState*(
     market: OnChainMarket, requestId: RequestId
@@ -128,7 +133,9 @@ method requestState*(
     except Marketplace_UnknownRequest:
       return none RequestState
 
-method slotState*(market: OnChainMarket, slotId: SlotId): Future[SlotState] {.async.} =
+method slotState*(
+    market: OnChainMarket, slotId: SlotId
+): Future[SlotState] {.async: (raises: [CatchableError]).} =
   convertEthersError:
     let overrides = CallOverrides(blockTag: some BlockTag.pending)
     return await market.contract.slotState(slotId, overrides)
@@ -486,22 +493,32 @@ method queryPastStorageRequestedEvents*(
 
 method slotCollateral*(
     market: OnChainMarket, requestId: RequestId, slotIndex: UInt256
-): Future[UInt256] {.async.} =
+): Future[?UInt256] {.async: (raises: []).} =
   let slotid = slotId(requestId, slotIndex)
-  let slotState = await market.slotState(slotid)
 
-  return await market.slotCollateral(requestId, slotState)
+  try:
+    let slotState = await market.slotState(slotid)
+
+    without request =? await market.getRequest(requestId):
+      return UInt256.none
+
+    return market.slotCollateral(request.ask.collateralPerSlot, slotState)
+  except CatchableError as err:
+    error "Cannot retrieve the slot state", error = err.msg
+    return UInt256.none
 
 method slotCollateral*(
-    market: OnChainMarket, requestId: RequestId, slotState: SlotState
-): Future[UInt256] {.async: (raises: [CancelledError, MarketError]).} =
-  without request =? await market.getRequest(requestId):
-    raiseMarketError("Cannot retrieve the request.")
-
+    market: OnChainMarket, collateralPerSlot: UInt256, slotState: SlotState
+): ?UInt256 {.raises: [].} =
   if slotState == SlotState.Repair:
-    let repairRewardPercentage = (await market.repairRewardPercentage).u256
-    return
-      request.ask.collateralPerSlot -
-      (request.ask.collateralPerSlot * repairRewardPercentage).div(100.u256)
+    without repairRewardPercentage =?
+      market.configSync .? collateral .? repairRewardPercentage:
+      return UInt256.none
 
-  return request.ask.collateralPerSlot
+    return (
+      collateralPerSlot - (collateralPerSlot * repairRewardPercentage.u256).div(
+        100.u256
+      )
+    ).some
+
+  return collateralPerSlot.some

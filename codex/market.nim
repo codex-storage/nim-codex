@@ -100,7 +100,7 @@ method mySlots*(market: Market): Future[seq[SlotId]] {.base, async.} =
 
 method getRequest*(
     market: Market, id: RequestId
-): Future[?StorageRequest] {.base, async.} =
+): Future[?StorageRequest] {.base, async: (raises: []).} =
   raiseAssert("not implemented")
 
 method requestState*(
@@ -108,7 +108,9 @@ method requestState*(
 ): Future[?RequestState] {.base, async.} =
   raiseAssert("not implemented")
 
-method slotState*(market: Market, slotId: SlotId): Future[SlotState] {.base, async.} =
+method slotState*(
+    market: Market, slotId: SlotId
+): Future[SlotState] {.base, async: (raises: [CatchableError]).} =
   raiseAssert("not implemented")
 
 method getRequestEnd*(
@@ -271,10 +273,10 @@ method queryPastStorageRequestedEvents*(
 
 method slotCollateral*(
     market: Market, requestId: RequestId, slotIndex: UInt256
-): Future[UInt256] {.base, async.} =
+): Future[?UInt256] {.base, async: (raises: []).} =
   raiseAssert("not implemented")
 
 method slotCollateral*(
-    market: Market, requestId: RequestId, slotState: SlotState
-): Future[UInt256] {.base, async: (raises: [CancelledError, MarketError]).} =
+    market: Market, collateralPerSlot: UInt256, slotState: SlotState
+): ?UInt256 {.base, gcsafe, raises: [].} =
   raiseAssert("not implemented")

@@ -598,18 +598,24 @@ ethersuite "On-Chain Market":
     await market.fillSlot(request.id, 0.u256, proof, request.ask.collateralPerSlot)
 
     let slotId = request.slotId(0.u256)
-    let collateral = await market.slotCollateral(request.id, 0.u256)
+    without collateral =? await market.slotCollateral(request.id, 0.u256):
+      fail()
 
     check collateral == request.ask.collateralPerSlot
 
   test "calculates correctly the collateral when the slot is being repaired":
+    # Ensure that the config is loaded and repairRewardPercentage is available
+    discard await market.repairRewardPercentage()
+
     await market.requestStorage(request)
     await market.reserveSlot(request.id, 0.u256)
     await market.fillSlot(request.id, 0.u256, proof, request.ask.collateralPerSlot)
     await market.freeSlot(slotId(request.id, 0.u256))
 
     let slotId = request.slotId(0.u256)
-    let collateral = await market.slotCollateral(request.id, 0.u256)
+
+    without collateral =? await market.slotCollateral(request.id, 0.u256):
+      fail()
 
     # slotCollateral
     # repairRewardPercentage = 10
