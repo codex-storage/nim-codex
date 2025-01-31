@@ -345,10 +345,13 @@ proc setup(
 proc teardown(
     test: IntegrationTest, hardhat: ?Hardhat
 ) {.async: (raises: [CancelledError]).} =
-  if test.config.startHardhat and hardhat =? hardhat:
+  if test.config.startHardhat and hardhat =? hardhat and not hardhat.process.isNil:
     try:
       trace "Stopping hardhat", name = test.config.name
       await hardhat.process.stop()
+      trace "Hardhat stopped", name = test.config.name
+    except CancelledError as e:
+      raise e
     except CatchableError as e:
       warn "Failed to stop hardhat node, continuing",
         error = e.msg, test = test.config.name
@@ -438,11 +441,19 @@ proc untilTimeout(
     fut: Future[void], timeout: Duration
 ): Future[bool] {.async: (raises: [CancelledError]).} =
   # workaround for withTimeout, which did not work correctly
+  let timer = sleepAsync(timeout)
   try:
-    let timer = sleepAsync(timeout)
-    return (await race(fut, timer)) == fut
-  except ValueError:
-    discard
+    let winner = await race(fut, timer)
+    return winner.id == fut.id
+  except CancelledError as e:
+    # race does not cancel its futures when it's cancelled
+    if not fut.isNil and not fut.finished:
+      await fut.cancelAndWait()
+    if not timer.isNil and not timer.finished:
+      await timer.cancelAndWait()
+    raise e
+  except ValueError as e:
+    error "failed to wait for timeout", error = e.msg
 
 proc run(test: IntegrationTest) {.async: (raises: []).} =
   try:
@@ -462,6 +473,8 @@ proc run(test: IntegrationTest) {.async: (raises: []).} =
 
     test.printResult()
   except CancelledError:
+    # untilTimeout will cancel its underlying futures for us so no need to 
+    # manually cancel them here
     discard # do not propagate due to asyncSpawn
 
 proc runTests(manager: TestManager) {.async: (raises: [CancelledError]).} =
@@ -479,9 +492,18 @@ proc runTests(manager: TestManager) {.async: (raises: [CancelledError]).} =
 
     let futRun = test.run()
     testFutures.add futRun
+    # may be overkill, but ensure no exceptions are missed
     asyncSpawn futRun
 
-  await allFutures testFutures
+  try:
+    # if runTests is cancelled, await allFutures will be cancelled, but allFutures 
+    # does not propagate the cancellation to the futures it's waiting on, so we
+    # need to cancel them here
+    await allFutures testFutures
+  except CancelledError as e:
+    for fut in testFutures:
+      if not fut.isNil and not fut.finished:
+        await fut.cancelAndWait()
 
   manager.timeEnd = some Moment.now()
 
