@@ -347,6 +347,53 @@ asyncchecksuite "NetworkStore engine handlers":
     discard await allFinished(pending)
     await allFuturesThrowing(cancellations.values().toSeq)
 
+  test "Should send wantBlock only once":
+    let
+      seckey2 = PrivateKey.random(rng[]).tryGet()
+      peerId2 = PeerId.init(seckey2.getPublicKey().tryGet()).tryGet()
+      price = UInt256.example
+      blk = blocks[0]
+      blkAddrs = BlockAddress.init(blk.cid)
+      wantHandle = engine.pendingBlocks.getWantHandle(blk.cid)
+
+    # Adds a second peer to the peerContextStore:
+    engine.peers.add(BlockExcPeerCtx(id: peerId2))
+
+    var wantBlocksSent = newSeq[(PeerId, BlockAddress)]()
+
+    proc sendWantList(
+        id: PeerId,
+        addresses: seq[BlockAddress],
+        priority: int32 = 0,
+        cancel: bool = false,
+        wantType: WantType = WantType.WantHave,
+        full: bool = false,
+        sendDontHave: bool = false,
+    ) {.gcsafe, async.} =
+      if wantType == WantType.WantBlock:
+        for addrs in addresses:
+          wantBlocksSent.add((id, addrs))
+
+    engine.network =
+      BlockExcNetwork(request: BlockExcRequest(sendWantList: sendWantList))
+
+    proc peerReportsBlockPresence(peer: PeerId) {.async.} =
+      await engine.blockPresenceHandler(
+        peer,
+        @[PresenceMessage.init(Presence(address: blkAddrs, have: true, price: price))],
+      )
+
+    # Two peers report having the block:
+    await peerReportsBlockPresence(peerId)
+    await peerReportsBlockPresence(peerId2)
+
+    # Check only 1 wantBlock was sent
+    # Check it was sent to the first peer
+    check:
+      wantBlocksSent.len == 1
+      wantBlocksSent[0][0] == peerId
+      wantBlocksSent[0][1] == blkAddrs
+
 asyncchecksuite "Task Handler":
   var
     rng: Rng
