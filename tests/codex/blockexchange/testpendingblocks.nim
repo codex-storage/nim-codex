@@ -79,3 +79,46 @@ checksuite "Pending Blocks":
     check:
       (await allFinished(wantHandles)).mapIt($it.read.cid).sorted(cmp[string]) ==
         (await allFinished(handles)).mapIt($it.read.cid).sorted(cmp[string])
+
+checksuite "Pending Blocks - inFlight":
+  var
+    pendingBlocks: PendingBlocksManager
+    blk: bt.Block
+    addrs: BlockAddress
+
+  setup:
+    pendingBlocks = PendingBlocksManager.new()
+    blk = bt.Block.new("Hello".toBytes).tryGet
+    addrs = BlockAddress.init(blk.cid)
+    discard pendingBlocks.getWantHandle(addrs)
+  
+  proc req(): BlockReq =
+    pendingBlocks.blocks[addrs]
+
+  test "Sets inFlight (single)":
+    pendingBlocks.setInFlight(addrs)
+
+    check:
+      req().inFlight
+    
+  test "Sets inFlight (multiple)":
+    pendingBlocks.setInFlight(@[addrs])
+
+    check:
+      req().inFlight
+    
+  test "IsInFlight":
+    pendingBlocks.setInFlight(addrs)
+
+    check:
+      pendingBlocks.isInFlight(addrs)
+
+  test "getNotInFlight":
+    let
+      blk2 = bt.Block.new("Hello2".toBytes).tryGet
+      addrs2 = BlockAddress.init(blk2.cid)
+
+    pendingBlocks.setInFlight(addrs)
+
+    check:
+      pendingBlocks.getNotInFlight(@[addrs, addrs2]) == @[addrs2]
