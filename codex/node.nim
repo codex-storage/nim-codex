@@ -501,10 +501,7 @@ proc setupRequest(
         collateralPerByte: collateralPerByte,
         maxSlotLoss: tolerance,
       ),
-      content: StorageContent(
-        cid: manifestBlk.cid.data.buffer,
-        merkleRoot: verifyRoot,
-      ),
+      content: StorageContent(cid: manifestBlk.cid, merkleRoot: verifyRoot),
       expiry: expiry,
     )
 
@@ -567,7 +564,7 @@ proc onStore(
 
   trace "Received a request to store a slot"
 
-  without cid =? Cid.init(request.content.cid).mapFailure, err:
+  without cid =? Cid.init(request.content.cid.data.buffer).mapFailure, err:
     trace "Unable to parse Cid", cid
     return failure(err)
 
@@ -640,7 +637,7 @@ proc onProve(
   ##
 
   let
-    cidStr = slot.request.content.cid
+    cidStr = $slot.request.content.cid.data.buffer
     slotIdx = slot.slotIndex.truncate(Natural)
 
   logScope:

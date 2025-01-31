@@ -115,7 +115,7 @@ asyncchecksuite "Test Node - Host contracts":
   test "onStore callback":
     let onStore = !sales.onStore
     var request = StorageRequest.example
-    request.content.cid = verifiableBlock.cid.data.buffer
+    request.content.cid = verifiableBlock.cid
     request.expiry = (getTime() + DefaultBlockTtl.toTimesDuration + 1.hours).toUnix.u256
     var fetchedBytes: uint = 0
 

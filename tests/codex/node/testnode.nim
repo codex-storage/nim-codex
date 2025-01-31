@@ -167,7 +167,7 @@ asyncchecksuite "Test Node - Basic":
 
     check:
       (await verifiableBlock.cid in localStore) == true
-      request.content.cid == verifiableBlock.cid.data.buffer
+      request.content.cid == verifiableBlock.cid
       request.content.merkleRoot == builder.verifyRoot.get.toBytes
 
   test "Should delete a single block":
