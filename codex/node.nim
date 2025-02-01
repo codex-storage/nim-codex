@@ -430,13 +430,13 @@ proc iterateManifests*(self: CodexNodeRef, onManifest: OnManifest) {.async.} =
 proc setupRequest(
     self: CodexNodeRef,
     cid: Cid,
-    duration: UInt256,
+    duration: uint64,
     proofProbability: UInt256,
     nodes: uint,
     tolerance: uint,
     pricePerBytePerSecond: UInt256,
     collateralPerByte: UInt256,
-    expiry: UInt256,
+    expiry: uint64,
 ): Future[?!StorageRequest] {.async.} =
   ## Setup slots for a given dataset
   ##
@@ -494,7 +494,7 @@ proc setupRequest(
     request = StorageRequest(
       ask: StorageAsk(
         slots: verifiable.numSlots.uint64,
-        slotSize: builder.slotBytes.uint.u256,
+        slotSize: builder.slotBytes.uint64,
         duration: duration,
         proofProbability: proofProbability,
         pricePerBytePerSecond: pricePerBytePerSecond,
@@ -511,13 +511,13 @@ proc setupRequest(
 proc requestStorage*(
     self: CodexNodeRef,
     cid: Cid,
-    duration: UInt256,
+    duration: uint64,
     proofProbability: UInt256,
     nodes: uint,
     tolerance: uint,
     pricePerBytePerSecond: UInt256,
     collateralPerByte: UInt256,
-    expiry: UInt256,
+    expiry: uint64,
 ): Future[?!PurchaseId] {.async.} =
   ## Initiate a request for storage sequence, this might
   ## be a multistep procedure.
@@ -553,7 +553,7 @@ proc requestStorage*(
   success purchase.id
 
 proc onStore(
-    self: CodexNodeRef, request: StorageRequest, slotIdx: UInt256, blocksCb: BlocksCb
+    self: CodexNodeRef, request: StorageRequest, slotIdx: uint64, blocksCb: BlocksCb
 ): Future[?!void] {.async.} =
   ## store data in local storage
   ##
@@ -575,6 +575,7 @@ proc onStore(
     trace "Unable to create slots builder", err = err.msg
     return failure(err)
 
+  # TODO: Follow the rabbit hole of changing slotIndex to uint64
   let
     slotIdx = slotIdx.truncate(int)
     expiry = request.expiry.toSecondsSince1970

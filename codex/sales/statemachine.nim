@@ -37,6 +37,6 @@ proc failedEvent*(request: StorageRequest): Event =
   return proc(state: State): ?State =
     SaleState(state).onFailed(request)
 
-proc slotFilledEvent*(requestId: RequestId, slotIndex: UInt256): Event =
+proc slotFilledEvent*(requestId: RequestId, slotIndex: uint64): Event =
   return proc(state: State): ?State =
     SaleState(state).onSlotFilled(requestId, slotIndex)

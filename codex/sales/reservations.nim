@@ -64,9 +64,9 @@ type
   SomeStorableId = AvailabilityId | ReservationId
   Availability* = ref object
     id* {.serialize.}: AvailabilityId
-    totalSize* {.serialize.}: UInt256
-    freeSize* {.serialize.}: UInt256
-    duration* {.serialize.}: UInt256
+    totalSize* {.serialize.}: uint64
+    freeSize* {.serialize.}: uint64
+    duration* {.serialize.}: uint64
     minPricePerBytePerSecond* {.serialize.}: UInt256
     totalCollateral {.serialize.}: UInt256
     totalRemainingCollateral* {.serialize.}: UInt256
@@ -76,7 +76,7 @@ type
     availabilityId* {.serialize.}: AvailabilityId
     size* {.serialize.}: UInt256
     requestId* {.serialize.}: RequestId
-    slotIndex* {.serialize.}: UInt256
+    slotIndex* {.serialize.}: uint64
 
   Reservations* = ref object of RootObj
     availabilityLock: AsyncLock
@@ -123,9 +123,9 @@ proc new*(T: type Reservations, repo: RepoStore): Reservations =
 
 proc init*(
     _: type Availability,
-    totalSize: UInt256,
-    freeSize: UInt256,
-    duration: UInt256,
+    totalSize: uint64,
+    freeSize: uint64,
+    duration: uint64,
     minPricePerBytePerSecond: UInt256,
     totalCollateral: UInt256,
 ): Availability =
@@ -151,9 +151,9 @@ proc `totalCollateral=`*(self: Availability, value: UInt256) {.inline.} =
 proc init*(
     _: type Reservation,
     availabilityId: AvailabilityId,
-    size: UInt256,
+    size: uint64,
     requestId: RequestId,
-    slotIndex: UInt256,
+    slotIndex: uint64,
 ): Reservation =
   var id: array[32, byte]
   doAssert randomBytes(id) == 32
@@ -289,16 +289,12 @@ proc updateAvailability(
     trace "totalSize changed, updating repo reservation"
     if oldAvailability.totalSize < obj.totalSize: # storage added
       if reserveErr =? (
-        await self.repo.reserve(
-          (obj.totalSize - oldAvailability.totalSize).truncate(uint).NBytes
-        )
+        await self.repo.reserve((obj.totalSize - oldAvailability.totalSize).NBytes)
       ).errorOption:
         return failure(reserveErr.toErr(ReserveFailedError))
     elif oldAvailability.totalSize > obj.totalSize: # storage removed
       if reserveErr =? (
-        await self.repo.release(
-          (oldAvailability.totalSize - obj.totalSize).truncate(uint).NBytes
-        )
+        await self.repo.release((oldAvailability.totalSize - obj.totalSize).NBytes)
       ).errorOption:
         return failure(reserveErr.toErr(ReleaseFailedError))
 
