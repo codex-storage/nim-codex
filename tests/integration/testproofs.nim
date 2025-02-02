@@ -1,7 +1,6 @@
 from std/times import inMilliseconds
 import pkg/questionable
 import pkg/codex/logutils
-import pkg/stew/byteutils
 import ../contracts/time
 import ../contracts/deployment
 import ../codex/helpers
@@ -40,7 +39,7 @@ marketplacesuite "Hosts submit regular proofs":
     let expiry = 10.periods
     let duration = expiry + 5.periods
 
-    let data = await RandomChunker.exampleBytes(blocks = blocks)
+    let data = await RandomChunker.example(blocks = blocks)
     let datasetSize =
       datasetSize(blocks = blocks, nodes = ecNodes, tolerance = ecTolerance)
     createAvailabilities(
@@ -114,7 +113,7 @@ marketplacesuite "Simulate invalid proofs":
     let expiry = 10.periods
     let duration = expiry + 10.periods
 
-    let data = await RandomChunker.exampleBytes(blocks = blocks)
+    let data = await RandomChunker.example(blocks = blocks)
     let datasetSize =
       datasetSize(blocks = blocks, nodes = ecNodes, tolerance = ecTolerance)
     createAvailabilities(
@@ -174,7 +173,7 @@ marketplacesuite "Simulate invalid proofs":
     let expiry = 10.periods
     let duration = expiry + 10.periods
 
-    let data = await RandomChunker.exampleBytes(blocks = blocks)
+    let data = await RandomChunker.example(blocks = blocks)
     let datasetSize =
       datasetSize(blocks = blocks, nodes = ecNodes, tolerance = ecTolerance)
     createAvailabilities(
@@ -257,7 +256,7 @@ marketplacesuite "Simulate invalid proofs":
   #   let totalPeriods = 25
 
   #   let datasetSizeInBlocks = 3
-  #   let data = await RandomChunker.exampleBytes(blocks=datasetSizeInBlocks)
+  #   let data = await RandomChunker.example(blocks=datasetSizeInBlocks)
   #   # original data = 3 blocks so slot size will be 4 blocks
   #   let slotSize = (DefaultBlockSize * 4.NBytes).Natural.u256
 

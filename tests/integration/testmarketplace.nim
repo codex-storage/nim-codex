@@ -35,7 +35,7 @@ marketplacesuite "Marketplace":
 
   test "nodes negotiate contracts on the marketplace", marketplaceConfig:
     let size = 0xFFFFFF.u256
-    let data = await RandomChunker.exampleBytes(blocks = blocks)
+    let data = await RandomChunker.example(blocks = blocks)
     # host makes storage available
     let availability = host.postAvailability(
       totalSize = size,
@@ -72,7 +72,7 @@ marketplacesuite "Marketplace":
   test "node slots gets paid out and rest of tokens are returned to client",
     marketplaceConfig:
     let size = 0xFFFFFF.u256
-    let data = await RandomChunker.exampleBytes(blocks = blocks)
+    let data = await RandomChunker.example(blocks = blocks)
     let marketplace = Marketplace.new(Marketplace.address, ethProvider.getSigner())
     let tokenAddress = await marketplace.token()
     let token = Erc20Token.new(tokenAddress, ethProvider.getSigner())
@@ -147,7 +147,7 @@ marketplacesuite "Marketplace payouts":
     ):
     let duration = 20.periods
     let expiry = 10.periods
-    let data = await RandomChunker.exampleBytes(blocks = blocks)
+    let data = await RandomChunker.example(blocks = blocks)
     let client = clients()[0]
     let provider = providers()[0]
     let clientApi = client.client
