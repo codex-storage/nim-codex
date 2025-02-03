@@ -157,6 +157,9 @@ endif
 ifdef TEST_TIMEOUT
   TEST_PARAMS := $(TEST_PARAMS) -d:TestTimeout=$(TEST_TIMEOUT)
 endif
+ifdef ENABLE_PARALLEL_TESTS
+  TEST_PARAMS := $(TEST_PARAMS) -d:EnableParallelTests=$(ENABLE_PARALLEL_TESTS)
+endif
 
 # Builds and runs the integration tests
 testIntegration: | build deps

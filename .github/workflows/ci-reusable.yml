@@ -62,7 +62,7 @@ jobs:
           npm install
 
       - name: Run Ethereum node with Codex contracts
-        if: matrix.tests == 'contract' || matrix.tests == 'tools' || matrix.tests == 'all'
+        if: matrix.tests == 'contract' || matrix.tests == 'integration' || matrix.tests == 'tools' || matrix.tests == 'all'
         working-directory: vendor/codex-contracts-eth
         env:
           MSYS2_PATH_TYPE: inherit
@@ -77,6 +77,10 @@ jobs:
       ## Part 3 Tests ##
       - name: Integration tests
         if: matrix.tests == 'integration' || matrix.tests == 'all'
+        run: make -j${ncpu} ENABLE_PARALLEL_TESTS=0 testIntegration
+
+      - name: Parallel integration tests
+        if: matrix.tests == 'integration-parallel'
         run: make -j${ncpu} DEBUG_CODEXNODES=1 DEBUG_TESTHARNESS=1 DEBUG_UPDATES=1 testIntegration
 
       - name: Upload integration tests log files
