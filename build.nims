@@ -55,6 +55,7 @@ task testIntegration, "Run integration tests":
   for i in 2 ..< paramCount():
     if "DebugTestHarness" in paramStr(i) and truthy paramStr(i).split('=')[1]:
       testParams = "-d:chronicles_log_level=TRACE -d:chronicles_sinks=textlines[stdout]"
+      break
   test "testIntegration", params = testParams
   # use params to enable logging from the integration test executable
   # test "testIntegration", params = "-d:chronicles_sinks=textlines[notimestamps,stdout],textlines[dynamic] " &
