@@ -155,8 +155,8 @@ template multinodesuite*(name: string, body: untyped) =
           let updatedLogFile = getLogFile(role, some roleIdx)
           config.withLogFile(updatedLogFile)
 
-        let apiPort = await nextFreePort(CodexApiPort + nodeIdx)
-        let discPort = await nextFreePort(CodexDiscPort + nodeIdx)
+        let apiPort = await nextFreePort(lastUsedCodexApiPort + nodeIdx)
+        let discPort = await nextFreePort(lastUsedCodexDiscPort + nodeIdx)
         config.addCliOption("--api-port", $apiPort)
         config.addCliOption("--disc-port", $discPort)
         lastUsedCodexApiPort = apiPort
