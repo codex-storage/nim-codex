@@ -79,6 +79,9 @@ template multinodesuite*(name: string, body: untyped) =
     var ethProvider {.inject, used.}: JsonRpcProvider
     var accounts {.inject, used.}: seq[Address]
     var snapshot: JsonNode
+    var lastUsedHardhatPort = HardhatPort
+    var lastUsedCodexApiPort = CodexApiPort
+    var lastUsedCodexDiscPort = CodexDiscPort
 
     template test(tname, startNodeConfigs, tbody) =
       currentTestName = tname
@@ -121,10 +124,11 @@ template multinodesuite*(name: string, body: untyped) =
         let updatedLogFile = getLogFile(role, none int)
         args.add "--log-file=" & updatedLogFile
 
-      let port = await nextFreePort(HardhatPort)
+      let port = await nextFreePort(lastUsedHardhatPort)
       jsonRpcProviderUrl.updatePort(port)
       args.add("--port")
       args.add($port)
+      lastUsedHardhatPort = port
 
       try:
         let node = await HardhatProcess.startNode(args, config.debugEnabled, "hardhat")
@@ -151,13 +155,19 @@ template multinodesuite*(name: string, body: untyped) =
           let updatedLogFile = getLogFile(role, some roleIdx)
           config.withLogFile(updatedLogFile)
 
+        let apiPort = await nextFreePort(CodexApiPort + nodeIdx)
+        let discPort = await nextFreePort(CodexDiscPort + nodeIdx)
+        config.addCliOption("--api-port", $apiPort)
+        config.addCliOption("--disc-port", $discPort)
+        lastUsedCodexApiPort = apiPort
+        lastUsedCodexDiscPort = discPort
+
         for bootstrapNode in bootstrapNodes:
           config.addCliOption("--bootstrap-node", bootstrapNode)
-        config.addCliOption("--api-port", $await nextFreePort(CodexApiPort + nodeIdx))
+
         config.addCliOption("--data-dir", datadir)
         config.addCliOption("--nat", "none")
         config.addCliOption("--listen-addrs", "/ip4/127.0.0.1/tcp/0")
-        config.addCliOption("--disc-port", $await nextFreePort(CodexDiscPort + nodeIdx))
       except CodexConfigError as e:
         raiseMultiNodeSuiteError "invalid cli option, error: " & e.msg
 
