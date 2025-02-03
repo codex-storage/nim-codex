@@ -37,6 +37,8 @@ const ShowContinuousStatusUpdates {.booldefine.} = false
 # Timeout duration (in mimutes) for EACH integration test file.
 const TestTimeout {.intdefine.} = 60
 
+const EnableParallelTests {.booldefine.} = true
+
 proc run() {.async.} =
   when DebugTestHarness and enabledLogLevel != LogLevel.TRACE:
     styledEcho bgWhite,
@@ -81,4 +83,17 @@ proc run() {.async.} =
   if not wasSuccessful:
     quit(1) # indicate with a non-zero exit code that the tests failed
 
-waitFor run()
+when EnableParallelTests:
+  waitFor run()
+else:
+  # run tests serially
+  import ./integration/testcli
+  import ./integration/testrestapi
+  import ./integration/testupdownload
+  import ./integration/testsales
+  import ./integration/testpurchasing
+  import ./integration/testblockexpiration
+  import ./integration/testmarketplace
+  import ./integration/testproofs
+  import ./integration/testvalidator
+  import ./integration/testecbug
