@@ -440,7 +440,8 @@ proc start(test: IntegrationTest) {.async: (raises: []).} =
         if not test.process.isNil and not test.process.finished:
           # cancel the process future, but the process itself may still be
           # running if the procedure was cancelled or the test timed out
-          await test.process.cancelAndWait()
+          test.process.cancelSoon()
+          trace "process future will cancel soon"
 
       await test.teardown(hardhat)
 
@@ -594,7 +595,8 @@ proc stop*(manager: TestManager) {.async: (raises: [CancelledError]).} =
 
   for test in manager.tests:
     if not test.process.isNil and not test.process.finished:
-      await test.process.cancelAndWait()
+      # windows does not like cancelling processes, so waiting is not an option
+      test.process.cancelSoon()
 
   for hardhat in manager.hardhats:
     try:
