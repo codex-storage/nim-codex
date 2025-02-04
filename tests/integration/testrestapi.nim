@@ -34,7 +34,7 @@ twonodessuite "REST API":
     check:
       space.totalBlocks == 2
       space.quotaMaxBytes == 8589934592.NBytes
-      space.quotaUsedBytes == 65598.NBytes
+      space.quotaUsedBytes == 65592.NBytes
       space.quotaReservedBytes == 12.NBytes
 
   test "node lists local files", twoNodesConfig:
