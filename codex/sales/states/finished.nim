@@ -32,5 +32,8 @@ method run*(state: SaleFinished, machine: Machine): Future[?State] {.async.} =
   info "Slot finished and paid out",
     requestId = data.requestId, slotIndex = data.slotIndex
 
+  if onClear =? agent.context.onClear:
+    onClear(request, data.slotIndex)
+
   if onCleanUp =? agent.onCleanUp:
-    await onCleanUp(returnedCollateral = state.returnedCollateral)
+    await onCleanUp(returnedCollateral = state.returnedCollateral, returnBytes = true)

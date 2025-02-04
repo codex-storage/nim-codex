@@ -26,6 +26,7 @@ asyncchecksuite "sales state 'finished'":
   var returnBytesWas = bool.none
   var reprocessSlotWas = bool.none
   var returnedCollateralValue = UInt256.none
+  var saleCleared = bool.none
 
   setup:
     market = MockMarket.new()
@@ -39,6 +40,8 @@ asyncchecksuite "sales state 'finished'":
     let context = SalesContext(market: market, clock: clock)
     agent = newSalesAgent(context, request.id, slotIndex, request.some)
     agent.onCleanUp = onCleanUp
+    agent.context.onClear = some proc(request: StorageRequest, idx: UInt256) =
+      saleCleared = some true
     state = SaleFinished(returnedCollateral: some currentCollateral)
 
   test "switches to cancelled state when request expires":
@@ -49,8 +52,9 @@ asyncchecksuite "sales state 'finished'":
     let next = state.onFailed(request)
     check !next of SaleFailed
 
-  test "calls onCleanUp with returnBytes = false, reprocessSlot = true, and returnedCollateral = currentCollateral":
+  test "calls onCleanUp with returnBytes = true, reprocessSlot = true, and returnedCollateral = currentCollateral":
     discard await state.run(agent)
-    check eventually returnBytesWas == some false
+    check eventually returnBytesWas == some true
     check eventually reprocessSlotWas == some false
     check eventually returnedCollateralValue == some currentCollateral
+    check eventually saleCleared == some true

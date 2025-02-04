@@ -354,14 +354,14 @@ asyncchecksuite "Sales":
     check eventually getAvailability().freeSize ==
       availability.freeSize - request.ask.slotSize
 
-  test "non-downloaded bytes are returned to availability once finished":
+  test "bytes are returned to availability once finished":
     var slotIndex = 0.u256
     sales.onStore = proc(
         request: StorageRequest, slot: UInt256, onBatch: BatchProc
     ): Future[?!void] {.async.} =
       slotIndex = slot
       let blk = bt.Block.new(@[1.byte]).get
-      await onBatch(@[blk])
+      await onBatch(blk.repeat(request.ask.slotSize.truncate(int)))
 
     let sold = newFuture[void]()
     sales.onSale = proc(request: StorageRequest, slotIndex: UInt256) =
@@ -377,7 +377,7 @@ asyncchecksuite "Sales":
     market.slotState[request.slotId(slotIndex)] = SlotState.Finished
     clock.advance(request.ask.duration.truncate(int64))
 
-    check eventually getAvailability().freeSize == origSize - 1
+    check eventually getAvailability().freeSize == origSize
 
   test "ignores download when duration not long enough":
     availability.duration = request.ask.duration - 1
