@@ -40,7 +40,7 @@ asyncchecksuite "sales state 'finished'":
     let context = SalesContext(market: market, clock: clock)
     agent = newSalesAgent(context, request.id, slotIndex, request.some)
     agent.onCleanUp = onCleanUp
-    agent.context.onClear = some proc(request: StorageRequest, idx: UInt256) =
+    agent.context.onClear = some proc(request: StorageRequest, idx: uint64) =
       saleCleared = some true
     state = SaleFinished(returnedCollateral: some currentCollateral)
 
