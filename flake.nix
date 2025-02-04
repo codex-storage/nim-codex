@@ -1,5 +1,5 @@
 {
-  description = "Nim Codex build flake";
+  description = "Nim Codex build flake Test";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
