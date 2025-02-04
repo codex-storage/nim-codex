@@ -109,6 +109,12 @@ template echoStyled(args: varargs[untyped]) =
     # no need to re-raise this, as it'll eventually have to be logged only
     error "failed to print to terminal", error = parent.msg
 
+template ignoreCancelled(body) =
+  try:
+    body
+  except CancelledError:
+    discard
+
 proc new*(
     _: type TestManager,
     configs: seq[IntegrationTestConfig],
@@ -364,81 +370,8 @@ proc teardown(
 
     test.manager.hardhats.keepItIf(it != hardhat)
 
-proc start(test: IntegrationTest) {.async: (raises: []).} =
-  logScope:
-    config = test.config
-
-  trace "Running test"
-
-  test.timeStart = some Moment.now()
-  test.status = IntegrationTestStatus.Running
-
-  var hardhat = none Hardhat
-
-  try:
-    try:
-      hardhat = await test.setup()
-    except TestManagerError as e:
-      error "Failed to start hardhat and build command", error = e.msg
-      test.timeEnd = some Moment.now()
-      test.status = IntegrationTestStatus.Error
-      test.output = CommandExResponse.failure(e)
-      return
-
-    try:
-      trace "Starting parallel integration test", command = test.command
-      test.printStart()
-      test.process =
-        execCommandEx(command = test.command, timeout = test.manager.testTimeout)
-
-      let output = await test.process # waits on waitForExit
-      test.output = success(output)
-
-      if output.status != 0:
-        test.status = IntegrationTestStatus.Failed
-      else:
-        test.status = IntegrationTestStatus.Ok
-    except AsyncProcessTimeoutError as e:
-      test.timeEnd = some Moment.now()
-      error "Test timed out", name = test.config.name, duration = test.duration
-      test.output = CommandExResponse.failure(e)
-      test.status = IntegrationTestStatus.Timeout
-    except AsyncProcessError as e:
-      test.timeEnd = some Moment.now()
-      error "Test failed to complete", name = test.config.name, duration = test.duration
-      test.output = CommandExResponse.failure(e)
-      test.status = IntegrationTestStatus.Error
-
-    await test.teardown(hardhat)
-  except CancelledError:
-    discard # start is asyncSpawned, do not propagate
-
-  test.timeEnd = some Moment.now()
-  if test.status == IntegrationTestStatus.Ok:
-    info "Test completed", name = test.config.name, duration = test.duration
-
-proc continuallyShowUpdates(manager: TestManager) {.async: (raises: []).} =
-  try:
-    while true:
-      let sleepDuration = if manager.duration < 5.minutes: 30.seconds else: 1.minutes
-
-      if manager.tests.len > 0:
-        echo ""
-        echoStyled styleBright,
-          bgWhite, fgBlack, &"Integration tests status after {manager.duration}"
-
-      for test in manager.tests:
-        test.printResult(false, false)
-
-      if manager.tests.len > 0:
-        echo ""
-
-      await sleepAsync(sleepDuration)
-  except CancelledError as e:
-    discard
-
 proc untilTimeout(
-    fut: Future[void], timeout: Duration
+    fut: FutureBase, timeout: Duration
 ): Future[bool] {.async: (raises: [CancelledError]).} =
   # workaround for withTimeout, which did not work correctly
   let timer = sleepAsync(timeout)
@@ -455,27 +388,98 @@ proc untilTimeout(
   except ValueError as e:
     error "failed to wait for timeout", error = e.msg
 
-proc run(test: IntegrationTest) {.async: (raises: []).} =
-  try:
-    let futStart = test.start()
-    let completedBeforeTimeout = await futStart.untilTimeout(test.manager.testTimeout)
-    if not completedBeforeTimeout:
+proc start(test: IntegrationTest) {.async: (raises: []).} =
+  logScope:
+    config = test.config
+
+  trace "Running test"
+
+  test.timeStart = some Moment.now()
+  test.status = IntegrationTestStatus.Running
+
+  var hardhat = none Hardhat
+
+  ignoreCancelled:
+    try:
+      hardhat = await test.setup()
+    except TestManagerError as e:
+      error "Failed to start hardhat and build command", error = e.msg
+      test.timeEnd = some Moment.now()
+      test.status = IntegrationTestStatus.Error
+      test.output = CommandExResponse.failure(e)
+      return
+
+    try:
+      trace "Starting parallel integration test", command = test.command
+      test.printStart()
+      test.process =
+        execCommandEx(command = test.command, timeout = test.manager.testTimeout)
+
+      let completedBeforeTimeout =
+        # untilTimeout will cancel its underlying futures for us so no need to
+        # manually cancel them when cancelled
+        await test.process.untilTimeout(test.manager.testTimeout)
+
+      if completedBeforeTimeout:
+        let output = await test.process # should raise if there's an error
+        test.output = success(output)
+        if output.status != 0:
+          test.status = IntegrationTestStatus.Failed
+        else:
+          test.status = IntegrationTestStatus.Ok
+      else:
+        test.timeEnd = some Moment.now()
+        error "Test timed out, check for zombie codex process",
+          name = test.config.name, duration = test.duration
+        let e = newException(
+          AsyncProcessTimeoutError, "Test did not complete before elapsed timeout"
+        )
+        test.output = CommandExResponse.failure(e)
+        test.status = IntegrationTestStatus.Timeout
+
+        if not test.process.isNil and not test.process.finished:
+          # cancel the process future, but the process itself may still be
+          # running if the procedure was cancelled or the test timed out
+          await test.process.cancelAndWait()
+
+      await test.teardown(hardhat)
+
+      test.timeEnd = some Moment.now()
+      if test.status == IntegrationTestStatus.Ok:
+        info "Test completed", name = test.config.name, duration = test.duration
+    except AsyncProcessTimeoutError as e:
       test.timeEnd = some Moment.now()
       error "Test timed out", name = test.config.name, duration = test.duration
-      let e = newException(
-        AsyncProcessTimeoutError, "Test did not complete before elapsed timeout"
-      )
       test.output = CommandExResponse.failure(e)
       test.status = IntegrationTestStatus.Timeout
+    except AsyncProcessError as e:
+      test.timeEnd = some Moment.now()
+      error "Test failed to complete", name = test.config.name, duration = test.duration
+      test.output = CommandExResponse.failure(e)
+      test.status = IntegrationTestStatus.Error
 
-      if not futStart.finished:
-        await futStart.cancelAndWait()
+proc continuallyShowUpdates(manager: TestManager) {.async: (raises: []).} =
+  ignoreCancelled:
+    while true:
+      let sleepDuration = if manager.duration < 5.minutes: 30.seconds else: 1.minutes
 
+      if manager.tests.len > 0:
+        echo ""
+        echoStyled styleBright,
+          bgWhite, fgBlack, &"Integration tests status after {manager.duration}"
+
+      for test in manager.tests:
+        test.printResult(false, false)
+
+      if manager.tests.len > 0:
+        echo ""
+
+      await sleepAsync(sleepDuration)
+
+proc run(test: IntegrationTest) {.async: (raises: []).} =
+  ignoreCancelled:
+    await test.start()
     test.printResult()
-  except CancelledError:
-    # untilTimeout will cancel its underlying futures for us so no need to 
-    # manually cancel them here
-    discard # do not propagate due to asyncSpawn
 
 proc runTests(manager: TestManager) {.async: (raises: [CancelledError]).} =
   var testFutures: seq[Future[void]]
