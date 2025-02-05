@@ -81,7 +81,7 @@ jobs:
 
       - name: Parallel integration tests
         if: matrix.tests == 'integration-parallel'
-        run: make -j${ncpu} DEBUG_CODEXNODES=1 DEBUG_TESTHARNESS=1 DEBUG_UPDATES=1 testIntegration
+        run: make -j${ncpu} DEBUG=1 testIntegration
 
       - name: Upload integration tests log files
         uses: actions/upload-artifact@v4
