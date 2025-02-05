@@ -35,6 +35,7 @@ import std/sequtils
 import std/sugar
 import std/typetraits
 import std/sequtils
+import std/times
 import pkg/chronos
 import pkg/datastore
 import pkg/nimcrypto
@@ -73,7 +74,11 @@ type
     # If false, the availability will not be able to receive new slots.
     # If it is turned on and the availability is already hosting slots,
     # it will not affect those existing slots.
-    enabled* {.serialize.}: bool
+    # It should be implicitly set to true when creating
+    # a new availability. Therefore, it is not required when updating an existing availability.
+    enabled* {.serialize.}: ?bool
+    # 0 means non-restricted, otherwise contains timestamp until the Availability will be renewed
+    until* {.serialize.}: SecondsSince1970
 
   Reservation* = ref object
     id* {.serialize.}: ReservationId
@@ -133,7 +138,8 @@ proc init*(
     duration: UInt256,
     minPricePerBytePerSecond: UInt256,
     totalCollateral: UInt256,
-    enabled: bool,
+    enabled: ?bool,
+    until: SecondsSince1970,
 ): Availability =
   var id: array[32, byte]
   doAssert randomBytes(id) == 32
@@ -146,6 +152,7 @@ proc init*(
     totalCollateral: totalCollateral,
     totalRemainingCollateral: totalCollateral,
     enabled: enabled,
+    until: until,
   )
 
 func totalCollateral*(self: Availability): UInt256 {.inline.} =
@@ -275,7 +282,9 @@ proc updateAvailability(
       trace "Creating new Availability"
       let res = await self.updateImpl(obj)
       # inform subscribers that Availability has been added
-      if obj.enabled and onAvailabilityAdded =? self.onAvailabilityAdded:
+      without var enabled =? obj.enabled:
+        enabled = oldAvailability.enabled |? true
+      if enabled and onAvailabilityAdded =? self.onAvailabilityAdded:
         await onAvailabilityAdded(obj)
       return res
     else:
@@ -301,7 +310,9 @@ proc updateAvailability(
 
   let res = await self.updateImpl(obj)
 
-  if obj.enabled and oldAvailability.freeSize < obj.freeSize: # availability added
+  without var enabled =? obj.enabled:
+    enabled = oldAvailability.enabled |? true
+  if enabled and oldAvailability.freeSize < obj.freeSize: # availability added
     # inform subscribers that Availability has been modified (with increased
     # size)
     if onAvailabilityAdded =? self.onAvailabilityAdded:
@@ -380,12 +391,13 @@ proc createAvailability*(
     minPricePerBytePerSecond: UInt256,
     totalCollateral: UInt256,
     enabled: bool,
+    until: SecondsSince1970,
 ): Future[?!Availability] {.async.} =
   trace "creating availability",
-    size, duration, minPricePerBytePerSecond, totalCollateral, enabled
+    size, duration, minPricePerBytePerSecond, totalCollateral, enabled, until
 
   let availability = Availability.init(
-    size, size, duration, minPricePerBytePerSecond, totalCollateral, enabled
+    size, size, duration, minPricePerBytePerSecond, totalCollateral, enabled.some, until
   )
   let bytes = availability.freeSize.truncate(uint)
 
@@ -637,15 +649,17 @@ proc findAvailability*(
     error "failed to get all storables", error = e.msg
     return none Availability
 
+  let endTime = getTime().toUnix() + cast[int64](duration)
   for item in storables.items:
     if bytes =? (await item) and availability =? Availability.fromJson(bytes):
-      if availability.enabled and size <= availability.freeSize and
-          duration <= availability.duration and
+      let enabled = availability.enabled |? true
+      if enabled and size <= availability.freeSize and duration <= availability.duration and
           collateralPerByte <= availability.maxCollateralPerByte and
-          pricePerBytePerSecond >= availability.minPricePerBytePerSecond:
+          pricePerBytePerSecond >= availability.minPricePerBytePerSecond and
+          (availability.until == 0 or availability.until >= endTime):
         trace "availability matched",
           id = availability.id,
-          enabled = availability.enabled,
+          enabled = enabled,
           size,
           availFreeSize = availability.freeSize,
           duration,

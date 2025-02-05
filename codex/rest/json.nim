@@ -34,6 +34,7 @@ type
     totalCollateral* {.serialize.}: UInt256
     freeSize* {.serialize.}: ?UInt256
     enabled* {.serialize.}: ?bool
+    until* {.serialize.}: ?SecondsSince1970
 
   RestSalesAgent* = object
     state* {.serialize.}: string

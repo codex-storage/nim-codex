@@ -1,5 +1,5 @@
 import std/random
-
+import std/times
 import pkg/questionable
 import pkg/questionable/results
 import pkg/chronos
@@ -8,6 +8,7 @@ import pkg/datastore
 import pkg/codex/stores
 import pkg/codex/errors
 import pkg/codex/sales
+import pkg/codex/clock
 import pkg/codex/utils/json
 
 import ../../asynctest
@@ -39,13 +40,13 @@ asyncchecksuite "Reservations module":
     await repoTmp.destroyDb()
     await metaTmp.destroyDb()
 
-  proc createAvailability(enabled = true): Availability =
+  proc createAvailability(enabled = true, until = 0.SecondsSince1970): Availability =
     let example = Availability.example(collateralPerByte)
     let totalSize = rand(100000 .. 200000).u256
     let totalCollateral = totalSize * collateralPerByte
     let availability = waitFor reservations.createAvailability(
       totalSize, example.duration, example.minPricePerBytePerSecond, totalCollateral,
-      enabled,
+      enabled, until,
     )
     return availability.get
 
@@ -65,8 +66,12 @@ asyncchecksuite "Reservations module":
     check (await reservations.all(Availability)).get.len == 0
 
   test "generates unique ids for storage availability":
-    let availability1 = Availability.init(1.u256, 2.u256, 3.u256, 4.u256, 5.u256, true)
-    let availability2 = Availability.init(1.u256, 2.u256, 3.u256, 4.u256, 5.u256, true)
+    let availability1 = Availability.init(
+      1.u256, 2.u256, 3.u256, 4.u256, 5.u256, some true, 0.SecondsSince1970
+    )
+    let availability2 = Availability.init(
+      1.u256, 2.u256, 3.u256, 4.u256, 5.u256, some true, 0.SecondsSince1970
+    )
     check availability1.id != availability2.id
 
   test "can reserve available storage":
@@ -260,6 +265,21 @@ asyncchecksuite "Reservations module":
     check isOk await reservations.update(availability)
     check (repo.quotaReservedBytes - origQuota) == 100.NBytes
 
+  test "enabled is updated correctly":
+    let availability = createAvailability()
+
+    check availability.enabled.get == true
+
+    check isOk await reservations.update(availability)
+    let key = availability.key.get
+    var updated = !(await reservations.get(key, Availability))
+    check updated.enabled.get == true
+
+    availability.enabled = false.some
+    check isOk await reservations.update(availability)
+    updated = !(await reservations.get(key, Availability))
+    check updated.enabled.get == false
+
   test "reservation can be partially released":
     let availability = createAvailability()
     let reservation = createReservation(availability)
@@ -352,6 +372,31 @@ asyncchecksuite "Reservations module":
 
     check found.isNone
 
+  test "finds an availability when the until date is after the duration":
+    let example = Availability.example(collateralPerByte)
+    let until = getTime().toUnix() + cast[int64](example.duration)
+    let availability = createAvailability(until = until)
+
+    let found = await reservations.findAvailability(
+      availability.freeSize, availability.duration,
+      availability.minPricePerBytePerSecond, collateralPerByte,
+    )
+
+    check found.isSome
+    check found.get == availability
+
+  test "does not find an availability when the until date is before the duration":
+    let example = Availability.example(collateralPerByte)
+    let until = getTime().toUnix() + 1.SecondsSince1970
+    let availability = createAvailability(until = until)
+
+    let found = await reservations.findAvailability(
+      availability.freeSize, availability.duration,
+      availability.minPricePerBytePerSecond, collateralPerByte,
+    )
+
+    check found.isNone
+
   test "non-matching availabilities are not found":
     let availability = createAvailability()
 
@@ -394,6 +439,7 @@ asyncchecksuite "Reservations module":
       UInt256.example,
       UInt256.example,
       enabled = true,
+      until = 0.SecondsSince1970,
     )
     check created.isErr
     check created.error of ReserveFailedError

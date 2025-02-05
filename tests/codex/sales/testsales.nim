@@ -14,6 +14,7 @@ import pkg/codex/stores/repostore
 import pkg/codex/blocktype as bt
 import pkg/codex/node
 import pkg/codex/utils/asyncstatemachine
+import times
 import ../../asynctest
 import ../helpers
 import ../helpers/mockmarket
@@ -149,7 +150,8 @@ asyncchecksuite "Sales":
       duration = 60.u256,
       minPricePerBytePerSecond = minPricePerBytePerSecond,
       totalCollateral = totalCollateral,
-      enabled = true,
+      enabled = some true,
+      until = 0.SecondsSince1970,
     )
     request = StorageRequest(
       ask: StorageAsk(
@@ -217,10 +219,11 @@ asyncchecksuite "Sales":
     let key = availability.id.key.get
     (waitFor reservations.get(key, Availability)).get
 
-  proc createAvailability(enabled = true) =
+  proc createAvailability(enabled = true, until = 0.SecondsSince1970) =
     let a = waitFor reservations.createAvailability(
       availability.totalSize, availability.duration,
       availability.minPricePerBytePerSecond, availability.totalCollateral, enabled,
+      until,
     )
     availability = a.get # update id
 
@@ -422,10 +425,31 @@ asyncchecksuite "Sales":
     createAvailability(enabled = true)
     await market.requestStorage(request)
 
-    availability.enabled = false
+    availability.enabled = some false
     discard await reservations.update(availability)
 
     check wasIgnored()
+
+  test "ignores request when availability until terminates before the duration":
+    let until = getTime().toUnix()
+    createAvailability(until = until)
+    await market.requestStorage(request)
+
+    check wasIgnored()
+
+  test "retrieves request when availability until terminates after the duration":
+    let until = getTime().toUnix() + cast[int64](request.ask.duration)
+    createAvailability(until = until)
+
+    var storingRequest: StorageRequest
+    sales.onStore = proc(
+        request: StorageRequest, slot: UInt256, onBatch: BatchProc
+    ): Future[?!void] {.async.} =
+      storingRequest = request
+      return success()
+
+    await market.requestStorage(request)
+    check eventually storingRequest == request
 
   test "retrieves and stores data locally":
     var storingRequest: StorageRequest

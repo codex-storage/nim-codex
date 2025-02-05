@@ -49,6 +49,32 @@ logScope:
 declareCounter(codex_api_uploads, "codex API uploads")
 declareCounter(codex_api_downloads, "codex API downloads")
 
+proc getLongestRequestEnd(
+    node: CodexNodeRef, availabilityId: AvailabilityId
+): Future[?!SecondsSince1970] {.async: (raises: []).} =
+  without contracts =? node.contracts.host:
+    return failure("Sales unavailable")
+
+  let
+    reservations = contracts.sales.context.reservations
+    market = contracts.sales.context.market
+
+  try:
+    without allReservations =? await reservations.all(Reservation, availabilityId):
+      return failure("Cannot retrieve the reservations")
+
+    echo "all reservations is done"
+    let requestEnds = allReservations.mapIt(await market.getRequestEnd(it.requestId))
+
+    if len(requestEnds) == 0:
+      return success(0.SecondsSince1970)
+
+    return success(requestEnds.max)
+  except CancelledError, CatchableError:
+    error "Error when trying to get longest request end",
+      error = getCurrentExceptionMsg()
+    return failure("Cannot retrieve the request dates")
+
 proc validate(pattern: string, value: string): int {.gcsafe, raises: [Defect].} =
   0
 
@@ -433,6 +459,14 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
           Http400, "Total size must be larger then zero", headers = headers
         )
 
+      let until = restAv.until |? 0
+      if until < 0:
+        return RestApiResponse.error(
+          Http400,
+          "Until parameter must be greater or equal 0. Got: " & $until,
+          headers = headers,
+        )
+
       if not reservations.hasAvailable(restAv.totalSize.truncate(uint)):
         return
           RestApiResponse.error(Http422, "Not enough storage quota", headers = headers)
@@ -444,6 +478,7 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
           restAv.minPricePerBytePerSecond,
           restAv.totalCollateral,
           enabled = restAv.enabled |? true,
+          until = until,
         )
       ), error:
         return RestApiResponse.error(Http500, error.msg, headers = headers)
@@ -529,7 +564,24 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
       if totalCollateral =? restAv.totalCollateral:
         availability.totalCollateral = totalCollateral
 
-      availability.enabled = restAv.enabled |? true
+      if until =? restAv.until:
+        if until < 0:
+          return RestApiResponse.error(
+            Http400, "Until parameter must be greater or equal 0. Got: " & $until
+          )
+
+        without longestRequestEnd =? (await node.getLongestRequestEnd(id)).catch, err:
+          return RestApiResponse.error(Http500, err.msg)
+
+        if until > 0 and until < longestRequestEnd.get:
+          return RestApiResponse.error(
+            Http400,
+            "Until parameter must be greater or equal the current longest request.",
+          )
+
+        availability.until = until
+
+      availability.enabled = restAv.enabled
 
       if err =? (await reservations.update(availability)).errorOption:
         return RestApiResponse.error(Http500, err.msg)

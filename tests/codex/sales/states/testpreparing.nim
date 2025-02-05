@@ -39,7 +39,8 @@ asyncchecksuite "sales state 'preparing'":
       duration = request.ask.duration + 60.u256,
       minPricePerBytePerSecond = request.ask.pricePerBytePerSecond,
       totalCollateral = request.ask.collateralPerSlot * request.ask.slots.u256,
-      enabled = true,
+      enabled = some true,
+      until = 0.SecondsSince1970,
     )
     let repoDs = SQLiteDatastore.new(Memory).tryGet()
     let metaDs = SQLiteDatastore.new(Memory).tryGet()
@@ -70,8 +71,12 @@ asyncchecksuite "sales state 'preparing'":
 
   proc createAvailability(enabled = true) {.async.} =
     let a = await reservations.createAvailability(
-      availability.totalSize, availability.duration,
-      availability.minPricePerBytePerSecond, availability.totalCollateral, enabled,
+      availability.totalSize,
+      availability.duration,
+      availability.minPricePerBytePerSecond,
+      availability.totalCollateral,
+      enabled,
+      until = 0.SecondsSince1970,
     )
     availability = a.get
 

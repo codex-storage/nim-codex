@@ -65,7 +65,8 @@ proc example*(
     duration = uint16.example.u256,
     minPricePerBytePerSecond = uint8.example.u256,
     totalCollateral = totalSize * collateralPerByte,
-    enabled = true,
+    enabled = some true,
+    until = 0.SecondsSince1970,
   )
 
 proc example*(_: type Reservation): Reservation =
