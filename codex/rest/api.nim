@@ -49,6 +49,32 @@ logScope:
 declareCounter(codex_api_uploads, "codex API uploads")
 declareCounter(codex_api_downloads, "codex API downloads")
 
+proc getLongestRequestEnd(
+    node: CodexNodeRef, availabilityId: AvailabilityId
+): Future[?!SecondsSince1970] {.async: (raises: []).} =
+  without contracts =? node.contracts.host:
+    return failure("Sales unavailable")
+
+  let
+    reservations = contracts.sales.context.reservations
+    market = contracts.sales.context.market
+
+  try:
+    without allReservations =? await reservations.all(Reservation, availabilityId):
+      return failure("Cannot retrieve the reservations")
+
+    echo "all reservations is done"
+    let requestEnds = allReservations.mapIt(await market.getRequestEnd(it.requestId))
+
+    if len(requestEnds) == 0:
+      return success(0.SecondsSince1970)
+
+    return success(requestEnds.max)
+  except CancelledError, CatchableError:
+    error "Error when trying to get longest request end",
+      error = getCurrentExceptionMsg()
+    return failure("Cannot retrieve the request dates")
+
 proc validate(pattern: string, value: string): int {.gcsafe, raises: [Defect].} =
   0
 

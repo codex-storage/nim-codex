@@ -145,7 +145,21 @@ multinodesuite "Sales":
     ).get
     host.patchAvailability(availability.id, enabled = false.some)
     let updatedAvailability = (host.getAvailabilities().get).findItem(availability).get
-    check updatedAvailability.enabled == false
+    check updatedAvailability.enabled == false.some
+
+  test "updating availability - updating until", salesConfig:
+    var until = cast[SecondsSince1970](getTime().toUnix())
+    let availability = host.postAvailability(
+      totalSize = 140000.u256,
+      duration = 200.u256,
+      minPricePerBytePerSecond = 3.u256,
+      totalCollateral = 300.u256,
+      until = until.some,
+    ).get
+    until += 10.SecondsSince1970
+    host.patchAvailability(availability.id, until = until.some)
+    let updatedAvailability = (host.getAvailabilities().get).findItem(availability).get
+    check updatedAvailability.until == until
 
   test "updating availability - updating totalSize does not allow bellow utilized",
     salesConfig:
@@ -189,3 +203,19 @@ multinodesuite "Sales":
       (host.getAvailabilities().get).findItem(availability).get
     check newUpdatedAvailability.totalSize == originalSize + 20000
     check newUpdatedAvailability.freeSize - updatedAvailability.freeSize == 20000
+
+  test "updating availability fails with until negative", salesConfig:
+    let availability = host.postAvailability(
+      totalSize = 140000.u256,
+      duration = 200.u256,
+      minPricePerBytePerSecond = 3.u256,
+      totalCollateral = 300.u256,
+    ).get
+
+    let response = host.patchAvailabilityRaw(
+      availability.id, until = cast[SecondsSince1970](-1).some
+    )
+
+    check:
+      response.status == "400 Bad Request"
+      response.body == "Until parameter must be greater or equal 0. Got: -1"

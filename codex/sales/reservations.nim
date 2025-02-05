@@ -708,14 +708,14 @@ proc findAvailability*(
   let endTime = getTime().toUnix() + cast[int64](duration)
   for item in storables.items:
     if bytes =? (await item) and availability =? Availability.fromJson(bytes):
-      if availability.enabled and size <= availability.freeSize and
-          duration <= availability.duration and
+      let enabled = availability.enabled
+      if enabled and size <= availability.freeSize and duration <= availability.duration and
           collateralPerByte <= availability.maxCollateralPerByte and
           pricePerBytePerSecond >= availability.minPricePerBytePerSecond and
           (availability.until == 0 or availability.until >= endTime):
         trace "availability matched",
           id = availability.id,
-          enabled = availability.enabled,
+          enabled = enabled,
           size,
           availFreeSize = availability.freeSize,
           duration,

@@ -448,7 +448,7 @@ asyncchecksuite "Sales":
 
     var storingRequest: StorageRequest
     sales.onStore = proc(
-        request: StorageRequest, slot: UInt256, onBatch: BatchProc
+        request: StorageRequest, slot: uint64, onBatch: BatchProc
     ): Future[?!void] {.async.} =
       storingRequest = request
       return success()

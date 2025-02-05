@@ -33,7 +33,7 @@ twonodessuite "REST API":
       duration = 2.uint64,
       minPricePerBytePerSecond = minPricePerBytePerSecond,
       totalCollateral = totalCollateral,
-      enabled = true.some,
+      enabled = true,
     ).get
     let space = client1.space().tryGet()
     check:
@@ -41,19 +41,6 @@ twonodessuite "REST API":
       space.quotaMaxBytes == 8589934592.NBytes
       space.quotaUsedBytes == 65592.NBytes
       space.quotaReservedBytes == 12.NBytes
-
-  test "created correctly an availability when not enabled by default", twoNodesConfig:
-    let totalSize = 12.u256
-    let minPricePerBytePerSecond = 1.u256
-    let totalCollateral = totalSize * minPricePerBytePerSecond
-    let availability = client1.postAvailability(
-      totalSize = totalSize,
-      duration = 2.u256,
-      minPricePerBytePerSecond = minPricePerBytePerSecond,
-      totalCollateral = totalCollateral,
-      enabled = false.some,
-    ).get
-    check availability.enabled == false
 
   test "node lists local files", twoNodesConfig:
     let content1 = "some file contents"
