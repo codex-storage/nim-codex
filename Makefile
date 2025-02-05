@@ -142,23 +142,19 @@ testContracts: | build deps
 		$(ENV_SCRIPT) nim testContracts $(NIM_PARAMS) build.nims
 
 TEST_PARAMS :=
-ifdef DEBUG_TESTHARNESS
-	TEST_PARAMS := $(TEST_PARAMS) -d:DebugTestHarness=$(DEBUG_TESTHARNESS)
+ifdef DEBUG
+	TEST_PARAMS := $(TEST_PARAMS) -d:DebugTestHarness=$(DEBUG)
+  TEST_PARAMS := $(TEST_PARAMS) -d:DebugCodexNodes=$(DEBUG)
+  TEST_PARAMS := $(TEST_PARAMS) -d:ShowContinuousStatusUpdates=$(DEBUG)
 endif
 ifdef DEBUG_HARDHAT
   TEST_PARAMS := $(TEST_PARAMS) -d:DebugHardhat=$(DEBUG_HARDHAT)
 endif
-ifdef DEBUG_CODEXNODES # true by default
-  TEST_PARAMS := $(TEST_PARAMS) -d:DebugCodexNodes=$(DEBUG_CODEXNODES)
-endif
-ifdef DEBUG_UPDATES
-  TEST_PARAMS := $(TEST_PARAMS) -d:ShowContinuousStatusUpdates=$(DEBUG_UPDATES)
-endif
 ifdef TEST_TIMEOUT
   TEST_PARAMS := $(TEST_PARAMS) -d:TestTimeout=$(TEST_TIMEOUT)
 endif
-ifdef ENABLE_PARALLEL_TESTS
-  TEST_PARAMS := $(TEST_PARAMS) -d:EnableParallelTests=$(ENABLE_PARALLEL_TESTS)
+ifdef PARALLEL
+  TEST_PARAMS := $(TEST_PARAMS) -d:EnableParallelTests=$(PARALLEL)
 endif
 
 # Builds and runs the integration tests
