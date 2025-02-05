@@ -30,7 +30,7 @@ const DebugHardhat {.booldefine.} = false
 # Echoes stdout from the integration test file process. Codex process logs can
 # also be output if a test uses a multinodesuite, requires CodexConfig.debug
 # to be enabled
-const DebugCodexNodes {.booldefine.} = true
+const DebugCodexNodes {.booldefine.} = false
 # Shows test status updates at time intervals. Useful for running locally with
 # active terminal interaction. Set to false for unattended runs, eg CI.
 const ShowContinuousStatusUpdates {.booldefine.} = false
@@ -40,28 +40,6 @@ const TestTimeout {.intdefine.} = 60
 const EnableParallelTests {.booldefine.} = true
 
 proc run() {.async.} =
-  when DebugTestHarness and enabledLogLevel != LogLevel.TRACE:
-    styledEcho bgWhite,
-      fgBlack, styleBright, "\n\n  ", styleUnderscore,
-      "ℹ️  ADDITIONAL LOGGING AVAILABLE ℹ️\n\n", resetStyle, bgWhite, fgBlack,
-      styleBright,
-      """
-  More integration test harness logs available by running with
-  -d:chronicles_log_level=TRACE, eg:""",
-      resetStyle, bgWhite, fgBlack,
-      "\n\n  nim c -d:chronicles_log_level=TRACE -r ./testIntegration.nim\n\n"
-
-  when DebugCodexNodes:
-    styledEcho bgWhite,
-      fgBlack, styleBright, "\n\n  ", styleUnderscore,
-      "⚠️ ENABLE CODEX LOGGING ⚠️\n\n", resetStyle, bgWhite, fgBlack,
-      styleBright,
-      """
-  For integration test suites that are multinodesuites, or for
-  tests launching a CodexProcess, ensure that CodexConfig.debug
-  is enabled to see chronicles logs.
-  """
-
   let manager = TestManager.new(
     configs = TestConfigs,
     DebugTestHarness,
