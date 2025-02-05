@@ -200,7 +200,7 @@ twonodessuite "REST API":
     let response = client1.uploadRaw("some file contents", headers)
 
     check response.status == "422 Unprocessable Entity"
-    check response.body == "The MIME type is not valid."
+    check response.body == "The MIME type 'hello/world' is not valid."
 
   test "node retrieve the metadata", twoNodesConfig:
     let headers = newHttpHeaders(
