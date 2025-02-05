@@ -1,4 +1,5 @@
 import std/tempfiles
+import std/times
 import codex/conf
 import codex/utils/fileutils
 import ../asynctest
@@ -9,22 +10,52 @@ import ./utils
 import ../examples
 
 const HardhatPort {.intdefine.}: int = 8545
+const CodexApiPort {.intdefine.}: int = 8080
+const CodexDiscPort {.intdefine.}: int = 8090
+const DebugCodexNodes {.booldefine.}: bool = false
+const LogsDir {.strdefine.}: string = ""
 
 asyncchecksuite "Command line interface":
+  let startTime = now().format("yyyy-MM-dd'_'HH:mm:ss")
   let key = "4242424242424242424242424242424242424242424242424242424242424242"
 
-  var nodeCount = -1
-  proc startCodex(args: seq[string]): Future[CodexProcess] {.async.} =
-    return await CodexProcess.startNode(args, false, "cli-test-node")
+  var currentTestName = ""
+  var testCount = 0
+  var nodeCount = 0
+
+  template test(tname, tbody) =
+    inc testCount
+    currentTestName = tname
+    test tname:
+      tbody
+
+  proc addLogFile(args: seq[string]): seq[string] =
+    when DebugCodexNodes:
+      return args.concat @[
+        "--log-file=" &
+          getLogFile(
+            LogsDir,
+            startTime,
+            "Command line interface",
+            currentTestName,
+            "Client",
+            some nodeCount mod testCount,
+          )
+      ]
+    else:
+      return args
+
+  proc startCodex(arguments: seq[string]): Future[CodexProcess] {.async.} =
     inc nodeCount
+    let args = arguments.addLogFile
     return await CodexProcess.startNode(
       args.concat(
         @[
-          "--api-port=" & $(await nextFreePort(8080 + nodeCount)),
-          "--disc-port=" & $(await nextFreePort(8090 + nodeCount)),
+          "--api-port=" & $(await nextFreePort(CodexApiPort + nodeCount)),
+          "--disc-port=" & $(await nextFreePort(CodexDiscPort + nodeCount)),
         ]
       ),
-      debug = false,
+      debug = DebugCodexNodes,
       "cli-test-node",
     )
 
