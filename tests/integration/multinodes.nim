@@ -42,6 +42,8 @@ const HardhatPort {.intdefine.}: int = 8545
 const CodexApiPort {.intdefine.}: int = 8080
 const CodexDiscPort {.intdefine.}: int = 8090
 const TestId {.strdefine.}: string = "TestId"
+const DebugCodexNodes {.booldefine.}: bool = false
+const LogsDir {.strdefine.}: string = ""
 
 proc raiseMultiNodeSuiteError(msg: string) =
   raise newException(MultiNodeSuiteError, msg)
@@ -89,29 +91,6 @@ template multinodesuite*(name: string, body: untyped) =
       test tname:
         tbody
 
-    proc sanitize(pathSegment: string): string =
-      var sanitized = pathSegment
-      for invalid in invalidFilenameChars.items:
-        sanitized = sanitized.replace(invalid, '_').replace(' ', '_')
-      sanitized
-
-    proc getLogFile(role: Role, index: ?int): string =
-      # create log file path, format:
-      # tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-
-      var logDir =
-        currentSourcePath.parentDir() / "logs" / sanitize($starttime & "__" & name) /
-        sanitize($currentTestName)
-      createDir(logDir)
-
-      var fn = $role
-      if idx =? index:
-        fn &= "_" & $idx
-      fn &= ".log"
-
-      let fileName = logDir / fn
-      return fileName
-
     proc updatePort(url: var string, port: int) =
       let parts = url.split(':')
       url = @[parts[0], parts[1], $port].join(":")
@@ -121,7 +100,8 @@ template multinodesuite*(name: string, body: untyped) =
     ): Future[NodeProcess] {.async.} =
       var args: seq[string] = @[]
       if config.logFile:
-        let updatedLogFile = getLogFile(role, none int)
+        let updatedLogFile =
+          getLogFile(LogsDir, starttime, name, currentTestName, $role, none int)
         args.add "--log-file=" & updatedLogFile
 
       let port = await nextFreePort(lastUsedHardhatPort)
@@ -151,9 +131,13 @@ template multinodesuite*(name: string, body: untyped) =
       let datadir = getTempDirName(starttime, role, roleIdx)
 
       try:
-        if config.logFile.isSome:
-          let updatedLogFile = getLogFile(role, some roleIdx)
+        if config.logFile.isSome or DebugCodexNodes:
+          let updatedLogFile =
+            getLogFile(LogsDir, starttime, name, currentTestName, $role, some roleIdx)
           config.withLogFile(updatedLogFile)
+
+        if DebugCodexNodes:
+          config.debugEnabled = true
 
         let apiPort = await nextFreePort(lastUsedCodexApiPort + nodeIdx)
         let discPort = await nextFreePort(lastUsedCodexDiscPort + nodeIdx)
