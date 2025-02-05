@@ -1,6 +1,7 @@
 import std/os
 import std/strformat
 import std/terminal
+from std/times import fromUnix, format, now
 from std/unicode import toUpper
 import std/unittest
 import pkg/chronos
@@ -38,6 +39,7 @@ type
     # Shows test status updates at regular time intervals. Useful for running
     # locally while attended. Set to false for unattended runs, eg CI.
     showContinuousStatusUpdates: bool
+    logsDir: string
     timeStart: ?Moment
     timeEnd: ?Moment
     codexPortLock: AsyncLock
@@ -73,6 +75,7 @@ type
     testId: string # when used in datadir path, prevents data dir clashes
     status: IntegrationTestStatus
     command: string
+    logsDir: string
 
   TestManagerError* = object of CatchableError
 
@@ -194,6 +197,8 @@ proc startHardhat(
 
   args.add("--port")
   args.add($port)
+  if test.manager.debugHardhat:
+    args.add("--log-file=" & test.logsDir / "hardhat.log")
 
   trace "starting hardhat process on port ", port
   try:
@@ -255,9 +260,9 @@ proc printResult(
   of IntegrationTestStatus.Failed:
     if output =? test.output:
       if printStdErr: #manager.debugTestHarness
-        test.printOutputMarker(MarkerPosition.Start, "test harness errors (stderr)")
+        test.printOutputMarker(MarkerPosition.Start, "test file errors (stderr)")
         echo output.stdError
-        test.printOutputMarker(MarkerPosition.Finish, "test harness errors (stderr)")
+        test.printOutputMarker(MarkerPosition.Finish, "test file errors (stderr)")
       if printStdOut:
         test.printOutputMarker(MarkerPosition.Start, "codex node output (stdout)")
         echo output.stdOutput
@@ -286,21 +291,25 @@ proc printStart(test: IntegrationTest) =
 proc buildCommand(
     test: IntegrationTest, hardhatPort: ?int
 ): Future[string] {.async: (raises: [CancelledError, TestManagerError]).} =
-  let logging =
-    if not test.manager.debugTestHarness:
-      ""
-    else:
+  var logging = string.none
+  if test.manager.debugTestHarness:
+    #!fmt: off
+    logging = some(
       "-d:chronicles_log_level=TRACE " &
-        "-d:chronicles_disabled_topics=websock,JSONRPC-HTTP-CLIENT,JSONRPC-WS-CLIENT " &
-        "-d:chronicles_default_output_device=stdout " & "-d:chronicles_sinks=textlines"
+      "-d:chronicles_disabled_topics=websock,JSONRPC-HTTP-CLIENT,JSONRPC-WS-CLIENT " &
+      "-d:chronicles_default_output_device=stdout " &
+      "-d:chronicles_sinks=textlines")
+    #!fmt: on
 
-  let strHardhatPort =
-    if not test.config.startHardhat:
-      ""
-    else:
-      without port =? hardhatPort:
-        raiseTestManagerError "hardhatPort required when 'config.startHardhat' is true"
-      "-d:HardhatPort=" & $port
+  var hhPort = string.none
+  if test.config.startHardhat:
+    without port =? hardhatPort:
+      raiseTestManagerError "hardhatPort required when 'config.startHardhat' is true"
+    hhPort = some "-d:HardhatPort=" & $port
+
+  var logDir = string.none
+  if test.manager.debugCodexNodes:
+    logDir = some "-d:LogsDir=" & test.logsDir
 
   var testFile: string
   try:
@@ -324,12 +333,25 @@ proc buildCommand(
     withLock(test.manager.hardhatPortLock):
       try:
         return
-          "nim c " & &"-d:CodexApiPort={apiPort} " & &"-d:CodexDiscPort={discPort} " &
-          &"{strHardhatPort} " & &"-d:TestId={test.testId} " & &"{logging} " &
-          "--verbosity:0 " & "--hints:off " & "-d:release " & "-r " & &"{testFile}"
+          #!fmt: off
+          "nim c " &
+            &"-d:CodexApiPort={apiPort} " &
+            &"-d:CodexDiscPort={discPort} " &
+            &"-d:DebugCodexNodes={test.manager.debugCodexNodes} " &
+            &"-d:DebugHardhat={test.manager.debugHardhat} " &
+            (logDir |? "") & " " &
+            (hhPort |? "") & " " &
+            &"-d:TestId={test.testId} " &
+            (logging |? "") & " " &
+            "--verbosity:0 " &
+            "--hints:off " &
+            "-d:release " &
+          "-r " &
+            &"{testFile}"
+          #!fmt: on
       except ValueError as parent:
         raiseTestManagerError "bad command --\n" & ", apiPort: " & $apiPort &
-          ", discPort: " & $discPort & ", logging: " & logging & ", testFile: " &
+          ", discPort: " & $discPort & ", logging: " & logging |? "" & ", testFile: " &
           testFile & ", error: " & parent.msg, parent
 
 proc setup(
@@ -393,6 +415,13 @@ proc start(test: IntegrationTest) {.async: (raises: []).} =
     config = test.config
 
   trace "Running test"
+
+  if test.manager.debugCodexNodes:
+    test.logsDir = test.manager.logsDir / sanitize(test.config.name)
+    try:
+      createDir(test.logsDir)
+    except CatchableError as e:
+      error "failed to create test log dir", logDir = test.logsDir, error = e.msg
 
   test.timeStart = some Moment.now()
   test.status = IntegrationTestStatus.Running
@@ -501,7 +530,7 @@ proc runTests(manager: TestManager) {.async: (raises: [CancelledError]).} =
     asyncSpawn futRun
 
   try:
-    # if runTests is cancelled, await allFutures will be cancelled, but allFutures 
+    # if runTests is cancelled, await allFutures will be cancelled, but allFutures
     # does not propagate the cancellation to the futures it's waiting on, so we
     # need to cancel them here
     await allFutures testFutures
@@ -581,6 +610,31 @@ proc printResult(manager: TestManager) {.raises: [TestManagerError].} =
 proc start*(
     manager: TestManager
 ) {.async: (raises: [CancelledError, TestManagerError]).} =
+  try:
+    if manager.debugCodexNodes:
+      let startTime = now().format("yyyy-MM-dd'_'HH:mm:ss")
+      let logsDir =
+        currentSourcePath.parentDir() / "logs" /
+        sanitize(startTime & "__IntegrationTests")
+      createDir(logsDir)
+      manager.logsDir = logsDir
+      #!fmt: off
+      echoStyled bgWhite, fgBlack, styleBright,
+        "\n\n  ",
+        styleUnderscore,
+        "ℹ️  LOGS AVAILABLE ℹ️\n\n",
+        resetStyle, bgWhite, fgBlack, styleBright,
+        """  Logs for this run will be available at:""",
+        resetStyle, bgWhite, fgBlack,
+        &"\n\n  {logsDir}\n\n",
+        resetStyle, bgWhite, fgBlack, styleBright,
+        "  NOTE: For CI runs, logs will be attached as artefacts\n"
+      #!fmt: on
+  except IOError as e:
+    raiseTestManagerError "failed to create hardhat log directory: " & e.msg, e
+  except OSError as e:
+    raiseTestManagerError "failed to create hardhat log directory: " & e.msg, e
+
   if manager.showContinuousStatusUpdates:
     let fut = manager.continuallyShowUpdates()
     manager.trackedFutures.track fut
