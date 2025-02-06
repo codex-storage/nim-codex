@@ -63,7 +63,6 @@ proc getLongestRequestEnd(
     without allReservations =? await reservations.all(Reservation, availabilityId):
       return failure("Cannot retrieve the reservations")
 
-    echo "all reservations is done"
     let requestEnds = allReservations.mapIt(await market.getRequestEnd(it.requestId))
 
     if len(requestEnds) == 0:
