@@ -325,9 +325,9 @@ proc buildCommand(
     # cannot rely on `nextFreePort` in multinodes entirely as there could be a
     # concurrency issue where the port is determined free in mulitiple tests and
     # then there is a clash during the run.
-    let apiPort = await nextFreePort(test.manager.lastCodexApiPort + 100)
+    let apiPort = await nextFreePort(test.manager.lastCodexApiPort + 1000)
     test.manager.lastCodexApiPort = apiPort
-    let discPort = await nextFreePort(test.manager.lastCodexDiscPort + 100)
+    let discPort = await nextFreePort(test.manager.lastCodexDiscPort + 1000)
     test.manager.lastCodexDiscPort = discPort
 
     withLock(test.manager.hardhatPortLock):
