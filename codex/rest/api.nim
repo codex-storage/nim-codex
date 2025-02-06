@@ -272,10 +272,6 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
     ##
     var headers = buildCorsHeaders("DELETE", allowedOrigin)
 
-    if corsOrigin =? allowedOrigin:
-      resp.setCorsHeaders("DELETE", corsOrigin)
-      resp.setHeader("Access-Control-Headers", "X-Requested-With")
-
     if cid.isErr:
       return RestApiResponse.error(Http400, $cid.error(), headers = headers)
 

@@ -311,13 +311,12 @@ proc delete*(
   ##
 
   without isManifest =? cid.isManifest, err:
-    trace "Bad content type for CID:", err = err.msg
+    trace "Bad content type for CID:", cid = cid, err = err.msg
     return failure(err)
 
   if not isManifest:
     return await self.deleteSingleBlock(cid)
 
-  echo "dispatch to entire dataset"
   await self.deleteEntireDataset(cid)
 
 proc store*(
