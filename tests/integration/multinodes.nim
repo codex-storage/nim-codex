@@ -128,7 +128,9 @@ template multinodesuite*(name: string, body: untyped) =
         raiseMultiNodeSuiteError "Cannot start node at nodeIdx " & $nodeIdx &
           ", not enough eth accounts."
 
-      let datadir = getTempDirName(starttime, role, roleIdx)
+      let datadir =
+        getTempDir() / "Codex" / sanitize(TestId) / sanitize(currentTestName) /
+        sanitize($starttime) / sanitize($role & "_" & $roleIdx)
 
       try:
         if config.logFile.isSome or DebugCodexNodes:
