@@ -267,6 +267,59 @@ proc retrieve*(
 
   await self.streamEntireDataset(manifest, cid)
 
+proc deleteSingleBlock(self: CodexNodeRef, cid: Cid): Future[?!void] {.async.} =
+  if err =? (await self.networkStore.delBlock(cid)).errorOption:
+    error "Error deleting block", cid, err = err.msg
+    return failure(err)
+
+  trace "Deleted block", cid
+  return success()
+
+proc deleteEntireDataset(self: CodexNodeRef, cid: Cid): Future[?!void] {.async.} =
+  # Deletion is a strictly local operation
+  var store = self.networkStore.localStore
+
+  if not (await cid in store):
+    return failure("Dataset's manifest is not available locally - nothing to delete")
+
+  without manifestBlock =? await store.getBlock(cid), err:
+    return failure(err)
+
+  without manifest =? Manifest.decode(manifestBlock), err:
+    return failure(err)
+
+  for i in 0 ..< manifest.blocksCount:
+    if err =? (await store.delBlock(manifest.treeCid, i)).errorOption:
+      # The contract for delBlock is fuzzy, but we assume that if the block is
+      # simply missing we won't get an error. This is a best effort operation and
+      # can simply be retried.
+      error "Failed to delete block within dataset", index = i, err = err.msg
+      return failure(err)
+
+  if err =? (await store.delBlock(cid)).errorOption:
+    error "Error deleting manifest block", err = err.msg
+
+  success()
+
+proc delete*(
+    self: CodexNodeRef, cid: Cid
+): Future[?!void] {.async: (raises: [CatchableError]).} =
+  ## Deletes a whole dataset, if Cid is a Manifest Cid, or a single block, if Cid a block Cid,
+  ## from the underlying block store. This is a strictly local operation.
+  ##
+  ## Missing blocks in dataset deletes are ignored.
+  ##
+
+  without isManifest =? cid.isManifest, err:
+    trace "Bad content type for CID:", err = err.msg
+    return failure(err)
+
+  if not isManifest:
+    return await self.deleteSingleBlock(cid)
+
+  echo "dispatch to entire dataset"
+  await self.deleteEntireDataset(cid)
+
 proc store*(
     self: CodexNodeRef,
     stream: LPStream,
