@@ -127,8 +127,8 @@ template multinodesuite*(name: string, body: untyped) =
           ", not enough eth accounts."
 
       let datadir =
-        getTempDir() / "Codex" / sanitize(TestId) / sanitize($starttime) /
-        sanitize($role & "_" & $roleIdx)
+        getTempDir() / "Codex" / sanitize(TestId) / sanitize(currentTestName) /
+        sanitize($starttime) / sanitize($role & "_" & $roleIdx)
 
       try:
         if config.logFile.isSome or DebugCodexNodes:
