@@ -44,7 +44,7 @@ multinodesuite "Node block expiration tests":
     await sleepAsync(3.seconds)
 
     let download = clientApi.download(contentId, local = true)
-    echo "download: ", download
+
     check:
       download.isFailure
       download.error.msg == "404 Not Found"
