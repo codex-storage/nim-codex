@@ -82,7 +82,7 @@ jobs:
         if: matrix.tests == 'integration' || matrix.tests == 'all'
         env:
           CODEX_INTEGRATION_TEST_INCLUDES: ${{ matrix.includes }}
-        run: make -j${ncpu} ENABLE_PARALLEL_TESTS=0 testIntegration
+        run: make -j${ncpu} PARALLEL=0 testIntegration
 
       - name: Parallel integration tests
         if: matrix.tests == 'integration-parallel'
