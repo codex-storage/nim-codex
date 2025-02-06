@@ -187,7 +187,7 @@ proc postAvailabilityRaw*(
       "duration": duration,
       "minPricePerBytePerSecond": minPricePerBytePerSecond,
       "totalCollateral": totalCollateral,
-      "enabled": enabled |? true,
+      "enabled": enabled,
       "until": until,
     }
   return client.http.post(url, $json)

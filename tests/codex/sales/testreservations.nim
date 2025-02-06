@@ -274,7 +274,7 @@ asyncchecksuite "Reservations module":
     check availability.until == 0.SecondsSince1970
 
   test "create availability whith correct values":
-    var until = cast[SecondsSince1970](getTime().toUnix())
+    var until = getTime().toUnix()
 
     let availability = createAvailability(enabled = false, until = until)
     check availability.enabled == false
@@ -339,7 +339,7 @@ asyncchecksuite "Reservations module":
 
     check not called
 
-  test "onAvailabilityAdded is not called when enabled is false":
+  test "onAvailabilityAdded is not called when availability is disabled":
     var availability = createAvailability(enabled = false)
     var called = false
     reservations.onAvailabilityAdded = proc(

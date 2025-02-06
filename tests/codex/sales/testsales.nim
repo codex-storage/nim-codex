@@ -150,7 +150,7 @@ asyncchecksuite "Sales":
       duration = 60.u256,
       minPricePerBytePerSecond = minPricePerBytePerSecond,
       totalCollateral = totalCollateral,
-      enabled = some true,
+      enabled = true,
       until = 0.SecondsSince1970,
     )
     request = StorageRequest(

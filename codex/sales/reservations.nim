@@ -71,11 +71,11 @@ type
     minPricePerBytePerSecond* {.serialize.}: UInt256
     totalCollateral {.serialize.}: UInt256
     totalRemainingCollateral* {.serialize.}: UInt256
-    # If false, the availability will not be able to receive new slots.
-    # If it is turned on and the availability is already hosting slots,
-    # it will not affect those existing slots.
+    # If set to false, the availability will not accept new slots.
+    # If enabled, it will not impact any existing slots that are already being hosted.
     enabled* {.serialize.}: bool
-    # 0 means non-restricted, otherwise contains timestamp until the Availability will be renewed
+    # Specifies the latest date after which sales will no longer be accepted for availability.
+    # If set to 0, there will be no restrictions.
     until* {.serialize.}: SecondsSince1970
 
   Reservation* = ref object
@@ -661,7 +661,8 @@ proc findAvailability*(
           pricePerBytePerSecond,
           availMinPricePerBytePerSecond = availability.minPricePerBytePerSecond,
           collateralPerByte,
-          availMaxCollateralPerByte = availability.maxCollateralPerByte
+          availMaxCollateralPerByte = availability.maxCollateralPerByte,
+          until = availability.until
 
         # TODO: As soon as we're on ARC-ORC, we can use destructors
         # to automatically dispose our iterators when they fall out of scope.
@@ -681,4 +682,5 @@ proc findAvailability*(
         pricePerBytePerSecond,
         availMinPricePerBytePerSecond = availability.minPricePerBytePerSecond,
         collateralPerByte,
-        availMaxCollateralPerByte = availability.maxCollateralPerByte
+        availMaxCollateralPerByte = availability.maxCollateralPerByte,
+        until = availability.until

@@ -85,7 +85,7 @@ multinodesuite "Sales":
       totalCollateral = 300.u256,
     ).get
 
-    var until = cast[SecondsSince1970](getTime().toUnix())
+    var until = getTime().toUnix()
 
     host.patchAvailability(
       availability.id,

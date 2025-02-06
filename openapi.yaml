@@ -167,6 +167,10 @@ components:
           type: boolean
           description: Enable the ability to receive sales on this availability.
           default: true
+        until:
+          type: integer
+          description: Specifies the latest date after which sales will no longer be accepted for availability. If set to 0, there will be no restrictions.
+          default: 0
 
     SalesAvailabilityREAD:
       allOf:

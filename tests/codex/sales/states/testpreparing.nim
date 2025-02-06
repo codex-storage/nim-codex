@@ -39,7 +39,7 @@ asyncchecksuite "sales state 'preparing'":
       duration = request.ask.duration + 60.u256,
       minPricePerBytePerSecond = request.ask.pricePerBytePerSecond,
       totalCollateral = request.ask.collateralPerSlot * request.ask.slots.u256,
-      enabled = some true,
+      enabled = true,
       until = 0.SecondsSince1970,
     )
     let repoDs = SQLiteDatastore.new(Memory).tryGet()
@@ -87,7 +87,7 @@ asyncchecksuite "sales state 'preparing'":
     check ignored.reprocessSlot
     check ignored.returnBytes == false
 
-  test "run switches to ignored when a availability is not enabled":
+  test "run switches to ignored when availability is not enabled":
     await createAvailability(enabled = false)
     let next = !(await state.run(agent))
     check next of SaleIgnored
