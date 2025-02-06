@@ -45,11 +45,7 @@ proc upload*(client: CodexClient, contents: string): ?!Cid =
   Cid.init(response.body).mapFailure
 
 proc upload*(client: CodexClient, bytes: seq[byte]): ?!Cid =
-  proc toString(bytes: seq[byte]): string =
-    result = newString(bytes.len)
-    copyMem(result[0].addr, bytes[0].unsafeAddr, bytes.len)
-
-  client.upload(bytes.toString)
+  client.upload(string.fromBytes(bytes))
 
 proc download*(client: CodexClient, cid: Cid, local = false): ?!string =
   let response = client.http.get(
