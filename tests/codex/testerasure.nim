@@ -29,20 +29,27 @@ suite "Erasure encode/decode":
   var erasure: Erasure
   let repoTmp = TempLevelDb.new()
   let metaTmp = TempLevelDb.new()
+  var taskpool: Taskpool
+  var start: DateTime
 
   setup:
     let
       repoDs = repoTmp.newDb()
       metaDs = metaTmp.newDb()
+    start = now()
     rng = Rng.instance()
     chunker = RandomChunker.new(rng, size = dataSetSize, chunkSize = BlockSize)
     store = RepoStore.new(repoDs, metaDs)
-    erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider, Taskpool.new())
+    taskpool = Taskpool.new()
+    erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider, taskpool)
     manifest = await storeDataGetManifest(store, chunker)
 
   teardown:
     await repoTmp.destroyDb()
     await metaTmp.destroyDb()
+    taskpool.shutdown()
+    # shutdown the taskpool
+    echo "Time taken: ", (now() - start).inMilliseconds, "ms"
 
   proc encode(buffers, parity: int): Future[Manifest] {.async.} =
     let encoded =
@@ -222,6 +229,39 @@ suite "Erasure encode/decode":
     let encoded = await encode(buffers, parity)
 
     discard (await erasure.decode(encoded)).tryGet()
+
+  test "Should process multiple encodes with different threads":
+    const
+      buffers = 100
+      parity = 50
+      iterations = 20
+
+    let
+      datasetSize = 1.MiBs
+      ecK = 10.Natural
+      ecM = 10.Natural
+
+    var tasks = newSeq[Future[?!Manifest]]()
+    var manifests = newSeq[Manifest]()
+    for i in 0 ..< iterations:
+      let
+        blockSize = rng.sample(@[1, 2, 4, 8, 16, 32, 64].mapIt(it.KiBs))
+        chunker = RandomChunker.new(rng, size = datasetSize, chunkSize = blockSize)
+        manifest = await storeDataGetManifest(store, chunker)
+      manifests.add(manifest)
+      tasks.add(erasure.encode(manifest, ecK, ecM))
+
+    let results = await all(tasks)
+
+    for i in 0 ..< results.len:
+      let
+        encoded = results[i].tryGet()
+        decoded = (await erasure.decode(encoded)).tryGet()
+
+      check:
+        decoded.treeCid == manifests[i].treeCid
+        decoded.treeCid == encoded.originalTreeCid
+        decoded.blocksCount == encoded.originalBlocksCount
 
   test "Should handle verifiable manifests":
     const
