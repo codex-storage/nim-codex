@@ -45,8 +45,21 @@ const TestId {.strdefine.}: string = "TestId"
 const DebugCodexNodes {.booldefine.}: bool = false
 const LogsDir {.strdefine.}: string = ""
 
-proc raiseMultiNodeSuiteError(msg: string) =
-  raise newException(MultiNodeSuiteError, msg)
+proc raiseMultiNodeSuiteError(msg: string, parent: ref CatchableError = nil) =
+  raise newException(MultiNodeSuiteError, msg, parent)
+
+template withLock(lock: AsyncLock, body: untyped) =
+  if lock.isNil:
+    lock = newAsyncLock()
+
+  await lock.acquire()
+  try:
+    body
+  finally:
+    try:
+      lock.release()
+    except AsyncLockError as parent:
+      raiseMultiNodeSuiteError "lock error", parent
 
 
 
@@ -84,6 +97,7 @@ template multinodesuite*(name: string, body: untyped) =
     var lastUsedHardhatPort = HardhatPort
     var lastUsedCodexApiPort = CodexApiPort
     var lastUsedCodexDiscPort = CodexDiscPort
+    var codexPortLock: AsyncLock
 
     template test(tname, startNodeConfigs, tbody) =
       currentTestName = tname
@@ -140,13 +154,14 @@ template multinodesuite*(name: string, body: untyped) =
 
         if DebugCodexNodes:
           config.debugEnabled = true
-
-        let apiPort = await nextFreePort(lastUsedCodexApiPort + nodeIdx)
-        let discPort = await nextFreePort(lastUsedCodexDiscPort + nodeIdx)
-        config.addCliOption("--api-port", $apiPort)
-        config.addCliOption("--disc-port", $discPort)
-        lastUsedCodexApiPort = apiPort
-        lastUsedCodexDiscPort = discPort
+        var apiPort, discPort: int
+        withLock(codexPortLock):
+          apiPort = await nextFreePort(lastUsedCodexApiPort + nodeIdx)
+          discPort = await nextFreePort(lastUsedCodexDiscPort + nodeIdx)
+          config.addCliOption("--api-port", $apiPort)
+          config.addCliOption("--disc-port", $discPort)
+          lastUsedCodexApiPort = apiPort
+          lastUsedCodexDiscPort = discPort
 
         for bootstrapNode in bootstrapNodes:
           config.addCliOption("--bootstrap-node", bootstrapNode)
