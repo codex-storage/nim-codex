@@ -21,8 +21,6 @@ multinodesuite "Sales":
     providers: CodexConfigs.init(nodes = 1).some,
   )
 
-  let minPricePerBytePerSecond = 1.u256
-
   var host: CodexClient
   var client: CodexClient
 
@@ -54,36 +52,7 @@ multinodesuite "Sales":
     ).get
     check availability in host.getAvailabilities().get
 
-  test "created correctly an availability when not enabled by default", salesConfig:
-    let totalSize = 12.u256
-    let minPricePerBytePerSecond = 1.u256
-    let totalCollateral = totalSize * minPricePerBytePerSecond
-    let availability = host.postAvailability(
-      totalSize = totalSize,
-      duration = 2.u256,
-      minPricePerBytePerSecond = minPricePerBytePerSecond,
-      totalCollateral = totalCollateral,
-      enabled = false.some,
-    ).get
-    check availability.enabled == false.some
-
-  test "create availability fails when until is negative", salesConfig:
-    let totalSize = 12.u256
-    let minPricePerBytePerSecond = 1.u256
-    let totalCollateral = totalSize * minPricePerBytePerSecond
-    let response = host.postAvailabilityRaw(
-      totalSize = totalSize,
-      duration = 2.u256,
-      minPricePerBytePerSecond = minPricePerBytePerSecond,
-      totalCollateral = totalCollateral,
-      until = cast[SecondsSince1970](-1).some,
-    )
-
-    check:
-      response.status == "400 Bad Request"
-      response.body == "Until parameter must be greater or equal 0. Got: -1"
-
-  test "create availability fails when until is negative", salesConfig:
+  test "creating availability fails when until is negative", salesConfig:
     let totalSize = 12.u256
     let minPricePerBytePerSecond = 1.u256
     let totalCollateral = totalSize * minPricePerBytePerSecond
@@ -116,11 +85,15 @@ multinodesuite "Sales":
       totalCollateral = 300.u256,
     ).get
 
+    var until = cast[SecondsSince1970](getTime().toUnix())
+
     host.patchAvailability(
       availability.id,
       duration = 100.u256.some,
       minPricePerBytePerSecond = 2.u256.some,
       totalCollateral = 200.u256.some,
+      enabled = false.some,
+      until = until.some,
     )
 
     let updatedAvailability = (host.getAvailabilities().get).findItem(availability).get
@@ -129,6 +102,8 @@ multinodesuite "Sales":
     check updatedAvailability.totalCollateral == 200
     check updatedAvailability.totalSize == 140000
     check updatedAvailability.freeSize == 140000
+    check updatedAvailability.enabled == false
+    check updatedAvailability.until == until
 
   test "updating availability - freeSize is not allowed to be changed", salesConfig:
     let availability = host.postAvailability(
@@ -153,32 +128,6 @@ multinodesuite "Sales":
     let updatedAvailability = (host.getAvailabilities().get).findItem(availability).get
     check updatedAvailability.totalSize == 100000
     check updatedAvailability.freeSize == 100000
-
-  test "updating availability - updating enabled", salesConfig:
-    let availability = host.postAvailability(
-      totalSize = 140000.u256,
-      duration = 200.u256,
-      minPricePerBytePerSecond = 3.u256,
-      totalCollateral = 300.u256,
-      enabled = true.some,
-    ).get
-    host.patchAvailability(availability.id, enabled = false.some)
-    let updatedAvailability = (host.getAvailabilities().get).findItem(availability).get
-    check updatedAvailability.enabled == false.some
-
-  test "updating availability - updating until", salesConfig:
-    var until = cast[SecondsSince1970](getTime().toUnix())
-    let availability = host.postAvailability(
-      totalSize = 140000.u256,
-      duration = 200.u256,
-      minPricePerBytePerSecond = 3.u256,
-      totalCollateral = 300.u256,
-      until = until.some,
-    ).get
-    until += 10.SecondsSince1970
-    host.patchAvailability(availability.id, until = until.some)
-    let updatedAvailability = (host.getAvailabilities().get).findItem(availability).get
-    check updatedAvailability.until == until
 
   test "updating availability - updating totalSize does not allow bellow utilized",
     salesConfig:

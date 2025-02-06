@@ -425,7 +425,7 @@ asyncchecksuite "Sales":
     createAvailability(enabled = true)
     await market.requestStorage(request)
 
-    availability.enabled = some false
+    availability.enabled = false
     discard await reservations.update(availability)
 
     check wasIgnored()

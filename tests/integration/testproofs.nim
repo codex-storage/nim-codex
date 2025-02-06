@@ -267,7 +267,8 @@ marketplacesuite "Simulate invalid proofs":
   #     duration=totalPeriods.periods.u256,
   #     minPricePerBytePerSecond=minPricePerBytePerSecond,
   #     totalCollateral=slotSize * minPricePerBytePerSecond,
-  #     enabled = true.some
+  #     enabled = true.some,
+  #     until = 0.SecondsSince1970.some,
   #   )
 
   #   let cid = client0.upload(data).get

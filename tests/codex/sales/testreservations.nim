@@ -67,10 +67,10 @@ asyncchecksuite "Reservations module":
 
   test "generates unique ids for storage availability":
     let availability1 = Availability.init(
-      1.u256, 2.u256, 3.u256, 4.u256, 5.u256, some true, 0.SecondsSince1970
+      1.u256, 2.u256, 3.u256, 4.u256, 5.u256, true, 0.SecondsSince1970
     )
     let availability2 = Availability.init(
-      1.u256, 2.u256, 3.u256, 4.u256, 5.u256, some true, 0.SecondsSince1970
+      1.u256, 2.u256, 3.u256, 4.u256, 5.u256, true, 0.SecondsSince1970
     )
     check availability1.id != availability2.id
 
@@ -265,20 +265,20 @@ asyncchecksuite "Reservations module":
     check isOk await reservations.update(availability)
     check (repo.quotaReservedBytes - origQuota) == 100.NBytes
 
-  test "enabled is updated correctly":
+  test "create availability set enabled to true by default":
     let availability = createAvailability()
+    check availability.enabled == true
 
-    check availability.enabled.get == true
+  test "create availability set until to 0 by default":
+    let availability = createAvailability()
+    check availability.until == 0.SecondsSince1970
 
-    check isOk await reservations.update(availability)
-    let key = availability.key.get
-    var updated = !(await reservations.get(key, Availability))
-    check updated.enabled.get == true
+  test "create availability whith correct values":
+    var until = cast[SecondsSince1970](getTime().toUnix())
 
-    availability.enabled = false.some
-    check isOk await reservations.update(availability)
-    updated = !(await reservations.get(key, Availability))
-    check updated.enabled.get == false
+    let availability = createAvailability(enabled = false, until = until)
+    check availability.enabled == false
+    check availability.until == until
 
   test "reservation can be partially released":
     let availability = createAvailability()
@@ -362,7 +362,7 @@ asyncchecksuite "Reservations module":
     check found.isSome
     check found.get == availability
 
-  test "availabilities cannot be found when it is not enabled":
+  test "does not find an availability when is it disabled":
     let availability = createAvailability(enabled = false)
 
     let found = await reservations.findAvailability(

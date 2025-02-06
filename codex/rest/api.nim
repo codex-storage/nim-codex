@@ -580,7 +580,8 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
 
         availability.until = until
 
-      availability.enabled = restAv.enabled
+      if enabled =? restAv.enabled:
+        availability.enabled = enabled
 
       if err =? (await reservations.update(availability)).errorOption:
         return RestApiResponse.error(Http500, err.msg)
