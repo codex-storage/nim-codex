@@ -238,6 +238,15 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
     let json = await formatManifestBlocks(node)
     return RestApiResponse.response($json, contentType = "application/json")
 
+  router.api(MethodOptions, "/api/codex/v1/data/{cid}") do(
+    cid: Cid, resp: HttpResponseRef
+  ) -> RestApiResponse:
+    if corsOrigin =? allowedOrigin:
+      resp.setCorsHeaders("GET,DELETE", corsOrigin)
+
+    resp.status = Http204
+    await resp.sendBody("")
+
   router.api(MethodGet, "/api/codex/v1/data/{cid}") do(
     cid: Cid, resp: HttpResponseRef
   ) -> RestApiResponse:
@@ -253,6 +262,27 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
       resp.setHeader("Access-Control-Headers", "X-Requested-With")
 
     await node.retrieveCid(cid.get(), local = true, resp = resp)
+
+  router.api(MethodDelete, "/api/codex/v1/data/{cid}") do(
+    cid: Cid, resp: HttpResponseRef
+  ) -> RestApiResponse:
+    ## Deletes either a single block or an entire dataset
+    ## from the local node. Does nothing and returns 200
+    ## if the dataset is not locally available.
+    ##
+    var headers = buildCorsHeaders("DELETE", allowedOrigin)
+
+    if corsOrigin =? allowedOrigin:
+      resp.setCorsHeaders("DELETE", corsOrigin)
+      resp.setHeader("Access-Control-Headers", "X-Requested-With")
+
+    if cid.isErr:
+      return RestApiResponse.error(Http400, $cid.error(), headers = headers)
+
+    if err =? (await node.delete(cid.get())).errorOption:
+      return RestApiResponse.error(Http500, err.msg, headers = headers)
+
+    return RestApiResponse.response("", headers = headers)
 
   router.api(MethodPost, "/api/codex/v1/data/{cid}/network") do(
     cid: Cid, resp: HttpResponseRef

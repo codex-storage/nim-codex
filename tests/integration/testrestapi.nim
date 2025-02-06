@@ -1,9 +1,10 @@
 import std/httpclient
 import std/sequtils
-from pkg/libp2p import `==`
+from pkg/libp2p import `==`, `$`, Cid
 import pkg/codex/units
 import ./twonodes
 import ../examples
+import ../codex/examples
 import json
 
 twonodessuite "REST API":
@@ -261,3 +262,19 @@ twonodessuite "REST API":
     check localResponse.headers.hasKey("Content-Disposition") == true
     check localResponse.headers["Content-Disposition"] ==
       "attachment; filename=\"example.txt\""
+
+  test "should delete a dataset when requested", twoNodesConfig:
+    let cid = client1.upload("some file contents").get
+
+    var response = client1.downloadRaw($cid, local = true)
+    check response.body == "some file contents"
+
+    client1.delete(cid).get
+
+    response = client1.downloadRaw($cid, local = true)
+    check response.status == "404 Not Found"
+
+  test "should return 200 when attempting delete of non-existing dataset",
+    twoNodesConfig:
+    let response = client1.deleteRaw($(Cid.example()))
+    check response.status == "200 OK"
