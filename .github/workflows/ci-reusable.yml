@@ -77,7 +77,7 @@ jobs:
       ## Part 3 Tests ##
       - name: Integration tests
         if: matrix.tests == 'integration' || matrix.tests == 'all'
-        run: make -j${ncpu} ENABLE_PARALLEL_TESTS=0 testIntegration
+        run: make -j${ncpu} PARALLEL=0 testIntegration
 
       - name: Parallel integration tests
         if: matrix.tests == 'integration-parallel'
