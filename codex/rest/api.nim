@@ -278,7 +278,7 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
     if err =? (await node.delete(cid.get())).errorOption:
       return RestApiResponse.error(Http500, err.msg, headers = headers)
 
-    return RestApiResponse.response("", headers = headers)
+    return RestApiResponse.response(Http204, "", headers = headers)
 
   router.api(MethodPost, "/api/codex/v1/data/{cid}/network") do(
     cid: Cid, resp: HttpResponseRef
