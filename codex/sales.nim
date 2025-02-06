@@ -382,10 +382,10 @@ proc subscribeRequested(sales: Sales) {.async.} =
   ) {.raises: [].} =
     sales.onStorageRequested(requestId, ask, expiry)
 
-  # Ensure that the config is loaded and repairRewardPercentage is available
-  discard await market.repairRewardPercentage()
-
   try:
+    # Ensure that the config is loaded in order to use the sync method slotCollateral
+    await market.loadConfig()
+
     let sub = await market.subscribeRequests(onStorageRequested)
     sales.subscriptions.add(sub)
   except CancelledError as error:

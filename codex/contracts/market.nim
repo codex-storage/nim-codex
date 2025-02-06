@@ -45,9 +45,8 @@ template convertEthersError(body) =
 
 proc config(market: OnChainMarket): Future[MarketplaceConfig] {.async.} =
   without resolvedConfig =? market.configuration:
-    let fetchedConfig = await market.contract.configuration()
-    market.configuration = some fetchedConfig
-    return fetchedConfig
+    await market.loadConfig()
+    return !market.configuration
 
   return resolvedConfig
 
@@ -60,6 +59,13 @@ proc approveFunds(market: OnChainMarket, amount: UInt256) {.async.} =
     let tokenAddress = await market.contract.token()
     let token = Erc20Token.new(tokenAddress, market.signer)
     discard await token.increaseAllowance(market.contract.address(), amount).confirm(1)
+
+method loadConfig*(
+    market: OnChainMarket
+): Future[void] {.async: (raises: [CatchableError]).} =
+  without config =? market.configuration:
+    let fetchedConfig = await market.contract.configuration()
+    market.configuration = some fetchedConfig
 
 method getZkeyHash*(market: OnChainMarket): Future[?string] {.async.} =
   let config = await market.config()

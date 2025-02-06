@@ -133,6 +133,11 @@ proc new*(_: type MockMarket, clock: ?Clock = Clock.none): MockMarket =
     signer: Address.example, config: config, canReserveSlot: true, clock: clock
   )
 
+method loadConfig*(
+    market: MockMarket
+): Future[void] {.async: (raises: [CatchableError]).} =
+  discard
+
 method getSigner*(market: MockMarket): Future[Address] {.async.} =
   return market.signer
 

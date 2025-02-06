@@ -63,6 +63,11 @@ type
   ProofSubmitted* = object of MarketplaceEvent
     id*: SlotId
 
+method loadConfig*(
+    market: Market
+): Future[void] {.base, async: (raises: [CatchableError]).} =
+  raiseAssert("not implemented")
+
 method getZkeyHash*(market: Market): Future[?string] {.base, async.} =
   raiseAssert("not implemented")
 
