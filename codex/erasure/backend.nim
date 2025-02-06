@@ -29,7 +29,9 @@ method release*(self: ErasureBackend) {.base, gcsafe.} =
   raiseAssert("not implemented!")
 
 method encode*(
-    self: EncoderBackend, buffers, parity: var openArray[seq[byte]]
+    self: EncoderBackend,
+    buffers, parity: ptr UncheckedArray[ptr UncheckedArray[byte]],
+    dataLen, parityLen: int,
 ): Result[void, cstring] {.base, gcsafe.} =
   ## encode buffers using a backend
   ##

@@ -92,9 +92,11 @@ type
 
   EncodeTask = object
     success: Atomic[bool]
-    encoder: EncoderBackend
-    blocks: ref seq[seq[byte]]
-    parity: ptr seq[seq[byte]]
+    erasure: ptr Erasure
+    blockSize: int
+    blocks: ptr UncheckedArray[ptr UncheckedArray[byte]]
+    parity: ptr UncheckedArray[ptr UncheckedArray[byte]]
+    blocksLen, parityLen: int
     signal: ThreadSignalPtr
 
   DecodeTask = object
@@ -104,6 +106,30 @@ type
     parity: ref seq[seq[byte]]
     recovered: ptr seq[seq[byte]]
     signal: ThreadSignalPtr
+
+proc createDoubleArray*(
+    outerLen, innerLen: int
+): ptr UncheckedArray[ptr UncheckedArray[byte]] =
+  # Allocate outer array
+  result = cast[ptr UncheckedArray[ptr UncheckedArray[byte]]](allocShared0(
+    sizeof(ptr UncheckedArray[byte]) * outerLen
+  ))
+
+  # Allocate each inner array
+  for i in 0 ..< outerLen:
+    result[i] = cast[ptr UncheckedArray[byte]](allocShared0(sizeof(byte) * innerLen))
+
+proc freeDoubleArray*(
+    arr: ptr UncheckedArray[ptr UncheckedArray[byte]], outerLen: int
+) =
+  # Free each inner array
+  for i in 0 ..< outerLen:
+    if not arr[i].isNil:
+      deallocShared(arr[i])
+
+  # Free outer array
+  if not arr.isNil:
+    deallocShared(arr)
 
 func indexToPos(steps, idx, step: int): int {.inline.} =
   ## Convert an index to a position in the encoded
@@ -287,9 +313,18 @@ proc init*(
     strategy: strategy,
   )
 
-proc leopardEncodeTask(tp: Taskpool, task: ptr EncodeTask) =
+proc leopardEncodeTask(tp: Taskpool, task: ptr EncodeTask) {.gcsafe.} =
   # Task suitable for running in taskpools - look, no GC!
-  if (let res = task[].encoder.encode(task[].blocks[], task[].parity[]); res.isErr):
+  let encoder =
+    task[].erasure.encoderProvider(task[].blockSize, task[].blocksLen, task[].parityLen)
+  defer:
+    encoder.release()
+
+  if (
+    let res =
+      encoder.encode(task[].blocks, task[].parity, task[].blocksLen, task[].parityLen)
+    res.isErr
+  ):
     warn "Error from leopard encoder backend!", error = $res.error
     task[].success.store(false)
   else:
@@ -299,18 +334,33 @@ proc leopardEncodeTask(tp: Taskpool, task: ptr EncodeTask) =
 
 proc encodeAsync(
     self: Erasure,
-    blockSize, ecK, ecM: int,
+    blockSize, blocksLen, parityLen: int,
     data: ref seq[seq[byte]],
-    parity: ptr seq[seq[byte]],
-): Future[?!void] {.async: (raises: []).} =
+    parity: ptr UncheckedArray[ptr UncheckedArray[byte]],
+): Future[?!void] {.async: (raises: [CancelledError]).} =
   ## Create an encoder backend instance
-  let encoder = self.encoderProvider(blockSize, ecK, ecM)
+
   without threadPtr =? ThreadSignalPtr.new():
     return failure("Unable to create thread signal")
 
+  var blockData = createDoubleArray(blocksLen, blockSize)
+
+  for i in 0 ..< data[].len:
+    copyMem(blockData[i], addr data[i][0], blockSize)
+
+  defer:
+    freeDoubleArray(blockData, blocksLen)
+
   ## Create an ecode task with block data 
-  var task =
-    EncodeTask(encoder: encoder, blocks: data, parity: parity, signal: threadPtr)
+  var task = EncodeTask(
+    erasure: addr self,
+    blockSize: blockSize,
+    blocksLen: blocksLen,
+    parityLen: parityLen,
+    blocks: blockData,
+    parity: parity,
+    signal: threadPtr,
+  )
 
   let t = addr task
   doAssert self.taskPool.numThreads > 1,
@@ -322,11 +372,10 @@ proc encodeAsync(
   except AsyncError as exc:
     warn "Async thread error", err = exc.msg
     return failure(exc.msg)
-  except CancelledError:
-    return failure("Thread cancelled")
+  except CancelledError as exc:
+    raise exc
   finally:
-    # release the encoder
-    t.encoder.release()
+    threadPtr.close().expect("closing once works")
 
   if not t.success.load():
     return failure("Leopard encoding failed")
@@ -350,7 +399,6 @@ proc encodeData(
 
   var
     cids = seq[Cid].new()
-    encoder = self.encoderProvider(manifest.blockSize.int, params.ecK, params.ecM)
     emptyBlock = newSeq[byte](manifest.blockSize.int)
 
   cids[].setLen(params.blocksCount)
@@ -360,8 +408,7 @@ proc encodeData(
       # TODO: Don't allocate a new seq every time, allocate once and zero out
       var
         data = seq[seq[byte]].new() # number of blocks to encode
-        parityData =
-          newSeqWith[seq[byte]](params.ecM, newSeq[byte](manifest.blockSize.int))
+        parity = createDoubleArray(params.ecM, manifest.blockSize.int)
 
       data[].setLen(params.ecK)
       # TODO: this is a tight blocking loop so we sleep here to allow
@@ -375,18 +422,25 @@ proc encodeData(
         trace "Unable to prepare data", error = err.msg
         return failure(err)
 
-      trace "Erasure coding data", data = data[].len, parity = parityData.len
+      trace "Erasure coding data", data = data[].len
 
-      if err =? (
-        await self.encodeAsync(
-          manifest.blockSize.int, params.ecK, params.ecM, data, addr parityData
-        )
-      ).errorOption:
-        return failure(err)
+      try:
+        if err =? (
+          await self.encodeAsync(
+            manifest.blockSize.int, params.ecK, params.ecM, data, parity
+          )
+        ).errorOption:
+          return failure(err)
+      except CancelledError as exc:
+        raise exc
+      finally:
+        freeDoubleArray(parity, params.ecM)
 
       var idx = params.rounded + step
       for j in 0 ..< params.ecM:
-        without blk =? bt.Block.new(parityData[j]), error:
+        var innerPtr: ptr UncheckedArray[byte] = parity[][j]
+        without blk =? bt.Block.new(innerPtr.toOpenArray(0, manifest.blockSize.int - 1)),
+          error:
           trace "Unable to create parity block", err = error.msg
           return failure(error)
 
