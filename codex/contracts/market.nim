@@ -43,7 +43,9 @@ template convertEthersError(body) =
   except EthersError as error:
     raiseMarketError(error.msgDetail)
 
-proc config(market: OnChainMarket): Future[MarketplaceConfig] {.async.} =
+proc config(
+    market: OnChainMarket
+): Future[MarketplaceConfig] {.async: (raises: [CatchableError]).} =
   without resolvedConfig =? market.configuration:
     await market.loadConfig()
     return !market.configuration
@@ -67,7 +69,9 @@ method loadConfig*(
     let fetchedConfig = await market.contract.configuration()
     market.configuration = some fetchedConfig
 
-method getZkeyHash*(market: OnChainMarket): Future[?string] {.async.} =
+method getZkeyHash*(
+    market: OnChainMarket
+): Future[?string] {.async: (raises: [CatchableError]).} =
   let config = await market.config()
   return some config.proofs.zkeyHash
 
@@ -75,23 +79,31 @@ method getSigner*(market: OnChainMarket): Future[Address] {.async.} =
   convertEthersError:
     return await market.signer.getAddress()
 
-method periodicity*(market: OnChainMarket): Future[Periodicity] {.async.} =
+method periodicity*(
+    market: OnChainMarket
+): Future[Periodicity] {.async: (raises: [CatchableError]).} =
   convertEthersError:
     let config = await market.config()
     let period = config.proofs.period
     return Periodicity(seconds: period)
 
-method proofTimeout*(market: OnChainMarket): Future[UInt256] {.async.} =
+method proofTimeout*(
+    market: OnChainMarket
+): Future[UInt256] {.async: (raises: [CatchableError]).} =
   convertEthersError:
     let config = await market.config()
     return config.proofs.timeout
 
-method repairRewardPercentage*(market: OnChainMarket): Future[uint8] {.async.} =
+method repairRewardPercentage*(
+    market: OnChainMarket
+): Future[uint8] {.async: (raises: [CatchableError]).} =
   convertEthersError:
     let config = await market.config()
     return config.collateral.repairRewardPercentage
 
-method proofDowntime*(market: OnChainMarket): Future[uint8] {.async.} =
+method proofDowntime*(
+    market: OnChainMarket
+): Future[uint8] {.async: (raises: [CatchableError]).} =
   convertEthersError:
     let config = await market.config()
     return config.proofs.downtime
