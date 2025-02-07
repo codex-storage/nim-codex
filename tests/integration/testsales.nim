@@ -1,5 +1,6 @@
 import std/httpclient
 import pkg/codex/contracts
+from pkg/codex/stores/repostore/types import DefaultQuotaBytes
 import ./twonodes
 import ../codex/examples
 import ../contracts/time
@@ -93,7 +94,7 @@ multinodesuite "Sales":
     ).get
     let freeSizeResponse =
       host.patchAvailabilityRaw(availability.id, freeSize = 110000.u256.some)
-    check freeSizeResponse.status == "400 Bad Request"
+    check freeSizeResponse.status == "422 Unprocessable Entity"
     check "not allowed" in freeSizeResponse.body
 
   test "updating availability - updating totalSize", salesConfig:
@@ -143,7 +144,7 @@ multinodesuite "Sales":
     let totalSizeResponse = host.patchAvailabilityRaw(
       availability.id, totalSize = (utilizedSize - 1.u256).some
     )
-    check totalSizeResponse.status == "400 Bad Request"
+    check totalSizeResponse.status == "422 Unprocessable Entity"
     check "totalSize must be larger then current totalSize" in totalSizeResponse.body
 
     host.patchAvailability(availability.id, totalSize = (originalSize + 20000).some)
@@ -151,3 +152,27 @@ multinodesuite "Sales":
       (host.getAvailabilities().get).findItem(availability).get
     check newUpdatedAvailability.totalSize == originalSize + 20000
     check newUpdatedAvailability.freeSize - updatedAvailability.freeSize == 20000
+
+  test "creating availability above the node quota returns 422", salesConfig:
+    let response = host.postAvailabilityRaw(
+      totalSize = 14000000000.u256,
+      duration = 200.u256,
+      minPricePerBytePerSecond = 3.u256,
+      totalCollateral = 300.u256,
+    )
+
+    check response.status == "422 Unprocessable Entity"
+    check response.body == "Not enough storage quota"
+
+  test "updating availability above the node quota returns 422", salesConfig:
+    let availability = host.postAvailability(
+      totalSize = 140000.u256,
+      duration = 200.u256,
+      minPricePerBytePerSecond = 3.u256,
+      totalCollateral = 300.u256,
+    ).get
+    let response =
+      host.patchAvailabilityRaw(availability.id, totalSize = 14000000000.u256.some)
+
+    check response.status == "422 Unprocessable Entity"
+    check response.body == "Not enough storage quota"
