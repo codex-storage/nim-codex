@@ -141,16 +141,24 @@ method loadConfig*(
 method getSigner*(market: MockMarket): Future[Address] {.async.} =
   return market.signer
 
-method periodicity*(mock: MockMarket): Future[Periodicity] {.async.} =
+method periodicity*(
+    mock: MockMarket
+): Future[Periodicity] {.async: (raises: [CatchableError]).} =
   return Periodicity(seconds: mock.config.proofs.period)
 
-method proofTimeout*(market: MockMarket): Future[UInt256] {.async.} =
+method proofTimeout*(
+    market: MockMarket
+): Future[UInt256] {.async: (raises: [CatchableError]).} =
   return market.config.proofs.timeout
 
-method proofDowntime*(market: MockMarket): Future[uint8] {.async.} =
+method proofDowntime*(
+    market: MockMarket
+): Future[uint8] {.async: (raises: [CatchableError]).} =
   return market.config.proofs.downtime
 
-method repairRewardPercentage*(market: MockMarket): Future[uint8] {.async.} =
+method repairRewardPercentage*(
+    market: MockMarket
+): Future[uint8] {.async: (raises: [CatchableError]).} =
   return market.config.collateral.repairRewardPercentage
 
 method getPointer*(market: MockMarket, slotId: SlotId): Future[uint8] {.async.} =
