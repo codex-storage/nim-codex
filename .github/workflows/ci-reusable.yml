@@ -85,7 +85,7 @@ jobs:
 
       - name: Upload integration tests log files
         uses: actions/upload-artifact@v4
-        if: (matrix.tests == 'integration' || matrix.tests == 'all') && always()
+        if: (matrix.tests == 'integration' || matrix.tests == 'integration-parallel' || matrix.tests == 'all') && always()
         with:
           name: ${{ matrix.os }}-${{ matrix.cpu }}-${{ matrix.nim_version }}-integration-tests-logs
           path: tests/integration/logs/
