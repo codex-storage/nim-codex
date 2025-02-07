@@ -290,7 +290,6 @@ proc listRaw*(client: CodexClient): Response =
   return client.http.request(client.baseurl & "/data", httpMethod = HttpGet)
 
 proc downloadRaw*(client: CodexClient, cid: string, local = false): Response =
-  echo client.baseurl & "/data/" & cid & (if local: "" else: "/network/stream")
   return client.http.request(
     client.baseurl & "/data/" & cid & (if local: "" else: "/network/stream"),
     httpMethod = HttpGet,
