@@ -1,5 +1,6 @@
 import std/httpclient
 import pkg/codex/contracts
+from pkg/codex/stores/repostore/types import DefaultQuotaBytes
 import ./twonodes
 import ../codex/examples
 import ../contracts/time
@@ -114,7 +115,7 @@ multinodesuite "Sales":
     ).get
     let freeSizeResponse =
       await host.patchAvailabilityRaw(availability.id, freeSize = 110000.uint64.some)
-    check freeSizeResponse.status == 400
+    check freeSizeResponse.status == 422
     check "not allowed" in (await freeSizeResponse.body)
 
   test "updating availability - updating totalSize", salesConfig:
@@ -176,7 +177,7 @@ multinodesuite "Sales":
         availability.id, totalSize = (utilizedSize - 1).some
       )
     )
-    check totalSizeResponse.status == 400
+    check totalSizeResponse.status == 422
     check "totalSize must be larger then current totalSize" in
       (await totalSizeResponse.body)
 
@@ -187,3 +188,30 @@ multinodesuite "Sales":
       ((await host.getAvailabilities()).get).findItem(availability).get
     check newUpdatedAvailability.totalSize == originalSize + 20000
     check newUpdatedAvailability.freeSize - updatedAvailability.freeSize == 20000
+
+  test "creating availability above the node quota returns 422", salesConfig:
+    let response = await host.postAvailabilityRaw(
+      totalSize = 24000000000.uint64,
+      duration = 200.uint64,
+      minPricePerBytePerSecond = 3.u256,
+      totalCollateral = 300.u256,
+    )
+
+    check response.status == 422
+    check (await response.body) == "Not enough storage quota"
+
+  test "updating availability above the node quota returns 422", salesConfig:
+    let availability = (
+      await host.postAvailability(
+        totalSize = 140000.uint64,
+        duration = 200.uint64,
+        minPricePerBytePerSecond = 3.u256,
+        totalCollateral = 300.u256,
+      )
+    ).get
+    let response = await host.patchAvailabilityRaw(
+      availability.id, totalSize = 24000000000.uint64.some
+    )
+
+    check response.status == 422
+    check (await response.body) == "Not enough storage quota"
