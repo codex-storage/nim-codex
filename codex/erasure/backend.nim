@@ -38,7 +38,9 @@ method encode*(
   raiseAssert("not implemented!")
 
 method decode*(
-    self: DecoderBackend, buffers, parity, recovered: var openArray[seq[byte]]
+    self: DecoderBackend,
+    buffers, parity, recovered: ptr UncheckedArray[ptr UncheckedArray[byte]],
+    dataLen, parityLen, recoveredLen: int,
 ): Result[void, cstring] {.base, gcsafe.} =
   ## decode buffers using a backend
   ##

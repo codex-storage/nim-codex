@@ -41,7 +41,9 @@ method encode*(
   encoder.encode(data, parity, dataLen, parityLen)
 
 method decode*(
-    self: LeoDecoderBackend, data, parity, recovered: var openArray[seq[byte]]
+    self: LeoDecoderBackend,
+    data, parity, recovered: ptr UncheckedArray[ptr UncheckedArray[byte]],
+    dataLen, parityLen, recoveredLen: int,
 ): Result[void, cstring] =
   ## Decode data using given Leopard backend
 
@@ -52,7 +54,7 @@ method decode*(
     else:
       self.decoder.get()
 
-  decoder.decode(data, parity, recovered)
+  decoder.decode(data, parity, recovered, dataLen, parityLen, recoveredLen)
 
 method release*(self: LeoEncoderBackend) =
   if self.encoder.isSome:
