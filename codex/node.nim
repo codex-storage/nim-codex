@@ -288,7 +288,13 @@ proc deleteEntireDataset(self: CodexNodeRef, cid: Cid): Future[?!void] {.async.}
   without manifest =? Manifest.decode(manifestBlock), err:
     return failure(err)
 
+  let maxContinousRuntime = initDuration(milliseconds = 100)
+  var lastIdle = getTime()
   for i in 0 ..< manifest.blocksCount:
+    if (getTime() - lastIdle) >= maxContinousRuntime:
+      await idleAsync()
+      lastIdle = getTime()
+
     if err =? (await store.delBlock(manifest.treeCid, i)).errorOption:
       # The contract for delBlock is fuzzy, but we assume that if the block is
       # simply missing we won't get an error. This is a best effort operation and

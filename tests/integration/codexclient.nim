@@ -88,7 +88,7 @@ proc delete*(client: CodexClient, cid: Cid): ?!void =
     url = client.baseurl & "/data/" & $cid
     response = client.http.delete(url)
 
-  if response.status != "200 OK":
+  if response.status != "204 No Content":
     return failure(response.status)
 
   success()
@@ -287,6 +287,7 @@ proc listRaw*(client: CodexClient): Response =
   return client.http.request(client.baseurl & "/data", httpMethod = HttpGet)
 
 proc downloadRaw*(client: CodexClient, cid: string, local = false): Response =
+  echo client.baseurl & "/data/" & cid & (if local: "" else: "/network/stream")
   return client.http.request(
     client.baseurl & "/data/" & cid & (if local: "" else: "/network/stream"),
     httpMethod = HttpGet,
