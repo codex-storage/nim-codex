@@ -2,9 +2,11 @@ import std/httpclient
 import std/sequtils
 from pkg/libp2p import `==`, `$`, Cid
 import pkg/codex/units
+import pkg/codex/manifest
 import ./twonodes
 import ../examples
 import ../codex/examples
+import ../codex/slots/helpers
 import json
 
 twonodessuite "REST API":
@@ -274,7 +276,12 @@ twonodessuite "REST API":
     response = client1.downloadRaw($cid, local = true)
     check response.status == "404 Not Found"
 
+  test "should return 200 when attempting delete of non-existing block", twoNodesConfig:
+    let response = client1.deleteRaw($(Cid.example()))
+    check response.status == "204 No Content"
+
   test "should return 200 when attempting delete of non-existing dataset",
     twoNodesConfig:
-    let response = client1.deleteRaw($(Cid.example()))
+    let cid = Manifest.example().makeManifestBlock().get.cid
+    let response = client1.deleteRaw($cid)
     check response.status == "204 No Content"

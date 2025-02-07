@@ -280,7 +280,8 @@ proc deleteEntireDataset(self: CodexNodeRef, cid: Cid): Future[?!void] {.async.}
   var store = self.networkStore.localStore
 
   if not (await cid in store):
-    return failure("Dataset's manifest is not available locally - nothing to delete")
+    # As per the contract for delete*, an absent dataset is not an error.
+    return success()
 
   without manifestBlock =? await store.getBlock(cid), err:
     return failure(err)
@@ -288,10 +289,10 @@ proc deleteEntireDataset(self: CodexNodeRef, cid: Cid): Future[?!void] {.async.}
   without manifest =? Manifest.decode(manifestBlock), err:
     return failure(err)
 
-  let maxContinousRuntime = initDuration(milliseconds = 100)
+  let runtimeQuota = initDuration(milliseconds = 100)
   var lastIdle = getTime()
   for i in 0 ..< manifest.blocksCount:
-    if (getTime() - lastIdle) >= maxContinousRuntime:
+    if (getTime() - lastIdle) >= runtimeQuota:
       await idleAsync()
       lastIdle = getTime()
 
