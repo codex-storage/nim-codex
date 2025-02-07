@@ -1,5 +1,6 @@
 import std/httpclient
 import std/sequtils
+import std/strformat
 from pkg/libp2p import `==`, `$`, Cid
 import pkg/codex/units
 import pkg/codex/manifest
@@ -147,18 +148,19 @@ twonodessuite "REST API":
       check responseBefore.body ==
         "Invalid parameters: `tolerance` cannot be greater than `nodes`"
 
-  test "request storage succeeds if nodes and tolerance within range", twoNodesConfig:
-    let data = await RandomChunker.example(blocks = 2)
-    let cid = client1.upload(data).get
-    let duration = 100.u256
-    let pricePerBytePerSecond = 1.u256
-    let proofProbability = 3.u256
-    let expiry = 30.uint
-    let collateralPerByte = 1.u256
-    let ecParams = @[(3, 1), (5, 2)]
-
-    for ecParam in ecParams:
-      let (nodes, tolerance) = ecParam
+  for ecParams in @[
+    (minBlocks: 2, nodes: 3, tolerance: 1), (minBlocks: 3, nodes: 5, tolerance: 2)
+  ]:
+    let (minBlocks, nodes, tolerance) = ecParams
+    test "request storage succeeds if nodes and tolerance within range " &
+      fmt"({minBlocks=}, {nodes=}, {tolerance=})", twoNodesConfig:
+      let data = await RandomChunker.example(blocks = minBlocks)
+      let cid = client1.upload(data).get
+      let duration = 100.u256
+      let pricePerBytePerSecond = 1.u256
+      let proofProbability = 3.u256
+      let expiry = 30.uint
+      let collateralPerByte = 1.u256
 
       var responseBefore = client1.requestStorageRaw(
         cid, duration, pricePerBytePerSecond, proofProbability, collateralPerByte,
