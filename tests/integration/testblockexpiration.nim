@@ -2,7 +2,7 @@ import ../examples
 import ./multinodes
 
 multinodesuite "Node block expiration tests":
-  var content = ""
+  var content: seq[byte]
 
   setup:
     content = await RandomChunker.example(blocks = 8)
@@ -26,7 +26,7 @@ multinodesuite "Node block expiration tests":
 
     check:
       download.isOk
-      download.get == content
+      download.get == string.fromBytes(content)
 
   test "node deletes expired file",
     NodeConfigs(
