@@ -30,13 +30,11 @@ suite "Erasure encode/decode":
   let repoTmp = TempLevelDb.new()
   let metaTmp = TempLevelDb.new()
   var taskpool: Taskpool
-  var start: DateTime
 
   setup:
     let
       repoDs = repoTmp.newDb()
       metaDs = metaTmp.newDb()
-    start = now()
     rng = Rng.instance()
     chunker = RandomChunker.new(rng, size = dataSetSize, chunkSize = BlockSize)
     store = RepoStore.new(repoDs, metaDs)
@@ -49,7 +47,6 @@ suite "Erasure encode/decode":
     await metaTmp.destroyDb()
     taskpool.shutdown()
     # shutdown the taskpool
-    echo "Time taken: ", (now() - start).inMilliseconds, "ms"
 
   proc encode(buffers, parity: int): Future[Manifest] {.async.} =
     let encoded =
@@ -230,36 +227,40 @@ suite "Erasure encode/decode":
 
     discard (await erasure.decode(encoded)).tryGet()
 
-  test "Should process multiple encodes with different threads":
-    const
-      buffers = 100
-      parity = 50
-      iterations = 20
+  test "Should concurrently encode/decode multiple datasets":
+    const iterations = 20
 
     let
       datasetSize = 1.MiBs
       ecK = 10.Natural
       ecM = 10.Natural
 
-    var tasks = newSeq[Future[?!Manifest]]()
+    var encodeTasks = newSeq[Future[?!Manifest]]()
+    var decodeTasks = newSeq[Future[?!Manifest]]()
     var manifests = newSeq[Manifest]()
     for i in 0 ..< iterations:
       let
+        # create random data and store it
         blockSize = rng.sample(@[1, 2, 4, 8, 16, 32, 64].mapIt(it.KiBs))
         chunker = RandomChunker.new(rng, size = datasetSize, chunkSize = blockSize)
         manifest = await storeDataGetManifest(store, chunker)
       manifests.add(manifest)
-      tasks.add(erasure.encode(manifest, ecK, ecM))
+      # encode the data concurrently
+      encodeTasks.add(erasure.encode(manifest, ecK, ecM))
+    # wait for all encoding tasks to finish
+    let encodeResults = await all(encodeTasks)
+    # decode the data concurrently
+    for i in 0 ..< encodeResults.len:
+      decodeTasks.add(erasure.decode(encodeResults[i].tryGet()))
+    # wait for all decoding tasks to finish
+    let decodeResults = await all(decodeTasks)
 
-    let results = await all(tasks)
-
-    for i in 0 ..< results.len:
+    for j in 0 ..< decodeTasks.len:
       let
-        encoded = results[i].tryGet()
-        decoded = (await erasure.decode(encoded)).tryGet()
-
+        decoded = decodeResults[j].tryGet()
+        encoded = encodeResults[j].tryGet()
       check:
-        decoded.treeCid == manifests[i].treeCid
+        decoded.treeCid == manifests[j].treeCid
         decoded.treeCid == encoded.originalTreeCid
         decoded.blocksCount == encoded.originalBlocksCount
 
