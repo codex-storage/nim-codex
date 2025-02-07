@@ -179,7 +179,7 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
     trace "Handling file upload"
     var bodyReader = request.getBodyReader()
     if bodyReader.isErr():
-      return RestApiResponse.error(Http500)
+      return RestApiResponse.error(Http500, msg = bodyReader.error())
 
     # Attempt to handle `Expect` header
     # some clients (curl), wait 1000ms
@@ -190,10 +190,13 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
     var mimetype = request.headers.getString(ContentTypeHeader).some
 
     if mimetype.get() != "":
+      let mimetypeVal = mimetype.get()
       var m = newMimetypes()
-      let extension = m.getExt(mimetype.get(), "")
+      let extension = m.getExt(mimetypeVal, "")
       if extension == "":
-        return RestApiResponse.error(Http422, "The MIME type is not valid.")
+        return RestApiResponse.error(
+          Http422, "The MIME type '" & mimetypeVal & "' is not valid."
+        )
     else:
       mimetype = string.none
 
@@ -230,9 +233,6 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
       return RestApiResponse.error(Http500)
     finally:
       await reader.closeWait()
-
-    trace "Something went wrong error"
-    return RestApiResponse.error(Http500)
 
   router.api(MethodGet, "/api/codex/v1/data") do() -> RestApiResponse:
     let json = await formatManifestBlocks(node)

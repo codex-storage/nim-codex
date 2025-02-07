@@ -2,24 +2,8 @@ mode = ScriptMode.Verbose
 
 import std/os except commandLineParams
 
-const VendorPath = "vendor/nim-nat-traversal/vendor/libnatpmp-upstream"
-let 
-  oldVersionFile = joinPath(VendorPath, "VERSION")
-  newVersionFile = joinPath(VendorPath, "VERSION_temp")
-
-proc renameFile(oldName, newName: string) =
-  if fileExists(oldName):
-    mvFile(oldName, newName)
-  else:
-    echo "File ", oldName, " does not exist"
-
-
 ### Helper functions
 proc buildBinary(name: string, srcDir = "./", params = "", lang = "c") =
-  # This is a quick workaround to avoid VERSION file conflict on macOS
-  # More details here: https://github.com/codex-storage/nim-codex/issues/1059
-  if defined(macosx):
-    renameFile(oldVersionFile, newVersionFile)
 
   if not dirExists "build":
     mkDir "build"
@@ -37,11 +21,8 @@ proc buildBinary(name: string, srcDir = "./", params = "", lang = "c") =
     # Place build output in 'build' folder, even if name includes a longer path.
     outName = os.lastPathPart(name)
     cmd = "nim " & lang & " --out:build/" & outName & " " & extra_params & " " & srcDir & name & ".nim"
-  try:
-    exec(cmd)
-  finally:
-    if defined(macosx):
-      renameFile(newVersionFile, oldVersionFile)
+
+  exec(cmd)
 
 proc test(name: string, srcDir = "tests/", params = "", lang = "c") =
   buildBinary name, srcDir, params
