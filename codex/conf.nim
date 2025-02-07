@@ -354,7 +354,8 @@ type
           "Reduces fetching of StorageRequest data from the contract.",
         defaultValue: DefaultRequestCacheSize,
         defaultValueDesc: $DefaultRequestCacheSize,
-        name: "request-cache-size"
+        name: "request-cache-size",
+        hidden
       .}: uint16
 
       case persistenceCmd* {.defaultValue: noCmd, command.}: PersistenceCmd
