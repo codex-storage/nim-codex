@@ -248,17 +248,17 @@ suite "Erasure encode/decode":
       # encode the data concurrently
       encodeTasks.add(erasure.encode(manifest, ecK, ecM))
     # wait for all encoding tasks to finish
-    let encodeResults = await all(encodeTasks)
+    let encodeResults = await allFinished(encodeTasks)
     # decode the data concurrently
     for i in 0 ..< encodeResults.len:
-      decodeTasks.add(erasure.decode(encodeResults[i].tryGet()))
+      decodeTasks.add(erasure.decode(encodeResults[i].read().tryGet()))
     # wait for all decoding tasks to finish
-    let decodeResults = await all(decodeTasks)
+    let decodeResults = await allFinished(decodeTasks) # TODO: use allFutures 
 
     for j in 0 ..< decodeTasks.len:
       let
-        decoded = decodeResults[j].tryGet()
-        encoded = encodeResults[j].tryGet()
+        decoded = decodeResults[j].read().tryGet()
+        encoded = encodeResults[j].read().tryGet()
       check:
         decoded.treeCid == manifests[j].treeCid
         decoded.treeCid == encoded.originalTreeCid
