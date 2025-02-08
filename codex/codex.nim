@@ -201,18 +201,13 @@ proc new*(
     taskpool: Taskpool
 
   try:
-    if config.numThreads == 0:
+    if config.numThreads == ThreadCount(0):
       taskpool = Taskpool.new(numThreads = min(countProcessors(), 16))
-    elif config.numThreads < 2:
-      raise newException(
-        Defect, "The number of threads --numThreads cannot be less than two."
-      )
     else:
-      taskpool = Taskpool.new(numThreads = config.numThreads)
+      taskpool = Taskpool.new(numThreads = int(config.numThreads))
     info "Threadpool started", numThreads = taskpool.numThreads
-  except CatchableError as parent:
-    raise
-      newException(Defect, "Failure in taskpool initialization:" & parent.msg, parent)
+  except CatchableError as exc:
+    raiseAssert("Failure in taskpool initialization:" & exc.msg)
 
   if config.cacheSize > 0'nb:
     cache = CacheStore.new(cacheSize = config.cacheSize)

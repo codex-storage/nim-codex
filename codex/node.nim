@@ -728,6 +728,9 @@ proc stop*(self: CodexNodeRef) {.async.} =
   if not self.networkStore.isNil:
     await self.networkStore.close
 
+  if not self.taskpool.isNil:
+    self.taskpool.shutdown()
+
 proc new*(
     T: type CodexNodeRef,
     switch: Switch,
