@@ -298,6 +298,7 @@ proc leopardEncodeTask(tp: Taskpool, task: ptr EncodeTask) {.gcsafe.} =
     task[].erasure.encoderProvider(task[].blockSize, task[].blocksLen, task[].parityLen)
   defer:
     encoder.release()
+    discard task[].signal.fireSync()
 
   if (
     let res =
@@ -305,13 +306,12 @@ proc leopardEncodeTask(tp: Taskpool, task: ptr EncodeTask) {.gcsafe.} =
     res.isErr
   ):
     warn "Error from leopard encoder backend!", error = $res.error
+
     task[].success.store(false)
   else:
     task[].success.store(true)
 
-  discard task[].signal.fireSync()
-
-proc encodeAsync(
+proc encodeAsync*(
     self: Erasure,
     blockSize, blocksLen, parityLen: int,
     data: ref seq[seq[byte]],
@@ -340,17 +340,24 @@ proc encodeAsync(
   )
 
   let t = addr task
+
   doAssert self.taskPool.numThreads > 1,
     "Must have at least one separate thread or signal will never be fired"
   self.taskPool.spawn leopardEncodeTask(self.taskPool, t)
+  let threadFut = threadPtr.wait()
 
   try:
-    await threadPtr.wait()
-  except AsyncError as exc:
-    warn "Async thread error", err = exc.msg
-    return failure(exc.msg)
-  except CancelledError as exc:
-    raise exc
+    await threadFut.join()
+  except CatchableError as exc:
+    try:
+      await threadFut
+    except AsyncError as asyncExc:
+      return failure(asyncExc.msg)
+    finally:
+      if exc of CancelledError:
+        raise (ref CancelledError) exc
+      else:
+        return failure(exc.msg)
   finally:
     threadPtr.close().expect("closing once works")
 

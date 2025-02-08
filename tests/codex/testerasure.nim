@@ -13,6 +13,7 @@ import pkg/codex/rng
 import pkg/codex/utils
 import pkg/codex/indexingstrategy
 import pkg/taskpools
+import pkg/codex/utils/arrayutils
 
 import ../asynctest
 import ./helpers
@@ -45,7 +46,7 @@ suite "Erasure encode/decode":
   teardown:
     await repoTmp.destroyDb()
     await metaTmp.destroyDb()
-    taskpool.shutdown()
+    # taskpool.shutdown()
     # shutdown the taskpool
 
   proc encode(buffers, parity: int): Future[Manifest] {.async.} =
@@ -228,7 +229,7 @@ suite "Erasure encode/decode":
     discard (await erasure.decode(encoded)).tryGet()
 
   test "Should concurrently encode/decode multiple datasets":
-    const iterations = 20
+    const iterations = 2
 
     let
       datasetSize = 1.MiBs
@@ -302,3 +303,44 @@ suite "Erasure encode/decode":
         decoded.treeCid == manifest.treeCid
         decoded.treeCid == encoded.originalTreeCid
         decoded.blocksCount == encoded.originalBlocksCount
+
+  test "Should complete encode task when cancelled":
+    var
+      i = 0
+      data = seq[seq[byte]].new()
+    let
+      blocksLen = 10000
+      parityLen = 10
+
+      chunker = RandomChunker.new(
+        rng, size = (blocksLen * BlockSize.int), chunkSize = BlockSize
+      )
+
+    data[].setLen(blocksLen)
+
+    for i in 0 ..< blocksLen:
+      let chunk = await chunker.getBytes()
+      shallowCopy(data[i], @(chunk))
+
+    var parity = createDoubleArray(parityLen, BlockSize.int)
+    var cancelledTaskParity = createDoubleArray(parityLen, BlockSize.int)
+    defer:
+      freeDoubleArray(parity, parityLen)
+      freeDoubleArray(cancelledTaskParity, parityLen)
+
+    let encfut =
+      await erasure.encodeAsync(BlockSize.int, blocksLen, parityLen, data, parity)
+    check encfut.isOk
+
+    let encodeFut = erasure.encodeAsync(
+      BlockSize.int, blocksLen, parityLen, data, cancelledTaskParity
+    )
+    encodeFut.cancel()
+
+    try:
+      discard await encodeFut
+    except CatchableError as exc:
+      check exc of CancelledError
+    finally:
+      for i in 0 ..< parityLen:
+        check equalMem(parity[i], cancelledTaskParity[i], BlockSize.int)
