@@ -509,7 +509,7 @@ proc leopardDecodeTask(tp: Taskpool, task: ptr DecodeTask) {.gcsafe.} =
 
   discard task[].signal.fireSync()
 
-proc decodeAsync(
+proc decodeAsync*(
     self: Erasure,
     blockSize, blocksLen, parityLen: int,
     blocks, parity: ref seq[seq[byte]],
@@ -556,19 +556,25 @@ proc decodeAsync(
   doAssert self.taskPool.numThreads > 1,
     "Must have at least one separate thread or signal will never be fired"
   self.taskPool.spawn leopardDecodeTask(self.taskPool, t)
+  let threadFut = threadPtr.wait()
 
   try:
-    await threadPtr.wait()
-  except AsyncError as exc:
-    warn "Async thread error", err = exc.msg
-    return failure(exc.msg)
-  except CancelledError as exc:
-    raise exc
+    await threadFut.join()
+  except CatchableError as exc:
+    try:
+      await threadFut
+    except AsyncError as asyncExc:
+      return failure(asyncExc.msg)
+    finally:
+      if exc of CancelledError:
+        raise (ref CancelledError) exc
+      else:
+        return failure(exc.msg)
   finally:
     threadPtr.close().expect("closing once works")
 
   if not t.success.load():
-    return failure("Leopard decoding failed")
+    return failure("Leopard encoding failed")
 
   success()
 

@@ -46,8 +46,7 @@ suite "Erasure encode/decode":
   teardown:
     await repoTmp.destroyDb()
     await metaTmp.destroyDb()
-    # taskpool.shutdown()
-    # shutdown the taskpool
+    taskpool.shutdown()
 
   proc encode(buffers, parity: int): Future[Manifest] {.async.} =
     let encoded =
@@ -304,14 +303,11 @@ suite "Erasure encode/decode":
         decoded.treeCid == encoded.originalTreeCid
         decoded.blocksCount == encoded.originalBlocksCount
 
-  test "Should complete encode task when cancelled":
-    var
-      i = 0
-      data = seq[seq[byte]].new()
+  test "Should complete encode/decode task when cancelled":
     let
       blocksLen = 10000
       parityLen = 10
-
+      data = seq[seq[byte]].new()
       chunker = RandomChunker.new(
         rng, size = (blocksLen * BlockSize.int), chunkSize = BlockSize
       )
@@ -322,16 +318,34 @@ suite "Erasure encode/decode":
       let chunk = await chunker.getBytes()
       shallowCopy(data[i], @(chunk))
 
-    var parity = createDoubleArray(parityLen, BlockSize.int)
-    var cancelledTaskParity = createDoubleArray(parityLen, BlockSize.int)
+    let
+      parity = createDoubleArray(parityLen, BlockSize.int)
+      paritySeq = seq[seq[byte]].new()
+      recovered = createDoubleArray(blocksLen, BlockSize.int)
+      cancelledTaskParity = createDoubleArray(parityLen, BlockSize.int)
+      cancelledTaskRecovered = createDoubleArray(blocksLen, BlockSize.int)
+
+    paritySeq[].setLen(parityLen)
     defer:
       freeDoubleArray(parity, parityLen)
       freeDoubleArray(cancelledTaskParity, parityLen)
+      freeDoubleArray(recovered, blocksLen)
+      freeDoubleArray(cancelledTaskRecovered, blocksLen)
 
-    let encfut =
+    for i in 0 ..< parityLen:
+      paritySeq[i] = cast[seq[byte]](parity[i])
+
+    # call encodeAsync to get the parity
+    let encFut =
       await erasure.encodeAsync(BlockSize.int, blocksLen, parityLen, data, parity)
-    check encfut.isOk
+    check encFut.isOk
 
+    let decFut = await erasure.decodeAsync(
+      BlockSize.int, blocksLen, parityLen, data, paritySeq, recovered
+    )
+    check decFut.isOk
+
+    # call encodeAsync and cancel the task
     let encodeFut = erasure.encodeAsync(
       BlockSize.int, blocksLen, parityLen, data, cancelledTaskParity
     )
@@ -344,3 +358,17 @@ suite "Erasure encode/decode":
     finally:
       for i in 0 ..< parityLen:
         check equalMem(parity[i], cancelledTaskParity[i], BlockSize.int)
+
+    # call decodeAsync and cancel the task
+    let decodeFut = erasure.decodeAsync(
+      BlockSize.int, blocksLen, parityLen, data, paritySeq, cancelledTaskRecovered
+    )
+    decodeFut.cancel()
+
+    try:
+      discard await decodeFut
+    except CatchableError as exc:
+      check exc of CancelledError
+    finally:
+      for i in 0 ..< blocksLen:
+        check equalMem(recovered[i], cancelledTaskRecovered[i], BlockSize.int)
