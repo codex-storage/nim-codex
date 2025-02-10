@@ -126,7 +126,7 @@ proc epochForDurationBackFromNow(validation: Validation,
 proc restoreHistoricalState(validation: Validation) {.async.} =
   trace "Restoring historical state..."
   let requestDurationLimit = await validation.market.requestDurationLimit
-  let startTimeEpoch = validation.epochForDurationBackFromNow(requestDurationLimit)
+  let startTimeEpoch = validation.epochForDurationBackFromNow(seconds(requestDurationLimit.truncate(int64)))
   let slotFilledEvents = await validation.market.queryPastSlotFilledEvents(
     fromTime = startTimeEpoch)
   for event in slotFilledEvents:
