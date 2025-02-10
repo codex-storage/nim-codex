@@ -44,6 +44,9 @@ proc upload*(client: CodexClient, contents: string): ?!Cid =
   assert response.status == "200 OK"
   Cid.init(response.body).mapFailure
 
+proc upload*(client: CodexClient, bytes: seq[byte]): ?!Cid =
+  client.upload(string.fromBytes(bytes))
+
 proc download*(client: CodexClient, cid: Cid, local = false): ?!string =
   let response = client.http.get(
     client.baseurl & "/data/" & $cid & (if local: "" else: "/network/stream")
