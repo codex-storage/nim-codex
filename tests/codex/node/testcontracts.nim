@@ -1,20 +1,14 @@
 import std/os
 import std/options
-import std/math
 import std/times
-import std/sequtils
 import std/importutils
-import std/cpuinfo
 
 import pkg/chronos
-import pkg/stew/byteutils
 import pkg/datastore
 import pkg/datastore/typedds
 import pkg/questionable
 import pkg/questionable/results
 import pkg/stint
-import pkg/poseidon2
-import pkg/poseidon2/io
 import pkg/taskpools
 
 import pkg/nitro
@@ -31,7 +25,6 @@ import pkg/codex/slots
 import pkg/codex/manifest
 import pkg/codex/discovery
 import pkg/codex/erasure
-import pkg/codex/merkletree
 import pkg/codex/blocktype as bt
 import pkg/codex/stores/repostore/coders
 import pkg/codex/utils/asynciter
@@ -72,17 +65,17 @@ asyncchecksuite "Test Node - Host contracts":
     node.contracts = (
       none ClientInteractions,
       some HostInteractions.new(clock, sales),
-      none ValidatorInteractions)
+      none ValidatorInteractions,
+    )
 
     await node.start()
 
     # Populate manifest in local store
     manifest = await storeDataGetManifest(localStore, chunker)
     let
-      manifestBlock = bt.Block.new(
-        manifest.encode().tryGet(),
-        codec = ManifestCodec).tryGet()
-      erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider, taskpool)
+      manifestBlock =
+        bt.Block.new(manifest.encode().tryGet(), codec = ManifestCodec).tryGet()
+      erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
 
     manifestCid = manifestBlock.cid
     manifestCidStr = $(manifestCid)
@@ -92,9 +85,8 @@ asyncchecksuite "Test Node - Host contracts":
     protected = (await erasure.encode(manifest, 3, 2)).tryGet()
     builder = Poseidon2Builder.new(localStore, protected).tryGet()
     verifiable = (await builder.buildManifest()).tryGet()
-    verifiableBlock = bt.Block.new(
-      verifiable.encode().tryGet(),
-      codec = ManifestCodec).tryGet()
+    verifiableBlock =
+      bt.Block.new(verifiable.encode().tryGet(), codec = ManifestCodec).tryGet()
 
     (await localStore.putBlock(verifiableBlock)).tryGet()
 
@@ -109,7 +101,7 @@ asyncchecksuite "Test Node - Host contracts":
 
     (await expiryUpdateCallback(manifestCidStr, expectedExpiry)).tryGet()
 
-    for index in 0..<manifest.blocksCount:
+    for index in 0 ..< manifest.blocksCount:
       let
         blk = (await localStore.getBlock(manifest.treeCid, index)).tryGet
         key = (createBlockExpirationMetadataKey(blk.cid)).tryGet
@@ -137,7 +129,8 @@ asyncchecksuite "Test Node - Host contracts":
     check fetchedBytes == 12 * DefaultBlockSize.uint
 
     let indexer = verifiable.protectedStrategy.init(
-      0, verifiable.numSlotBlocks() - 1, verifiable.numSlots)
+      0, verifiable.numSlotBlocks() - 1, verifiable.numSlots
+    )
 
     for index in indexer.getIndicies(1):
       let

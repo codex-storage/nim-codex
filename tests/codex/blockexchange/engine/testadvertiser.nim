@@ -1,6 +1,3 @@
-import std/sequtils
-import std/random
-
 import pkg/chronos
 import pkg/libp2p/routing_record
 import pkg/codexdht/discv5/protocol as discv5
@@ -25,31 +22,29 @@ asyncchecksuite "Advertiser":
     advertised: seq[Cid]
   let
     manifest = Manifest.new(
-      treeCid = Cid.example,
-      blockSize = 123.NBytes,
-      datasetSize = 234.NBytes)
-    manifestBlk = Block.new(data = manifest.encode().tryGet(), codec = ManifestCodec).tryGet()
+      treeCid = Cid.example, blockSize = 123.NBytes, datasetSize = 234.NBytes
+    )
+    manifestBlk =
+      Block.new(data = manifest.encode().tryGet(), codec = ManifestCodec).tryGet()
 
   setup:
     blockDiscovery = MockDiscovery.new()
     localStore = CacheStore.new()
 
     advertised = newSeq[Cid]()
-    blockDiscovery.publishBlockProvideHandler =
-      proc(d: MockDiscovery, cid: Cid) {.async, gcsafe.} =
-        advertised.add(cid)
+    blockDiscovery.publishBlockProvideHandler = proc(
+        d: MockDiscovery, cid: Cid
+    ) {.async, gcsafe.} =
+      advertised.add(cid)
 
-    advertiser = Advertiser.new(
-      localStore,
-      blockDiscovery
-    )
+    advertiser = Advertiser.new(localStore, blockDiscovery)
 
     await advertiser.start()
 
   teardown:
     await advertiser.stop()
 
-  proc waitTillQueueEmpty() {.async.} = 
+  proc waitTillQueueEmpty() {.async.} =
     check eventually advertiser.advertiseQueue.len == 0
 
   test "blockStored should queue manifest Cid for advertising":
@@ -70,7 +65,7 @@ asyncchecksuite "Advertiser":
 
   test "blockStored should not queue non-manifest non-tree CIDs for discovery":
     let blk = bt.Block.example
-      
+
     (await localStore.putBlock(blk)).tryGet()
 
     await waitTillQueueEmpty()
@@ -89,14 +84,10 @@ asyncchecksuite "Advertiser":
     check manifest.treeCid in advertised
 
   test "Should advertise existing manifests and their trees":
-    let
-      newStore = CacheStore.new([manifestBlk])
+    let newStore = CacheStore.new([manifestBlk])
 
     await advertiser.stop()
-    advertiser = Advertiser.new(
-      newStore,
-      blockDiscovery
-    )
+    advertiser = Advertiser.new(newStore, blockDiscovery)
     await advertiser.start()
 
     check eventually manifestBlk.cid in advertised

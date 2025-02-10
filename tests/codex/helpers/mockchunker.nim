@@ -1,45 +1,36 @@
-import std/sequtils
-
 import pkg/chronos
-
 import pkg/codex/chunker
-import pkg/codex/rng
 
 export chunker
 
-type
-  MockChunker* = Chunker
+type MockChunker* = Chunker
 
 proc new*(
     T: type MockChunker,
     dataset: openArray[byte],
     chunkSize: int | NBytes,
-    pad: bool = false
+    pad: bool = false,
 ): MockChunker =
   ## Create a chunker that produces data
   ##
 
-  let 
+  let
     chunkSize = chunkSize.NBytes
     dataset = @dataset
-  
-  var consumed = 0
-  proc reader(data: ChunkBuffer, len: int): Future[int] {.async, gcsafe, raises: [Defect].} =
 
+  var consumed = 0
+  proc reader(
+      data: ChunkBuffer, len: int
+  ): Future[int] {.async, gcsafe, raises: [Defect].} =
     if consumed >= dataset.len:
       return 0
 
     var read = 0
-    while read < len and 
-      read < chunkSize.int and
-      (consumed + read) < dataset.len:
+    while read < len and read < chunkSize.int and (consumed + read) < dataset.len:
       data[read] = dataset[consumed + read]
       read.inc
-    
+
     consumed += read
     return read
 
-  Chunker.new(
-    reader = reader,
-    pad = pad,
-    chunkSize = chunkSize)
+  Chunker.new(reader = reader, pad = pad, chunkSize = chunkSize)

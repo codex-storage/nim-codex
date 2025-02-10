@@ -8,7 +8,8 @@
 ## those terms.
 
 import pkg/upraises
-push: {.upraises: [].}
+push:
+  {.upraises: [].}
 
 import pkg/chronos
 import pkg/libp2p
@@ -18,13 +19,11 @@ import ../logutils
 logScope:
   topics = "libp2p asyncstreamwrapper"
 
-const
-  AsyncStreamWrapperName* = "AsyncStreamWrapper"
+const AsyncStreamWrapperName* = "AsyncStreamWrapper"
 
-type
-  AsyncStreamWrapper* = ref object of LPStream
-    reader*: AsyncStreamReader
-    writer*: AsyncStreamWriter
+type AsyncStreamWrapper* = ref object of LPStream
+  reader*: AsyncStreamReader
+  writer*: AsyncStreamWriter
 
 method initStream*(self: AsyncStreamWrapper) =
   if self.objName.len == 0:
@@ -35,12 +34,11 @@ method initStream*(self: AsyncStreamWrapper) =
 proc new*(
     C: type AsyncStreamWrapper,
     reader: AsyncStreamReader = nil,
-    writer: AsyncStreamWriter = nil
+    writer: AsyncStreamWriter = nil,
 ): AsyncStreamWrapper =
   ## Create new instance of an asynchronous stream wrapper
   ##
-  let
-    stream = C(reader: reader, writer: writer)
+  let stream = C(reader: reader, writer: writer)
 
   stream.initStream()
   return stream
@@ -61,11 +59,8 @@ template withExceptions(body: untyped) =
     raise newException(LPStreamError, exc.msg)
 
 method readOnce*(
-    self: AsyncStreamWrapper,
-    pbytes: pointer,
-    nbytes: int
-): Future[int] {.async.} =
-
+    self: AsyncStreamWrapper, pbytes: pointer, nbytes: int
+): Future[int] {.async: (raises: [CancelledError, LPStreamError]).} =
   trace "Reading bytes from reader", bytes = nbytes
   if isNil(self.reader):
     error "Async stream wrapper reader nil"
@@ -78,11 +73,8 @@ method readOnce*(
     return await self.reader.readOnce(pbytes, nbytes)
 
 proc completeWrite(
-    self: AsyncStreamWrapper,
-    fut: Future[void],
-    msgLen: int
+    self: AsyncStreamWrapper, fut: Future[void], msgLen: int
 ): Future[void] {.async.} =
-
   withExceptions:
     await fut
 
@@ -118,7 +110,7 @@ method closed*(self: AsyncStreamWrapper): bool =
 method atEof*(self: AsyncStreamWrapper): bool =
   self.reader.atEof()
 
-method closeImpl*(self: AsyncStreamWrapper) {.async.} =
+method closeImpl*(self: AsyncStreamWrapper) {.async: (raises: []).} =
   try:
     trace "Shutting down async chronos stream"
     if not self.closed():
@@ -126,11 +118,11 @@ method closeImpl*(self: AsyncStreamWrapper) {.async.} =
         await self.reader.closeWait()
 
       if not isNil(self.writer) and not self.writer.closed():
-          await self.writer.closeWait()
+        await self.writer.closeWait()
 
     trace "Shutdown async chronos stream"
   except CancelledError as exc:
-    raise exc
+    error "Error received cancelled error when closing chronos stream", msg = exc.msg
   except CatchableError as exc:
     trace "Error closing async chronos stream", msg = exc.msg
 

@@ -9,39 +9,35 @@
 
 import pkg/upraises
 
-push: {.upraises: [].}
+push:
+  {.upraises: [].}
 
 import ../stores
 
 type
   ErasureBackend* = ref object of RootObj
     blockSize*: int # block size in bytes
-    buffers*: int   # number of original pieces
-    parity*: int    # number of redundancy pieces
+    buffers*: int # number of original pieces
+    parity*: int # number of redundancy pieces
 
   EncoderBackend* = ref object of ErasureBackend
   DecoderBackend* = ref object of ErasureBackend
 
-method release*(self: ErasureBackend) {.base.} =
+method release*(self: ErasureBackend) {.base, gcsafe.} =
   ## release the backend
   ##
   raiseAssert("not implemented!")
 
 method encode*(
-    self: EncoderBackend,
-    buffers,
-    parity: var openArray[seq[byte]]
-): Result[void, cstring] {.base.} =
+    self: EncoderBackend, buffers, parity: var openArray[seq[byte]]
+): Result[void, cstring] {.base, gcsafe.} =
   ## encode buffers using a backend
   ##
   raiseAssert("not implemented!")
 
 method decode*(
-    self: DecoderBackend,
-    buffers,
-    parity,
-    recovered: var openArray[seq[byte]]
-): Result[void, cstring] {.base.} =
+    self: DecoderBackend, buffers, parity, recovered: var openArray[seq[byte]]
+): Result[void, cstring] {.base, gcsafe.} =
   ## decode buffers using a backend
   ##
   raiseAssert("not implemented!")

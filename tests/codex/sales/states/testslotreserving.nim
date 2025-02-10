@@ -5,7 +5,6 @@ import pkg/codex/sales/states/slotreserving
 import pkg/codex/sales/states/downloading
 import pkg/codex/sales/states/cancelled
 import pkg/codex/sales/states/failed
-import pkg/codex/sales/states/filled
 import pkg/codex/sales/states/ignored
 import pkg/codex/sales/states/errored
 import pkg/codex/sales/salesagent
@@ -16,7 +15,6 @@ import ../../../asynctest
 import ../../helpers
 import ../../examples
 import ../../helpers/mockmarket
-import ../../helpers/mockreservations
 import ../../helpers/mockclock
 
 asyncchecksuite "sales state 'SlotReserving'":
@@ -33,15 +31,9 @@ asyncchecksuite "sales state 'SlotReserving'":
     clock = MockClock.new()
 
     state = SaleSlotReserving.new()
-    context = SalesContext(
-      market: market,
-      clock: clock
-    )
+    context = SalesContext(market: market, clock: clock)
 
-    agent = newSalesAgent(context,
-                          request.id,
-                          slotIndex,
-                          request.some)
+    agent = newSalesAgent(context, request.id, slotIndex, request.some)
 
   test "switches to cancelled state when request expires":
     let next = state.onCancelled(request)
@@ -67,3 +59,11 @@ asyncchecksuite "sales state 'SlotReserving'":
     check next of SaleErrored
     let errored = SaleErrored(next)
     check errored.error == error
+
+  test "catches reservation not allowed error":
+    let error = newException(MarketError, "SlotReservations_ReservationNotAllowed")
+    market.setReserveSlotThrowError(some error)
+    let next = !(await state.run(agent))
+    check next of SaleIgnored
+    check SaleIgnored(next).reprocessSlot == false
+    check SaleIgnored(next).returnBytes

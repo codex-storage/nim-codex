@@ -1,9 +1,7 @@
 import std/sequtils
 import std/sugar
-import std/cpuinfo
 
 import pkg/chronos
-import pkg/datastore
 import pkg/questionable/results
 
 import pkg/codex/erasure
@@ -13,7 +11,6 @@ import pkg/codex/blocktype as bt
 import pkg/codex/rng
 import pkg/codex/utils
 import pkg/codex/indexingstrategy
-import pkg/taskpools
 
 import ../asynctest
 import ./helpers
@@ -28,7 +25,6 @@ suite "Erasure encode/decode":
   var manifest: Manifest
   var store: BlockStore
   var erasure: Erasure
-  var taskpool: Taskpool
   let repoTmp = TempLevelDb.new()
   let metaTmp = TempLevelDb.new()
 
@@ -39,8 +35,7 @@ suite "Erasure encode/decode":
     rng = Rng.instance()
     chunker = RandomChunker.new(rng, size = dataSetSize, chunkSize = BlockSize)
     store = RepoStore.new(repoDs, metaDs)
-    taskpool = Taskpool.new(num_threads = countProcessors())
-    erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider, taskpool)
+    erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
     manifest = await storeDataGetManifest(store, chunker)
 
   teardown:
@@ -48,11 +43,8 @@ suite "Erasure encode/decode":
     await metaTmp.destroyDb()
 
   proc encode(buffers, parity: int): Future[Manifest] {.async.} =
-    let
-      encoded = (await erasure.encode(
-        manifest,
-        buffers.Natural,
-        parity.Natural)).tryGet()
+    let encoded =
+      (await erasure.encode(manifest, buffers.Natural, parity.Natural)).tryGet()
 
     check:
       encoded.blocksCount mod (buffers + parity) == 0
@@ -72,14 +64,13 @@ suite "Erasure encode/decode":
       column = rng.rand((encoded.blocksCount div encoded.steps) - 1) # random column
       dropped: seq[int]
 
-    for _ in 0..<encoded.ecM:
+    for _ in 0 ..< encoded.ecM:
       dropped.add(column)
       (await store.delBlock(encoded.treeCid, column)).tryGet()
       (await store.delBlock(manifest.treeCid, column)).tryGet()
       column = (column + encoded.steps) mod encoded.blocksCount # wrap around
 
-    var
-      decoded = (await erasure.decode(encoded)).tryGet()
+    var decoded = (await erasure.decode(encoded)).tryGet()
 
     check:
       decoded.treeCid == manifest.treeCid
@@ -102,14 +93,13 @@ suite "Erasure encode/decode":
       column = rng.rand((encoded.blocksCount div encoded.steps) - 1) # random column
       dropped: seq[int]
 
-    for _ in 0..<encoded.ecM + 1:
+    for _ in 0 ..< encoded.ecM + 1:
       dropped.add(column)
       (await store.delBlock(encoded.treeCid, column)).tryGet()
       (await store.delBlock(manifest.treeCid, column)).tryGet()
       column = (column + encoded.steps) mod encoded.blocksCount # wrap around
 
-    var
-      decoded: Manifest
+    var decoded: Manifest
 
     expect ResultFailure:
       decoded = (await erasure.decode(encoded)).tryGet()
@@ -130,10 +120,9 @@ suite "Erasure encode/decode":
       offset = 0
 
     while offset < encoded.steps - 1:
-      let
-        blockIdx = toSeq(countup(offset, encoded.blocksCount - 1, encoded.steps))
+      let blockIdx = toSeq(countup(offset, encoded.blocksCount - 1, encoded.steps))
 
-      for _ in 0..<encoded.ecM:
+      for _ in 0 ..< encoded.ecM:
         blocks.add(rng.sample(blockIdx, blocks))
       offset.inc
 
@@ -144,7 +133,7 @@ suite "Erasure encode/decode":
 
     discard (await erasure.decode(encoded)).tryGet()
 
-    for d in 0..<manifest.blocksCount:
+    for d in 0 ..< manifest.blocksCount:
       let present = await store.hasBlock(manifest.treeCid, d)
       check present.tryGet()
 
@@ -160,10 +149,9 @@ suite "Erasure encode/decode":
       offset = 0
 
     while offset < encoded.steps:
-      let
-        blockIdx = toSeq(countup(offset, encoded.blocksCount - 1, encoded.steps))
+      let blockIdx = toSeq(countup(offset, encoded.blocksCount - 1, encoded.steps))
 
-      for _ in 0..<encoded.ecM + 1: # NOTE: the +1
+      for _ in 0 ..< encoded.ecM + 1: # NOTE: the +1
         var idx: int
         while true:
           idx = rng.sample(blockIdx, blocks)
@@ -179,8 +167,7 @@ suite "Erasure encode/decode":
       (await store.delBlock(manifest.treeCid, idx)).tryGet()
       discard
 
-    var
-      decoded: Manifest
+    var decoded: Manifest
 
     expect ResultFailure:
       decoded = (await erasure.decode(encoded)).tryGet()
@@ -193,13 +180,13 @@ suite "Erasure encode/decode":
     let encoded = await encode(buffers, parity)
 
     # loose M original (systematic) symbols/blocks
-    for b in 0..<(encoded.steps * encoded.ecM):
+    for b in 0 ..< (encoded.steps * encoded.ecM):
       (await store.delBlock(encoded.treeCid, b)).tryGet()
       (await store.delBlock(manifest.treeCid, b)).tryGet()
 
     discard (await erasure.decode(encoded)).tryGet()
 
-    for d in 0..<manifest.blocksCount:
+    for d in 0 ..< manifest.blocksCount:
       let present = await store.hasBlock(manifest.treeCid, d)
       check present.tryGet()
 
@@ -211,17 +198,17 @@ suite "Erasure encode/decode":
     let
       encoded = await encode(buffers, parity)
       blocks = collect:
-        for i in 0..encoded.blocksCount:
+        for i in 0 .. encoded.blocksCount:
           i
 
     # loose M parity (all!) symbols/blocks from the dataset
-    for b in blocks[^(encoded.steps * encoded.ecM)..^1]:
+    for b in blocks[^(encoded.steps * encoded.ecM) ..^ 1]:
       (await store.delBlock(encoded.treeCid, b)).tryGet()
       (await store.delBlock(manifest.treeCid, b)).tryGet()
 
     discard (await erasure.decode(encoded)).tryGet()
 
-    for d in 0..<manifest.blocksCount:
+    for d in 0 ..< manifest.blocksCount:
       let present = await store.hasBlock(manifest.treeCid, d)
       check present.tryGet()
 
@@ -242,7 +229,8 @@ suite "Erasure encode/decode":
     let
       encoded = await encode(buffers, parity)
       slotCids = collect(newSeq):
-        for i in 0..<encoded.numSlots: Cid.example
+        for i in 0 ..< encoded.numSlots:
+          Cid.example
 
       verifiable = Manifest.new(encoded, Cid.example, slotCids).tryGet()
 
@@ -253,13 +241,13 @@ suite "Erasure encode/decode":
       decoded.treeCid == verifiable.originalTreeCid
       decoded.blocksCount == verifiable.originalBlocksCount
 
-  for i in 1..5:
+  for i in 1 .. 5:
     test "Should encode/decode using various parameters " & $i & "/5":
       let
-        blockSize   = rng.sample(@[1, 2, 4, 8, 16, 32, 64].mapIt(it.KiBs))
+        blockSize = rng.sample(@[1, 2, 4, 8, 16, 32, 64].mapIt(it.KiBs))
         datasetSize = 1.MiBs
-        ecK         = 10.Natural
-        ecM         = 10.Natural
+        ecK = 10.Natural
+        ecM = 10.Natural
 
       let
         chunker = RandomChunker.new(rng, size = datasetSize, chunkSize = blockSize)

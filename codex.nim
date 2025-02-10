@@ -28,7 +28,6 @@ import ./codex/codextypes
 export codex, conf, libp2p, chronos, logutils
 
 when isMainModule:
-  import std/sequtils
   import std/os
   import pkg/confutils/defs
   import ./codex/utils/fileutils
@@ -39,40 +38,35 @@ when isMainModule:
   when defined(posix):
     import system/ansi_c
 
-  type
-    CodexStatus {.pure.} = enum
-      Stopped,
-      Stopping,
-      Running
+  type CodexStatus {.pure.} = enum
+    Stopped
+    Stopping
+    Running
 
   let config = CodexConf.load(
     version = codexFullVersion,
     envVarsPrefix = "codex",
-    secondarySources = proc (config: CodexConf, sources: auto) =
-            if configFile =? config.configFile:
-              sources.addConfigFile(Toml, configFile)
+    secondarySources = proc(
+        config: CodexConf, sources: auto
+    ) {.gcsafe, raises: [ConfigurationError].} =
+      if configFile =? config.configFile:
+        sources.addConfigFile(Toml, configFile)
+    ,
   )
   config.setupLogging()
   config.setupMetrics()
 
-  if config.nat == ValidIpAddress.init(IPv4_any()):
-    error "`--nat` cannot be set to the any (`0.0.0.0`) address"
-    quit QuitFailure
-
-  if config.nat == ValidIpAddress.init("127.0.0.1"):
-    warn "`--nat` is set to loopback, your node wont properly announce over the DHT"
-
-  if not(checkAndCreateDataDir((config.dataDir).string)):
+  if not (checkAndCreateDataDir((config.dataDir).string)):
     # We are unable to access/create data folder or data folder's
     # permissions are insecure.
     quit QuitFailure
 
-  if config.prover() and not(checkAndCreateDataDir((config.circuitDir).string)):
+  if config.prover() and not (checkAndCreateDataDir((config.circuitDir).string)):
     quit QuitFailure
 
   trace "Data dir initialized", dir = $config.dataDir
 
-  if not(checkAndCreateDataDir((config.dataDir / "repo"))):
+  if not (checkAndCreateDataDir((config.dataDir / "repo"))):
     # We are unable to access/create data folder or data folder's
     # permissions are insecure.
     quit QuitFailure
@@ -91,11 +85,12 @@ when isMainModule:
         config.dataDir / config.netPrivKeyFile
 
     privateKey = setupKey(keyPath).expect("Should setup private key!")
-    server = try:
-      CodexServer.new(config, privateKey)
-    except Exception as exc:
-      error "Failed to start Codex", msg = exc.msg
-      quit QuitFailure
+    server =
+      try:
+        CodexServer.new(config, privateKey)
+      except Exception as exc:
+        error "Failed to start Codex", msg = exc.msg
+        quit QuitFailure
 
   ## Ctrl+C handling
   proc doShutdown() =
@@ -109,7 +104,9 @@ when isMainModule:
       # workaround for https://github.com/nim-lang/Nim/issues/4057
       try:
         setupForeignThreadGc()
-      except Exception as exc: raiseAssert exc.msg # shouldn't happen
+      except Exception as exc:
+        raiseAssert exc.msg
+        # shouldn't happen
     notice "Shutting down after having received SIGINT"
 
     doShutdown()

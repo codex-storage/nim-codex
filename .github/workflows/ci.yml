@@ -9,7 +9,7 @@ on:
 
 env:
   cache_nonce: 0 # Allows for easily busting actions/cache caches
-  nim_version: pinned
+  nim_version: v2.0.14
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
@@ -24,13 +24,13 @@ jobs:
     steps:
       - name: Compute matrix
         id: matrix
-        uses: fabiocaccamo/create-matrix-action@v4
+        uses: fabiocaccamo/create-matrix-action@v5
         with:
           matrix: |
-            os {linux},   cpu {amd64}, builder {ubuntu-20.04},   tests {unittest},    nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
-            os {linux},   cpu {amd64}, builder {ubuntu-20.04},   tests {contract},    nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
-            os {linux},   cpu {amd64}, builder {ubuntu-20.04},   tests {integration}, nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
-            os {linux},   cpu {amd64}, builder {ubuntu-20.04},   tests {tools},       nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
+            os {linux},   cpu {amd64}, builder {ubuntu-latest},   tests {unittest},    nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
+            os {linux},   cpu {amd64}, builder {ubuntu-latest},   tests {contract},    nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
+            os {linux},   cpu {amd64}, builder {ubuntu-latest},   tests {integration}, nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
+            os {linux},   cpu {amd64}, builder {ubuntu-latest},   tests {tools},       nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
             os {macos},   cpu {amd64}, builder {macos-13},       tests {unittest},    nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
             os {macos},   cpu {amd64}, builder {macos-13},       tests {contract},    nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
             os {macos},   cpu {amd64}, builder {macos-13},       tests {integration}, nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
@@ -47,7 +47,24 @@ jobs:
       matrix: ${{ needs.matrix.outputs.matrix }}
       cache_nonce: ${{ needs.matrix.outputs.cache_nonce }}
 
+  linting:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check `nph` formatting
+        uses: arnetheduck/nph-action@v1
+        with:
+          version: 0.6.1
+          options: "codex/ tests/"
+          fail: true
+          suggest: true
+
   coverage:
+    # Force to stick to ubuntu 20.04 for coverage because
+    # lcov was updated to 2.x version in ubuntu-latest
+    # and cause a lot of issues.
+    # See https://github.com/linux-test-project/lcov/issues/238
     runs-on: ubuntu-20.04
     steps:
       - name: Checkout sources
@@ -61,6 +78,7 @@ jobs:
         with:
           os: linux
           nim_version: ${{ env.nim_version }}
+          coverage: true
 
       - name: Generate coverage data
         run: |

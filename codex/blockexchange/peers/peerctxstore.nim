@@ -13,7 +13,8 @@ import std/algorithm
 
 import pkg/upraises
 
-push: {.upraises: [].}
+push:
+  {.upraises: [].}
 
 import pkg/chronos
 import pkg/libp2p
@@ -21,7 +22,6 @@ import pkg/libp2p
 import ../protobuf/blockexc
 import ../../blocktype
 import ../../logutils
-
 
 import ./peercontext
 export peercontext
@@ -33,6 +33,10 @@ type
   PeerCtxStore* = ref object of RootObj
     peers*: OrderedTable[PeerId, BlockExcPeerCtx]
 
+  PeersForBlock* = object of RootObj
+    with*: seq[BlockExcPeerCtx]
+    without*: seq[BlockExcPeerCtx]
+
 iterator items*(self: PeerCtxStore): BlockExcPeerCtx =
   for p in self.peers.values:
     yield p
@@ -41,7 +45,7 @@ proc contains*(a: openArray[BlockExcPeerCtx], b: PeerId): bool =
   ## Convenience method to check for peer precense
   ##
 
-  a.anyIt( it.id == b )
+  a.anyIt(it.id == b)
 
 func contains*(self: PeerCtxStore, peerId: PeerId): bool =
   peerId in self.peers
@@ -59,43 +63,25 @@ func len*(self: PeerCtxStore): int =
   self.peers.len
 
 func peersHave*(self: PeerCtxStore, address: BlockAddress): seq[BlockExcPeerCtx] =
-  toSeq(self.peers.values).filterIt( it.peerHave.anyIt( it == address ) )
+  toSeq(self.peers.values).filterIt(it.peerHave.anyIt(it == address))
 
 func peersHave*(self: PeerCtxStore, cid: Cid): seq[BlockExcPeerCtx] =
-  toSeq(self.peers.values).filterIt( it.peerHave.anyIt( it.cidOrTreeCid == cid ) )
+  toSeq(self.peers.values).filterIt(it.peerHave.anyIt(it.cidOrTreeCid == cid))
 
 func peersWant*(self: PeerCtxStore, address: BlockAddress): seq[BlockExcPeerCtx] =
-  toSeq(self.peers.values).filterIt( it.peerWants.anyIt( it == address ) )
+  toSeq(self.peers.values).filterIt(it.peerWants.anyIt(it == address))
 
 func peersWant*(self: PeerCtxStore, cid: Cid): seq[BlockExcPeerCtx] =
-  toSeq(self.peers.values).filterIt( it.peerWants.anyIt( it.address.cidOrTreeCid == cid ) )
+  toSeq(self.peers.values).filterIt(it.peerWants.anyIt(it.address.cidOrTreeCid == cid))
 
-func selectCheapest*(self: PeerCtxStore, address: BlockAddress): seq[BlockExcPeerCtx] =
-  # assume that the price for all leaves in a tree is the same
-  let rootAddress = BlockAddress(leaf: false, cid: address.cidOrTreeCid)
-  var peers = self.peersHave(rootAddress)
-
-  func cmp(a, b: BlockExcPeerCtx): int =
-    var
-      priceA = 0.u256
-      priceB = 0.u256
-
-    a.blocks.withValue(rootAddress, precense):
-      priceA = precense[].price
-
-    b.blocks.withValue(rootAddress, precense):
-      priceB = precense[].price
-
-    if priceA == priceB:
-      0
-    elif priceA > priceB:
-      1
+proc getPeersForBlock*(self: PeerCtxStore, address: BlockAddress): PeersForBlock =
+  var res = PeersForBlock()
+  for peer in self:
+    if peer.peerHave.anyIt(it == address):
+      res.with.add(peer)
     else:
-      -1
-
-  peers.sort(cmp)
-  trace "Selected cheapest peers", peers = peers.len
-  return peers
+      res.without.add(peer)
+  res
 
 proc new*(T: type PeerCtxStore): PeerCtxStore =
   ## create new instance of a peer context store
