@@ -105,12 +105,12 @@ twonodessuite "REST API":
     let cid = client1.upload(data).get
     let duration = (31 * 24 * 60 * 60).u256
       # 31 days TODO: this should not be hardcoded, but waits for https://github.com/codex-storage/nim-codex/issues/1056
-    let reward = 2.u256
     let proofProbability = 3.u256
     let expiry = 30.uint
     let collateralPerByte = 1.u256
     let nodes = 3
     let tolerance = 2
+    let pricePerBytePerSecond = 1.u256
 
     var responseBefore = client1.requestStorageRaw(
       cid, duration, pricePerBytePerSecond, proofProbability, collateralPerByte, expiry,

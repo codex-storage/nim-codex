@@ -15,8 +15,9 @@ type
     repairRewardPercentage*: uint8
       # percentage of remaining collateral slot has after it has been freed
     maxNumberOfSlashes*: uint8 # frees slot when the number of slashes reaches this value
-    slashCriterion*: uint16 # amount of proofs missed that lead to slashing
     slashPercentage*: uint8 # percentage of the collateral that is slashed
+    validatorRewardPercentage*: uint8
+      # percentage of the slashed amount going to the validators
 
   ProofConfig* = object
     period*: UInt256 # proofs requirements are calculated per period (in seconds)
@@ -47,8 +48,8 @@ func fromTuple(_: type CollateralConfig, tupl: tuple): CollateralConfig =
   CollateralConfig(
     repairRewardPercentage: tupl[0],
     maxNumberOfSlashes: tupl[1],
-    slashCriterion: tupl[2],
-    slashPercentage: tupl[3],
+    slashPercentage: tupl[2],
+    validatorRewardPercentage: tupl[3],
   )
 
 func fromTuple(_: type MarketplaceConfig, tupl: tuple): MarketplaceConfig =
