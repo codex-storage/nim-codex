@@ -617,8 +617,6 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
 
       let nodes = params.nodes |? 3
       let tolerance = params.tolerance |? 1
-      let nodes = params.nodes |? 3
-      let tolerance = params.tolerance |? 1
 
       if tolerance == 0:
         return RestApiResponse.error(
