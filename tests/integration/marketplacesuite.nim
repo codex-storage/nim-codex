@@ -4,6 +4,7 @@ from pkg/libp2p import Cid
 import pkg/codex/contracts/marketplace as mp
 import pkg/codex/periods
 import pkg/codex/utils/json
+from pkg/codex/utils import roundUp, divUp
 import ./multinodes
 import ../contracts/time
 import ../contracts/deployment
@@ -45,11 +46,14 @@ template marketplacesuite*(name: string, body: untyped) =
     proc periods(p: int): uint64 =
       p.uint64 * period
 
-    proc slotSize(blocks: int): UInt256 =
-      (DefaultBlockSize * blocks.NBytes).Natural.u256
+    proc slotSize(blocks, nodes, tolerance: int): UInt256 =
+      let ecK = nodes - tolerance
+      let blocksRounded = roundUp(blocks, ecK)
+      let blocksPerSlot = divUp(blocksRounded, ecK)
+      (DefaultBlockSize * blocksPerSlot.NBytes).Natural.u256
 
     proc datasetSize(blocks, nodes, tolerance: int): UInt256 =
-      (nodes + tolerance).u256 * slotSize(blocks)
+      return nodes.u256 * slotSize(blocks, nodes, tolerance)
 
     proc createAvailabilities(
         datasetSize: UInt256,
