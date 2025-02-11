@@ -216,9 +216,6 @@ proc storeBlock*(
 proc tryDeleteBlock*(
     self: RepoStore, cid: Cid, expiryLimit = SecondsSince1970.low
 ): Future[?!DeleteResult] {.async.} =
-  if cid.isEmpty:
-    return success(DeleteResult(kind: InUse))
-
   without metaKey =? createBlockExpirationMetadataKey(cid), err:
     return failure(err)
 

@@ -374,8 +374,9 @@ asyncchecksuite "RepoStore":
     (await repo.putBlock(blk)).tryGet()
     (await repo.putCidAndProof(treeCid, 0, blk.cid, proof)).tryGet()
 
-    (await repo.delBlock(blk.cid)).tryGet()
-    check (await blk.cid in repo)
+    let err = (await repo.delBlock(blk.cid)).error()
+    check err.msg ==
+      "Directly deleting a block that is part of a dataset is not allowed."
 
   test "should allow non-orphan blocks to be deleted by dataset reference":
     let

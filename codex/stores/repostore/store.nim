@@ -186,12 +186,12 @@ method putBlock*(
 
   return success()
 
-method delBlock*(self: RepoStore, cid: Cid): Future[?!void] {.async.} =
-  ## Delete a block from the blockstore when block refCount is 0 or block is expired
-  ##
-
+proc delBlockInternal(self: RepoStore, cid: Cid): Future[?!DeleteResultKind] {.async.} =
   logScope:
     cid = cid
+
+  if cid.isEmpty:
+    return success(Deleted)
 
   trace "Attempting to delete a block"
 
@@ -205,12 +205,28 @@ method delBlock*(self: RepoStore, cid: Cid): Future[?!void] {.async.} =
 
     if err =? (await self.updateQuotaUsage(minusUsed = res.released)).errorOption:
       return failure(err)
-  elif res.kind == InUse:
-    trace "Block in use, refCount > 0 and not expired"
-  else:
-    trace "Block not found in store"
 
-  return success()
+  success(res.kind)
+
+method delBlock*(self: RepoStore, cid: Cid): Future[?!void] {.async.} =
+  ## Delete a block from the blockstore when block refCount is 0 or block is expired
+  ##
+
+  logScope:
+    cid = cid
+
+  without outcome =? await self.delBlockInternal(cid), err:
+    return failure(err)
+
+  case outcome
+  of InUse:
+    failure("Directly deleting a block that is part of a dataset is not allowed.")
+  of NotFound:
+    trace "Block not found, ignoring"
+    success()
+  of Deleted:
+    trace "Block already deleted"
+    success()
 
 method delBlock*(
     self: RepoStore, treeCid: Cid, index: Natural
@@ -230,7 +246,10 @@ method delBlock*(
     if not (err of BlockNotFoundError):
       return failure(err)
 
-  await self.delBlock(leafMd.blkCid) # safe delete, only if refCount == 0
+  without _ =? await self.delBlockInternal(leafMd.blkCid), err:
+    return failure(err)
+
+  success()
 
 method hasBlock*(self: RepoStore, cid: Cid): Future[?!bool] {.async.} =
   ## Check if the block exists in the blockstore
