@@ -320,6 +320,9 @@ proc encodeAsync*(
   without threadPtr =? ThreadSignalPtr.new():
     return failure("Unable to create thread signal")
 
+  defer:
+    threadPtr.close().expect("closing once works")
+
   var blockData = createDoubleArray(blocksLen, blockSize)
 
   for i in 0 ..< data[].len:
@@ -358,8 +361,6 @@ proc encodeAsync*(
         raise (ref CancelledError) exc
       else:
         return failure(exc.msg)
-  finally:
-    threadPtr.close().expect("closing once works")
 
   if not t.success.load():
     return failure("Leopard encoding failed")
@@ -373,7 +374,6 @@ proc encodeData(
   ##
   ## `manifest` - the manifest to encode
   ##
-
   logScope:
     steps = params.steps
     rounded_blocks = params.rounded
@@ -518,6 +518,9 @@ proc decodeAsync*(
   without threadPtr =? ThreadSignalPtr.new():
     return failure("Unable to create thread signal")
 
+  defer:
+    threadPtr.close().expect("closing once works")
+
   var
     blocksData = createDoubleArray(blocksLen, blockSize)
     parityData = createDoubleArray(parityLen, blockSize)
@@ -570,8 +573,6 @@ proc decodeAsync*(
         raise (ref CancelledError) exc
       else:
         return failure(exc.msg)
-  finally:
-    threadPtr.close().expect("closing once works")
 
   if not t.success.load():
     return failure("Leopard encoding failed")
@@ -585,7 +586,6 @@ proc decode*(self: Erasure, encoded: Manifest): Future[?!Manifest] {.async.} =
   ## `encoded` - the encoded (protected) manifest to
   ##             be recovered
   ##
-
   logScope:
     steps = encoded.steps
     rounded_blocks = encoded.rounded
