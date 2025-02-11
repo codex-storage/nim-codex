@@ -15,9 +15,7 @@ import pkg/codex/rng
 
 import ../helpers
 
-proc storeManifest*(
-    store: BlockStore, manifest: Manifest
-): Future[?!bt.Block] {.async.} =
+proc makeManifestBlock*(manifest: Manifest): ?!bt.Block =
   without encodedVerifiable =? manifest.encode(), err:
     trace "Unable to encode manifest"
     return failure(err)
@@ -25,6 +23,15 @@ proc storeManifest*(
   without blk =? bt.Block.new(data = encodedVerifiable, codec = ManifestCodec), error:
     trace "Unable to create block from manifest"
     return failure(error)
+
+  success blk
+
+proc storeManifest*(
+    store: BlockStore, manifest: Manifest
+): Future[?!bt.Block] {.async.} =
+  without blk =? makeManifestBlock(manifest), err:
+    trace "Unable to create manifest block", err = err.msg
+    return failure(err)
 
   if err =? (await store.putBlock(blk)).errorOption:
     trace "Unable to store manifest block", cid = blk.cid, err = err.msg

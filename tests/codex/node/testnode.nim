@@ -37,6 +37,7 @@ import ../examples
 import ../helpers
 import ../helpers/mockmarket
 import ../helpers/mockclock
+import ../slots/helpers
 
 import ./helpers
 
@@ -166,3 +167,28 @@ asyncchecksuite "Test Node - Basic":
       (await verifiableBlock.cid in localStore) == true
       request.content.cid == $verifiableBlock.cid
       request.content.merkleRoot == builder.verifyRoot.get.toBytes
+
+  test "Should delete a single block":
+    let randomBlock = bt.Block.new("Random block".toBytes).tryGet()
+    (await localStore.putBlock(randomBlock)).tryGet()
+    check (await randomBlock.cid in localStore) == true
+
+    (await node.delete(randomBlock.cid)).tryGet()
+    check (await randomBlock.cid in localStore) == false
+
+  test "Should delete an entire dataset":
+    let
+      blocks = await makeRandomBlocks(datasetSize = 2048, blockSize = 256'nb)
+      manifest = await storeDataGetManifest(localStore, blocks)
+      manifestBlock = (await store.storeManifest(manifest)).tryGet()
+      manifestCid = manifestBlock.cid
+
+    check await manifestCid in localStore
+    for blk in blocks:
+      check await blk.cid in localStore
+
+    (await node.delete(manifestCid)).tryGet()
+
+    check not await manifestCid in localStore
+    for blk in blocks:
+      check not (await blk.cid in localStore)
