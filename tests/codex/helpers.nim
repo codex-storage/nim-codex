@@ -85,29 +85,30 @@ proc makeWantList*(
   )
 
 proc storeDataGetManifest*(
-    store: BlockStore, chunker: Chunker
+    store: BlockStore, blocks: seq[Block]
 ): Future[Manifest] {.async.} =
-  var cids = newSeq[Cid]()
-
-  while (let chunk = await chunker.getBytes(); chunk.len > 0):
-    let blk = Block.new(chunk).tryGet()
-    cids.add(blk.cid)
+  for blk in blocks:
     (await store.putBlock(blk)).tryGet()
 
   let
-    tree = CodexTree.init(cids).tryGet()
+    (manifest, tree) = makeManifestAndTree(blocks).tryGet()
     treeCid = tree.rootCid.tryGet()
-    manifest = Manifest.new(
-      treeCid = treeCid,
-      blockSize = NBytes(chunker.chunkSize),
-      datasetSize = NBytes(chunker.offset),
-    )
 
   for i in 0 ..< tree.leavesCount:
     let proof = tree.getProof(i).tryGet()
-    (await store.putCidAndProof(treeCid, i, cids[i], proof)).tryGet()
+    (await store.putCidAndProof(treeCid, i, blocks[i].cid, proof)).tryGet()
 
   return manifest
+
+proc storeDataGetManifest*(
+    store: BlockStore, chunker: Chunker
+): Future[Manifest] {.async.} =
+  var blocks = newSeq[Block]()
+
+  while (let chunk = await chunker.getBytes(); chunk.len > 0):
+    blocks.add(Block.new(chunk).tryGet())
+
+  return await storeDataGetManifest(store, blocks)
 
 proc makeRandomBlocks*(
     datasetSize: int, blockSize: NBytes

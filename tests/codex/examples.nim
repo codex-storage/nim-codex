@@ -8,6 +8,7 @@ import pkg/codex/stores
 import pkg/codex/blocktype as bt
 import pkg/codex/sales
 import pkg/codex/merkletree
+import pkg/codex/manifest
 import ../examples
 
 export examples
@@ -50,6 +51,15 @@ proc example*(_: type BlockExcPeerCtx): BlockExcPeerCtx =
 
 proc example*(_: type Cid): Cid =
   bt.Block.example.cid
+
+proc example*(_: type Manifest): Manifest =
+  Manifest.new(
+    treeCid = Cid.example,
+    blockSize = 256.NBytes,
+    datasetSize = 4096.NBytes,
+    filename = "example.txt".some,
+    mimetype = "text/plain".some,
+  )
 
 proc example*(_: type MultiHash, mcodec = Sha256HashCodec): MultiHash =
   let bytes = newSeqWith(256, rand(uint8))
