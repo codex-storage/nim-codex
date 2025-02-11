@@ -12,9 +12,11 @@ import pkg/datastore
 import pkg/codex/stores/cachestore
 import pkg/codex/chunker
 import pkg/codex/stores
+import pkg/codex/stores/repostore/operations
 import pkg/codex/blocktype as bt
 import pkg/codex/clock
 import pkg/codex/utils/asynciter
+import pkg/codex/merkletree/codex
 
 import ../../asynctest
 import ../helpers
@@ -353,6 +355,118 @@ asyncchecksuite "RepoStore":
     let has = await repo.hasBlock(blk.cid)
     check has.isOk
     check has.get
+
+  test "should set the reference count for orphan blocks to 0":
+    let blk = Block.example(size = 200)
+    (await repo.putBlock(blk)).tryGet()
+    check (await repo.blockRefCount(blk.cid)).tryGet() == 0.Natural
+
+  test "should not allow non-orphan blocks to be deleted directly":
+    let
+      repo = RepoStore.new(repoDs, metaDs, clock = mockClock, quotaMaxBytes =
+          1000'nb)
+      dataset = await makeRandomBlocks(datasetSize = 512, blockSize = 256'nb)
+      blk = dataset[0]
+      (manifest, tree) = makeManifestAndTree(dataset).tryGet()
+      treeCid = tree.rootCid.tryGet()
+      proof = tree.getProof(0).tryGet()
+
+    (await repo.putBlock(blk)).tryGet()
+    (await repo.putCidAndProof(treeCid, 0, blk.cid, proof)).tryGet()
+
+    (await repo.delBlock(blk.cid)).tryGet()
+    check (await blk.cid in repo)
+
+  test "should allow non-orphan blocks to be deleted by dataset reference":
+    let
+      repo = RepoStore.new(repoDs, metaDs, clock = mockClock, quotaMaxBytes =
+          1000'nb)
+      dataset = await makeRandomBlocks(datasetSize = 512, blockSize = 256'nb)
+      blk = dataset[0]
+      (manifest, tree) = makeManifestAndTree(dataset).tryGet()
+      treeCid = tree.rootCid.tryGet()
+      proof = tree.getProof(0).tryGet()
+
+    (await repo.putBlock(blk)).tryGet()
+    (await repo.putCidAndProof(treeCid, 0, blk.cid, proof)).tryGet()
+
+    (await repo.delBlock(treeCid, 0.Natural)).tryGet()
+    check not (await blk.cid in repo)
+
+  test "should not delete a non-orphan block until it is deleted from all parent datasets":
+    let
+      repo = RepoStore.new(repoDs, metaDs, clock = mockClock, quotaMaxBytes =
+          1000'nb)
+      blockPool = await makeRandomBlocks(datasetSize = 768, blockSize = 256'nb)
+
+    let
+      dataset1 = @[blockPool[0], blockPool[1]]
+      dataset2 = @[blockPool[1], blockPool[2]]
+
+    let sharedBlock = blockPool[1]
+
+    let
+      (manifest1, tree1) = makeManifestAndTree(dataset1).tryGet()
+      treeCid1 = tree1.rootCid.tryGet()
+      (manifest2, tree2) = makeManifestAndTree(dataset2).tryGet()
+      treeCid2 = tree2.rootCid.tryGet()
+
+    (await repo.putBlock(sharedBlock)).tryGet()
+    check (await repo.blockRefCount(sharedBlock.cid)).tryGet() == 0.Natural
+
+    let
+      proof1 = tree1.getProof(1).tryGet()
+      proof2 = tree2.getProof(0).tryGet()
+
+    (await repo.putCidAndProof(treeCid1, 1, sharedBlock.cid, proof1)).tryGet()
+    check (await repo.blockRefCount(sharedBlock.cid)).tryGet() == 1.Natural
+
+    (await repo.putCidAndProof(treeCid2, 0, sharedBlock.cid, proof2)).tryGet()
+    check (await repo.blockRefCount(sharedBlock.cid)).tryGet() == 2.Natural
+
+    (await repo.delBlock(treeCid1, 1.Natural)).tryGet()
+    check (await repo.blockRefCount(sharedBlock.cid)).tryGet() == 1.Natural
+    check (await sharedBlock.cid in repo)
+
+    (await repo.delBlock(treeCid2, 0.Natural)).tryGet()
+    check not (await sharedBlock.cid in repo)
+
+  test "should clear leaf metadata when block is deleted from dataset":
+    let
+      repo = RepoStore.new(repoDs, metaDs, clock = mockClock, quotaMaxBytes =
+          1000'nb)
+      dataset = await makeRandomBlocks(datasetSize = 512, blockSize = 256'nb)
+      blk = dataset[0]
+      (manifest, tree) = makeManifestAndTree(dataset).tryGet()
+      treeCid = tree.rootCid.tryGet()
+      proof = tree.getProof(1).tryGet()
+
+    (await repo.putBlock(blk)).tryGet()
+    (await repo.putCidAndProof(treeCid, 0.Natural, blk.cid, proof)).tryGet()
+
+    discard (await repo.getLeafMetadata(treeCid, 0.Natural)).tryGet()
+
+    (await repo.delBlock(treeCid, 0.Natural)).tryGet()
+
+    let err = (await repo.getLeafMetadata(treeCid, 0.Natural)).error()
+    check err of BlockNotFoundError
+
+  test "reinserting a previously deleted block should not fail (bug #1108)":
+    let
+      repo = RepoStore.new(repoDs, metaDs, clock = mockClock, quotaMaxBytes =
+          1000'nb)
+      dataset = await makeRandomBlocks(datasetSize = 512, blockSize = 256'nb)
+      blk = dataset[0]
+      (manifest, tree) = makeManifestAndTree(dataset).tryGet()
+      treeCid = tree.rootCid.tryGet()
+      proof = tree.getProof(1).tryGet()
+
+    (await repo.putBlock(blk)).tryGet()
+    (await repo.putCidAndProof(treeCid, 0, blk.cid, proof)).tryGet()
+
+    (await repo.delBlock(treeCid, 0.Natural)).tryGet()
+    (await repo.putBlock(blk)).tryGet()
+    (await repo.delBlock(treeCid, 0.Natural)).tryGet()
 
 commonBlockStoreTests(
   "RepoStore Sql backend",

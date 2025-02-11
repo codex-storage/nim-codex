@@ -221,6 +221,10 @@ method delBlock*(
     else:
       return failure(err)
 
+  if err =? (await self.delLeafMetadata(treeCid, index)).errorOption:
+    error "Failed to delete leaf metadata, block will remain on disk.", err = err.msg
+    return failure(err)
+
   if err =?
       (await self.updateBlockMetadata(leafMd.blkCid, minusRefCount = 1)).errorOption:
     if not (err of BlockNotFoundError):
@@ -294,6 +298,18 @@ method listBlocks*(
 proc createBlockExpirationQuery(maxNumber: int, offset: int): ?!Query =
   let queryKey = ?createBlockExpirationMetadataQueryKey()
   success Query.init(queryKey, offset = offset, limit = maxNumber)
+
+proc blockRefCount*(self: RepoStore, cid: Cid): Future[?!Natural] {.async.} =
+  ## Returns the reference count for a block. If the count is zero;
+  ## this means the block is eligible for garbage collection.
+  ##
+  without key =? createBlockExpirationMetadataKey(cid), err:
+    return failure(err)
+
+  without md =? await get[BlockMetadata](self.metaDs, key), err:
+    return failure(err)
+
+  return success(md.refCount)
 
 method getBlockExpirations*(
     self: RepoStore, maxNumber: int, offset: int

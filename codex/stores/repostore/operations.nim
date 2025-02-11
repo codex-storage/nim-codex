@@ -57,6 +57,17 @@ proc putLeafMetadata*(
       (md.some, res),
   )
 
+proc delLeafMetadata*(
+    self: RepoStore, treeCid: Cid, index: Natural
+): Future[?!void] {.async.} =
+  without key =? createBlockCidAndProofMetadataKey(treeCid, index), err:
+    return failure(err)
+
+  if err =? (await self.metaDs.delete(key)).errorOption:
+    return failure(err)
+
+  success()
+
 proc getLeafMetadata*(
     self: RepoStore, treeCid: Cid, index: Natural
 ): Future[?!LeafMetadata] {.async.} =

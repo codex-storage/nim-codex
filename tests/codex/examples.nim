@@ -36,8 +36,8 @@ proc example*(_: type SignedState): SignedState =
 proc example*(_: type Pricing): Pricing =
   Pricing(address: EthAddress.example, price: uint32.rand.u256)
 
-proc example*(_: type bt.Block): bt.Block =
-  let length = rand(4096)
+proc example*(_: type bt.Block, size: int = 4096): bt.Block =
+  let length = rand(size)
   let bytes = newSeqWith(length, rand(uint8))
   bt.Block.new(bytes).tryGet()
 
