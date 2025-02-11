@@ -94,10 +94,9 @@ type
   EncodeTask = object
     success: Atomic[bool]
     erasure: ptr Erasure
-    blockSize: int
     blocks: ptr UncheckedArray[ptr UncheckedArray[byte]]
     parity: ptr UncheckedArray[ptr UncheckedArray[byte]]
-    blocksLen, parityLen: int
+    blockSize, blocksLen, parityLen: int
     signal: ThreadSignalPtr
 
   DecodeTask = object
@@ -106,8 +105,8 @@ type
     blocks: ptr UncheckedArray[ptr UncheckedArray[byte]]
     parity: ptr UncheckedArray[ptr UncheckedArray[byte]]
     recovered: ptr UncheckedArray[ptr UncheckedArray[byte]]
-    blockSize: int
-    blocksLen, parityLen, recoveredLen: int
+    blockSize, blocksLen: int
+    parityLen, recoveredLen: int
     signal: ThreadSignalPtr
 
 func indexToPos(steps, idx, step: int): int {.inline.} =

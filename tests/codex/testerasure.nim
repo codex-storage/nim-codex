@@ -218,7 +218,7 @@ suite "Erasure encode/decode":
       let present = await store.hasBlock(manifest.treeCid, d)
       check present.tryGet()
 
-  test "handles edge case of 0 parity blocks":
+  test "Handles edge case of 0 parity blocks":
     const
       buffers = 20
       parity = 0
