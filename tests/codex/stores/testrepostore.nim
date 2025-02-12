@@ -452,7 +452,7 @@ asyncchecksuite "RepoStore":
     let err = (await repo.getLeafMetadata(treeCid, 0.Natural)).error()
     check err of BlockNotFoundError
 
-  test "reinserting a previously deleted block should not fail (bug #1108)":
+  test "should not fail when reinserting and deleting a previously deleted block (bug #1108)":
     let
       repo = RepoStore.new(repoDs, metaDs, clock = mockClock, quotaMaxBytes =
           1000'nb)
