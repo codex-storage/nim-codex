@@ -11,8 +11,10 @@ import std/sequtils
 import std/strutils
 import std/os
 import std/tables
+import std/cpuinfo
 
 import pkg/chronos
+import pkg/taskpools
 import pkg/presto
 import pkg/libp2p
 import pkg/confutils
@@ -194,7 +196,18 @@ proc new*(
     .withTcpTransport({ServerFlags.ReuseAddr})
     .build()
 
-  var cache: CacheStore = nil
+  var
+    cache: CacheStore = nil
+    taskpool: Taskpool
+
+  try:
+    if config.numThreads == ThreadCount(0):
+      taskpool = Taskpool.new(numThreads = min(countProcessors(), 16))
+    else:
+      taskpool = Taskpool.new(numThreads = int(config.numThreads))
+    info "Threadpool started", numThreads = taskpool.numThreads
+  except CatchableError as exc:
+    raiseAssert("Failure in taskpool initialization:" & exc.msg)
 
   if config.cacheSize > 0'nb:
     cache = CacheStore.new(cacheSize = config.cacheSize)
@@ -286,6 +299,7 @@ proc new*(
       engine = engine,
       discovery = discovery,
       prover = prover,
+      taskPool = taskpool,
     )
 
     restServer = RestServerRef
