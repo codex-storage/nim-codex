@@ -19,7 +19,7 @@ type
     client* {.serialize.}: Address
     ask* {.serialize.}: StorageAsk
     content* {.serialize.}: StorageContent
-    expiry* {.serialize.}: SecondsSince1970
+    expiry* {.serialize.}: uint64
     nonce*: Nonce
 
   StorageAsk* = object
@@ -28,7 +28,7 @@ type
     collateralPerByte* {.serialize.}: UInt256
     slots* {.serialize.}: uint64
     slotSize* {.serialize.}: uint64
-    duration* {.serialize.}: SecondsSince1970
+    duration* {.serialize.}: uint64
     maxSlotLoss* {.serialize.}: uint64
 
   StorageContent* = object

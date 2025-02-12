@@ -29,7 +29,7 @@ type
   OnCleanUp* = proc(
     returnBytes = false, reprocessSlot = false, returnedCollateral = UInt256.none
   ): Future[void] {.gcsafe, upraises: [].}
-  OnFilled* = proc(request: StorageRequest, slotIndex: UInt256) {.gcsafe, upraises: [].}
+  OnFilled* = proc(request: StorageRequest, slotIndex: uint64) {.gcsafe, upraises: [].}
 
   SalesAgentError = object of CodexError
   AllSlotsFilledError* = object of SalesAgentError

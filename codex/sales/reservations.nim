@@ -74,7 +74,7 @@ type
   Reservation* = ref object
     id* {.serialize.}: ReservationId
     availabilityId* {.serialize.}: AvailabilityId
-    size* {.serialize.}: UInt256
+    size* {.serialize.}: uint64
     requestId* {.serialize.}: RequestId
     slotIndex* {.serialize.}: uint64
 
@@ -206,7 +206,7 @@ func key*(availability: Availability): ?!Key =
   return availability.id.key
 
 func maxCollateralPerByte*(availability: Availability): UInt256 =
-  return availability.totalRemainingCollateral div availability.freeSize
+  return availability.totalRemainingCollateral div availability.freeSize.stuint(256)
 
 func key*(reservation: Reservation): ?!Key =
   return key(reservation.id, reservation.availabilityId)
@@ -357,7 +357,7 @@ proc deleteReservation*(
       else:
         return failure(error)
 
-    if reservation.size > 0.u256:
+    if reservation.size > 0.uint64:
       trace "returning remaining reservation bytes to availability",
         size = reservation.size
 
@@ -385,8 +385,8 @@ proc deleteReservation*(
 
 proc createAvailability*(
     self: Reservations,
-    size: UInt256,
-    duration: UInt256,
+    size: uint64,
+    duration: uint64,
     minPricePerBytePerSecond: UInt256,
     totalCollateral: UInt256,
 ): Future[?!Availability] {.async.} =
@@ -395,7 +395,7 @@ proc createAvailability*(
 
   let availability =
     Availability.init(size, size, duration, minPricePerBytePerSecond, totalCollateral)
-  let bytes = availability.freeSize.truncate(uint)
+  let bytes = availability.freeSize
 
   if reserveErr =? (await self.repo.reserve(bytes.NBytes)).errorOption:
     return failure(reserveErr.toErr(ReserveFailedError))
@@ -414,9 +414,9 @@ proc createAvailability*(
 method createReservation*(
     self: Reservations,
     availabilityId: AvailabilityId,
-    slotSize: UInt256,
+    slotSize: uint64,
     requestId: RequestId,
-    slotIndex: UInt256,
+    slotIndex: uint64,
     collateralPerByte: UInt256,
 ): Future[?!Reservation] {.async, base.} =
   withLock(self.availabilityLock):
@@ -446,7 +446,7 @@ method createReservation*(
     availability.freeSize -= slotSize
 
     # adjust the remaining totalRemainingCollateral
-    availability.totalRemainingCollateral -= slotSize * collateralPerByte
+    availability.totalRemainingCollateral -= slotSize.stuint(256) * collateralPerByte
 
     # update availability with reduced size
     trace "Updating availability with reduced size"
@@ -471,7 +471,7 @@ proc returnBytesToAvailability*(
     self: Reservations,
     availabilityId: AvailabilityId,
     reservationId: ReservationId,
-    bytes: UInt256,
+    bytes: uint64,
 ): Future[?!void] {.async.} =
   logScope:
     reservationId
@@ -498,8 +498,7 @@ proc returnBytesToAvailability*(
 
     # First lets see if we can re-reserve the bytes, if the Repo's quota
     # is depleted then we will fail-fast as there is nothing to be done atm.
-    if reserveErr =?
-        (await self.repo.reserve(bytesToBeReturned.truncate(uint).NBytes)).errorOption:
+    if reserveErr =? (await self.repo.reserve(bytesToBeReturned.NBytes)).errorOption:
       return failure(reserveErr.toErr(ReserveFailedError))
 
     without availabilityKey =? availabilityId.key, error:
@@ -513,8 +512,7 @@ proc returnBytesToAvailability*(
     # Update availability with returned size
     if updateErr =? (await self.updateAvailability(availability)).errorOption:
       trace "Rolling back returning bytes"
-      if rollbackErr =?
-          (await self.repo.release(bytesToBeReturned.truncate(uint).NBytes)).errorOption:
+      if rollbackErr =? (await self.repo.release(bytesToBeReturned.NBytes)).errorOption:
         rollbackErr.parent = updateErr
         return failure(rollbackErr)
 
@@ -542,7 +540,7 @@ proc release*(
   without var reservation =? (await self.get(key, Reservation)), error:
     return failure(error)
 
-  if reservation.size < bytes.u256:
+  if reservation.size < bytes:
     let error = newException(
       BytesOutOfBoundsError,
       "trying to release an amount of bytes that is greater than the total size of the Reservation",
@@ -552,7 +550,7 @@ proc release*(
   if releaseErr =? (await self.repo.release(bytes.NBytes)).errorOption:
     return failure(releaseErr.toErr(ReleaseFailedError))
 
-  reservation.size -= bytes.u256
+  reservation.size -= bytes
 
   # persist partially used Reservation with updated size
   if err =? (await self.update(reservation)).errorOption:
@@ -639,7 +637,8 @@ proc all*(
 
 proc findAvailability*(
     self: Reservations,
-    size, duration, pricePerBytePerSecond, collateralPerByte: UInt256,
+    size, duration: uint64,
+    pricePerBytePerSecond, collateralPerByte: UInt256,
 ): Future[?Availability] {.async.} =
   without storables =? (await self.storables(Availability)), e:
     error "failed to get all storables", error = e.msg

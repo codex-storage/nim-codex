@@ -25,12 +25,12 @@ twonodessuite "REST API":
 
   test "node shows used and available space", twoNodesConfig:
     discard client1.upload("some file contents").get
-    let totalSize = 12.u256
+    let totalSize = 12.uint64
     let minPricePerBytePerSecond = 1.u256
-    let totalCollateral = totalSize * minPricePerBytePerSecond
+    let totalCollateral = totalSize.u256 * minPricePerBytePerSecond
     discard client1.postAvailability(
       totalSize = totalSize,
-      duration = 2.u256,
+      duration = 2.uint64,
       minPricePerBytePerSecond = minPricePerBytePerSecond,
       totalCollateral = totalCollateral,
     ).get
@@ -56,11 +56,11 @@ twonodessuite "REST API":
     let cid = client1.upload("some file contents").get
     let response = client1.requestStorageRaw(
       cid,
-      duration = 10.u256,
+      duration = 10.uint64,
       pricePerBytePerSecond = 1.u256,
       proofProbability = 3.u256,
       collateralPerByte = 1.u256,
-      expiry = 9,
+      expiry = 9.uint64,
     )
 
     check:
@@ -74,11 +74,11 @@ twonodessuite "REST API":
     let cid = client1.upload(data).get
     let response = client1.requestStorageRaw(
       cid,
-      duration = 10.u256,
+      duration = 10.uint64,
       pricePerBytePerSecond = 1.u256,
       proofProbability = 3.u256,
       collateralPerByte = 1.u256,
-      expiry = 9,
+      expiry = 9.uint64,
     )
 
     check:
@@ -87,10 +87,10 @@ twonodessuite "REST API":
   test "request storage fails if tolerance is zero", twoNodesConfig:
     let data = await RandomChunker.example(blocks = 2)
     let cid = client1.upload(data).get
-    let duration = 100.u256
+    let duration = 100.uint64
     let pricePerBytePerSecond = 1.u256
     let proofProbability = 3.u256
-    let expiry = 30.uint
+    let expiry = 30.uint64
     let collateralPerByte = 1.u256
     let nodes = 3
     let tolerance = 0
@@ -126,10 +126,10 @@ twonodessuite "REST API":
   test "request storage fails if nodes and tolerance aren't correct", twoNodesConfig:
     let data = await RandomChunker.example(blocks = 2)
     let cid = client1.upload(data).get
-    let duration = 100.u256
+    let duration = 100.uint64
     let pricePerBytePerSecond = 1.u256
     let proofProbability = 3.u256
-    let expiry = 30.uint
+    let expiry = 30.uint64
     let collateralPerByte = 1.u256
     let ecParams = @[(1, 1), (2, 1), (3, 2), (3, 3)]
 
@@ -149,10 +149,10 @@ twonodessuite "REST API":
     twoNodesConfig:
     let data = await RandomChunker.example(blocks = 2)
     let cid = client1.upload(data).get
-    let duration = 100.u256
+    let duration = 100.uint64
     let pricePerBytePerSecond = 1.u256
     let proofProbability = 3.u256
-    let expiry = 30.uint
+    let expiry = 30.uint64
     let collateralPerByte = 1.u256
     let ecParams = @[(0, 1), (1, 2), (2, 3)]
 
@@ -176,10 +176,10 @@ twonodessuite "REST API":
       fmt"({minBlocks=}, {nodes=}, {tolerance=})", twoNodesConfig:
       let data = await RandomChunker.example(blocks = minBlocks)
       let cid = client1.upload(data).get
-      let duration = 100.u256
+      let duration = 100.uint64
       let pricePerBytePerSecond = 1.u256
       let proofProbability = 3.u256
-      let expiry = 30.uint
+      let expiry = 30.uint64
       let collateralPerByte = 1.u256
 
       var responseBefore = client1.requestStorageRaw(

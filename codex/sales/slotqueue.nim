@@ -32,10 +32,10 @@ type
     requestId: RequestId
     slotIndex: uint16
     slotSize: uint64
-    duration: SecondsSince1970
+    duration: uint64
     pricePerBytePerSecond: UInt256
     collateralPerByte: UInt256
-    expiry: SecondsSince1970
+    expiry: uint64
     seen: bool
 
   # don't need to -1 to prevent overflow when adding 1 (to always allow push)
@@ -136,7 +136,7 @@ proc init*(
     requestId: RequestId,
     slotIndex: uint16,
     ask: StorageAsk,
-    expiry: UInt256,
+    expiry: uint64,
     seen = false,
 ): SlotQueueItem =
   SlotQueueItem(
@@ -156,7 +156,7 @@ proc init*(
   SlotQueueItem.init(request.id, slotIndex, request.ask, request.expiry)
 
 proc init*(
-    _: type SlotQueueItem, requestId: RequestId, ask: StorageAsk, expiry: UInt256
+    _: type SlotQueueItem, requestId: RequestId, ask: StorageAsk, expiry: uint64
 ): seq[SlotQueueItem] =
   if not ask.slots.inRange:
     raise newException(SlotsOutOfRangeError, "Too many slots")
@@ -186,7 +186,7 @@ proc slotIndex*(self: SlotQueueItem): uint16 =
 proc slotSize*(self: SlotQueueItem): uint64 =
   self.slotSize
 
-proc duration*(self: SlotQueueItem): SecondsSince1970 =
+proc duration*(self: SlotQueueItem): uint64 =
   self.duration
 
 proc pricePerBytePerSecond*(self: SlotQueueItem): UInt256 =

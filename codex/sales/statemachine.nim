@@ -25,7 +25,7 @@ method onFailed*(
   discard
 
 method onSlotFilled*(
-    state: SaleState, requestId: RequestId, slotIndex: UInt256
+    state: SaleState, requestId: RequestId, slotIndex: uint64
 ): ?State {.base, upraises: [].} =
   discard
 
