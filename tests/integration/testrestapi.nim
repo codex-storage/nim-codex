@@ -38,7 +38,7 @@ twonodessuite "REST API":
     check:
       space.totalBlocks == 2
       space.quotaMaxBytes == 8589934592.NBytes
-      space.quotaUsedBytes == 65598.NBytes
+      space.quotaUsedBytes == 65592.NBytes
       space.quotaReservedBytes == 12.NBytes
 
   test "node lists local files", twoNodesConfig:
@@ -232,8 +232,6 @@ twonodessuite "REST API":
     check manifest["filename"].getStr() == "example.txt"
     check manifest.hasKey("mimetype") == true
     check manifest["mimetype"].getStr() == "text/plain"
-    check manifest.hasKey("uploadedAt") == true
-    check manifest["uploadedAt"].getInt() > 0
 
   test "node set the headers when for download", twoNodesConfig:
     let headers = newHttpHeaders(
