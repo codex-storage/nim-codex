@@ -38,7 +38,6 @@ type Manifest* = ref object of RootObj
   version: CidVersion # Cid version
   filename {.serialize.}: ?string # The filename of the content uploaded (optional)
   mimetype {.serialize.}: ?string # The mimetype of the content uploaded (optional)
-  uploadedAt {.serialize.}: ?int64 # The UTC creation timestamp in seconds
   case protected {.serialize.}: bool # Protected datasets have erasure coded info
   of true:
     ecK: int # Number of blocks to encode
@@ -131,8 +130,6 @@ func filename*(self: Manifest): ?string =
 func mimetype*(self: Manifest): ?string =
   self.mimetype
 
-func uploadedAt*(self: Manifest): ?int64 =
-  self.uploadedAt
 ############################################################
 # Operations on block list
 ############################################################
@@ -172,7 +169,7 @@ func `==`*(a, b: Manifest): bool =
   (a.treeCid == b.treeCid) and (a.datasetSize == b.datasetSize) and
     (a.blockSize == b.blockSize) and (a.version == b.version) and (a.hcodec == b.hcodec) and
     (a.codec == b.codec) and (a.protected == b.protected) and (a.filename == b.filename) and
-    (a.mimetype == b.mimetype) and (a.uploadedAt == b.uploadedAt) and (
+    (a.mimetype == b.mimetype) and (
     if a.protected:
       (a.ecK == b.ecK) and (a.ecM == b.ecM) and (a.originalTreeCid == b.originalTreeCid) and
         (a.originalDatasetSize == b.originalDatasetSize) and
@@ -201,9 +198,6 @@ func `$`*(self: Manifest): string =
 
   if self.mimetype.isSome:
     result &= ", mimetype: " & $self.mimetype
-
-  if self.uploadedAt.isSome:
-    result &= ", uploadedAt: " & $self.uploadedAt
 
   result &= (
     if self.protected:
@@ -236,7 +230,6 @@ func new*(
     protected = false,
     filename: ?string = string.none,
     mimetype: ?string = string.none,
-    uploadedAt: ?int64 = int64.none,
 ): Manifest =
   T(
     treeCid: treeCid,
@@ -248,7 +241,6 @@ func new*(
     protected: protected,
     filename: filename,
     mimetype: mimetype,
-    uploadedAt: uploadedAt,
   )
 
 func new*(
@@ -278,7 +270,6 @@ func new*(
     protectedStrategy: strategy,
     filename: manifest.filename,
     mimetype: manifest.mimetype,
-    uploadedAt: manifest.uploadedAt,
   )
 
 func new*(T: type Manifest, manifest: Manifest): Manifest =
@@ -296,7 +287,6 @@ func new*(T: type Manifest, manifest: Manifest): Manifest =
     protected: false,
     filename: manifest.filename,
     mimetype: manifest.mimetype,
-    uploadedAt: manifest.uploadedAt,
   )
 
 func new*(
@@ -314,7 +304,6 @@ func new*(
     strategy = SteppedStrategy,
     filename: ?string = string.none,
     mimetype: ?string = string.none,
-    uploadedAt: ?int64 = int64.none,
 ): Manifest =
   Manifest(
     treeCid: treeCid,
@@ -331,7 +320,6 @@ func new*(
     protectedStrategy: strategy,
     filename: filename,
     mimetype: mimetype,
-    uploadedAt: uploadedAt,
   )
 
 func new*(
@@ -374,7 +362,6 @@ func new*(
     verifiableStrategy: strategy,
     filename: manifest.filename,
     mimetype: manifest.mimetype,
-    uploadedAt: manifest.uploadedAt,
   )
 
 func new*(T: type Manifest, data: openArray[byte]): ?!Manifest =
