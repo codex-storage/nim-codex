@@ -113,7 +113,9 @@ method onFailed*(state: SaleProving, request: StorageRequest): ?State =
   # state change
   return some State(SaleFailed())
 
-method run*(state: SaleProving, machine: Machine): Future[?State] {.async.} =
+method run*(
+    state: SaleProving, machine: Machine
+): Future[?State] {.async: (raises: []).} =
   let data = SalesAgent(machine).data
   let context = SalesAgent(machine).context
 
@@ -129,27 +131,36 @@ method run*(state: SaleProving, machine: Machine): Future[?State] {.async.} =
   without clock =? context.clock:
     raiseAssert("clock not set")
 
-  debug "Start proving", requestId = data.requestId, slotIndex = data.slotIndex
   try:
-    let loop = state.proveLoop(market, clock, request, data.slotIndex, onProve)
-    state.loop = loop
-    await loop
-  except CancelledError:
-    discard
+    debug "Start proving", requestId = data.requestId, slotIndex = data.slotIndex
+    try:
+      let loop = state.proveLoop(market, clock, request, data.slotIndex, onProve)
+      state.loop = loop
+      await loop
+    except CancelledError as e:
+        typ = $(type e), stack = e.getStackTrace(), error = e.msgDetail
+      discard
+    except CatchableError as e:
+        typ = $(type e), stack = e.getStackTrace(), error = e.msgDetail
+      error "Proving failed", msg = e.msg
+      return some State(SaleErrored(error: e))
+    finally:
+      # Cleanup of the proving loop
+      debug "Stopping proving.", requestId = data.requestId, slotIndex = data.slotIndex
+
+      if not state.loop.isNil:
+        if not state.loop.finished:
+          try:
+            await state.loop.cancelAndWait()
+          except CatchableError as e:
+            error "Error during cancellation of proving loop", msg = e.msg
+
+        state.loop = nil
+
+    return some State(SalePayout())
+
+  except CancelledError as e:
+    trace "SalePreparing.run onCleanUp was cancelled", error = e.msgDetail
   except CatchableError as e:
-    error "Proving failed", msg = e.msg
+    error "Error during SalePreparing.run", error = e.msgDetail
     return some State(SaleErrored(error: e))
-  finally:
-    # Cleanup of the proving loop
-    debug "Stopping proving.", requestId = data.requestId, slotIndex = data.slotIndex
-
-    if not state.loop.isNil:
-      if not state.loop.finished:
-        try:
-          await state.loop.cancelAndWait()
-        except CatchableError as e:
-          error "Error during cancellation of proving loop", msg = e.msg
-
-      state.loop = nil
-
-  return some State(SalePayout())

@@ -3,6 +3,7 @@ import pkg/questionable/results
 
 import ../../conf
 import ../../logutils
+import ../../utils/exceptions
 import ../statemachine
 import ../salesagent
 import ./errorhandling
@@ -30,40 +31,48 @@ method onFailed*(state: SaleFilled, request: StorageRequest): ?State =
 method `$`*(state: SaleFilled): string =
   "SaleFilled"
 
-method run*(state: SaleFilled, machine: Machine): Future[?State] {.async.} =
+method run*(
+    state: SaleFilled, machine: Machine
+): Future[?State] {.async: (raises: []).} =
   let agent = SalesAgent(machine)
   let data = agent.data
   let context = agent.context
-
   let market = context.market
-  let host = await market.getHost(data.requestId, data.slotIndex)
-  let me = await market.getSigner()
 
-  if host == me.some:
-    info "Slot succesfully filled",
-      requestId = data.requestId, slotIndex = data.slotIndex
+  try:
+    let host = await market.getHost(data.requestId, data.slotIndex)
+    let me = await market.getSigner()
 
-    without request =? data.request:
-      raiseAssert "no sale request"
+    if host == me.some:
+      info "Slot succesfully filled",
+        requestId = data.requestId, slotIndex = data.slotIndex
 
-    if onFilled =? agent.onFilled:
-      onFilled(request, data.slotIndex)
+      without request =? data.request:
+        raiseAssert "no sale request"
 
-    without onExpiryUpdate =? context.onExpiryUpdate:
-      raiseAssert "onExpiryUpdate callback not set"
+      if onFilled =? agent.onFilled:
+        onFilled(request, data.slotIndex)
 
-    let requestEnd = await market.getRequestEnd(data.requestId)
-    if err =? (await onExpiryUpdate(request.content.cid, requestEnd)).errorOption:
-      return some State(SaleErrored(error: err))
+      without onExpiryUpdate =? context.onExpiryUpdate:
+        raiseAssert "onExpiryUpdate callback not set"
 
-    when codex_enable_proof_failures:
-      if context.simulateProofFailures > 0:
-        info "Proving with failure rate", rate = context.simulateProofFailures
-        return some State(
-          SaleProvingSimulated(failEveryNProofs: context.simulateProofFailures)
-        )
+      let requestEnd = await market.getRequestEnd(data.requestId)
+      if err =? (await onExpiryUpdate(request.content.cid, requestEnd)).errorOption:
+        return some State(SaleErrored(error: err))
 
-    return some State(SaleProving())
-  else:
-    let error = newException(HostMismatchError, "Slot filled by other host")
-    return some State(SaleErrored(error: error))
+      when codex_enable_proof_failures:
+        if context.simulateProofFailures > 0:
+          info "Proving with failure rate", rate = context.simulateProofFailures
+          return some State(
+            SaleProvingSimulated(failEveryNProofs: context.simulateProofFailures)
+          )
+
+      return some State(SaleProving())
+    else:
+      let error = newException(HostMismatchError, "Slot filled by other host")
+      return some State(SaleErrored(error: error))
+  except CancelledError as e:
+    trace "SaleFilled.run was cancelled", error = e.msgDetail
+  except CatchableError as e:
+    error "Error during SaleFilled.run", error = e.msgDetail
+    return some State(SaleErrored(error: e))

@@ -1,9 +1,11 @@
 import pkg/chronos
 
 import ../../logutils
+import ../../utils/exceptions
 import ../statemachine
 import ../salesagent
 import ./errorhandling
+import ./errored
 
 logScope:
   topics = "marketplace sales ignored"
@@ -18,10 +20,19 @@ type SaleIgnored* = ref object of ErrorHandlingState
 method `$`*(state: SaleIgnored): string =
   "SaleIgnored"
 
-method run*(state: SaleIgnored, machine: Machine): Future[?State] {.async.} =
+method run*(
+    state: SaleIgnored, machine: Machine
+): Future[?State] {.async: (raises: []).} =
   let agent = SalesAgent(machine)
 
-  if onCleanUp =? agent.onCleanUp:
-    await onCleanUp(
-      reprocessSlot = state.reprocessSlot, returnBytes = state.returnBytes
-    )
+  try:
+    if onCleanUp =? agent.onCleanUp:
+      await onCleanUp(
+        reprocessSlot = state.reprocessSlot, returnBytes = state.returnBytes
+      )
+
+  except CancelledError as e:
+    trace "SaleIgnored.run was cancelled", error = e.msgDetail
+  except CatchableError as e:
+    error "Error during SaleIgnored.run in onCleanUp", error = e.msgDetail
+    return some State(SaleErrored(error: e))

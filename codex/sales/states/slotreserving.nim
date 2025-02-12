@@ -3,6 +3,7 @@ import pkg/metrics
 
 import ../../logutils
 import ../../market
+import ../../utils/exceptions
 import ../salesagent
 import ../statemachine
 import ./errorhandling
@@ -26,7 +27,9 @@ method onCancelled*(state: SaleSlotReserving, request: StorageRequest): ?State =
 method onFailed*(state: SaleSlotReserving, request: StorageRequest): ?State =
   return some State(SaleFailed())
 
-method run*(state: SaleSlotReserving, machine: Machine): Future[?State] {.async.} =
+method run*(
+    state: SaleSlotReserving, machine: Machine
+): Future[?State] {.async: (raises: []).} =
   let agent = SalesAgent(machine)
   let data = agent.data
   let context = agent.context
@@ -36,23 +39,30 @@ method run*(state: SaleSlotReserving, machine: Machine): Future[?State] {.async.
     requestId = data.requestId
     slotIndex = data.slotIndex
 
-  let canReserve = await market.canReserveSlot(data.requestId, data.slotIndex)
-  if canReserve:
-    try:
-      trace "Reserving slot"
-      await market.reserveSlot(data.requestId, data.slotIndex)
-    except MarketError as e:
-      if e.msg.contains "SlotReservations_ReservationNotAllowed":
-        debug "Slot cannot be reserved, ignoring", error = e.msg
-        return some State(SaleIgnored(reprocessSlot: false, returnBytes: true))
-      else:
-        return some State(SaleErrored(error: e))
-    # other CatchableErrors are handled "automatically" by the ErrorHandlingState
+  try:
+    let canReserve = await market.canReserveSlot(data.requestId, data.slotIndex)
+    if canReserve:
+      try:
+        trace "Reserving slot"
+        await market.reserveSlot(data.requestId, data.slotIndex)
+      except MarketError as e:
+        if e.msg.contains "SlotReservations_ReservationNotAllowed":
+          debug "Slot cannot be reserved, ignoring", error = e.msg
+          return some State(SaleIgnored(reprocessSlot: false, returnBytes: true))
+        else:
+          return some State(SaleErrored(error: e))
+      # other CatchableErrors are handled "automatically" by the ErrorHandlingState
 
-    trace "Slot successfully reserved"
-    return some State(SaleDownloading())
-  else:
-    # do not re-add this slot to the queue, and return bytes from Reservation to
-    # the Availability
-    debug "Slot cannot be reserved, ignoring"
-    return some State(SaleIgnored(reprocessSlot: false, returnBytes: true))
+      trace "Slot successfully reserved"
+      return some State(SaleDownloading())
+    else:
+      # do not re-add this slot to the queue, and return bytes from Reservation to
+      # the Availability
+      debug "Slot cannot be reserved, ignoring"
+      return some State(SaleIgnored(reprocessSlot: false, returnBytes: true))
+
+  except CancelledError as e:
+    trace "SaleSlotReserving.run onCleanUp was cancelled", error = e.msgDetail
+  except CatchableError as e:
+    error "Error during SaleSlotReserving.run", error = e.msgDetail
+    return some State(SaleErrored(error: e))

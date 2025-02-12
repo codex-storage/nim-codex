@@ -10,6 +10,7 @@ when codex_enable_proof_failures:
   import ../../utils/exceptions
   import ../salescontext
   import ./proving
+  import ./errored
 
   logScope:
     topics = "marketplace sales simulated-proving"
@@ -28,23 +29,31 @@ when codex_enable_proof_failures:
       onProve: OnProve,
       market: Market,
       currentPeriod: Period,
-  ) {.async.} =
-    trace "Processing proving in simulated mode"
-    state.proofCount += 1
-    if state.failEveryNProofs > 0 and state.proofCount mod state.failEveryNProofs == 0:
-      state.proofCount = 0
+  ) {.async: (raises: []).} =
 
-      try:
-        warn "Submitting INVALID proof", period = currentPeriod, slotId = slot.id
-        await market.submitProof(slot.id, Groth16Proof.default)
-      except MarketError as e:
-        if not e.msg.contains("Invalid proof"):
+    try:
+      trace "Processing proving in simulated mode"
+      state.proofCount += 1
+      if state.failEveryNProofs > 0 and state.proofCount mod state.failEveryNProofs == 0:
+        state.proofCount = 0
+
+        try:
+          warn "Submitting INVALID proof", period = currentPeriod, slotId = slot.id
+          await market.submitProof(slot.id, Groth16Proof.default)
+        except MarketError as e:
+          if not e.msg.contains("Invalid proof"):
+            onSubmitProofError(e, currentPeriod, slot.id)
+        except CancelledError as error:
+          raise error
+        except CatchableError as e:
           onSubmitProofError(e, currentPeriod, slot.id)
-      except CancelledError as error:
-        raise error
-      except CatchableError as e:
-        onSubmitProofError(e, currentPeriod, slot.id)
-    else:
-      await procCall SaleProving(state).prove(
-        slot, challenge, onProve, market, currentPeriod
-      )
+      else:
+        await procCall SaleProving(state).prove(
+          slot, challenge, onProve, market, currentPeriod
+        )
+
+  except CancelledError as e:
+    trace "SaleProvingSimulated.run onCleanUp was cancelled", error = e.msgDetail
+  except CatchableError as e:
+    error "Error during SaleProvingSimulated.run", error = e.msgDetail
+    return some State(SaleErrored(error: e))
