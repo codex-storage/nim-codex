@@ -14,7 +14,7 @@ proc raiseProviderError(message: string) {.raises: [ProviderError].} =
 
 proc blockNumberAndTimestamp*(
     provider: Provider, blockTag: BlockTag
-): Future[(UInt256, UInt256)] {.async: (raises: [ProviderError]).} =
+): Future[(UInt256, UInt256)] {.async: (raises: [ProviderError, CancelledError]).} =
   without latestBlock =? await provider.getBlock(blockTag):
     raiseProviderError("Could not get latest block")
 
@@ -25,7 +25,7 @@ proc blockNumberAndTimestamp*(
 
 proc binarySearchFindClosestBlock(
     provider: Provider, epochTime: int, low: UInt256, high: UInt256
-): Future[UInt256] {.async: (raises: [ProviderError]).} =
+): Future[UInt256] {.async: (raises: [ProviderError, CancelledError]).} =
   let (_, lowTimestamp) = await provider.blockNumberAndTimestamp(BlockTag.init(low))
   let (_, highTimestamp) = await provider.blockNumberAndTimestamp(BlockTag.init(high))
   if abs(lowTimestamp.truncate(int) - epochTime) <
@@ -39,7 +39,7 @@ proc binarySearchBlockNumberForEpoch(
     epochTime: UInt256,
     latestBlockNumber: UInt256,
     earliestBlockNumber: UInt256,
-): Future[UInt256] {.async: (raises: [ProviderError]).} =
+): Future[UInt256] {.async: (raises: [ProviderError, CancelledError]).} =
   var low = earliestBlockNumber
   var high = latestBlockNumber
 
@@ -65,7 +65,7 @@ proc binarySearchBlockNumberForEpoch(
 
 proc blockNumberForEpoch*(
     provider: Provider, epochTime: SecondsSince1970
-): Future[UInt256] {.async: (raises: [ProviderError]).} =
+): Future[UInt256] {.async: (raises: [ProviderError, CancelledError]).} =
   let epochTimeUInt256 = epochTime.u256
   let (latestBlockNumber, latestBlockTimestamp) =
     await provider.blockNumberAndTimestamp(BlockTag.latest)
@@ -118,6 +118,6 @@ proc blockNumberForEpoch*(
 
 proc pastBlockTag*(
     provider: Provider, blocksAgo: int
-): Future[BlockTag] {.async: (raises: [ProviderError]).} =
+): Future[BlockTag] {.async: (raises: [ProviderError, CancelledError]).} =
   let head = await provider.getBlockNumber()
   return BlockTag.init(head - blocksAgo.abs.u256)
