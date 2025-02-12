@@ -1,6 +1,6 @@
 import std/sugar
 
-import pkg/stew/results
+import pkg/results
 import pkg/questionable
 import pkg/chronos
 import pkg/datastore/typedds

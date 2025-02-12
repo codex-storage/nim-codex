@@ -14,7 +14,7 @@ import pkg/chronos
 import pkg/libp2p
 import pkg/stew/base10
 import pkg/stew/byteutils
-import pkg/stew/results
+import pkg/results
 import pkg/stint
 
 import ../sales

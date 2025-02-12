@@ -1,7 +1,7 @@
 import std/[unittest, options, net], stew/shims/net as stewNet
 import pkg/chronos
 import pkg/libp2p/[multiaddress, multihash, multicodec]
-import pkg/stew/results
+import pkg/results
 
 import ../../codex/nat
 import ../../codex/utils/natutils

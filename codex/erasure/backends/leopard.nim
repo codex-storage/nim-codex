@@ -10,7 +10,7 @@
 import std/options
 
 import pkg/leopard
-import pkg/stew/results
+import pkg/results
 
 import ../backend
 
