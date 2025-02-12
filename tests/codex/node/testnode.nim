@@ -12,6 +12,7 @@ import pkg/questionable/results
 import pkg/stint
 import pkg/poseidon2
 import pkg/poseidon2/io
+import pkg/taskpools
 
 import pkg/nitro
 import pkg/codexdht/discv5/protocol as discv5
@@ -67,7 +68,7 @@ asyncchecksuite "Test Node - Basic":
     # https://github.com/codex-storage/nim-codex/issues/699
     let
       cstore = CountingStore.new(engine, localStore)
-      node = CodexNodeRef.new(switch, cstore, engine, blockDiscovery)
+      node = CodexNodeRef.new(switch, cstore, engine, blockDiscovery, Taskpool.new())
       missingCid =
         Cid.init("zDvZRwzmCvtiyubW9AecnxgLnXK8GrBvpQJBDzToxmzDN6Nrc2CZ").get()
 
@@ -138,7 +139,8 @@ asyncchecksuite "Test Node - Basic":
 
   test "Setup purchase request":
     let
-      erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
+      erasure =
+        Erasure.new(store, leoEncoderProvider, leoDecoderProvider, Taskpool.new())
       manifest = await storeDataGetManifest(localStore, chunker)
       manifestBlock =
         bt.Block.new(manifest.encode().tryGet(), codec = ManifestCodec).tryGet()

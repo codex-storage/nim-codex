@@ -15,6 +15,7 @@ import std/strformat
 import std/sugar
 import times
 
+import pkg/taskpools
 import pkg/questionable
 import pkg/questionable/results
 import pkg/chronos
@@ -70,6 +71,7 @@ type
     contracts*: Contracts
     clock*: Clock
     storage*: Contracts
+    taskpool: Taskpool
 
   CodexNodeRef* = ref CodexNode
 
@@ -235,8 +237,9 @@ proc streamEntireDataset(
     # Retrieve, decode and save to the local store all EС groups
     proc erasureJob(): Future[?!void] {.async.} =
       # Spawn an erasure decoding job
-      let erasure =
-        Erasure.new(self.networkStore, leoEncoderProvider, leoDecoderProvider)
+      let erasure = Erasure.new(
+        self.networkStore, leoEncoderProvider, leoDecoderProvider, self.taskpool
+      )
       without _ =? (await erasure.decode(manifest)), error:
         error "Unable to erasure decode manifest", manifestCid, exc = error.msg
         return failure(error)
@@ -461,8 +464,9 @@ proc setupRequest(
     return failure error
 
   # Erasure code the dataset according to provided parameters
-  let erasure =
-    Erasure.new(self.networkStore.localStore, leoEncoderProvider, leoDecoderProvider)
+  let erasure = Erasure.new(
+    self.networkStore.localStore, leoEncoderProvider, leoDecoderProvider, self.taskpool
+  )
 
   without encoded =? (await erasure.encode(manifest, ecK, ecM)), error:
     trace "Unable to erasure code dataset"
@@ -782,12 +786,16 @@ proc stop*(self: CodexNodeRef) {.async.} =
   if not self.networkStore.isNil:
     await self.networkStore.close
 
+  if not self.taskpool.isNil:
+    self.taskpool.shutdown()
+
 proc new*(
     T: type CodexNodeRef,
     switch: Switch,
     networkStore: NetworkStore,
     engine: BlockExcEngine,
     discovery: Discovery,
+    taskpool: Taskpool,
     prover = Prover.none,
     contracts = Contracts.default,
 ): CodexNodeRef =
@@ -800,5 +808,6 @@ proc new*(
     engine: engine,
     prover: prover,
     discovery: discovery,
+    taskPool: taskpool,
     contracts: contracts,
   )
