@@ -36,6 +36,7 @@ asyncchecksuite "Sales - start":
   var repo: RepoStore
   var queue: SlotQueue
   var itemsProcessed: seq[SlotQueueItem]
+  var expiry: SecondsSince1970
 
   setup:
     request = StorageRequest(
@@ -74,7 +75,8 @@ asyncchecksuite "Sales - start":
     ): Future[?!Groth16Proof] {.async.} =
       return success(proof)
     itemsProcessed = @[]
-    request.expiry = (clock.now() + 42).u256
+    expiry = (clock.now() + 42)
+    request.expiry = expiry.u256
 
   teardown:
     await sales.stop()
@@ -95,6 +97,7 @@ asyncchecksuite "Sales - start":
     request.ask.slots = 2
     market.requested = @[request]
     market.requestState[request.id] = RequestState.New
+    market.requestExpiry[request.id] = expiry
 
     let slot0 =
       MockSlot(requestId: request.id, slotIndex: 0.u256, proof: proof, host: me)

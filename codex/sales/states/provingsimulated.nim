@@ -4,6 +4,7 @@ when codex_enable_proof_failures:
   import pkg/stint
   import pkg/ethers
 
+  import ../../contracts/marketplace
   import ../../contracts/requests
   import ../../logutils
   import ../../market
@@ -29,8 +30,7 @@ when codex_enable_proof_failures:
       onProve: OnProve,
       market: Market,
       currentPeriod: Period,
-  ) {.async: (raises: []).} =
-
+  ) {.async.} =
     try:
       trace "Processing proving in simulated mode"
       state.proofCount += 1
@@ -40,9 +40,8 @@ when codex_enable_proof_failures:
         try:
           warn "Submitting INVALID proof", period = currentPeriod, slotId = slot.id
           await market.submitProof(slot.id, Groth16Proof.default)
-        except MarketError as e:
-          if not e.msg.contains("Invalid proof"):
-            onSubmitProofError(e, currentPeriod, slot.id)
+        except Proofs_InvalidProof as e:
+          discard # expected
         except CancelledError as error:
           raise error
         except CatchableError as e:
@@ -51,9 +50,8 @@ when codex_enable_proof_failures:
         await procCall SaleProving(state).prove(
           slot, challenge, onProve, market, currentPeriod
         )
-
-  except CancelledError as e:
-    trace "SaleProvingSimulated.run onCleanUp was cancelled", error = e.msgDetail
-  except CatchableError as e:
-    error "Error during SaleProvingSimulated.run", error = e.msgDetail
-    return some State(SaleErrored(error: e))
+    except CancelledError as e:
+      trace "Submitting INVALID proof cancelled", error = e.msgDetail
+      raise e
+    except CatchableError as e:
+      error "Submitting INVALID proof failed", error = e.msgDetail
