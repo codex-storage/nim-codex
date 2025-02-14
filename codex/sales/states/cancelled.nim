@@ -2,13 +2,12 @@ import ../../logutils
 import ../../utils/exceptions
 import ../salesagent
 import ../statemachine
-import ./errorhandling
 import ./errored
 
 logScope:
   topics = "marketplace sales cancelled"
 
-type SaleCancelled* = ref object of ErrorHandlingState
+type SaleCancelled* = ref object of SaleState
 
 method `$`*(state: SaleCancelled): string =
   "SaleCancelled"

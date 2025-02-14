@@ -6,7 +6,6 @@ import ../../logutils
 import ../../utils/exceptions
 import ../statemachine
 import ../salesagent
-import ./errorhandling
 import ./errored
 import ./cancelled
 import ./failed
@@ -19,7 +18,7 @@ logScope:
   topics = "marketplace sales filled"
 
 type
-  SaleFilled* = ref object of ErrorHandlingState
+  SaleFilled* = ref object of SaleState
   HostMismatchError* = object of CatchableError
 
 method onCancelled*(state: SaleFilled, request: StorageRequest): ?State =

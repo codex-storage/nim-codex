@@ -7,14 +7,13 @@ import ../../market
 import ../../utils/exceptions
 import ../salesagent
 import ../statemachine
-import ./errorhandling
 import ./cancelled
 import ./failed
 import ./filled
 import ./initialproving
 import ./errored
 
-type SaleDownloading* = ref object of ErrorHandlingState
+type SaleDownloading* = ref object of SaleState
 
 logScope:
   topics = "marketplace sales downloading"
@@ -74,7 +73,6 @@ method run*(
 
     trace "Download complete"
     return some State(SaleInitialProving())
-
   except CancelledError as e:
     trace "SaleDownloading.run was cancelled", error = e.msgDetail
   except CatchableError as e:

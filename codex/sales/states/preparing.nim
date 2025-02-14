@@ -7,7 +7,6 @@ import ../../market
 import ../../utils/exceptions
 import ../salesagent
 import ../statemachine
-import ./errorhandling
 import ./cancelled
 import ./failed
 import ./filled
@@ -19,7 +18,7 @@ declareCounter(
   codex_reservations_availability_mismatch, "codex reservations availability_mismatch"
 )
 
-type SalePreparing* = ref object of ErrorHandlingState
+type SalePreparing* = ref object of SaleState
 
 logScope:
   topics = "marketplace sales preparing"

@@ -6,7 +6,6 @@ import ../../utils/exceptions
 import ../statemachine
 import ../salesagent
 import ../salescontext
-import ./errorhandling
 import ./cancelled
 import ./failed
 import ./errored
@@ -18,7 +17,7 @@ logScope:
 type
   SlotFreedError* = object of CatchableError
   SlotNotFilledError* = object of CatchableError
-  SaleProving* = ref object of ErrorHandlingState
+  SaleProving* = ref object of SaleState
     loop: Future[void]
 
 method prove*(

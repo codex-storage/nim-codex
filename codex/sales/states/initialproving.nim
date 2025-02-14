@@ -4,7 +4,6 @@ import ../../logutils
 import ../../utils/exceptions
 import ../statemachine
 import ../salesagent
-import ./errorhandling
 import ./filling
 import ./cancelled
 import ./errored
@@ -13,7 +12,7 @@ import ./failed
 logScope:
   topics = "marketplace sales initial-proving"
 
-type SaleInitialProving* = ref object of ErrorHandlingState
+type SaleInitialProving* = ref object of SaleState
 
 method `$`*(state: SaleInitialProving): string =
   "SaleInitialProving"

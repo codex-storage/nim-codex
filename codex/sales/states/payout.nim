@@ -3,7 +3,6 @@ import ../../market
 import ../../utils/exceptions
 import ../statemachine
 import ../salesagent
-import ./errorhandling
 import ./cancelled
 import ./failed
 import ./finished
@@ -12,7 +11,7 @@ import ./errored
 logScope:
   topics = "marketplace sales payout"
 
-type SalePayout* = ref object of ErrorHandlingState
+type SalePayout* = ref object of SaleState
 
 method `$`*(state: SalePayout): string =
   "SalePayout"

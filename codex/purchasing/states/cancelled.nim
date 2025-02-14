@@ -3,7 +3,6 @@ import pkg/metrics
 import ../../logutils
 import ../../utils/exceptions
 import ../statemachine
-import ./errorhandling
 import ./error
 
 declareCounter(codex_purchases_cancelled, "codex purchases cancelled")
@@ -11,7 +10,7 @@ declareCounter(codex_purchases_cancelled, "codex purchases cancelled")
 logScope:
   topics = "marketplace purchases cancelled"
 
-type PurchaseCancelled* = ref object of ErrorHandlingState
+type PurchaseCancelled* = ref object of PurchaseState
 
 method `$`*(state: PurchaseCancelled): string =
   "cancelled"

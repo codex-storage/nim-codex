@@ -2,7 +2,6 @@ import pkg/metrics
 import ../../utils/exceptions
 import ../../logutils
 import ../statemachine
-import ./errorhandling
 import ./submitted
 import ./started
 import ./cancelled
@@ -12,7 +11,7 @@ import ./error
 
 declareCounter(codex_purchases_unknown, "codex purchases unknown")
 
-type PurchaseUnknown* = ref object of ErrorHandlingState
+type PurchaseUnknown* = ref object of PurchaseState
 
 method `$`*(state: PurchaseUnknown): string =
   "unknown"

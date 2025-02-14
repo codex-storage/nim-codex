@@ -6,14 +6,13 @@ import ../../market
 import ../../utils/exceptions
 import ../salesagent
 import ../statemachine
-import ./errorhandling
 import ./cancelled
 import ./failed
 import ./ignored
 import ./downloading
 import ./errored
 
-type SaleSlotReserving* = ref object of ErrorHandlingState
+type SaleSlotReserving* = ref object of SaleState
 
 logScope:
   topics = "marketplace sales reserving"
@@ -51,7 +50,7 @@ method run*(
           return some State(SaleIgnored(reprocessSlot: false, returnBytes: true))
         else:
           return some State(SaleErrored(error: e))
-      # other CatchableErrors are handled "automatically" by the ErrorHandlingState
+      # other CatchableErrors are handled "automatically" by the SaleState
 
       trace "Slot successfully reserved"
       return some State(SaleDownloading())
@@ -60,7 +59,6 @@ method run*(
       # the Availability
       debug "Slot cannot be reserved, ignoring"
       return some State(SaleIgnored(reprocessSlot: false, returnBytes: true))
-
   except CancelledError as e:
     trace "SaleSlotReserving.run onCleanUp was cancelled", error = e.msgDetail
   except CatchableError as e:

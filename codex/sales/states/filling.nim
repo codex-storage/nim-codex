@@ -4,7 +4,6 @@ import ../../market
 import ../../utils/exceptions
 import ../statemachine
 import ../salesagent
-import ./errorhandling
 import ./filled
 import ./cancelled
 import ./failed
@@ -14,7 +13,7 @@ import ./errored
 logScope:
   topics = "marketplace sales filling"
 
-type SaleFilling* = ref object of ErrorHandlingState
+type SaleFilling* = ref object of SaleState
   proof*: Groth16Proof
 
 method `$`*(state: SaleFilling): string =
@@ -61,7 +60,7 @@ method run*(
         return some State(SaleIgnored(reprocessSlot: false, returnBytes: true))
       else:
         return some State(SaleErrored(error: e))
-    # other CatchableErrors are handled "automatically" by the ErrorHandlingState
+    # other CatchableErrors are handled "automatically" by the SaleState
 
     return some State(SaleFilled())
   except CancelledError as e:

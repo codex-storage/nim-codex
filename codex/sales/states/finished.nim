@@ -4,7 +4,6 @@ import ../../logutils
 import ../../utils/exceptions
 import ../statemachine
 import ../salesagent
-import ./errorhandling
 import ./cancelled
 import ./failed
 import ./errored
@@ -12,7 +11,7 @@ import ./errored
 logScope:
   topics = "marketplace sales finished"
 
-type SaleFinished* = ref object of ErrorHandlingState
+type SaleFinished* = ref object of SaleState
   returnedCollateral*: ?UInt256
 
 method `$`*(state: SaleFinished): string =

@@ -2,13 +2,12 @@ import pkg/metrics
 import ../../logutils
 import ../../utils/exceptions
 import ../statemachine
-import ./errorhandling
 import ./submitted
 import ./error
 
 declareCounter(codex_purchases_pending, "codex purchases pending")
 
-type PurchasePending* = ref object of ErrorHandlingState
+type PurchasePending* = ref object of PurchaseState
 
 method `$`*(state: PurchasePending): string =
   "pending"

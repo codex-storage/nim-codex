@@ -17,9 +17,6 @@ type SaleErrored* = ref object of SaleState
 method `$`*(state: SaleErrored): string =
   "SaleErrored"
 
-method onError*(state: SaleState, err: ref CatchableError): ?State {.upraises: [].} =
-  error "error during SaleErrored run", error = err.msg
-
 method run*(
     state: SaleErrored, machine: Machine
 ): Future[?State] {.async: (raises: []).} =
@@ -41,4 +38,4 @@ method run*(
   except CancelledError as e:
     trace "SaleErrored.run was cancelled", error = e.msgDetail
   except CatchableError as e:
-    error "Error during SaleErrored.run onClear", error = e.msgDetail
+    error "Error during SaleErrored.run", error = e.msgDetail

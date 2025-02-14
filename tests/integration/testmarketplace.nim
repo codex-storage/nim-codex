@@ -175,6 +175,7 @@ marketplacesuite "Marketplace payouts":
       slotIdxFilled = some (!eventResult).slotIndex
 
     let subscription = await marketplace.subscribe(SlotFilled, onSlotFilled)
+    trace "TEST: subscribed to SlotFilled event"
 
     # client requests storage but requires multiple slots to host the content
     let id = await clientApi.requestStorage(
@@ -186,16 +187,21 @@ marketplacesuite "Marketplace payouts":
       nodes = ecNodes,
       tolerance = ecTolerance,
     )
+    trace "TEST: requested storage"
 
     # wait until one slot is filled
     check eventually(slotIdxFilled.isSome, timeout = expiry.int * 1000)
+    trace "TEST: slot was filled"
     let slotId = slotId(!clientApi.requestId(id), !slotIdxFilled)
 
     # wait until sale is cancelled
     await ethProvider.advanceTime(expiry.u256)
+    trace "TEST: time advanced"
     check eventually providerApi.saleStateIs(slotId, "SaleCancelled")
+    trace "TEST: sale was cancelled"
 
     await advanceToNextPeriod()
+    trace "TEST: advanced to next period"
 
     let slotSize = slotSize(blocks, ecNodes, ecTolerance)
     let pricePerSlotPerSecond = minPricePerBytePerSecond * slotSize
@@ -205,6 +211,7 @@ marketplacesuite "Marketplace payouts":
       endBalanceProvider > startBalanceProvider and
         endBalanceProvider < startBalanceProvider + expiry.u256 * pricePerSlotPerSecond
     )
+    trace "TEST: SP balance checked out"
     check eventually(
       (
         let endBalanceClient = (await token.balanceOf(client.ethAccount))
@@ -214,5 +221,7 @@ marketplacesuite "Marketplace payouts":
       ),
       timeout = 10 * 1000, # give client a bit of time to withdraw its funds
     )
+    trace "TEST: client balance checked out"
 
     await subscription.unsubscribe()
+    trace "TEST: sub unsubscribed"

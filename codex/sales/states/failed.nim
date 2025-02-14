@@ -3,14 +3,13 @@ import ../../utils/exceptions
 import ../../utils/exceptions
 import ../salesagent
 import ../statemachine
-import ./errorhandling
 import ./errored
 
 logScope:
   topics = "marketplace sales failed"
 
 type
-  SaleFailed* = ref object of ErrorHandlingState
+  SaleFailed* = ref object of SaleState
   SaleFailedError* = object of SaleError
 
 method `$`*(state: SaleFailed): string =

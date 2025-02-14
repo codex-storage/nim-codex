@@ -429,23 +429,6 @@ asyncchecksuite "Sales":
     check eventually storingRequest == request
     check storingSlot < request.ask.slots.u256
 
-  test "handles errors during state run":
-    var saleFailed = false
-    sales.onProve = proc(
-        slot: Slot, challenge: ProofChallenge
-    ): Future[?!Groth16Proof] {.async.} =
-      # raise exception so machine.onError is called
-      raise newException(ValueError, "some error")
-
-    # onClear is called in SaleErrored.run
-    sales.onClear = proc(request: StorageRequest, idx: UInt256) =
-      saleFailed = true
-    createAvailability()
-    await market.requestStorage(request)
-    await allowRequestToStart()
-
-    check eventually saleFailed
-
   test "makes storage available again when data retrieval fails":
     let error = newException(IOError, "data retrieval failed")
     sales.onStore = proc(

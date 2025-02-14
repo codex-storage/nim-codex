@@ -4,7 +4,6 @@ import ../../logutils
 import ../../utils/exceptions
 import ../statemachine
 import ../salesagent
-import ./errorhandling
 import ./errored
 
 logScope:
@@ -13,7 +12,7 @@ logScope:
 # Ignored slots could mean there was no availability or that the slot could
 # not be reserved.
 
-type SaleIgnored* = ref object of ErrorHandlingState
+type SaleIgnored* = ref object of SaleState
   reprocessSlot*: bool # readd slot to queue with `seen` flag
   returnBytes*: bool # return unreleased bytes from Reservation to Availability
 
@@ -30,7 +29,6 @@ method run*(
       await onCleanUp(
         reprocessSlot = state.reprocessSlot, returnBytes = state.returnBytes
       )
-
   except CancelledError as e:
     trace "SaleIgnored.run was cancelled", error = e.msgDetail
   except CatchableError as e:
