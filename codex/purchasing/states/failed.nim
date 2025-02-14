@@ -11,7 +11,9 @@ type PurchaseFailed* = ref object of PurchaseState
 method `$`*(state: PurchaseFailed): string =
   "failed"
 
-method run*(state: PurchaseFailed, machine: Machine): Future[?State] {.async: (raises: []).} =
+method run*(
+    state: PurchaseFailed, machine: Machine
+): Future[?State] {.async: (raises: []).} =
   codex_purchases_failed.inc()
   let purchase = Purchase(machine)
 
