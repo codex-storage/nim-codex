@@ -138,11 +138,11 @@ method run*(
       state.loop = loop
       await loop
     except CancelledError as e:
-        typ = $(type e), stack = e.getStackTrace(), error = e.msgDetail
+      trace "proving loop cancelled"
       discard
     except CatchableError as e:
-        typ = $(type e), stack = e.getStackTrace(), error = e.msgDetail
-      error "Proving failed", msg = e.msg
+      error "Proving failed",
+        msg = e.msg, typ = $(type e), stack = e.getStackTrace(), error = e.msgDetail
       return some State(SaleErrored(error: e))
     finally:
       # Cleanup of the proving loop
@@ -158,7 +158,6 @@ method run*(
         state.loop = nil
 
     return some State(SalePayout())
-
   except CancelledError as e:
     trace "SalePreparing.run onCleanUp was cancelled", error = e.msgDetail
   except CatchableError as e:
