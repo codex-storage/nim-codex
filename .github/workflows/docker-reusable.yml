@@ -94,11 +94,11 @@ jobs:
           - target:
               os: linux
               arch: amd64
-            builder: ubuntu-22.04
+            builder: ubuntu-24.04
           - target:
               os: linux
               arch: arm64
-            builder: ubuntu-22.04-arm
+            builder: ubuntu-24.04-arm
 
     name: Build ${{ matrix.target.os }}/${{ matrix.target.arch }}
     runs-on: ${{ matrix.builder }}

@@ -12,6 +12,7 @@ import pkg/questionable/results
 import pkg/stint
 import pkg/poseidon2
 import pkg/poseidon2/io
+import pkg/taskpools
 
 import pkg/nitro
 import pkg/codexdht/discv5/protocol as discv5
@@ -37,6 +38,7 @@ import ../examples
 import ../helpers
 import ../helpers/mockmarket
 import ../helpers/mockclock
+import ../slots/helpers
 
 import ./helpers
 
@@ -66,7 +68,7 @@ asyncchecksuite "Test Node - Basic":
     # https://github.com/codex-storage/nim-codex/issues/699
     let
       cstore = CountingStore.new(engine, localStore)
-      node = CodexNodeRef.new(switch, cstore, engine, blockDiscovery)
+      node = CodexNodeRef.new(switch, cstore, engine, blockDiscovery, Taskpool.new())
       missingCid =
         Cid.init("zDvZRwzmCvtiyubW9AecnxgLnXK8GrBvpQJBDzToxmzDN6Nrc2CZ").get()
 
@@ -137,7 +139,8 @@ asyncchecksuite "Test Node - Basic":
 
   test "Setup purchase request":
     let
-      erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
+      erasure =
+        Erasure.new(store, leoEncoderProvider, leoDecoderProvider, Taskpool.new())
       manifest = await storeDataGetManifest(localStore, chunker)
       manifestBlock =
         bt.Block.new(manifest.encode().tryGet(), codec = ManifestCodec).tryGet()
@@ -166,3 +169,28 @@ asyncchecksuite "Test Node - Basic":
       (await verifiableBlock.cid in localStore) == true
       request.content.cid == $verifiableBlock.cid
       request.content.merkleRoot == builder.verifyRoot.get.toBytes
+
+  test "Should delete a single block":
+    let randomBlock = bt.Block.new("Random block".toBytes).tryGet()
+    (await localStore.putBlock(randomBlock)).tryGet()
+    check (await randomBlock.cid in localStore) == true
+
+    (await node.delete(randomBlock.cid)).tryGet()
+    check (await randomBlock.cid in localStore) == false
+
+  test "Should delete an entire dataset":
+    let
+      blocks = await makeRandomBlocks(datasetSize = 2048, blockSize = 256'nb)
+      manifest = await storeDataGetManifest(localStore, blocks)
+      manifestBlock = (await store.storeManifest(manifest)).tryGet()
+      manifestCid = manifestBlock.cid
+
+    check await manifestCid in localStore
+    for blk in blocks:
+      check await blk.cid in localStore
+
+    (await node.delete(manifestCid)).tryGet()
+
+    check not await manifestCid in localStore
+    for blk in blocks:
+      check not (await blk.cid in localStore)
