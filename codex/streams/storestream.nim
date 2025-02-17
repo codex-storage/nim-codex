@@ -110,7 +110,7 @@ method readOnce*(
       raise newLPStreamReadError(error)
 
     trace "Reading bytes from store stream",
-      manifestCid = self.manifest.cid.get(),
+      manifestCid = self.manifest.treeCid,
       numBlocks = self.manifest.blocksCount,
       blockNum,
       blkCid = blk.cid,

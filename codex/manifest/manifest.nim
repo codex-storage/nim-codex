@@ -162,9 +162,6 @@ func verify*(self: Manifest): ?!void =
 
   return success()
 
-func cid*(self: Manifest): ?!Cid {.deprecated: "use treeCid instead".} =
-  self.treeCid.success
-
 func `==`*(a, b: Manifest): bool =
   (a.treeCid == b.treeCid) and (a.datasetSize == b.datasetSize) and
     (a.blockSize == b.blockSize) and (a.version == b.version) and (a.hcodec == b.hcodec) and
