@@ -3,6 +3,7 @@ import std/importutils
 import pkg/chronos
 import pkg/ethers/erc20
 import codex/contracts
+import pkg/lrucache
 import ../ethertest
 import ./examples
 import ./time
@@ -591,3 +592,13 @@ ethersuite "On-Chain Market":
     let expectedPayout = request.expectedPayout(filledAt, requestEnd.u256)
     check endBalanceHost == (startBalanceHost + request.ask.collateralPerSlot)
     check endBalanceReward == (startBalanceReward + expectedPayout)
+
+  test "the request is added in cache after the fist access":
+    await market.requestStorage(request)
+
+    check market.requestCache.contains($request.id) == false
+    discard await market.getRequest(request.id)
+
+    check market.requestCache.contains($request.id) == true
+    let cacheValue = market.requestCache[$request.id]
+    check cacheValue == request

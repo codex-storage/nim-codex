@@ -109,7 +109,9 @@ proc bootstrapInteractions(s: CodexServer): Future[void] {.async.} =
       quit QuitFailure
 
     let marketplace = Marketplace.new(marketplaceAddress, signer)
-    let market = OnChainMarket.new(marketplace, config.rewardRecipient)
+    let market = OnChainMarket.new(
+      marketplace, config.rewardRecipient, config.marketplaceRequestCacheSize
+    )
     let clock = OnChainClock.new(provider)
 
     var client: ?ClientInteractions

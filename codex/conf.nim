@@ -44,6 +44,7 @@ import ./utils
 import ./nat
 import ./utils/natutils
 
+from ./contracts/config import DefaultRequestCacheSize
 from ./validationconfig import MaxSlots, ValidationGroups
 
 export units, net, codextypes, logutils, completeCmdArg, parseCmdArg, NatConfig
@@ -51,7 +52,7 @@ export ValidationGroups, MaxSlots
 
 export
   DefaultQuotaBytes, DefaultBlockTtl, DefaultBlockMaintenanceInterval,
-  DefaultNumberOfBlocksToMaintainPerInterval
+  DefaultNumberOfBlocksToMaintainPerInterval, DefaultRequestCacheSize
 
 type ThreadCount* = distinct Natural
 
@@ -358,6 +359,16 @@ type
         desc: "Address to send payouts to (eg rewards and refunds)",
         name: "reward-recipient"
       .}: Option[EthAddress]
+
+      marketplaceRequestCacheSize* {.
+        desc:
+          "Maximum number of StorageRequests kept in memory." &
+          "Reduces fetching of StorageRequest data from the contract.",
+        defaultValue: DefaultRequestCacheSize,
+        defaultValueDesc: $DefaultRequestCacheSize,
+        name: "request-cache-size",
+        hidden
+      .}: uint16
 
       case persistenceCmd* {.defaultValue: noCmd, command.}: PersistenceCmd
       of PersistenceCmd.prover:
