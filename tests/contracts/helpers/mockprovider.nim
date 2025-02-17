@@ -13,7 +13,7 @@ type MockProvider* = ref object of Provider
 
 method getBlock*(
     provider: MockProvider, tag: BlockTag
-): Future[?Block] {.async: (raises: [ProviderError]).} =
+): Future[?Block] {.async: (raises: [ProviderError, CancelledError]).} =
   try:
     if tag == BlockTag.latest:
       if latestBlock =? provider.latest:
