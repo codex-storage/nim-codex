@@ -485,8 +485,7 @@ method queryPastSlotFilledEvents*(
     market: OnChainMarket, fromTime: SecondsSince1970
 ): Future[seq[SlotFilled]] {.async.} =
   convertEthersError:
-    let fromBlock =
-      await market.contract.provider.blockNumberForEpoch(fromTime)
+    let fromBlock = await market.contract.provider.blockNumberForEpoch(fromTime)
     return await market.queryPastSlotFilledEvents(BlockTag.init(fromBlock))
 
 method queryPastStorageRequestedEvents*(
