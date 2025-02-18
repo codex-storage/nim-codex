@@ -152,7 +152,7 @@ proc formatTextLineSeq*(val: seq[string]): string =
 template formatIt*(format: LogFormat, T: typedesc, body: untyped) =
   # Provides formatters for logging with Chronicles for the given type and
   # `LogFormat`.
-  # NOTE: `seq[T]`, `Option[T]`, and `seq[Option[T]]` are overriddden
+  # NOTE: `seq[T]`, `Option[T]`, and `seq[Option[T]]` are overridden
   # since the base `setProperty` is generic using `auto` and conflicts with
   # providing a generic `seq` and `Option` override.
   when format == LogFormat.json:
