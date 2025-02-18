@@ -45,3 +45,5 @@ docker/prometheus-data
 .DS_Store
 nim.cfg
 tests/integration/logs
+
+data/
