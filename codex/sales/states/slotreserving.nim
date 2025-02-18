@@ -60,7 +60,7 @@ method run*(
       debug "Slot cannot be reserved, ignoring"
       return some State(SaleIgnored(reprocessSlot: false, returnBytes: true))
   except CancelledError as e:
-    trace "SaleSlotReserving.run onCleanUp was cancelled", error = e.msgDetail
+    trace "SaleSlotReserving.run was cancelled", error = e.msgDetail
   except CatchableError as e:
     error "Error during SaleSlotReserving.run", error = e.msgDetail
     return some State(SaleErrored(error: e))

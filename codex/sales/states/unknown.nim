@@ -62,7 +62,7 @@ method run*(
       )
       return some State(SaleErrored(error: error))
   except CancelledError as e:
-    trace "SaleUnknown.run onCleanUp was cancelled", error = e.msgDetail
+    trace "SaleUnknown.run was cancelled", error = e.msgDetail
   except CatchableError as e:
     error "Error during SaleUnknown.run", error = e.msgDetail
     return some State(SaleErrored(error: e))

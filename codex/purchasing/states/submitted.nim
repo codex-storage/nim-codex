@@ -48,9 +48,9 @@ method run*(
   except Timeout:
     return some State(PurchaseCancelled())
   except CancelledError as e:
-    trace "PurchaseStarted.run was cancelled", error = e.msgDetail
+    trace "PurchaseSubmitted.run was cancelled", error = e.msgDetail
   except CatchableError as e:
-    error "Error during PurchaseStarted.run", error = e.msgDetail
+    error "Error during PurchaseSubmitted.run", error = e.msgDetail
     return some State(PurchaseErrored(error: e))
 
   return some State(PurchaseStarted())

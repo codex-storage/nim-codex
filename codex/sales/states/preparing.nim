@@ -100,7 +100,7 @@ method run*(
     data.reservation = some reservation
     return some State(SaleSlotReserving())
   except CancelledError as e:
-    trace "SalePreparing.run onCleanUp was cancelled", error = e.msgDetail
+    trace "SalePreparing.run was cancelled", error = e.msgDetail
   except CatchableError as e:
     error "Error during SalePreparing.run", error = e.msgDetail
     return some State(SaleErrored(error: e))

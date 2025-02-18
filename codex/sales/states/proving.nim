@@ -151,6 +151,8 @@ method run*(
         if not state.loop.finished:
           try:
             await state.loop.cancelAndWait()
+          except CancelledError:
+            discard
           except CatchableError as e:
             error "Error during cancellation of proving loop", msg = e.msg
 
@@ -158,7 +160,7 @@ method run*(
 
     return some State(SalePayout())
   except CancelledError as e:
-    trace "SalePreparing.run onCleanUp was cancelled", error = e.msgDetail
+    trace "SaleProving.run onCleanUp was cancelled", error = e.msgDetail
   except CatchableError as e:
-    error "Error during SalePreparing.run", error = e.msgDetail
+    error "Error during SaleProving.run", error = e.msgDetail
     return some State(SaleErrored(error: e))

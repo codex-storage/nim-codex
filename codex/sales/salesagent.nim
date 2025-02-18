@@ -83,7 +83,7 @@ proc subscribeCancellation(agent: SalesAgent) {.async.} =
         await clock.waitUntil(deadline)
 
         without state =? await agent.retrieveRequestState():
-          error "Uknown request", requestId = data.requestId
+          error "Unknown request", requestId = data.requestId
           return
 
         case state
