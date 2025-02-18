@@ -9,7 +9,7 @@
 
 import std/sequtils
 import pkg/chronos
-import pkg/stew/results
+import pkg/results
 
 # Based on chronos AsyncHeapQueue and std/heapqueue
 

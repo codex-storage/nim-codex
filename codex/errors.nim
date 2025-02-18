@@ -9,7 +9,7 @@
 
 import std/options
 
-import pkg/stew/results
+import pkg/results
 import pkg/chronos
 import pkg/questionable/results
 
