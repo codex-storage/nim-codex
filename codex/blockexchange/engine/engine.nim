@@ -317,9 +317,15 @@ proc cancelBlocks(self: BlockExcEngine, addrs: seq[BlockAddress]) {.async.} =
   else:
     trace "Block request cancellations sent to peers", peers = self.peers.len
 
+proc resolveBlocks*(
+    self: BlockExcEngine, blocksDelivery: seq[BlockDelivery]
+) {.async.} =
+  self.pendingBlocks.resolve(blocksDelivery)
+  await self.scheduleTasks(blocksDelivery)
+  await self.cancelBlocks(blocksDelivery.mapIt(it.address))
 
-proc resolveBlocks*(b: BlockExcEngine, blocks: seq[Block]) {.async.} =
-  await b.resolveBlocks(
+proc resolveBlocks*(self: BlockExcEngine, blocks: seq[Block]) {.async.} =
+  await self.resolveBlocks(
     blocks.mapIt(
       BlockDelivery(blk: it, address: BlockAddress(leaf: false, cid: it.cid))
     )
