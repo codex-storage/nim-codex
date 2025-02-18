@@ -67,7 +67,7 @@ ethersuite "Marketplace contracts":
   proc startContract() {.async.} =
     for slotIndex in 1 ..< request.ask.slots:
       discard await token
-      .approve(marketplace.address, request.ask.collateralPerByte)
+      .approve(marketplace.address, request.ask.collateralPerSlot)
       .confirm(1)
       discard await marketplace.reserveSlot(request.id, slotIndex.u256).confirm(1)
       discard await marketplace.fillSlot(request.id, slotIndex.u256, proof).confirm(1)
