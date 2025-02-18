@@ -4,6 +4,8 @@ import pkg/questionable/results
 
 export contractabi
 
+const DefaultRequestCacheSize* = 128.uint16
+
 type
   MarketplaceConfig* = object
     collateral*: CollateralConfig

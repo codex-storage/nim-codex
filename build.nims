@@ -2,25 +2,8 @@ mode = ScriptMode.Verbose
 
 import std/os except commandLineParams
 
-const VendorPath = "vendor/nim-nat-traversal/vendor/libnatpmp-upstream"
-let 
-  oldVersionFile = joinPath(VendorPath, "VERSION")
-  newVersionFile = joinPath(VendorPath, "VERSION_temp")
-
-proc renameFile(oldName, newName: string) =
-  if fileExists(oldName):
-    mvFile(oldName, newName)
-  else:
-    echo "File ", oldName, " does not exist"
-
-
 ### Helper functions
 proc buildBinary(name: string, srcDir = "./", params = "", lang = "c") =
-  # This is a quick workaround to avoid VERSION file conflict on macOS
-  # More details here: https://github.com/codex-storage/nim-codex/issues/1059
-  if defined(macosx):
-    renameFile(oldVersionFile, newVersionFile)
-
   if not dirExists "build":
     mkDir "build"
 
@@ -30,25 +13,25 @@ proc buildBinary(name: string, srcDir = "./", params = "", lang = "c") =
     for param in commandLineParams():
       extra_params &= " " & param
   else:
-    for i in 2..<paramCount():
+    for i in 2 ..< paramCount():
       extra_params &= " " & paramStr(i)
 
   let
     # Place build output in 'build' folder, even if name includes a longer path.
     outName = os.lastPathPart(name)
-    cmd = "nim " & lang & " --out:build/" & outName & " " & extra_params & " " & srcDir & name & ".nim"
-  try:
-    exec(cmd)
-  finally:
-    if defined(macosx):
-      renameFile(newVersionFile, oldVersionFile)
+    cmd =
+      "nim " & lang & " --out:build/" & outName & " " & extra_params & " " & srcDir &
+      name & ".nim"
+
+  exec(cmd)
 
 proc test(name: string, srcDir = "tests/", params = "", lang = "c") =
   buildBinary name, srcDir, params
   exec "build/" & name
 
 task codex, "build codex binary":
-  buildBinary "codex", params = "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE"
+  buildBinary "codex",
+    params = "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE"
 
 task toolsCirdl, "build tools/cirdl binary":
   buildBinary "tools/cirdl/cirdl"
@@ -60,7 +43,9 @@ task testContracts, "Build & run Codex Contract tests":
   test "testContracts"
 
 task testIntegration, "Run integration tests":
-  buildBinary "codex", params = "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE -d:codex_enable_proof_failures=true"
+  buildBinary "codex",
+    params =
+      "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE -d:codex_enable_proof_failures=true"
   test "testIntegration"
   # use params to enable logging from the integration test executable
   # test "testIntegration", params = "-d:chronicles_sinks=textlines[notimestamps,stdout],textlines[dynamic] " &
@@ -109,15 +94,25 @@ task coverage, "generates code coverage report":
 
   var nimSrcs = " "
   for f in walkDirRec("codex", {pcFile}):
-    if f.endswith(".nim"): nimSrcs.add " " & f.absolutePath.quoteShell()
+    if f.endswith(".nim"):
+      nimSrcs.add " " & f.absolutePath.quoteShell()
 
   echo "======== Running Tests ======== "
-  test "coverage", srcDir = "tests/", params = " --nimcache:nimcache/coverage -d:release -d:codex_enable_proof_failures=true"
+  test "coverage",
+    srcDir = "tests/",
+    params =
+      " --nimcache:nimcache/coverage -d:release -d:codex_enable_proof_failures=true"
   exec("rm nimcache/coverage/*.c")
-  rmDir("coverage"); mkDir("coverage")
+  rmDir("coverage")
+  mkDir("coverage")
   echo " ======== Running LCOV ======== "
-  exec("lcov --capture --directory nimcache/coverage --output-file coverage/coverage.info")
-  exec("lcov --extract coverage/coverage.info --output-file coverage/coverage.f.info " & nimSrcs)
+  exec(
+    "lcov --capture --directory nimcache/coverage --output-file coverage/coverage.info"
+  )
+  exec(
+    "lcov --extract coverage/coverage.info --output-file coverage/coverage.f.info " &
+      nimSrcs
+  )
   echo " ======== Generating HTML coverage report ======== "
   exec("genhtml coverage/coverage.f.info --output-directory coverage/report ")
   echo " ======== Coverage report Done ======== "

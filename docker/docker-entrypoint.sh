@@ -9,6 +9,34 @@ if [[ -n "${ENV_PATH}" ]]; then
   set +a
 fi
 
+# Bootstrap node from URL
+if [[ -n "${BOOTSTRAP_NODE_URL}" ]]; then
+  BOOTSTRAP_NODE_URL="${BOOTSTRAP_NODE_URL}/api/codex/v1/spr"
+  WAIT=${BOOTSTRAP_NODE_URL_WAIT:-300}
+  SECONDS=0
+  SLEEP=1
+  # Run and retry if fail
+  while (( SECONDS < WAIT )); do
+    SPR=$(curl -s -f -m 5 -H 'Accept: text/plain' "${BOOTSTRAP_NODE_URL}")
+    # Check if exit code is 0 and returned value is not empty
+    if [[ $? -eq 0 && -n "${SPR}" ]]; then
+      export CODEX_BOOTSTRAP_NODE="${SPR}"
+      echo "Bootstrap node: CODEX_BOOTSTRAP_NODE=${CODEX_BOOTSTRAP_NODE}"
+      break
+    else
+      # Sleep and check again
+      echo "Can't get SPR from ${BOOTSTRAP_NODE_URL} - Retry in $SLEEP seconds / $((WAIT - SECONDS))"
+      sleep $SLEEP
+    fi
+  done
+fi
+
+# Stop Codex run if unable to get SPR
+if [[ -n "${BOOTSTRAP_NODE_URL}" && -z "${CODEX_BOOTSTRAP_NODE}" ]]; then
+  echo "Unable to get SPR from ${BOOTSTRAP_NODE_URL} in ${BOOTSTRAP_NODE_URL_WAIT} seconds - Stop Codex run"
+  exit 1
+fi
+
 # Parameters
 if [[ -z "${CODEX_NAT}" ]]; then
   if [[ "${NAT_IP_AUTO}" == "true" && -z "${NAT_PUBLIC_IP_AUTO}" ]]; then

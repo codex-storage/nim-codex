@@ -29,14 +29,18 @@ method release*(self: ErasureBackend) {.base, gcsafe.} =
   raiseAssert("not implemented!")
 
 method encode*(
-    self: EncoderBackend, buffers, parity: var openArray[seq[byte]]
+    self: EncoderBackend,
+    buffers, parity: ptr UncheckedArray[ptr UncheckedArray[byte]],
+    dataLen, parityLen: int,
 ): Result[void, cstring] {.base, gcsafe.} =
   ## encode buffers using a backend
   ##
   raiseAssert("not implemented!")
 
 method decode*(
-    self: DecoderBackend, buffers, parity, recovered: var openArray[seq[byte]]
+    self: DecoderBackend,
+    buffers, parity, recovered: ptr UncheckedArray[ptr UncheckedArray[byte]],
+    dataLen, parityLen, recoveredLen: int,
 ): Result[void, cstring] {.base, gcsafe.} =
   ## decode buffers using a backend
   ##
