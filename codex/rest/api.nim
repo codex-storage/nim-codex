@@ -13,8 +13,8 @@ push:
   {.upraises: [].}
 
 import std/sequtils
-import mimetypes
-import os
+import std/mimetypes
+import std/os
 
 import pkg/questionable
 import pkg/questionable/results
@@ -120,7 +120,7 @@ proc retrieveCid(
     await resp.finish()
     codex_api_downloads.inc()
   except CatchableError as exc:
-    warn "Excepting streaming blocks", exc = exc.msg
+    warn "Error streaming blocks", exc = exc.msg
     resp.status = Http500
     return await resp.sendBody("")
   finally:
