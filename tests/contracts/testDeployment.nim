@@ -12,7 +12,7 @@ type MockProvider = ref object of Provider
 
 method getChainId*(
     provider: MockProvider
-): Future[UInt256] {.async: (raises: [ProviderError]).} =
+): Future[UInt256] {.async: (raises: [ProviderError, CancelledError]).} =
   return provider.chainId
 
 proc configFactory(): CodexConf =

@@ -57,7 +57,7 @@ proc example*(_: type StorageRequest): StorageRequest =
       maxSlotLoss: 2, # 2 slots can be freed without data considered to be lost
     ),
     content: StorageContent(
-      cid: "zb2rhheVmk3bLks5MgzTqyznLu1zqGH5jrfTA1eAZXrjx7Vob",
+      cid: Cid.init("zb2rhheVmk3bLks5MgzTqyznLu1zqGH5jrfTA1eAZXrjx7Vob").tryGet,
       merkleRoot: array[32, byte].example,
     ),
     expiry: (60 * 60).u256, # 1 hour ,
@@ -88,8 +88,7 @@ proc example(_: type G2Point): G2Point =
 proc example*(_: type Groth16Proof): Groth16Proof =
   Groth16Proof(a: G1Point.example, b: G2Point.example, c: G1Point.example)
 
-proc example*(_: type RandomChunker, blocks: int): Future[string] {.async.} =
-  # doAssert blocks >= 3, "must be more than 3 blocks"
+proc example*(_: type RandomChunker, blocks: int): Future[seq[byte]] {.async.} =
   let rng = Rng.instance()
   let chunker = RandomChunker.new(
     rng, size = DefaultBlockSize * blocks.NBytes, chunkSize = DefaultBlockSize
@@ -97,7 +96,7 @@ proc example*(_: type RandomChunker, blocks: int): Future[string] {.async.} =
   var data: seq[byte]
   while (let moar = await chunker.getBytes(); moar != []):
     data.add moar
-  return byteutils.toHex(data)
+  return data
 
 proc example*(_: type RandomChunker): Future[string] {.async.} =
   await RandomChunker.example(3)

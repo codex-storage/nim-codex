@@ -63,7 +63,6 @@ proc encode*(manifest: Manifest): ?!seq[byte] =
   #     optional ErasureInfo erasure = 7; # erasure coding info
   #     optional filename: ?string = 8;    # original filename
   #     optional mimetype: ?string = 9;    # original mimetype
-  #     optional uploadedAt: ?int64 = 10;  # original uploadedAt
   #   }
   # ```
   #
@@ -102,9 +101,6 @@ proc encode*(manifest: Manifest): ?!seq[byte] =
   if manifest.mimetype.isSome:
     header.write(9, manifest.mimetype.get())
 
-  if manifest.uploadedAt.isSome:
-    header.write(10, manifest.uploadedAt.get().uint64)
-
   pbNode.write(1, header) # set the treeCid as the data field
   pbNode.finish()
 
@@ -135,7 +131,6 @@ proc decode*(_: type Manifest, data: openArray[byte]): ?!Manifest =
     verifiableStrategy: uint32
     filename: string
     mimetype: string
-    uploadedAt: uint64
 
   # Decode `Header` message
   if pbNode.getField(1, pbHeader).isErr:
@@ -168,9 +163,6 @@ proc decode*(_: type Manifest, data: openArray[byte]): ?!Manifest =
 
   if pbHeader.getField(9, mimetype).isErr:
     return failure("Unable to decode `mimetype` from manifest!")
-
-  if pbHeader.getField(10, uploadedAt).isErr:
-    return failure("Unable to decode `uploadedAt` from manifest!")
 
   let protected = pbErasureInfo.buffer.len > 0
   var verifiable = false
@@ -211,7 +203,6 @@ proc decode*(_: type Manifest, data: openArray[byte]): ?!Manifest =
 
   var filenameOption = if filename.len == 0: string.none else: filename.some
   var mimetypeOption = if mimetype.len == 0: string.none else: mimetype.some
-  var uploadedAtOption = if uploadedAt == 0: int64.none else: uploadedAt.int64.some
 
   let self =
     if protected:
@@ -229,7 +220,6 @@ proc decode*(_: type Manifest, data: openArray[byte]): ?!Manifest =
         strategy = StrategyType(protectedStrategy),
         filename = filenameOption,
         mimetype = mimetypeOption,
-        uploadedAt = uploadedAtOption,
       )
     else:
       Manifest.new(
@@ -241,7 +231,6 @@ proc decode*(_: type Manifest, data: openArray[byte]): ?!Manifest =
         codec = codec.MultiCodec,
         filename = filenameOption,
         mimetype = mimetypeOption,
-        uploadedAt = uploadedAtOption,
       )
 
   ?self.verify()

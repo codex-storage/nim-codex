@@ -96,9 +96,9 @@ asyncchecksuite "Block Advertising and Discovery":
 
     await engine.stop()
 
-  test "Should advertise both manifests and trees":
+  test "Should advertise trees":
     let
-      cids = @[manifest.cid.tryGet, manifest.treeCid]
+      cids = @[manifest.treeCid]
       advertised = initTable.collect:
         for cid in cids:
           {cid: newFuture[void]()}

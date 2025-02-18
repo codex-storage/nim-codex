@@ -97,6 +97,33 @@ runs:
         # Set GCC-14 as the default
         sudo update-alternatives --set gcc /usr/bin/gcc-14
 
+    - name: Install ccache on Linux/Mac
+      if: inputs.os == 'linux' || inputs.os == 'macos'
+      uses: hendrikmuhs/ccache-action@v1.2
+      with:
+        create-symlink: true
+        key: ${{ matrix.os }}-${{ matrix.builder }}-${{ matrix.cpu }}-${{ matrix.tests }}-${{ matrix.nim_version }}
+        evict-old-files: 7d
+
+    - name: Install ccache on Windows
+      if: inputs.os == 'windows'
+      uses: hendrikmuhs/ccache-action@v1.2
+      with:
+        key: ${{ matrix.os }}-${{ matrix.builder }}-${{ matrix.cpu }}-${{ matrix.tests }}-${{ matrix.nim_version }}
+        evict-old-files: 7d
+
+    - name: Enable ccache on Windows
+      if: inputs.os == 'windows'
+      shell: ${{ inputs.shell }} {0}
+      run: |
+        CCACHE_DIR=$(dirname $(which ccache))/ccached
+        mkdir ${CCACHE_DIR}
+        ln -s $(which ccache) ${CCACHE_DIR}/gcc.exe
+        ln -s $(which ccache) ${CCACHE_DIR}/g++.exe
+        ln -s $(which ccache) ${CCACHE_DIR}/cc.exe
+        ln -s $(which ccache) ${CCACHE_DIR}/c++.exe
+        echo "export PATH=${CCACHE_DIR}:\$PATH" >> $HOME/.bash_profile # prefix path in MSYS2
+
     - name: Derive environment variables
       shell: ${{ inputs.shell }} {0}
       run: |
@@ -154,8 +181,11 @@ runs:
           llvm_bin_dir="${llvm_dir}/bin"
           llvm_lib_dir="${llvm_dir}/lib"
           echo "${llvm_bin_dir}" >> ${GITHUB_PATH}
+          # Make sure ccache has precedence (GITHUB_PATH is appending before)
+          echo "$(brew --prefix)/opt/ccache/libexec" >> ${GITHUB_PATH}
+          echo $PATH
           echo "LDFLAGS=${LDFLAGS} -L${libomp_lib_dir} -L${llvm_lib_dir} -Wl,-rpath,${llvm_lib_dir}" >> ${GITHUB_ENV}
-          NIMFLAGS="${NIMFLAGS} $(quote "-d:LeopardCmakeFlags='-DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=${llvm_bin_dir}/clang -DCMAKE_CXX_COMPILER=${llvm_bin_dir}/clang++' -d:LeopardExtraCompilerlags='-fopenmp' -d:LeopardExtraLinkerFlags='-fopenmp -L${libomp_lib_dir}'")"
+          NIMFLAGS="${NIMFLAGS} $(quote "-d:LeopardCmakeFlags='-DCMAKE_BUILD_TYPE=Release' -d:LeopardExtraCompilerFlags='-fopenmp' -d:LeopardExtraLinkerFlags='-fopenmp -L${libomp_lib_dir}'")"
           echo "NIMFLAGS=${NIMFLAGS}" >> $GITHUB_ENV
         fi
 
@@ -191,6 +221,7 @@ runs:
     - name: Build Nim and Codex dependencies
       shell: ${{ inputs.shell }} {0}
       run: |
+        which gcc
         gcc --version
         make -j${ncpu} CI_CACHE=NimBinaries ${ARCH_OVERRIDE} QUICK_AND_DIRTY_COMPILER=1 update
         echo

@@ -75,10 +75,9 @@ asyncchecksuite "Test Node - Host contracts":
     let
       manifestBlock =
         bt.Block.new(manifest.encode().tryGet(), codec = ManifestCodec).tryGet()
-      erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
+      erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider, Taskpool.new)
 
     manifestCid = manifestBlock.cid
-    manifestCidStr = $(manifestCid)
 
     (await localStore.putBlock(manifestBlock)).tryGet()
 
@@ -99,7 +98,7 @@ asyncchecksuite "Test Node - Host contracts":
       expectedExpiry: SecondsSince1970 = clock.now + DefaultBlockTtl.seconds + 11123
       expiryUpdateCallback = !sales.onExpiryUpdate
 
-    (await expiryUpdateCallback(manifestCidStr, expectedExpiry)).tryGet()
+    (await expiryUpdateCallback(manifestCid, expectedExpiry)).tryGet()
 
     for index in 0 ..< manifest.blocksCount:
       let
@@ -116,7 +115,7 @@ asyncchecksuite "Test Node - Host contracts":
   test "onStore callback":
     let onStore = !sales.onStore
     var request = StorageRequest.example
-    request.content.cid = $verifiableBlock.cid
+    request.content.cid = verifiableBlock.cid
     request.expiry = (getTime() + DefaultBlockTtl.toTimesDuration + 1.hours).toUnix.u256
     var fetchedBytes: uint = 0
 

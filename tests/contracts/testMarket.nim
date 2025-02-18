@@ -3,6 +3,8 @@ import std/importutils
 import pkg/chronos
 import pkg/ethers/erc20
 import codex/contracts
+import pkg/libp2p/cid
+import pkg/lrucache
 import ../ethertest
 import ./examples
 import ./time
@@ -622,3 +624,13 @@ ethersuite "On-Chain Market":
     # expected collateral = slotCollateral - slotCollateral * 0.1
     check collateral ==
       request.ask.collateralPerSlot - (request.ask.collateralPerSlot * 10).div(100.u256)
+
+  test "the request is added in cache after the fist access":
+    await market.requestStorage(request)
+
+    check market.requestCache.contains($request.id) == false
+    discard await market.getRequest(request.id)
+
+    check market.requestCache.contains($request.id) == true
+    let cacheValue = market.requestCache[$request.id]
+    check cacheValue == request

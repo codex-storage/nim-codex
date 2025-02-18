@@ -44,6 +44,9 @@ proc upload*(client: CodexClient, contents: string): ?!Cid =
   assert response.status == "200 OK"
   Cid.init(response.body).mapFailure
 
+proc upload*(client: CodexClient, bytes: seq[byte]): ?!Cid =
+  client.upload(string.fromBytes(bytes))
+
 proc download*(client: CodexClient, cid: Cid, local = false): ?!string =
   let response = client.http.get(
     client.baseurl & "/data/" & $cid & (if local: "" else: "/network/stream")
@@ -82,6 +85,16 @@ proc downloadBytes*(
     return failure("fetch failed with status " & $status)
 
   success bytes
+
+proc delete*(client: CodexClient, cid: Cid): ?!void =
+  let
+    url = client.baseurl & "/data/" & $cid
+    response = client.http.delete(url)
+
+  if response.status != "204 No Content":
+    return failure(response.status)
+
+  success()
 
 proc list*(client: CodexClient): ?!RestContentList =
   let url = client.baseurl & "/data"
@@ -281,3 +294,6 @@ proc downloadRaw*(client: CodexClient, cid: string, local = false): Response =
     client.baseurl & "/data/" & cid & (if local: "" else: "/network/stream"),
     httpMethod = HttpGet,
   )
+
+proc deleteRaw*(client: CodexClient, cid: string): Response =
+  return client.http.request(client.baseurl & "/data/" & cid, httpMethod = HttpDelete)
