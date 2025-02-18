@@ -6,8 +6,10 @@ import pkg/nimcrypto
 import pkg/ethers/fields
 import pkg/questionable/results
 import pkg/stew/byteutils
+import pkg/libp2p/[cid, multicodec]
 import ../logutils
 import ../utils/json
+from ../errors import mapFailure
 
 export contractabi
 
@@ -29,7 +31,7 @@ type
     maxSlotLoss* {.serialize.}: uint64
 
   StorageContent* = object
-    cid* {.serialize.}: string
+    cid* {.serialize.}: Cid
     merkleRoot*: array[32, byte]
 
   Slot* = object
@@ -120,6 +122,9 @@ func fromTuple(_: type StorageAsk, tupl: tuple): StorageAsk =
 func fromTuple(_: type StorageContent, tupl: tuple): StorageContent =
   StorageContent(cid: tupl[0], merkleRoot: tupl[1])
 
+func solidityType*(_: type Cid): string =
+  solidityType(seq[byte])
+
 func solidityType*(_: type StorageContent): string =
   solidityType(StorageContent.fieldTypes)
 
@@ -128,6 +133,10 @@ func solidityType*(_: type StorageAsk): string =
 
 func solidityType*(_: type StorageRequest): string =
   solidityType(StorageRequest.fieldTypes)
+
+# Note: it seems to be ok to ignore the vbuffer offset for now
+func encode*(encoder: var AbiEncoder, cid: Cid) =
+  encoder.write(cid.data.buffer)
 
 func encode*(encoder: var AbiEncoder, content: StorageContent) =
   encoder.write(content.fieldValues)
@@ -141,8 +150,12 @@ func encode*(encoder: var AbiEncoder, id: RequestId | SlotId | Nonce) =
 func encode*(encoder: var AbiEncoder, request: StorageRequest) =
   encoder.write(request.fieldValues)
 
-func encode*(encoder: var AbiEncoder, request: Slot) =
-  encoder.write(request.fieldValues)
+func encode*(encoder: var AbiEncoder, slot: Slot) =
+  encoder.write(slot.fieldValues)
+
+func decode*(decoder: var AbiDecoder, T: type Cid): ?!T =
+  let data = ?decoder.read(seq[byte])
+  Cid.init(data).mapFailure
 
 func decode*(decoder: var AbiDecoder, T: type StorageContent): ?!T =
   let tupl = ?decoder.read(StorageContent.fieldTypes)
