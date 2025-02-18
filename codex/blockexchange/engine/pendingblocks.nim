@@ -7,13 +7,11 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+{.push raises: [].}
+
 import std/tables
 import std/monotimes
-
-import pkg/upraises
-
-push:
-  {.upraises: [].}
+import std/strutils
 
 import pkg/chronos
 import pkg/libp2p
@@ -34,66 +32,75 @@ declareGauge(
   codex_block_exchange_retrieval_time_us, "codex blockexchange block retrieval time us"
 )
 
-const DefaultBlockTimeout* = 10.minutes
+const
+  DefaultBlockRetries* = 3000
+  DefaultRetryInterval* = 500.millis
 
 type
+  RetriesExhaustedError* = object of CatchableError
+
   BlockReq* = object
-    handle*: Future[Block]
+    handle*: Future[Block].Raising([CancelledError, RetriesExhaustedError])
     inFlight*: bool
+    blockRetries*: int
     startTime*: int64
 
   PendingBlocksManager* = ref object of RootObj
+    blockRetries*: int = DefaultBlockRetries
+    retryInterval*: Duration = DefaultRetryInterval
     blocks*: Table[BlockAddress, BlockReq] # pending Block requests
 
 proc updatePendingBlockGauge(p: PendingBlocksManager) =
   codex_block_exchange_pending_block_requests.set(p.blocks.len.int64)
 
 proc getWantHandle*(
-    p: PendingBlocksManager,
-    address: BlockAddress,
-    timeout = DefaultBlockTimeout,
-    inFlight = false,
-): Future[Block] {.async.} =
+    self: PendingBlocksManager, address: BlockAddress, inFlight = false
+): Future[Block] {.async: (raw: true, raises: [CancelledError, RetriesExhaustedError]).} =
   ## Add an event for a block
   ##
 
-  try:
-    if address notin p.blocks:
-      p.blocks[address] = BlockReq(
-        handle: newFuture[Block]("pendingBlocks.getWantHandle"),
-        inFlight: inFlight,
-        startTime: getMonoTime().ticks,
-      )
+  self.blocks.withValue(address, blk):
+    return blk[].handle
+  do:
+    let blk = BlockReq(
+      handle: newFuture[Block]("pendingBlocks.getWantHandle"),
+      inFlight: inFlight,
+      blockRetries: self.blockRetries,
+      startTime: getMonoTime().ticks,
+    )
+    self.blocks[address] = blk
+    let handle = blk.handle
 
-    p.updatePendingBlockGauge()
-    return await p.blocks[address].handle.wait(timeout)
-  except CancelledError as exc:
-    trace "Blocks cancelled", exc = exc.msg, address
-    raise exc
-  except CatchableError as exc:
-    error "Pending WANT failed or expired", exc = exc.msg
-    # no need to cancel, it is already cancelled by wait()
-    raise exc
-  finally:
-    p.blocks.del(address)
-    p.updatePendingBlockGauge()
+    proc cleanUpBlock(data: pointer) {.raises: [].} =
+      self.blocks.del(address)
+      self.updatePendingBlockGauge()
+
+    handle.addCallback(cleanUpBlock)
+    handle.cancelCallback = proc(data: pointer) {.raises: [].} =
+      if not handle.finished:
+        handle.removeCallback(cleanUpBlock)
+        cleanUpBlock(nil)
+
+    self.updatePendingBlockGauge()
+    return handle
 
 proc getWantHandle*(
-    p: PendingBlocksManager, cid: Cid, timeout = DefaultBlockTimeout, inFlight = false
-): Future[Block] =
-  p.getWantHandle(BlockAddress.init(cid), timeout, inFlight)
+    self: PendingBlocksManager, cid: Cid, inFlight = false
+): Future[Block] {.async: (raw: true, raises: [CancelledError, RetriesExhaustedError]).} =
+  self.getWantHandle(BlockAddress.init(cid), inFlight)
 
 proc resolve*(
-    p: PendingBlocksManager, blocksDelivery: seq[BlockDelivery]
+    self: PendingBlocksManager, blocksDelivery: seq[BlockDelivery]
 ) {.gcsafe, raises: [].} =
   ## Resolve pending blocks
   ##
 
   for bd in blocksDelivery:
-    p.blocks.withValue(bd.address, blockReq):
-      if not blockReq.handle.finished:
+    self.blocks.withValue(bd.address, blockReq):
+      if not blockReq[].handle.finished:
+        trace "Resolving pending block", address = bd.address
         let
-          startTime = blockReq.startTime
+          startTime = blockReq[].startTime
           stopTime = getMonoTime().ticks
           retrievalDurationUs = (stopTime - startTime) div 1000
 
@@ -106,52 +113,70 @@ proc resolve*(
       else:
         trace "Block handle already finished", address = bd.address
 
-proc setInFlight*(p: PendingBlocksManager, address: BlockAddress, inFlight = true) =
+func retries*(self: PendingBlocksManager, address: BlockAddress): int =
+  self.blocks.withValue(address, pending):
+    result = pending[].blockRetries
+  do:
+    result = 0
+
+func decRetries*(self: PendingBlocksManager, address: BlockAddress) =
+  self.blocks.withValue(address, pending):
+    pending[].blockRetries -= 1
+
+func retriesExhausted*(self: PendingBlocksManager, address: BlockAddress): bool =
+  self.blocks.withValue(address, pending):
+    result = pending[].blockRetries <= 0
+
+func setInFlight*(self: PendingBlocksManager, address: BlockAddress, inFlight = true) =
   ## Set inflight status for a block
   ##
 
-  p.blocks.withValue(address, pending):
+  self.blocks.withValue(address, pending):
     pending[].inFlight = inFlight
 
-proc isInFlight*(p: PendingBlocksManager, address: BlockAddress): bool =
+func isInFlight*(self: PendingBlocksManager, address: BlockAddress): bool =
   ## Check if a block is in flight
   ##
 
-  p.blocks.withValue(address, pending):
+  self.blocks.withValue(address, pending):
     result = pending[].inFlight
 
-proc contains*(p: PendingBlocksManager, cid: Cid): bool =
-  BlockAddress.init(cid) in p.blocks
+func contains*(self: PendingBlocksManager, cid: Cid): bool =
+  BlockAddress.init(cid) in self.blocks
 
-proc contains*(p: PendingBlocksManager, address: BlockAddress): bool =
-  address in p.blocks
+func contains*(self: PendingBlocksManager, address: BlockAddress): bool =
+  address in self.blocks
 
-iterator wantList*(p: PendingBlocksManager): BlockAddress =
-  for a in p.blocks.keys:
+iterator wantList*(self: PendingBlocksManager): BlockAddress =
+  for a in self.blocks.keys:
     yield a
 
-iterator wantListBlockCids*(p: PendingBlocksManager): Cid =
-  for a in p.blocks.keys:
+iterator wantListBlockCids*(self: PendingBlocksManager): Cid =
+  for a in self.blocks.keys:
     if not a.leaf:
       yield a.cid
 
-iterator wantListCids*(p: PendingBlocksManager): Cid =
+iterator wantListCids*(self: PendingBlocksManager): Cid =
   var yieldedCids = initHashSet[Cid]()
-  for a in p.blocks.keys:
+  for a in self.blocks.keys:
     let cid = a.cidOrTreeCid
     if cid notin yieldedCids:
       yieldedCids.incl(cid)
       yield cid
 
-iterator wantHandles*(p: PendingBlocksManager): Future[Block] =
-  for v in p.blocks.values:
+iterator wantHandles*(self: PendingBlocksManager): Future[Block] =
+  for v in self.blocks.values:
     yield v.handle
 
-proc wantListLen*(p: PendingBlocksManager): int =
-  p.blocks.len
+proc wantListLen*(self: PendingBlocksManager): int =
+  self.blocks.len
 
-func len*(p: PendingBlocksManager): int =
-  p.blocks.len
+func len*(self: PendingBlocksManager): int =
+  self.blocks.len
 
-func new*(T: type PendingBlocksManager): PendingBlocksManager =
-  PendingBlocksManager()
+func new*(
+    T: type PendingBlocksManager,
+    retries = DefaultBlockRetries,
+    interval = DefaultRetryInterval,
+): PendingBlocksManager =
+  PendingBlocksManager(blockRetries: retries, retryInterval: interval)
