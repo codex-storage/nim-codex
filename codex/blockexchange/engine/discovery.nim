@@ -143,8 +143,6 @@ proc start*(b: DiscoveryEngine) {.async.} =
     asyncSpawn fut
 
   b.discoveryLoop = b.discoveryQueueLoop()
-  b.trackedFutures.track(b.discoveryLoop)
-  asyncSpawn b.discoveryLoop
 
 proc stop*(b: DiscoveryEngine) {.async.} =
   ## Stop the discovery engine
