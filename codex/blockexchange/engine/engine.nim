@@ -235,11 +235,12 @@ proc requestBlock*(
   self.requestBlock(BlockAddress.init(cid))
 
 proc blockPresenceHandler*(
-    b: BlockExcEngine, peer: PeerId, blocks: seq[BlockPresence]
+    self: BlockExcEngine, peer: PeerId, blocks: seq[BlockPresence]
 ) {.async.} =
+  trace "Received block presence from peer", peer, blocks = blocks.mapIt($it)
   let
-    peerCtx = b.peers.get(peer)
-    wantList = toSeq(b.pendingBlocks.wantList)
+    peerCtx = self.peers.get(peer)
+    ourWantList = toSeq(self.pendingBlocks.wantList)
 
   if peerCtx.isNil:
     return
@@ -250,23 +251,23 @@ proc blockPresenceHandler*(
 
   let
     peerHave = peerCtx.peerHave
-    dontWantCids = peerHave.filterIt(it notin wantList)
+    dontWantCids = peerHave.filterIt(it notin ourWantList)
 
   if dontWantCids.len > 0:
     peerCtx.cleanPresence(dontWantCids)
 
-  let wantCids = wantList.filterIt(it in peerHave)
+  let ourWantCids = ourWantList.filter do(address: BlockAddress) -> bool:
+    if address in peerHave and not self.pendingBlocks.retriesExhausted(address) and
+        not self.pendingBlocks.isInFlight(address):
+      self.pendingBlocks.setInFlight(address, true)
+      self.pendingBlocks.decRetries(address)
+      true
+    else:
+      false
 
-  if wantCids.len > 0:
-    trace "Peer has blocks in our wantList", peer, wants = wantCids
-    await b.sendWantBlock(wantCids, peerCtx)
-
-  # if none of the connected peers report our wants in their have list,
-  # fire up discovery
-  b.discovery.queueFindBlocksReq(
-    toSeq(b.pendingBlocks.wantListCids).filter do(cid: Cid) -> bool:
-      not b.peers.anyIt(cid in it.peerHaveCids)
-  )
+  if ourWantCids.len > 0:
+    trace "Peer has blocks in our wantList", peer, wants = ourWantCids
+    await self.sendWantBlock(ourWantCids, peerCtx)
 
 proc scheduleTasks(b: BlockExcEngine, blocksDelivery: seq[BlockDelivery]) {.async.} =
   let cids = blocksDelivery.mapIt(it.blk.cid)
