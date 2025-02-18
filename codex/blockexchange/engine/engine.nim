@@ -158,59 +158,81 @@ proc sendWantBlock(
   ) # we want this remote to send us a block
   codex_block_exchange_want_block_lists_sent.inc()
 
-proc monitorBlockHandle(
-    b: BlockExcEngine, handle: Future[Block], address: BlockAddress, peerId: PeerId
-) {.async.} =
+proc randomPeer(peers: seq[BlockExcPeerCtx]): BlockExcPeerCtx =
+  Rng.instance.sample(peers)
+
+proc downloadInternal(
+    self: BlockExcEngine, address: BlockAddress
+) {.async: (raises: []).} =
+  logScope:
+    address = address
+
+  let handle = self.pendingBlocks.getWantHandle(address)
+  trace "Downloading block"
   try:
-    discard await handle
+    while address in self.pendingBlocks:
+      logScope:
+        retries = self.pendingBlocks.retries(address)
+        interval = self.pendingBlocks.retryInterval
+
+      if self.pendingBlocks.retriesExhausted(address):
+        trace "Error retries exhausted"
+        handle.fail(newException(RetriesExhaustedError, "Error retries exhausted"))
+        break
+
+      trace "Running retry handle"
+      let peers = self.peers.getPeersForBlock(address)
+      logScope:
+        peersWith = peers.with.len
+        peersWithout = peers.without.len
+
+      trace "Peers for block"
+      if peers.with.len > 0:
+        self.pendingBlocks.setInFlight(address, true)
+        await self.sendWantBlock(@[address], peers.with.randomPeer)
+      else:
+        self.pendingBlocks.setInFlight(address, false)
+        if peers.without.len > 0:
+          await self.sendWantHave(@[address], peers.without)
+        self.discovery.queueFindBlocksReq(@[address.cidOrTreeCid])
+
+      await (handle or sleepAsync(self.pendingBlocks.retryInterval))
+      self.pendingBlocks.decRetries(address)
+
+      if handle.finished:
+        trace "Handle for block finished", failed = handle.failed
+        break
   except CancelledError as exc:
-    trace "Block handle cancelled", address, peerId
+    trace "Block download cancelled"
+    if not handle.finished:
+      await handle.cancelAndWait()
   except CatchableError as exc:
-    warn "Error block handle, disconnecting peer", address, exc = exc.msg, peerId
-
-    # TODO: really, this is just a quick and dirty way of
-    # preventing hitting the same "bad" peer every time, however,
-    # we might as well discover this on or next iteration, so
-    # it doesn't mean that we're never talking to this peer again.
-    # TODO: we need a lot more work around peer selection and
-    # prioritization
-
-    # drop unresponsive peer
-    await b.network.switch.disconnect(peerId)
-    b.discovery.queueFindBlocksReq(@[address.cidOrTreeCid])
-
-proc pickPseudoRandom(
-    address: BlockAddress, peers: seq[BlockExcPeerCtx]
-): BlockExcPeerCtx =
-  return peers[hash(address) mod peers.len]
+    warn "Error downloadloading block", exc = exc.msg
+    if not handle.finished:
+      handle.fail(exc)
+  finally:
+    self.pendingBlocks.setInFlight(address, false)
 
 proc requestBlock*(
-    b: BlockExcEngine, address: BlockAddress
-): Future[?!Block] {.async.} =
-  let blockFuture = b.pendingBlocks.getWantHandle(address, b.blockFetchTimeout)
+    self: BlockExcEngine, address: BlockAddress
+): Future[?!Block] {.async: (raises: [CancelledError]).} =
+  if address notin self.pendingBlocks:
+    self.trackedFutures.track(self.downloadInternal(address))
 
-  if not b.pendingBlocks.isInFlight(address):
-    let peers = b.peers.getPeersForBlock(address)
-
-    if peers.with.len == 0:
-      b.discovery.queueFindBlocksReq(@[address.cidOrTreeCid])
-    else:
-      let selected = pickPseudoRandom(address, peers.with)
-      asyncSpawn b.monitorBlockHandle(blockFuture, address, selected.id)
-      b.pendingBlocks.setInFlight(address)
-      await b.sendWantBlock(@[address], selected)
-
-    await b.sendWantHave(@[address], peers.without)
-
-  # Don't let timeouts bubble up. We can't be too broad here or we break
-  # cancellations.
   try:
-    success await blockFuture
-  except AsyncTimeoutError as err:
+    let handle = self.pendingBlocks.getWantHandle(address)
+    success await handle
+  except CancelledError as err:
+    warn "Block request cancelled", address
+    raise err
+  except CatchableError as err:
+    error "Block request failed", address, err = err.msg
     failure err
 
-proc requestBlock*(b: BlockExcEngine, cid: Cid): Future[?!Block] =
-  b.requestBlock(BlockAddress.init(cid))
+proc requestBlock*(
+    self: BlockExcEngine, cid: Cid
+): Future[?!Block] {.async: (raw: true, raises: [CancelledError]).} =
+  self.requestBlock(BlockAddress.init(cid))
 
 proc blockPresenceHandler*(
     b: BlockExcEngine, peer: PeerId, blocks: seq[BlockPresence]
