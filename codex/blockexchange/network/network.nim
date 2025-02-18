@@ -315,14 +315,19 @@ proc new*(
     T: type BlockExcNetwork,
     switch: Switch,
     connProvider: ConnProvider = nil,
-    maxInflight = MaxInflight,
+    maxInflight = DefaultMaxInflight,
 ): BlockExcNetwork =
   ## Create a new BlockExcNetwork instance
   ##
 
   let self = BlockExcNetwork(
-    switch: switch, getConn: connProvider, inflightSema: newAsyncSemaphore(maxInflight)
+    switch: switch,
+    getConn: connProvider,
+    inflightSema: newAsyncSemaphore(maxInflight),
+    maxInflight: maxInflight,
   )
+
+  self.maxIncomingStreams = self.maxInflight
 
   proc sendWantList(
       id: PeerId,
