@@ -1,6 +1,7 @@
 import pkg/questionable
 import pkg/questionable/results
 import pkg/upraises
+import pkg/libp2p/cid
 
 import ../market
 import ../clock
@@ -30,7 +31,7 @@ type
   OnProve* = proc(slot: Slot, challenge: ProofChallenge): Future[?!Groth16Proof] {.
     gcsafe, upraises: []
   .}
-  OnExpiryUpdate* = proc(rootCid: string, expiry: SecondsSince1970): Future[?!void] {.
+  OnExpiryUpdate* = proc(rootCid: Cid, expiry: SecondsSince1970): Future[?!void] {.
     gcsafe, upraises: []
   .}
   OnClear* = proc(request: StorageRequest, slotIndex: UInt256) {.gcsafe, upraises: [].}

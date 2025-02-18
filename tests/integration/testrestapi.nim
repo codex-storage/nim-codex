@@ -1,10 +1,13 @@
 import std/httpclient
 import std/sequtils
 import std/strformat
-from pkg/libp2p import `==`
+from pkg/libp2p import `==`, `$`, Cid
 import pkg/codex/units
+import pkg/codex/manifest
 import ./twonodes
 import ../examples
+import ../codex/examples
+import ../codex/slots/helpers
 import json
 
 twonodessuite "REST API":
@@ -35,7 +38,7 @@ twonodessuite "REST API":
     check:
       space.totalBlocks == 2
       space.quotaMaxBytes == 8589934592.NBytes
-      space.quotaUsedBytes == 65598.NBytes
+      space.quotaUsedBytes == 65592.NBytes
       space.quotaReservedBytes == 12.NBytes
 
   test "node lists local files", twoNodesConfig:
@@ -269,8 +272,6 @@ twonodessuite "REST API":
     check manifest["filename"].getStr() == "example.txt"
     check manifest.hasKey("mimetype") == true
     check manifest["mimetype"].getStr() == "text/plain"
-    check manifest.hasKey("uploadedAt") == true
-    check manifest["uploadedAt"].getInt() > 0
 
   test "node set the headers when for download", twoNodesConfig:
     let headers = newHttpHeaders(
@@ -304,5 +305,23 @@ twonodessuite "REST API":
     check localResponse.headers["Content-Disposition"] ==
       "attachment; filename=\"example.txt\""
 
-    check localResponse.headers["Content-Disposition"] ==
-      "attachment; filename=\"example.txt\""
+  test "should delete a dataset when requested", twoNodesConfig:
+    let cid = client1.upload("some file contents").get
+
+    var response = client1.downloadRaw($cid, local = true)
+    check response.body == "some file contents"
+
+    client1.delete(cid).get
+
+    response = client1.downloadRaw($cid, local = true)
+    check response.status == "404 Not Found"
+
+  test "should return 200 when attempting delete of non-existing block", twoNodesConfig:
+    let response = client1.deleteRaw($(Cid.example()))
+    check response.status == "204 No Content"
+
+  test "should return 200 when attempting delete of non-existing dataset",
+    twoNodesConfig:
+    let cid = Manifest.example().makeManifestBlock().get.cid
+    let response = client1.deleteRaw($cid)
+    check response.status == "204 No Content"

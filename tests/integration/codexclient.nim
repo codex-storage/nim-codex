@@ -86,6 +86,16 @@ proc downloadBytes*(
 
   success bytes
 
+proc delete*(client: CodexClient, cid: Cid): ?!void =
+  let
+    url = client.baseurl & "/data/" & $cid
+    response = client.http.delete(url)
+
+  if response.status != "204 No Content":
+    return failure(response.status)
+
+  success()
+
 proc list*(client: CodexClient): ?!RestContentList =
   let url = client.baseurl & "/data"
   let response = client.http.get(url)
@@ -284,3 +294,6 @@ proc downloadRaw*(client: CodexClient, cid: string, local = false): Response =
     client.baseurl & "/data/" & cid & (if local: "" else: "/network/stream"),
     httpMethod = HttpGet,
   )
+
+proc deleteRaw*(client: CodexClient, cid: string): Response =
+  return client.http.request(client.baseurl & "/data/" & cid, httpMethod = HttpDelete)

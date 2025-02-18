@@ -44,6 +44,7 @@ import ./utils
 import ./nat
 import ./utils/natutils
 
+from ./contracts/config import DefaultRequestCacheSize
 from ./validationconfig import MaxSlots, ValidationGroups
 
 export units, net, codextypes, logutils, completeCmdArg, parseCmdArg, NatConfig
@@ -51,7 +52,11 @@ export ValidationGroups, MaxSlots
 
 export
   DefaultQuotaBytes, DefaultBlockTtl, DefaultBlockMaintenanceInterval,
-  DefaultNumberOfBlocksToMaintainPerInterval
+  DefaultNumberOfBlocksToMaintainPerInterval, DefaultRequestCacheSize
+
+type ThreadCount* = distinct Natural
+
+proc `==`*(a, b: ThreadCount): bool {.borrow.}
 
 proc defaultDataDir*(): string =
   let dataDir =
@@ -71,6 +76,7 @@ const
 
   DefaultDataDir* = defaultDataDir()
   DefaultCircuitDir* = defaultDataDir() / "circuits"
+  DefaultThreadCount* = ThreadCount(0)
 
 type
   StartUpCmd* {.pure.} = enum
@@ -183,6 +189,13 @@ type
       defaultValue: 160,
       name: "max-peers"
     .}: int
+
+    numThreads* {.
+      desc:
+        "Number of worker threads (\"0\" = use as many threads as there are CPU cores available)",
+      defaultValue: DefaultThreadCount,
+      name: "num-threads"
+    .}: ThreadCount
 
     agentString* {.
       defaultValue: "Codex",
@@ -347,6 +360,16 @@ type
         name: "reward-recipient"
       .}: Option[EthAddress]
 
+      marketplaceRequestCacheSize* {.
+        desc:
+          "Maximum number of StorageRequests kept in memory." &
+          "Reduces fetching of StorageRequest data from the contract.",
+        defaultValue: DefaultRequestCacheSize,
+        defaultValueDesc: $DefaultRequestCacheSize,
+        name: "request-cache-size",
+        hidden
+      .}: uint16
+
       case persistenceCmd* {.defaultValue: noCmd, command.}: PersistenceCmd
       of PersistenceCmd.prover:
         circuitDir* {.
@@ -482,6 +505,13 @@ proc parseCmdArg*(
     quit QuitFailure
   ma
 
+proc parseCmdArg*(T: type ThreadCount, input: string): T {.upraises: [ValueError].} =
+  let count = parseInt(input)
+  if count != 0 and count < 2:
+    warn "Invalid number of threads", input = input
+    quit QuitFailure
+  ThreadCount(count)
+
 proc parseCmdArg*(T: type SignedPeerRecord, uri: string): T =
   var res: SignedPeerRecord
   try:
@@ -580,6 +610,15 @@ proc readValue*(
   val = NBytes(value)
 
 proc readValue*(
+    r: var TomlReader, val: var ThreadCount
+) {.upraises: [SerializationError, IOError].} =
+  var str = r.readValue(string)
+  try:
+    val = parseCmdArg(ThreadCount, str)
+  except CatchableError as err:
+    raise newException(SerializationError, err.msg)
+
+proc readValue*(
     r: var TomlReader, val: var Duration
 ) {.upraises: [SerializationError, IOError].} =
   var str = r.readValue(string)
@@ -607,6 +646,9 @@ proc completeCmdArg*(T: type NBytes, val: string): seq[string] =
   discard
 
 proc completeCmdArg*(T: type Duration, val: string): seq[string] =
+  discard
+
+proc completeCmdArg*(T: type ThreadCount, val: string): seq[string] =
   discard
 
 # silly chronicles, colors is a compile-time property
