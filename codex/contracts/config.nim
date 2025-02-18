@@ -10,13 +10,16 @@ type
   MarketplaceConfig* = object
     collateral*: CollateralConfig
     proofs*: ProofConfig
+    reservations*: SlotReservationsConfig
+    requestDurationLimit*: UInt256
 
   CollateralConfig* = object
     repairRewardPercentage*: uint8
       # percentage of remaining collateral slot has after it has been freed
     maxNumberOfSlashes*: uint8 # frees slot when the number of slashes reaches this value
-    slashCriterion*: uint16 # amount of proofs missed that lead to slashing
     slashPercentage*: uint8 # percentage of the collateral that is slashed
+    validatorRewardPercentage*: uint8
+      # percentage of the slashed amount going to the validators
 
   ProofConfig* = object
     period*: UInt256 # proofs requirements are calculated per period (in seconds)
@@ -28,6 +31,9 @@ type
     # blocks. Should be a prime number to ensure there are no cycles.
     downtimeProduct*: uint8
 
+  SlotReservationsConfig* = object
+    maxReservations*: uint8
+
 func fromTuple(_: type ProofConfig, tupl: tuple): ProofConfig =
   ProofConfig(
     period: tupl[0],
@@ -37,16 +43,27 @@ func fromTuple(_: type ProofConfig, tupl: tuple): ProofConfig =
     downtimeProduct: tupl[4],
   )
 
+func fromTuple(_: type SlotReservationsConfig, tupl: tuple): SlotReservationsConfig =
+  SlotReservationsConfig(maxReservations: tupl[0])
+
 func fromTuple(_: type CollateralConfig, tupl: tuple): CollateralConfig =
   CollateralConfig(
     repairRewardPercentage: tupl[0],
     maxNumberOfSlashes: tupl[1],
-    slashCriterion: tupl[2],
-    slashPercentage: tupl[3],
+    slashPercentage: tupl[2],
+    validatorRewardPercentage: tupl[3],
   )
 
 func fromTuple(_: type MarketplaceConfig, tupl: tuple): MarketplaceConfig =
-  MarketplaceConfig(collateral: tupl[0], proofs: tupl[1])
+  MarketplaceConfig(
+    collateral: tupl[0],
+    proofs: tupl[1],
+    reservations: tupl[2],
+    requestDurationLimit: tupl[3],
+  )
+
+func solidityType*(_: type SlotReservationsConfig): string =
+  solidityType(SlotReservationsConfig.fieldTypes)
 
 func solidityType*(_: type ProofConfig): string =
   solidityType(ProofConfig.fieldTypes)
@@ -55,7 +72,10 @@ func solidityType*(_: type CollateralConfig): string =
   solidityType(CollateralConfig.fieldTypes)
 
 func solidityType*(_: type MarketplaceConfig): string =
-  solidityType(CollateralConfig.fieldTypes)
+  solidityType(MarketplaceConfig.fieldTypes)
+
+func encode*(encoder: var AbiEncoder, slot: SlotReservationsConfig) =
+  encoder.write(slot.fieldValues)
 
 func encode*(encoder: var AbiEncoder, slot: ProofConfig) =
   encoder.write(slot.fieldValues)
@@ -69,6 +89,10 @@ func encode*(encoder: var AbiEncoder, slot: MarketplaceConfig) =
 func decode*(decoder: var AbiDecoder, T: type ProofConfig): ?!T =
   let tupl = ?decoder.read(ProofConfig.fieldTypes)
   success ProofConfig.fromTuple(tupl)
+
+func decode*(decoder: var AbiDecoder, T: type SlotReservationsConfig): ?!T =
+  let tupl = ?decoder.read(SlotReservationsConfig.fieldTypes)
+  success SlotReservationsConfig.fromTuple(tupl)
 
 func decode*(decoder: var AbiDecoder, T: type CollateralConfig): ?!T =
   let tupl = ?decoder.read(CollateralConfig.fieldTypes)
