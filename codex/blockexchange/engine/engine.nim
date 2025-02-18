@@ -286,26 +286,37 @@ proc scheduleTasks(b: BlockExcEngine, blocksDelivery: seq[BlockDelivery]) {.asyn
 
           break # do next peer
 
-proc cancelBlocks(b: BlockExcEngine, addrs: seq[BlockAddress]) {.async.} =
+proc cancelBlocks(self: BlockExcEngine, addrs: seq[BlockAddress]) {.async.} =
   ## Tells neighboring peers that we're no longer interested in a block.
-  trace "Sending block request cancellations to peers",
-    addrs, peers = b.peers.mapIt($it.id)
+  ##
 
-  let failed = (
-    await allFinished(
-      b.peers.mapIt(
-        b.network.request.sendWantCancellations(peer = it.id, addresses = addrs)
+  if self.peers.len == 0:
+    return
+
+  trace "Sending block request cancellations to peers",
+    addrs, peers = self.peers.peerIds
+
+  proc mapPeers(peerCtx: BlockExcPeerCtx): Future[BlockExcPeerCtx] {.async.} =
+    let blocks = addrs.filter do(a: BlockAddress) -> bool:
+      a in peerCtx.blocks
+
+    if blocks.len > 0:
+      trace "Sending block request cancellations to peer", peer = peerCtx.id, blocks
+      await self.network.request.sendWantCancellations(
+        peer = peerCtx.id, addresses = blocks
       )
-    )
-  ).filterIt(it.failed)
+      peerCtx.cleanPresence(addrs)
+    peerCtx
+
+  let failed = (await allFinished(map(toSeq(self.peers.peers.values), mapPeers))).filterIt(
+    it.failed
+  )
 
   if failed.len > 0:
     warn "Failed to send block request cancellations to peers", peers = failed.len
+  else:
+    trace "Block request cancellations sent to peers", peers = self.peers.len
 
-proc resolveBlocks*(b: BlockExcEngine, blocksDelivery: seq[BlockDelivery]) {.async.} =
-  b.pendingBlocks.resolve(blocksDelivery)
-  await b.scheduleTasks(blocksDelivery)
-  await b.cancelBlocks(blocksDelivery.mapIt(it.address))
 
 proc resolveBlocks*(b: BlockExcEngine, blocks: seq[Block]) {.async.} =
   await b.resolveBlocks(
