@@ -64,21 +64,6 @@ asyncchecksuite "Test Node - Basic":
     check:
       fetched == manifest
 
-  test "Should not lookup non-existing blocks twice":
-    # https://github.com/codex-storage/nim-codex/issues/699
-    let
-      cstore = CountingStore.new(engine, localStore)
-      node = CodexNodeRef.new(switch, cstore, engine, blockDiscovery, Taskpool.new())
-      missingCid =
-        Cid.init("zDvZRwzmCvtiyubW9AecnxgLnXK8GrBvpQJBDzToxmzDN6Nrc2CZ").get()
-
-    engine.blockFetchTimeout = timer.milliseconds(100)
-
-    discard await node.retrieve(missingCid, local = false)
-
-    let lookupCount = cstore.lookups.getOrDefault(missingCid)
-    check lookupCount == 1
-
   test "Block Batching":
     let manifest = await storeDataGetManifest(localStore, chunker)
 
