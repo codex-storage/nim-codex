@@ -4,9 +4,9 @@ import pkg/metrics
 
 import ../../logutils
 import ../../market
+import ../../utils/exceptions
 import ../salesagent
 import ../statemachine
-import ./errorhandling
 import ./cancelled
 import ./failed
 import ./filled
@@ -18,7 +18,7 @@ declareCounter(
   codex_reservations_availability_mismatch, "codex reservations availability_mismatch"
 )
 
-type SalePreparing* = ref object of ErrorHandlingState
+type SalePreparing* = ref object of SaleState
 
 logScope:
   topics = "marketplace sales preparing"
@@ -37,44 +37,47 @@ method onSlotFilled*(
 ): ?State =
   return some State(SaleFilled())
 
-method run*(state: SalePreparing, machine: Machine): Future[?State] {.async.} =
+method run*(
+    state: SalePreparing, machine: Machine
+): Future[?State] {.async: (raises: []).} =
   let agent = SalesAgent(machine)
   let data = agent.data
   let context = agent.context
   let market = context.market
   let reservations = context.reservations
 
-  await agent.retrieveRequest()
-  await agent.subscribe()
+  try:
+    await agent.retrieveRequest()
+    await agent.subscribe()
 
-  without request =? data.request:
-    raiseAssert "no sale request"
+    without request =? data.request:
+      raiseAssert "no sale request"
 
-  let slotId = slotId(data.requestId, data.slotIndex)
-  let state = await market.slotState(slotId)
-  if state != SlotState.Free and state != SlotState.Repair:
-    return some State(SaleIgnored(reprocessSlot: false, returnBytes: false))
+    let slotId = slotId(data.requestId, data.slotIndex)
+    let state = await market.slotState(slotId)
+    if state != SlotState.Free and state != SlotState.Repair:
+      return some State(SaleIgnored(reprocessSlot: false, returnBytes: false))
 
-  # TODO: Once implemented, check to ensure the host is allowed to fill the slot,
-  # due to the [sliding window mechanism](https://github.com/codex-storage/codex-research/blob/master/design/marketplace.md#dispersal)
+    # TODO: Once implemented, check to ensure the host is allowed to fill the slot,
+    # due to the [sliding window mechanism](https://github.com/codex-storage/codex-research/blob/master/design/marketplace.md#dispersal)
 
-  logScope:
-    slotIndex = data.slotIndex
-    slotSize = request.ask.slotSize
-    duration = request.ask.duration
-    pricePerBytePerSecond = request.ask.pricePerBytePerSecond
-    collateralPerByte = request.ask.collateralPerByte
+    logScope:
+      slotIndex = data.slotIndex
+      slotSize = request.ask.slotSize
+      duration = request.ask.duration
+      pricePerBytePerSecond = request.ask.pricePerBytePerSecond
+      collateralPerByte = request.ask.collateralPerByte
 
-  without availability =?
-    await reservations.findAvailability(
-      request.ask.slotSize, request.ask.duration, request.ask.pricePerBytePerSecond,
-      request.ask.collateralPerByte,
-    ):
-    debug "No availability found for request, ignoring"
+    without availability =?
+      await reservations.findAvailability(
+        request.ask.slotSize, request.ask.duration, request.ask.pricePerBytePerSecond,
+        request.ask.collateralPerByte,
+      ):
+      debug "No availability found for request, ignoring"
 
-    return some State(SaleIgnored(reprocessSlot: true))
+      return some State(SaleIgnored(reprocessSlot: true))
 
-  info "Availability found for request, creating reservation"
+    info "Availability found for request, creating reservation"
 
   without reservation =?
     await reservations.createReservation(
@@ -90,9 +93,14 @@ method run*(state: SalePreparing, machine: Machine): Future[?State] {.async.} =
       codex_reservations_availability_mismatch.inc()
       return some State(SaleIgnored(reprocessSlot: true))
 
-    return some State(SaleErrored(error: error))
+      return some State(SaleErrored(error: error))
 
-  trace "Reservation created succesfully"
+    trace "Reservation created successfully"
 
-  data.reservation = some reservation
-  return some State(SaleSlotReserving())
+    data.reservation = some reservation
+    return some State(SaleSlotReserving())
+  except CancelledError as e:
+    trace "SalePreparing.run was cancelled", error = e.msgDetail
+  except CatchableError as e:
+    error "Error during SalePreparing.run", error = e.msgDetail
+    return some State(SaleErrored(error: e))
