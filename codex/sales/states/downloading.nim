@@ -68,10 +68,10 @@ method run*(
 
   try:
     let slotId = slotId(request.id, data.slotIndex)
-    let isRepairing = (await context.market.slotState(slotId, isRepairing)) == SlotState.Repair
-  
+    let isRepairing = (await context.market.slotState(slotId)) == SlotState.Repair
+
     trace "Starting download"
-    if err =? (await onStore(request, data.slotIndex, onBlocks)).errorOption:
+    if err =? (await onStore(request, data.slotIndex, onBlocks, isRepairing)).errorOption:
       return some State(SaleErrored(error: err, reprocessSlot: false))
 
     trace "Download complete"

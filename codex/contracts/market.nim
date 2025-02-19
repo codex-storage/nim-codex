@@ -53,6 +53,7 @@ template convertEthersError(body) =
   try:
     body
   except EthersError as error:
+    echo error.msgDetail
     raiseMarketError(error.msgDetail)
 
 proc config(
@@ -384,8 +385,7 @@ method subscribeSlotFilled*(
 method subscribeSlotFreed*(
     market: OnChainMarket, callback: OnSlotFreed
 ): Future[MarketSubscription] {.async.} =
-
-proc onEvent(eventResult: ?!SlotFreed) {.upraises: [].} =
+  proc onEvent(eventResult: ?!SlotFreed) {.upraises: [].} =
     without event =? eventResult, eventErr:
       error "There was an error in SlotFreed subscription", msg = eventErr.msg
       return
