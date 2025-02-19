@@ -183,7 +183,7 @@ proc fetchBatched*(
         if not iter.finished:
           let address = BlockAddress.init(cid, iter.next())
           if not await address in self.networkStore:
-            self.networkStore.getBlock(BlockAddress.init(cid, iter.next()))
+            self.networkStore.getBlock(address)
 
     if blocksErr =? (await allFutureResult(blocks)).errorOption:
       return failure(blocksErr)
