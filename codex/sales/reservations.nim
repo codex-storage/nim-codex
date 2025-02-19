@@ -35,6 +35,7 @@ import std/sequtils
 import std/sugar
 import std/typetraits
 import std/sequtils
+import std/times
 import pkg/chronos
 import pkg/datastore
 import pkg/nimcrypto
@@ -70,6 +71,12 @@ type
     minPricePerBytePerSecond* {.serialize.}: UInt256
     totalCollateral {.serialize.}: UInt256
     totalRemainingCollateral* {.serialize.}: UInt256
+    # If set to false, the availability will not accept new slots.
+    # If enabled, it will not impact any existing slots that are already being hosted.
+    enabled* {.serialize.}: bool
+    # Specifies the latest date after which sales will no longer be accepted for availability.
+    # If set to 0, there will be no restrictions.
+    until* {.serialize.}: SecondsSince1970
 
   Reservation* = ref object
     id* {.serialize.}: ReservationId
@@ -86,8 +93,9 @@ type
 
   GetNext* = proc(): Future[?seq[byte]] {.upraises: [], gcsafe, closure.}
   IterDispose* = proc(): Future[?!void] {.gcsafe, closure.}
-  OnAvailabilityAdded* =
-    proc(availability: Availability): Future[void] {.upraises: [], gcsafe.}
+  OnAvailabilityAdded* = proc(availability: Availability): Future[void] {.
+    upraises: [], gcsafe, async: (raises: [])
+  .}
   StorableIter* = ref object
     finished*: bool
     next*: GetNext
@@ -128,6 +136,8 @@ proc init*(
     duration: UInt256,
     minPricePerBytePerSecond: UInt256,
     totalCollateral: UInt256,
+    enabled: bool,
+    until: SecondsSince1970,
 ): Availability =
   var id: array[32, byte]
   doAssert randomBytes(id) == 32
@@ -139,6 +149,8 @@ proc init*(
     minPricePerBytePerSecond: minPricePerBytePerSecond,
     totalCollateral: totalCollateral,
     totalRemainingCollateral: totalCollateral,
+    enabled: enabled,
+    until: until,
   )
 
 func totalCollateral*(self: Availability): UInt256 {.inline.} =
@@ -268,18 +280,8 @@ proc updateAvailability(
       trace "Creating new Availability"
       let res = await self.updateImpl(obj)
       # inform subscribers that Availability has been added
-      if onAvailabilityAdded =? self.onAvailabilityAdded:
-        # when chronos v4 is implemented, and OnAvailabilityAdded is annotated
-        # with async:(raises:[]), we can remove this try/catch as we know, with
-        # certainty, that nothing will be raised
-        try:
-          await onAvailabilityAdded(obj)
-        except CancelledError as e:
-          raise e
-        except CatchableError as e:
-          # we don't have any insight into types of exceptions that
-          # `onAvailabilityAdded` can raise because it is caller-defined
-          warn "Unknown error during 'onAvailabilityAdded' callback", error = e.msg
+      if obj.enabled and onAvailabilityAdded =? self.onAvailabilityAdded:
+        await onAvailabilityAdded(obj)
       return res
     else:
       return failure(err)
@@ -304,22 +306,11 @@ proc updateAvailability(
 
   let res = await self.updateImpl(obj)
 
-  if oldAvailability.freeSize < obj.freeSize: # availability added
+  if obj.enabled and oldAvailability.freeSize < obj.freeSize: # availability added
     # inform subscribers that Availability has been modified (with increased
     # size)
     if onAvailabilityAdded =? self.onAvailabilityAdded:
-      # when chronos v4 is implemented, and OnAvailabilityAdded is annotated
-      # with async:(raises:[]), we can remove this try/catch as we know, with
-      # certainty, that nothing will be raised
-      try:
-        await onAvailabilityAdded(obj)
-      except CancelledError as e:
-        raise e
-      except CatchableError as e:
-        # we don't have any insight into types of exceptions that
-        # `onAvailabilityAdded` can raise because it is caller-defined
-        warn "Unknown error during 'onAvailabilityAdded' callback", error = e.msg
-
+      await onAvailabilityAdded(obj)
   return res
 
 proc update*(self: Reservations, obj: Reservation): Future[?!void] {.async.} =
@@ -393,12 +384,15 @@ proc createAvailability*(
     duration: UInt256,
     minPricePerBytePerSecond: UInt256,
     totalCollateral: UInt256,
+    enabled: bool,
+    until: SecondsSince1970,
 ): Future[?!Availability] {.async.} =
   trace "creating availability",
-    size, duration, minPricePerBytePerSecond, totalCollateral
+    size, duration, minPricePerBytePerSecond, totalCollateral, enabled, until
 
-  let availability =
-    Availability.init(size, size, duration, minPricePerBytePerSecond, totalCollateral)
+  let availability = Availability.init(
+    size, size, duration, minPricePerBytePerSecond, totalCollateral, enabled, until
+  )
   let bytes = availability.freeSize.truncate(uint)
 
   if reserveErr =? (await self.repo.reserve(bytes.NBytes)).errorOption:
@@ -649,13 +643,17 @@ proc findAvailability*(
     error "failed to get all storables", error = e.msg
     return none Availability
 
+  let endTime = getTime().toUnix() + cast[int64](duration)
   for item in storables.items:
     if bytes =? (await item) and availability =? Availability.fromJson(bytes):
-      if size <= availability.freeSize and duration <= availability.duration and
+      if availability.enabled and size <= availability.freeSize and
+          duration <= availability.duration and
           collateralPerByte <= availability.maxCollateralPerByte and
-          pricePerBytePerSecond >= availability.minPricePerBytePerSecond:
+          pricePerBytePerSecond >= availability.minPricePerBytePerSecond and
+          (availability.until == 0 or availability.until >= endTime):
         trace "availability matched",
           id = availability.id,
+          enabled = availability.enabled,
           size,
           availFreeSize = availability.freeSize,
           duration,
@@ -663,7 +661,8 @@ proc findAvailability*(
           pricePerBytePerSecond,
           availMinPricePerBytePerSecond = availability.minPricePerBytePerSecond,
           collateralPerByte,
-          availMaxCollateralPerByte = availability.maxCollateralPerByte
+          availMaxCollateralPerByte = availability.maxCollateralPerByte,
+          until = availability.until
 
         # TODO: As soon as we're on ARC-ORC, we can use destructors
         # to automatically dispose our iterators when they fall out of scope.
@@ -675,6 +674,7 @@ proc findAvailability*(
 
       trace "availability did not match",
         id = availability.id,
+        enabled = availability.enabled,
         size,
         availFreeSize = availability.freeSize,
         duration,
@@ -682,4 +682,5 @@ proc findAvailability*(
         pricePerBytePerSecond,
         availMinPricePerBytePerSecond = availability.minPricePerBytePerSecond,
         collateralPerByte,
-        availMaxCollateralPerByte = availability.maxCollateralPerByte
+        availMaxCollateralPerByte = availability.maxCollateralPerByte,
+        until = availability.until

@@ -33,6 +33,7 @@ twonodessuite "REST API":
       duration = 2.u256,
       minPricePerBytePerSecond = minPricePerBytePerSecond,
       totalCollateral = totalCollateral,
+      enabled = true.some,
     ).get
     let space = client1.space().tryGet()
     check:

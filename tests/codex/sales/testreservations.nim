@@ -1,5 +1,5 @@
 import std/random
-
+import std/times
 import pkg/questionable
 import pkg/questionable/results
 import pkg/chronos
@@ -8,6 +8,7 @@ import pkg/datastore
 import pkg/codex/stores
 import pkg/codex/errors
 import pkg/codex/sales
+import pkg/codex/clock
 import pkg/codex/utils/json
 
 import ../../asynctest
@@ -39,12 +40,13 @@ asyncchecksuite "Reservations module":
     await repoTmp.destroyDb()
     await metaTmp.destroyDb()
 
-  proc createAvailability(): Availability =
+  proc createAvailability(enabled = true, until = 0.SecondsSince1970): Availability =
     let example = Availability.example(collateralPerByte)
     let totalSize = rand(100000 .. 200000).u256
     let totalCollateral = totalSize * collateralPerByte
     let availability = waitFor reservations.createAvailability(
-      totalSize, example.duration, example.minPricePerBytePerSecond, totalCollateral
+      totalSize, example.duration, example.minPricePerBytePerSecond, totalCollateral,
+      enabled, until,
     )
     return availability.get
 
@@ -64,8 +66,12 @@ asyncchecksuite "Reservations module":
     check (await reservations.all(Availability)).get.len == 0
 
   test "generates unique ids for storage availability":
-    let availability1 = Availability.init(1.u256, 2.u256, 3.u256, 4.u256, 5.u256)
-    let availability2 = Availability.init(1.u256, 2.u256, 3.u256, 4.u256, 5.u256)
+    let availability1 = Availability.init(
+      1.u256, 2.u256, 3.u256, 4.u256, 5.u256, true, 0.SecondsSince1970
+    )
+    let availability2 = Availability.init(
+      1.u256, 2.u256, 3.u256, 4.u256, 5.u256, true, 0.SecondsSince1970
+    )
     check availability1.id != availability2.id
 
   test "can reserve available storage":
@@ -259,6 +265,21 @@ asyncchecksuite "Reservations module":
     check isOk await reservations.update(availability)
     check (repo.quotaReservedBytes - origQuota) == 100.NBytes
 
+  test "create availability set enabled to true by default":
+    let availability = createAvailability()
+    check availability.enabled == true
+
+  test "create availability set until to 0 by default":
+    let availability = createAvailability()
+    check availability.until == 0.SecondsSince1970
+
+  test "create availability whith correct values":
+    var until = getTime().toUnix()
+
+    let availability = createAvailability(enabled = false, until = until)
+    check availability.enabled == false
+    check availability.until == until
+
   test "reservation can be partially released":
     let availability = createAvailability()
     let reservation = createReservation(availability)
@@ -285,7 +306,9 @@ asyncchecksuite "Reservations module":
 
   test "onAvailabilityAdded called when availability is created":
     var added: Availability
-    reservations.onAvailabilityAdded = proc(a: Availability) {.async.} =
+    reservations.onAvailabilityAdded = proc(
+        a: Availability
+    ) {.gcsafe, async: (raises: []).} =
       added = a
 
     let availability = createAvailability()
@@ -295,7 +318,9 @@ asyncchecksuite "Reservations module":
   test "onAvailabilityAdded called when availability size is increased":
     var availability = createAvailability()
     var added: Availability
-    reservations.onAvailabilityAdded = proc(a: Availability) {.async.} =
+    reservations.onAvailabilityAdded = proc(
+        a: Availability
+    ) {.gcsafe, async: (raises: []).} =
       added = a
     availability.freeSize += 1.u256
     discard await reservations.update(availability)
@@ -305,7 +330,21 @@ asyncchecksuite "Reservations module":
   test "onAvailabilityAdded is not called when availability size is decreased":
     var availability = createAvailability()
     var called = false
-    reservations.onAvailabilityAdded = proc(a: Availability) {.async.} =
+    reservations.onAvailabilityAdded = proc(
+        a: Availability
+    ) {.gcsafe, async: (raises: []).} =
+      called = true
+    availability.freeSize -= 1.u256
+    discard await reservations.update(availability)
+
+    check not called
+
+  test "onAvailabilityAdded is not called when availability is disabled":
+    var availability = createAvailability(enabled = false)
+    var called = false
+    reservations.onAvailabilityAdded = proc(
+        a: Availability
+    ) {.gcsafe, async: (raises: []).} =
       called = true
     availability.freeSize -= 1.u256
     discard await reservations.update(availability)
@@ -322,6 +361,41 @@ asyncchecksuite "Reservations module":
 
     check found.isSome
     check found.get == availability
+
+  test "does not find an availability when is it disabled":
+    let availability = createAvailability(enabled = false)
+
+    let found = await reservations.findAvailability(
+      availability.freeSize, availability.duration,
+      availability.minPricePerBytePerSecond, collateralPerByte,
+    )
+
+    check found.isNone
+
+  test "finds an availability when the until date is after the duration":
+    let example = Availability.example(collateralPerByte)
+    let until = getTime().toUnix() + cast[int64](example.duration)
+    let availability = createAvailability(until = until)
+
+    let found = await reservations.findAvailability(
+      availability.freeSize, availability.duration,
+      availability.minPricePerBytePerSecond, collateralPerByte,
+    )
+
+    check found.isSome
+    check found.get == availability
+
+  test "does not find an availability when the until date is before the duration":
+    let example = Availability.example(collateralPerByte)
+    let until = getTime().toUnix() + 1.SecondsSince1970
+    let availability = createAvailability(until = until)
+
+    let found = await reservations.findAvailability(
+      availability.freeSize, availability.duration,
+      availability.minPricePerBytePerSecond, collateralPerByte,
+    )
+
+    check found.isNone
 
   test "non-matching availabilities are not found":
     let availability = createAvailability()
@@ -364,6 +438,8 @@ asyncchecksuite "Reservations module":
       UInt256.example,
       UInt256.example,
       UInt256.example,
+      enabled = true,
+      until = 0.SecondsSince1970,
     )
     check created.isErr
     check created.error of ReserveFailedError

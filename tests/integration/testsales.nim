@@ -1,4 +1,5 @@
 import std/httpclient
+import std/times
 import pkg/codex/contracts
 import ./twonodes
 import ../codex/examples
@@ -19,8 +20,6 @@ multinodesuite "Sales":
     clients: CodexConfigs.init(nodes = 1).some,
     providers: CodexConfigs.init(nodes = 1).some,
   )
-
-  let minPricePerBytePerSecond = 1.u256
 
   var host: CodexClient
   var client: CodexClient
@@ -53,6 +52,22 @@ multinodesuite "Sales":
     ).get
     check availability in host.getAvailabilities().get
 
+  test "creating availability fails when until is negative", salesConfig:
+    let totalSize = 12.u256
+    let minPricePerBytePerSecond = 1.u256
+    let totalCollateral = totalSize * minPricePerBytePerSecond
+    let response = host.postAvailabilityRaw(
+      totalSize = totalSize,
+      duration = 2.u256,
+      minPricePerBytePerSecond = minPricePerBytePerSecond,
+      totalCollateral = totalCollateral,
+      until = cast[SecondsSince1970](-1).some,
+    )
+
+    check:
+      response.status == "400 Bad Request"
+      response.body == "Until parameter must be greater or equal 0. Got: -1"
+
   test "updating non-existing availability", salesConfig:
     let nonExistingResponse = host.patchAvailabilityRaw(
       AvailabilityId.example,
@@ -70,11 +85,15 @@ multinodesuite "Sales":
       totalCollateral = 300.u256,
     ).get
 
+    var until = getTime().toUnix()
+
     host.patchAvailability(
       availability.id,
       duration = 100.u256.some,
       minPricePerBytePerSecond = 2.u256.some,
       totalCollateral = 200.u256.some,
+      enabled = false.some,
+      until = until.some,
     )
 
     let updatedAvailability = (host.getAvailabilities().get).findItem(availability).get
@@ -83,6 +102,8 @@ multinodesuite "Sales":
     check updatedAvailability.totalCollateral == 200
     check updatedAvailability.totalSize == 140000
     check updatedAvailability.freeSize == 140000
+    check updatedAvailability.enabled == false
+    check updatedAvailability.until == until
 
   test "updating availability - freeSize is not allowed to be changed", salesConfig:
     let availability = host.postAvailability(
@@ -151,3 +172,19 @@ multinodesuite "Sales":
       (host.getAvailabilities().get).findItem(availability).get
     check newUpdatedAvailability.totalSize == originalSize + 20000
     check newUpdatedAvailability.freeSize - updatedAvailability.freeSize == 20000
+
+  test "updating availability fails with until negative", salesConfig:
+    let availability = host.postAvailability(
+      totalSize = 140000.u256,
+      duration = 200.u256,
+      minPricePerBytePerSecond = 3.u256,
+      totalCollateral = 300.u256,
+    ).get
+
+    let response = host.patchAvailabilityRaw(
+      availability.id, until = cast[SecondsSince1970](-1).some
+    )
+
+    check:
+      response.status == "400 Bad Request"
+      response.body == "Until parameter must be greater or equal 0. Got: -1"

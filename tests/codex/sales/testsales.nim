@@ -14,6 +14,7 @@ import pkg/codex/stores/repostore
 import pkg/codex/blocktype as bt
 import pkg/codex/node
 import pkg/codex/utils/asyncstatemachine
+import times
 import ../../asynctest
 import ../helpers
 import ../helpers/mockmarket
@@ -151,6 +152,8 @@ asyncchecksuite "Sales":
       duration = 60.u256,
       minPricePerBytePerSecond = minPricePerBytePerSecond,
       totalCollateral = totalCollateral,
+      enabled = true,
+      until = 0.SecondsSince1970,
     )
     request = StorageRequest(
       ask: StorageAsk(
@@ -220,10 +223,11 @@ asyncchecksuite "Sales":
     let key = availability.id.key.get
     (waitFor reservations.get(key, Availability)).get
 
-  proc createAvailability() =
+  proc createAvailability(enabled = true, until = 0.SecondsSince1970) =
     let a = waitFor reservations.createAvailability(
       availability.totalSize, availability.duration,
-      availability.minPricePerBytePerSecond, availability.totalCollateral,
+      availability.minPricePerBytePerSecond, availability.totalCollateral, enabled,
+      until,
     )
     availability = a.get # update id
 
@@ -357,14 +361,14 @@ asyncchecksuite "Sales":
     check eventually getAvailability().freeSize ==
       availability.freeSize - request.ask.slotSize
 
-  test "non-downloaded bytes are returned to availability once finished":
+  test "bytes are returned to availability once finished":
     var slotIndex = 0.u256
     sales.onStore = proc(
         request: StorageRequest, slot: UInt256, onBatch: BatchProc
     ): Future[?!void] {.async.} =
       slotIndex = slot
       let blk = bt.Block.new(@[1.byte]).get
-      await onBatch(@[blk])
+      await onBatch(blk.repeat(request.ask.slotSize.truncate(int)))
 
     let sold = newFuture[void]()
     sales.onSale = proc(request: StorageRequest, slotIndex: UInt256) =
@@ -380,7 +384,7 @@ asyncchecksuite "Sales":
     market.slotState[request.slotId(slotIndex)] = SlotState.Finished
     clock.advance(request.ask.duration.truncate(int64))
 
-    check eventually getAvailability().freeSize == origSize - 1
+    check eventually getAvailability().freeSize == origSize
 
   test "ignores download when duration not long enough":
     availability.duration = request.ask.duration - 1
@@ -415,6 +419,41 @@ asyncchecksuite "Sales":
     market.slotState[request.slotId(2.u256)] = SlotState.Filled
     market.slotState[request.slotId(3.u256)] = SlotState.Filled
     check wasIgnored()
+
+  test "ignores request when availability is not enabled":
+    createAvailability(enabled = false)
+    await market.requestStorage(request)
+    check wasIgnored()
+
+  test "ignores request when availability was disabled after the request storage is created":
+    createAvailability(enabled = true)
+    await market.requestStorage(request)
+
+    availability.enabled = false
+    discard await reservations.update(availability)
+
+    check wasIgnored()
+
+  test "ignores request when availability until terminates before the duration":
+    let until = getTime().toUnix()
+    createAvailability(until = until)
+    await market.requestStorage(request)
+
+    check wasIgnored()
+
+  test "retrieves request when availability until terminates after the duration":
+    let until = getTime().toUnix() + cast[int64](request.ask.duration)
+    createAvailability(until = until)
+
+    var storingRequest: StorageRequest
+    sales.onStore = proc(
+        request: StorageRequest, slot: UInt256, onBatch: BatchProc
+    ): Future[?!void] {.async.} =
+      storingRequest = request
+      return success()
+
+    await market.requestStorage(request)
+    check eventually storingRequest == request
 
   test "retrieves and stores data locally":
     var storingRequest: StorageRequest
