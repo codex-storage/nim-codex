@@ -383,9 +383,6 @@ proc subscribeRequested(sales: Sales) {.async.} =
     sales.onStorageRequested(requestId, ask, expiry)
 
   try:
-    # Ensure that the config is loaded in order to use the sync method slotCollateral
-    await market.loadConfig()
-
     let sub = await market.subscribeRequests(onStorageRequested)
     sales.subscriptions.add(sub)
   except CancelledError as error:
