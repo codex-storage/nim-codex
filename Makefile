@@ -229,6 +229,11 @@ nph/%: build-nph
 	echo -e $(FORMAT_MSG) "nph/$*" && \
 		$(NPH) $*
 
+format:
+	$(NPH) *.nim
+	$(NPH) codex/
+	$(NPH) tests/
+
 clean-nph:
 	rm -f $(NPH)
 
