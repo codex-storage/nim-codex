@@ -21,7 +21,7 @@ asyncchecksuite "NetworkStore engine - 2 nodes":
     peerCtx1, peerCtx2: BlockExcPeerCtx
     pricing1, pricing2: Pricing
     blocks1, blocks2: seq[bt.Block]
-    pendingBlocks1, pendingBlocks2: seq[Future[bt.Block]]
+    pendingBlocks1, pendingBlocks2: seq[BlockHandle]
 
   setup:
     blocks1 = await makeRandomBlocks(datasetSize = 2048, blockSize = 256'nb)
