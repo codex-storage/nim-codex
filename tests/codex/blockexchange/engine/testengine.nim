@@ -134,11 +134,6 @@ asyncchecksuite "NetworkStore engine handlers":
     localStore: BlockStore
     blocks: seq[Block]
 
-  const NopSendWantCancellationsProc = proc(
-      id: PeerId, addresses: seq[BlockAddress]
-  ) {.gcsafe, async.} =
-    discard
-
   setup:
     rng = Rng.instance()
     chunker = RandomChunker.new(rng, size = 1024'nb, chunkSize = 256'nb)
