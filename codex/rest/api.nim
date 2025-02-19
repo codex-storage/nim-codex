@@ -69,10 +69,11 @@ proc getLongestRequestEnd(
       return success(0.SecondsSince1970)
 
     return success(requestEnds.max)
-  except CancelledError, CatchableError:
-    error "Error when trying to get longest request end",
-      error = getCurrentExceptionMsg()
-    return failure("Cannot retrieve the request dates")
+  except CancelledError as err:
+    raise err
+  except CatchableError as err:
+    error "Error when trying to get longest request end", error = err.msg
+    return failure("Cannot retrieve the request dates: " & err.msg)
 
 proc validate(pattern: string, value: string): int {.gcsafe, raises: [Defect].} =
   0
