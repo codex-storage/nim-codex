@@ -332,7 +332,7 @@ proc onSlotFreed(sales: Sales, requestId: RequestId, slotIndex: UInt256) =
 
   trace "slot freed, adding to queue"
 
-  proc addSlotToQueue() {.async: (raises: []).} =
+  proc addSlotToQueue() {.async: (raises: [CancelledError]).} =
     let context = sales.context
     let market = context.market
     let queue = context.slotQueue

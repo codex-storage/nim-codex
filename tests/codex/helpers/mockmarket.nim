@@ -135,7 +135,7 @@ proc new*(_: type MockMarket, clock: ?Clock = Clock.none): MockMarket =
 
 method loadConfig*(
     market: MockMarket
-): Future[void] {.async: (raises: [CatchableError]).} =
+): Future[void] {.async: (raises: [CancelledError, MarketError]).} =
   discard
 
 method getSigner*(market: MockMarket): Future[Address] {.async.} =
@@ -178,7 +178,7 @@ method mySlots*(market: MockMarket): Future[seq[SlotId]] {.async.} =
 
 method getRequest*(
     market: MockMarket, id: RequestId
-): Future[?StorageRequest] {.async: (raises: []).} =
+): Future[?StorageRequest] {.async: (raises: [CancelledError]).} =
   for request in market.requested:
     if request.id == id:
       return some request

@@ -57,10 +57,16 @@ template convertEthersError(body) =
 
 proc config(
     market: OnChainMarket
-): Future[MarketplaceConfig] {.async: (raises: [CatchableError]).} =
+): Future[MarketplaceConfig] {.
+    async: (raises: [CancelledError, MarketError, AsyncLockError])
+.} =
   without resolvedConfig =? market.configuration:
     await market.loadConfig()
-    return !market.configuration
+
+    without config =? market.configuration:
+      raiseMarketError("Failed to access to config from the Marketplace contract")
+
+    return config
 
   return resolvedConfig
 
@@ -76,10 +82,11 @@ proc approveFunds(market: OnChainMarket, amount: UInt256) {.async.} =
 
 method loadConfig*(
     market: OnChainMarket
-): Future[void] {.async: (raises: [CatchableError]).} =
-  without config =? market.configuration:
-    let fetchedConfig = await market.contract.configuration()
-    market.configuration = some fetchedConfig
+): Future[void] {.async: (raises: [CancelledError, MarketError, AsyncLockError]).} =
+  convertEthersError:
+    without config =? market.configuration:
+      let fetchedConfig = await market.contract.configuration()
+      market.configuration = some fetchedConfig
 
 method getZkeyHash*(
     market: OnChainMarket
@@ -144,7 +151,7 @@ method requestStorage(market: OnChainMarket, request: StorageRequest) {.async.} 
 
 method getRequest*(
     market: OnChainMarket, id: RequestId
-): Future[?StorageRequest] {.async: (raises: []).} =
+): Future[?StorageRequest] {.async: (raises: [CancelledError]).} =
   try:
     let key = $id
 
@@ -156,8 +163,8 @@ method getRequest*(
     return some request
   except Marketplace_UnknownRequest:
     return none StorageRequest
-  except CatchableError as err:
-    warn "Cannot retrieve the request", error = err.msg
+  except EthersError, KeyError, AsyncLockError:
+    warn "Cannot retrieve the request", error = getCurrentExceptionMsg()
     return none StorageRequest
 
 method requestState*(

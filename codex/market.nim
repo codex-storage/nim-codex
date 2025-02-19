@@ -65,7 +65,7 @@ type
 
 method loadConfig*(
     market: Market
-): Future[void] {.base, async: (raises: [CatchableError]).} =
+): Future[void] {.base, async: (raises: [CancelledError, MarketError]).} =
   raiseAssert("not implemented")
 
 method getZkeyHash*(
@@ -115,7 +115,7 @@ method mySlots*(market: Market): Future[seq[SlotId]] {.base, async.} =
 
 method getRequest*(
     market: Market, id: RequestId
-): Future[?StorageRequest] {.base, async: (raises: []).} =
+): Future[?StorageRequest] {.base, async: (raises: [CancelledError]).} =
   raiseAssert("not implemented")
 
 method requestState*(

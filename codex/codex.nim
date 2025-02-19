@@ -134,7 +134,11 @@ proc bootstrapInteractions(s: CodexServer): Future[void] {.async.} =
       if config.simulateProofFailures > 0:
         warn "Proof failure simulation is not enabled for this build! Configuration ignored"
 
-    await market.loadConfig()
+    try:
+      await market.loadConfig()
+    except MarketError, AsyncLockError:
+      error "Cannot load market configuration", error = getCurrentExceptionMsg()
+      quit QuitFailure
 
     let purchasing = Purchasing.new(market, clock)
     let sales = Sales.new(market, clock, repo, proofFailures)
