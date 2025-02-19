@@ -136,7 +136,7 @@ proc bootstrapInteractions(s: CodexServer): Future[void] {.async.} =
 
     try:
       await market.loadConfig()
-    except MarketError, AsyncLockError:
+    except MarketError:
       error "Cannot load market configuration", error = getCurrentExceptionMsg()
       quit QuitFailure
 

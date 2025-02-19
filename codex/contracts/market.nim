@@ -80,11 +80,17 @@ proc approveFunds(market: OnChainMarket, amount: UInt256) {.async.} =
 
 method loadConfig*(
     market: OnChainMarket
-): Future[void] {.async: (raises: [CancelledError, MarketError, AsyncLockError]).} =
+): Future[void] {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError:
-    without config =? market.configuration:
-      let fetchedConfig = await market.contract.configuration()
-      market.configuration = some fetchedConfig
+    try:
+      without config =? market.configuration:
+        let fetchedConfig = await market.contract.configuration()
+
+        market.configuration = some fetchedConfig
+    except AsyncLockError as err:
+      raiseMarketError(
+        "Failed to fetch the config from the Marketplace contract: " & err.msg
+      )
 
 method getZkeyHash*(
     market: OnChainMarket
@@ -159,10 +165,11 @@ method getRequest*(
     let request = await market.contract.getRequest(id)
     market.requestCache[key] = request
     return some request
-  except Marketplace_UnknownRequest:
-    return none StorageRequest
-  except EthersError, KeyError, AsyncLockError:
+  except Marketplace_UnknownRequest, KeyError:
     warn "Cannot retrieve the request", error = getCurrentExceptionMsg()
+    return none StorageRequest
+  except EthersError, AsyncLockError:
+    error "Cannot retrieve the request", error = getCurrentExceptionMsg()
     return none StorageRequest
 
 method requestState*(
@@ -177,10 +184,15 @@ method requestState*(
 
 method slotState*(
     market: OnChainMarket, slotId: SlotId
-): Future[SlotState] {.async: (raises: [CancelledError, MarketError, AsyncLockError]).} =
+): Future[SlotState] {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError:
-    let overrides = CallOverrides(blockTag: some BlockTag.pending)
-    return await market.contract.slotState(slotId, overrides)
+    try:
+      let overrides = CallOverrides(blockTag: some BlockTag.pending)
+      return await market.contract.slotState(slotId, overrides)
+    except AsyncLockError as err:
+      raiseMarketError(
+        "Failed to fetch the slot state from the Marketplace contract: " & err.msg
+      )
 
 method getRequestEnd*(
     market: OnChainMarket, id: RequestId

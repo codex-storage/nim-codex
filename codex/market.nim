@@ -125,9 +125,7 @@ method requestState*(
 
 method slotState*(
     market: Market, slotId: SlotId
-): Future[SlotState] {.
-    base, async: (raises: [CancelledError, MarketError, AsyncLockError])
-.} =
+): Future[SlotState] {.base, async: (raises: [CancelledError, MarketError]).} =
   raiseAssert("not implemented")
 
 method getRequestEnd*(

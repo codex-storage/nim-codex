@@ -198,16 +198,14 @@ method requestState*(
 
 method slotState*(
     market: MockMarket, slotId: SlotId
-): Future[SlotState] {.async: (raises: [CancelledError, MarketError, AsyncLockError]).} =
+): Future[SlotState] {.async: (raises: [CancelledError, MarketError]).} =
   if slotId notin market.slotState:
     return SlotState.Free
 
   try:
     return market.slotState[slotId]
-  except ref KeyError:
-    # Should never reach that case.
-    # Just returning a random slot state.
-    return SlotState.Repair
+  except KeyError as e:
+    raiseAssert "SlotId not found in known slots (MockMarket.slotState)"
 
 method getRequestEnd*(
     market: MockMarket, id: RequestId
