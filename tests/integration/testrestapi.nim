@@ -37,7 +37,7 @@ twonodessuite "REST API":
     let space = client1.space().tryGet()
     check:
       space.totalBlocks == 2
-      space.quotaMaxBytes == 8589934592.NBytes
+      space.quotaMaxBytes == 21474836480.NBytes
       space.quotaUsedBytes == 65592.NBytes
       space.quotaReservedBytes == 12.NBytes
 
