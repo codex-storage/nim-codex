@@ -70,7 +70,7 @@ method loadConfig*(
 
 method getZkeyHash*(
     market: Market
-): Future[?string] {.base, async: (raises: [CatchableError]).} =
+): Future[?string] {.base, async: (raises: [CancelledError, MarketError]).} =
   raiseAssert("not implemented")
 
 method getSigner*(market: Market): Future[Address] {.base, async.} =
@@ -78,22 +78,22 @@ method getSigner*(market: Market): Future[Address] {.base, async.} =
 
 method periodicity*(
     market: Market
-): Future[Periodicity] {.base, async: (raises: [CatchableError]).} =
+): Future[Periodicity] {.base, async: (raises: [CancelledError, MarketError]).} =
   raiseAssert("not implemented")
 
 method proofTimeout*(
     market: Market
-): Future[UInt256] {.base, async: (raises: [CatchableError]).} =
+): Future[UInt256] {.base, async: (raises: [CancelledError, MarketError]).} =
   raiseAssert("not implemented")
 
 method repairRewardPercentage*(
     market: Market
-): Future[uint8] {.base, async: (raises: [CatchableError]).} =
+): Future[uint8] {.base, async: (raises: [CancelledError, MarketError]).} =
   raiseAssert("not implemented")
 
 method proofDowntime*(
     market: Market
-): Future[uint8] {.base, async: (raises: [CatchableError]).} =
+): Future[uint8] {.base, async: (raises: [CancelledError, MarketError]).} =
   raiseAssert("not implemented")
 
 method getPointer*(market: Market, slotId: SlotId): Future[uint8] {.base, async.} =
@@ -125,7 +125,9 @@ method requestState*(
 
 method slotState*(
     market: Market, slotId: SlotId
-): Future[SlotState] {.base, async: (raises: [CatchableError]).} =
+): Future[SlotState] {.
+    base, async: (raises: [CancelledError, MarketError, AsyncLockError])
+.} =
   raiseAssert("not implemented")
 
 method getRequestEnd*(

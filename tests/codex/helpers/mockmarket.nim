@@ -143,22 +143,22 @@ method getSigner*(market: MockMarket): Future[Address] {.async.} =
 
 method periodicity*(
     mock: MockMarket
-): Future[Periodicity] {.async: (raises: [CatchableError]).} =
+): Future[Periodicity] {.async: (raises: [CancelledError, MarketError]).} =
   return Periodicity(seconds: mock.config.proofs.period)
 
 method proofTimeout*(
     market: MockMarket
-): Future[UInt256] {.async: (raises: [CatchableError]).} =
+): Future[UInt256] {.async: (raises: [CancelledError, MarketError]).} =
   return market.config.proofs.timeout
 
 method proofDowntime*(
     market: MockMarket
-): Future[uint8] {.async: (raises: [CatchableError]).} =
+): Future[uint8] {.async: (raises: [CancelledError, MarketError]).} =
   return market.config.proofs.downtime
 
 method repairRewardPercentage*(
     market: MockMarket
-): Future[uint8] {.async: (raises: [CatchableError]).} =
+): Future[uint8] {.async: (raises: [CancelledError, MarketError]).} =
   return market.config.collateral.repairRewardPercentage
 
 method getPointer*(market: MockMarket, slotId: SlotId): Future[uint8] {.async.} =
@@ -198,7 +198,7 @@ method requestState*(
 
 method slotState*(
     market: MockMarket, slotId: SlotId
-): Future[SlotState] {.async: (raises: [CatchableError]).} =
+): Future[SlotState] {.async: (raises: [CancelledError, MarketError, AsyncLockError]).} =
   if slotId notin market.slotState:
     return SlotState.Free
 

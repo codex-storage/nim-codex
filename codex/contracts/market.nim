@@ -57,9 +57,7 @@ template convertEthersError(body) =
 
 proc config(
     market: OnChainMarket
-): Future[MarketplaceConfig] {.
-    async: (raises: [CancelledError, MarketError, AsyncLockError])
-.} =
+): Future[MarketplaceConfig] {.async: (raises: [CancelledError, MarketError]).} =
   without resolvedConfig =? market.configuration:
     await market.loadConfig()
 
@@ -90,7 +88,7 @@ method loadConfig*(
 
 method getZkeyHash*(
     market: OnChainMarket
-): Future[?string] {.async: (raises: [CatchableError]).} =
+): Future[?string] {.async: (raises: [CancelledError, MarketError]).} =
   let config = await market.config()
   return some config.proofs.zkeyHash
 
@@ -100,7 +98,7 @@ method getSigner*(market: OnChainMarket): Future[Address] {.async.} =
 
 method periodicity*(
     market: OnChainMarket
-): Future[Periodicity] {.async: (raises: [CatchableError]).} =
+): Future[Periodicity] {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError:
     let config = await market.config()
     let period = config.proofs.period
@@ -108,21 +106,21 @@ method periodicity*(
 
 method proofTimeout*(
     market: OnChainMarket
-): Future[UInt256] {.async: (raises: [CatchableError]).} =
+): Future[UInt256] {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError:
     let config = await market.config()
     return config.proofs.timeout
 
 method repairRewardPercentage*(
     market: OnChainMarket
-): Future[uint8] {.async: (raises: [CatchableError]).} =
+): Future[uint8] {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError:
     let config = await market.config()
     return config.collateral.repairRewardPercentage
 
 method proofDowntime*(
     market: OnChainMarket
-): Future[uint8] {.async: (raises: [CatchableError]).} =
+): Future[uint8] {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError:
     let config = await market.config()
     return config.proofs.downtime
@@ -179,7 +177,7 @@ method requestState*(
 
 method slotState*(
     market: OnChainMarket, slotId: SlotId
-): Future[SlotState] {.async: (raises: [CatchableError]).} =
+): Future[SlotState] {.async: (raises: [CancelledError, MarketError, AsyncLockError]).} =
   convertEthersError:
     let overrides = CallOverrides(blockTag: some BlockTag.pending)
     return await market.contract.slotState(slotId, overrides)
