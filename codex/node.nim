@@ -167,6 +167,7 @@ proc fetchBatched*(
     iter: Iter[int],
     batchSize = DefaultFetchBatch,
     onBatch: BatchProc = nil,
+    fetchLocal = true,
 ): Future[?!void] {.async, gcsafe.} =
   ## Fetch blocks in batches of `batchSize`
   ##
@@ -182,7 +183,7 @@ proc fetchBatched*(
       for i in 0 ..< batchSize:
         if not iter.finished:
           let address = BlockAddress.init(cid, iter.next())
-          if not await address in self.networkStore:
+          if not (await address in self.networkStore) or fetchLocal:
             self.networkStore.getBlock(address)
 
     if blocksErr =? (await allFutureResult(blocks)).errorOption:
@@ -201,6 +202,7 @@ proc fetchBatched*(
     manifest: Manifest,
     batchSize = DefaultFetchBatch,
     onBatch: BatchProc = nil,
+    fetchLocal = true,
 ): Future[?!void] =
   ## Fetch manifest in batches of `batchSize`
   ##
@@ -209,7 +211,7 @@ proc fetchBatched*(
     size = batchSize, blocksCount = manifest.blocksCount
 
   let iter = Iter[int].new(0 ..< manifest.blocksCount)
-  self.fetchBatched(manifest.treeCid, iter, batchSize, onBatch)
+  self.fetchBatched(manifest.treeCid, iter, batchSize, onBatch, fetchLocal)
 
 proc streamSingleBlock(self: CodexNodeRef, cid: Cid): Future[?!LPStream] {.async.} =
   ## Streams the contents of a single block.
@@ -257,7 +259,9 @@ proc streamEntireDataset(
 
   proc prefetch() {.async: (raises: []).} =
     try:
-      if err =? (await self.fetchBatched(manifest, DefaultFetchBatch)).errorOption:
+      if err =? (
+        await self.fetchBatched(manifest, DefaultFetchBatch, fetchLocal = false)
+      ).errorOption:
         error "Unable to fetch blocks", err = err.msg
     except CatchableError as exc:
       error "Error fetching blocks", exc = exc.msg
