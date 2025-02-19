@@ -17,10 +17,9 @@ type SaleErrored* = ref object of SaleState
 method `$`*(state: SaleErrored): string =
   "SaleErrored"
 
-method onError*(state: SaleState, err: ref CatchableError): ?State {.upraises: [].} =
-  error "error during SaleErrored run", error = err.msg
-
-method run*(state: SaleErrored, machine: Machine): Future[?State] {.async.} =
+method run*(
+    state: SaleErrored, machine: Machine
+): Future[?State] {.async: (raises: []).} =
   let agent = SalesAgent(machine)
   let data = agent.data
   let context = agent.context
@@ -30,8 +29,13 @@ method run*(state: SaleErrored, machine: Machine): Future[?State] {.async.} =
     requestId = data.requestId,
     slotIndex = data.slotIndex
 
-  if onClear =? context.onClear and request =? data.request:
-    onClear(request, data.slotIndex)
+  try:
+    if onClear =? context.onClear and request =? data.request:
+      onClear(request, data.slotIndex)
 
-  if onCleanUp =? agent.onCleanUp:
-    await onCleanUp(returnBytes = true, reprocessSlot = state.reprocessSlot)
+    if onCleanUp =? agent.onCleanUp:
+      await onCleanUp(returnBytes = true, reprocessSlot = state.reprocessSlot)
+  except CancelledError as e:
+    trace "SaleErrored.run was cancelled", error = e.msgDetail
+  except CatchableError as e:
+    error "Error during SaleErrored.run", error = e.msgDetail

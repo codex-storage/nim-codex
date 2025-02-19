@@ -4,7 +4,6 @@ import pkg/codex/sales
 import pkg/codex/sales/salesagent
 import pkg/codex/sales/salescontext
 import pkg/codex/sales/statemachine
-import pkg/codex/sales/states/errorhandling
 
 import ../../asynctest
 import ../helpers/mockmarket
@@ -15,17 +14,11 @@ import ../examples
 var onCancelCalled = false
 var onFailedCalled = false
 var onSlotFilledCalled = false
-var onErrorCalled = false
 
-type
-  MockState = ref object of SaleState
-  MockErrorState = ref object of ErrorHandlingState
+type MockState = ref object of SaleState
 
 method `$`*(state: MockState): string =
   "MockState"
-
-method `$`*(state: MockErrorState): string =
-  "MockErrorState"
 
 method onCancelled*(state: MockState, request: StorageRequest): ?State =
   onCancelCalled = true
@@ -37,12 +30,6 @@ method onSlotFilled*(
     state: MockState, requestId: RequestId, slotIndex: UInt256
 ): ?State =
   onSlotFilledCalled = true
-
-method onError*(state: MockErrorState, err: ref CatchableError): ?State =
-  onErrorCalled = true
-
-method run*(state: MockErrorState, machine: Machine): Future[?State] {.async.} =
-  raise newException(ValueError, "failure")
 
 asyncchecksuite "Sales agent":
   let request = StorageRequest.example
@@ -123,7 +110,9 @@ asyncchecksuite "Sales agent":
     agent.start(MockState.new())
     await agent.subscribe()
     agent.onFulfilled(request.id)
-    check eventually agent.data.cancelled.cancelled()
+    # Note: futures that are cancelled, and do not re-raise the CancelledError
+    # will have a state of completed, not cancelled.
+    check eventually agent.data.cancelled.completed()
 
   test "current state onFailed called when onFailed called":
     agent.start(MockState.new())
@@ -134,7 +123,3 @@ asyncchecksuite "Sales agent":
     agent.start(MockState.new())
     agent.onSlotFilled(request.id, slotIndex)
     check eventually onSlotFilledCalled
-
-  test "ErrorHandlingState.onError can be overridden at the state level":
-    agent.start(MockErrorState.new())
-    check eventually onErrorCalled
