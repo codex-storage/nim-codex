@@ -42,6 +42,7 @@ type
   Marketplace_InsufficientCollateral* = object of SolidityError
   Marketplace_InsufficientReward* = object of SolidityError
   Marketplace_InvalidCid* = object of SolidityError
+  Marketplace_DurationExceedsLimit* = object of SolidityError
   Proofs_InsufficientBlockHeight* = object of SolidityError
   Proofs_InvalidProof* = object of SolidityError
   Proofs_ProofAlreadySubmitted* = object of SolidityError

@@ -91,6 +91,9 @@ method repairRewardPercentage*(
 ): Future[uint8] {.base, async: (raises: [CancelledError, MarketError]).} =
   raiseAssert("not implemented")
 
+method requestDurationLimit*(market: Market): Future[UInt256] {.base, async.} =
+  raiseAssert("not implemented")
+  
 method proofDowntime*(
     market: Market
 ): Future[uint8] {.base, async: (raises: [CancelledError, MarketError]).} =

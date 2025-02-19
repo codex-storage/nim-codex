@@ -124,6 +124,11 @@ method repairRewardPercentage*(
     let config = await market.config()
     return config.collateral.repairRewardPercentage
 
+method requestDurationLimit*(market: OnChainMarket): Future[UInt256] {.async.} =
+  convertEthersError:
+    let config = await market.config()
+    return config.requestDurationLimit
+
 method proofDowntime*(
     market: OnChainMarket
 ): Future[uint8] {.async: (raises: [CancelledError, MarketError]).} =
@@ -379,7 +384,8 @@ method subscribeSlotFilled*(
 method subscribeSlotFreed*(
     market: OnChainMarket, callback: OnSlotFreed
 ): Future[MarketSubscription] {.async.} =
-  proc onEvent(eventResult: ?!SlotFreed) {.upraises: [].} =
+
+proc onEvent(eventResult: ?!SlotFreed) {.upraises: [].} =
     without event =? eventResult, eventErr:
       error "There was an error in SlotFreed subscription", msg = eventErr.msg
       return

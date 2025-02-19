@@ -1,9 +1,9 @@
 import pkg/stint
 import ../../logutils
 import ../../market
+import ../../utils/exceptions
 import ../statemachine
 import ../salesagent
-import ./errorhandling
 import ./filled
 import ./cancelled
 import ./failed
@@ -13,7 +13,7 @@ import ./errored
 logScope:
   topics = "marketplace sales filling"
 
-type SaleFilling* = ref object of ErrorHandlingState
+type SaleFilling* = ref object of SaleState
   proof*: Groth16Proof
 
 method `$`*(state: SaleFilling): string =
@@ -25,7 +25,9 @@ method onCancelled*(state: SaleFilling, request: StorageRequest): ?State =
 method onFailed*(state: SaleFilling, request: StorageRequest): ?State =
   return some State(SaleFailed())
 
-method run(state: SaleFilling, machine: Machine): Future[?State] {.async.} =
+method run*(
+    state: SaleFilling, machine: Machine
+): Future[?State] {.async: (raises: []).} =
   let data = SalesAgent(machine).data
   let market = SalesAgent(machine).context.market
   without (request =? data.request):
@@ -35,19 +37,25 @@ method run(state: SaleFilling, machine: Machine): Future[?State] {.async.} =
     requestId = data.requestId
     slotIndex = data.slotIndex
 
-  without collateral =? await market.slotCollateral(data.requestId, data.slotIndex):
-    error "Failure attempting to fill slot: unable to calculate collateral; configuration data may not be retrievable."
-    return
-
-  debug "Filling slot"
   try:
-    await market.fillSlot(data.requestId, data.slotIndex, state.proof, collateral)
-  except MarketError as e:
-    if e.msg.contains "Slot is not free":
-      debug "Slot is already filled, ignoring slot"
-      return some State(SaleIgnored(reprocessSlot: false, returnBytes: true))
-    else:
-      return some State(SaleErrored(error: e))
-  # other CatchableErrors are handled "automatically" by the ErrorHandlingState
+    without collateral =? await market.slotCollateral(data.requestId, data.slotIndex):
+      error "Failure attempting to fill slot: unable to calculate collateral; configuration data may not be retrievable."
+      return
 
-  return some State(SaleFilled())
+    debug "Filling slot"
+    try:
+      await market.fillSlot(data.requestId, data.slotIndex, state.proof, collateral)
+    except MarketError as e:
+      if e.msg.contains "Slot is not free":
+        debug "Slot is already filled, ignoring slot"
+        return some State(SaleIgnored(reprocessSlot: false, returnBytes: true))
+      else:
+        return some State(SaleErrored(error: e))
+    # other CatchableErrors are handled "automatically" by the SaleState
+
+    return some State(SaleFilled())
+  except CancelledError as e:
+    trace "SaleFilling.run was cancelled", error = e.msgDetail
+  except CatchableError as e:
+    error "Error during SaleFilling.run", error = e.msgDetail
+    return some State(SaleErrored(error: e))

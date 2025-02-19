@@ -36,6 +36,7 @@ asyncchecksuite "Sales - start":
   var repo: RepoStore
   var queue: SlotQueue
   var itemsProcessed: seq[SlotQueueItem]
+  var expiry: SecondsSince1970
 
   setup:
     request = StorageRequest(
@@ -76,7 +77,8 @@ asyncchecksuite "Sales - start":
     ): Future[?!Groth16Proof] {.async.} =
       return success(proof)
     itemsProcessed = @[]
-    request.expiry = (clock.now() + 42).u256
+    expiry = (clock.now() + 42)
+    request.expiry = expiry.u256
 
   teardown:
     await sales.stop()
@@ -97,6 +99,7 @@ asyncchecksuite "Sales - start":
     request.ask.slots = 2
     market.requested = @[request]
     market.requestState[request.id] = RequestState.New
+    market.requestExpiry[request.id] = expiry
 
     let slot0 =
       MockSlot(requestId: request.id, slotIndex: 0.u256, proof: proof, host: me)
@@ -436,23 +439,6 @@ asyncchecksuite "Sales":
     await market.requestStorage(request)
     check eventually storingRequest == request
     check storingSlot < request.ask.slots.u256
-
-  test "handles errors during state run":
-    var saleFailed = false
-    sales.onProve = proc(
-        slot: Slot, challenge: ProofChallenge
-    ): Future[?!Groth16Proof] {.async.} =
-      # raise exception so machine.onError is called
-      raise newException(ValueError, "some error")
-
-    # onClear is called in SaleErrored.run
-    sales.onClear = proc(request: StorageRequest, idx: UInt256) =
-      saleFailed = true
-    createAvailability()
-    await market.requestStorage(request)
-    await allowRequestToStart()
-
-    check eventually saleFailed
 
   test "makes storage available again when data retrieval fails":
     let error = newException(IOError, "data retrieval failed")

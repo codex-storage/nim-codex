@@ -122,12 +122,14 @@ proc new*(_: type MockMarket, clock: ?Clock = Clock.none): MockMarket =
     collateral: CollateralConfig(
       repairRewardPercentage: 10,
       maxNumberOfSlashes: 5,
-      slashCriterion: 3,
       slashPercentage: 10,
+      validatorRewardPercentage: 20,
     ),
     proofs: ProofConfig(
       period: 10.u256, timeout: 5.u256, downtime: 64.uint8, downtimeProduct: 67.uint8
     ),
+    reservations: SlotReservationsConfig(maxReservations: 3),
+    requestDurationLimit: (60 * 60 * 24 * 30).u256,
   )
   MockMarket(
     signer: Address.example, config: config, canReserveSlot: true, clock: clock
@@ -150,6 +152,9 @@ method proofTimeout*(
     market: MockMarket
 ): Future[UInt256] {.async: (raises: [CancelledError, MarketError]).} =
   return market.config.proofs.timeout
+
+method requestDurationLimit*(market: MockMarket): Future[UInt256] {.async.} =
+  return market.config.requestDurationLimit
 
 method proofDowntime*(
     market: MockMarket

@@ -4,16 +4,16 @@ import pkg/questionable/results
 import ../../blocktype as bt
 import ../../logutils
 import ../../market
+import ../../utils/exceptions
 import ../salesagent
 import ../statemachine
-import ./errorhandling
 import ./cancelled
 import ./failed
 import ./filled
 import ./initialproving
 import ./errored
 
-type SaleDownloading* = ref object of ErrorHandlingState
+type SaleDownloading* = ref object of SaleState
 
 logScope:
   topics = "marketplace sales downloading"
@@ -32,7 +32,9 @@ method onSlotFilled*(
 ): ?State =
   return some State(SaleFilled())
 
-method run*(state: SaleDownloading, machine: Machine): Future[?State] {.async.} =
+method run*(
+    state: SaleDownloading, machine: Machine
+): Future[?State] {.async: (raises: []).} =
   let agent = SalesAgent(machine)
   let data = agent.data
   let context = agent.context
@@ -64,12 +66,18 @@ method run*(state: SaleDownloading, machine: Machine): Future[?State] {.async.} 
     trace "Releasing batch of bytes written to disk", bytes
     return await reservations.release(reservation.id, reservation.availabilityId, bytes)
 
-  let slotId = slotId(request.id, data.slotIndex)
-  let isRepairing = (await context.market.slotState(slotId)) == SlotState.Repair
+  try:
+    let slotId = slotId(request.id, data.slotIndex)
+    let isRepairing = (await context.market.slotState(slotId, isRepairing)) == SlotState.Repair
+  
+    trace "Starting download"
+    if err =? (await onStore(request, data.slotIndex, onBlocks)).errorOption:
+      return some State(SaleErrored(error: err, reprocessSlot: false))
 
-  trace "Starting download"
-  if err =? (await onStore(request, data.slotIndex, onBlocks, isRepairing)).errorOption:
-    return some State(SaleErrored(error: err, reprocessSlot: false))
-
-  trace "Download complete"
-  return some State(SaleInitialProving())
+    trace "Download complete"
+    return some State(SaleInitialProving())
+  except CancelledError as e:
+    trace "SaleDownloading.run was cancelled", error = e.msgDetail
+  except CatchableError as e:
+    error "Error during SaleDownloading.run", error = e.msgDetail
+    return some State(SaleErrored(error: e))
