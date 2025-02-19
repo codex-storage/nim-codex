@@ -38,9 +38,10 @@ const
 
 type
   RetriesExhaustedError* = object of CatchableError
+  BlockHandle* = Future[Block].Raising([CancelledError, RetriesExhaustedError])
 
   BlockReq* = object
-    handle*: Future[Block].Raising([CancelledError, RetriesExhaustedError])
+    handle*: BlockHandle
     inFlight*: bool
     blockRetries*: int
     startTime*: int64
