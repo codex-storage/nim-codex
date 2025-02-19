@@ -288,7 +288,7 @@ method queryPastStorageRequestedEvents*(
 
 method slotCollateral*(
     market: Market, requestId: RequestId, slotIndex: UInt256
-): Future[?UInt256] {.base, async: (raises: []).} =
+): Future[?UInt256] {.base, async: (raises: [CancelledError]).} =
   raiseAssert("not implemented")
 
 method slotCollateral*(

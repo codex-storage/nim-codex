@@ -548,7 +548,7 @@ method unsubscribe*(subscription: SlotReservationsFullSubscription) {.async.} =
 
 method slotCollateral*(
     market: MockMarket, requestId: RequestId, slotIndex: UInt256
-): Future[?UInt256] {.async: (raises: []).} =
+): Future[?UInt256] {.async: (raises: [CancelledError]).} =
   let slotid = slotId(requestId, slotIndex)
 
   try:
@@ -558,7 +558,7 @@ method slotCollateral*(
       return UInt256.none
 
     return market.slotCollateral(request.ask.collateralPerSlot, state)
-  except CatchableError:
+  except MarketError:
     return UInt256.none
 
 method slotCollateral*(

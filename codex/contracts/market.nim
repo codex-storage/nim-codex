@@ -547,7 +547,7 @@ method queryPastStorageRequestedEvents*(
 
 method slotCollateral*(
     market: OnChainMarket, requestId: RequestId, slotIndex: UInt256
-): Future[?UInt256] {.async: (raises: []).} =
+): Future[?UInt256] {.async: (raises: [CancelledError]).} =
   let slotid = slotId(requestId, slotIndex)
 
   try:
@@ -557,8 +557,8 @@ method slotCollateral*(
       return UInt256.none
 
     return market.slotCollateral(request.ask.collateralPerSlot, slotState)
-  except CatchableError as err:
-    error "Cannot retrieve the slot state", error = err.msg
+  except MarketError as err:
+    error "Cannot retrieve the slot collateral", error = err.msg
     return UInt256.none
 
 method slotCollateral*(
