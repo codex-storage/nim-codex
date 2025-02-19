@@ -155,7 +155,7 @@ proc cleanUp(
   if reprocessSlot and request =? data.request:
     without collateral =?
       await sales.context.market.slotCollateral(data.requestId, data.slotIndex):
-      error "Unable to calculate collateral; configuration data may not be retrievable."
+      error "Failed to re-add item back to the slot queue: unable to calculate collateral; configuration data may not be retrievable."
       return
 
     let queue = sales.context.slotQueue
@@ -348,7 +348,7 @@ proc onSlotFreed(sales: Sales, requestId: RequestId, slotIndex: UInt256) =
     # would not allow this flexibility.
     without collateral =?
       market.slotCollateral(request.ask.collateralPerSlot, SlotState.Repair):
-      error "Unable to calculate collateral; configuration data may not be retrievable."
+      error "Failed to add freed slot to queue: unable to calculate collateral; configuration data may not be retrievable."
       return
 
     without slotQueueItem =?
