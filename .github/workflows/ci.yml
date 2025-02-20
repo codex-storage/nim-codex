@@ -27,10 +27,15 @@ jobs:
         uses: fabiocaccamo/create-matrix-action@v5
         with:
           matrix: |
-            os {linux},   cpu {amd64}, builder {runner-node-01-linux-03-eu-hel1},   tests {integration-parallel}, nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
-            os {macos},   cpu {amd64}, builder {macos-14-large},       tests {integration-parallel}, nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
-            os {windows}, cpu {amd64}, builder {windows-latest-amd64-32vcpu}, tests {integration-parallel}, nim_version {${{ env.nim_version }}}, shell {msys2}
-
+            os {linux},   cpu {amd64}, builder {ubuntu-latest},               tests {integration-parallel}, nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
+            os {linux},   cpu {arm64}, builder {ubuntu-24.04-arm},            tests {integration-parallel}, nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
+            os {linux},   cpu {amd64}, builder {ubuntu-latest-amd64-16vcpu},  tests {integration-parallel}, nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
+            os {macos},   cpu {amd64}, builder {macos-13},                    tests {integration-parallel}, nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
+            os {macos},   cpu {amd64}, builder {macos-latest},                tests {integration-parallel}, nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
+            os {macos},   cpu {amd64}, builder {macos-14-large},              tests {integration-parallel}, nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
+            os {macos},   cpu {amd64}, builder {macos-14-xlarge},             tests {integration-parallel}, nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
+            os {windows}, cpu {amd64}, builder {windows-latest},              tests {integration-parallel}, nim_version {${{ env.nim_version }}}, shell {msys2}
+            os {windows}, cpu {amd64}, builder {windows-latest-amd64-16vcpu}, tests {integration-parallel}, nim_version {${{ env.nim_version }}}, shell {msys2}
 
   build:
     needs: matrix
