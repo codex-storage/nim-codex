@@ -553,7 +553,11 @@ proc requestStorage*(
   success purchase.id
 
 proc onStore(
-    self: CodexNodeRef, request: StorageRequest, slotIdx: UInt256, blocksCb: BlocksCb
+    self: CodexNodeRef,
+    request: StorageRequest,
+    slotIdx: UInt256,
+    blocksCb: BlocksCb,
+    isRepairing: bool = false,
 ): Future[?!void] {.async.} =
   ## store data in local storage
   ##
@@ -565,6 +569,10 @@ proc onStore(
     slotIdx = slotIdx
 
   trace "Received a request to store a slot"
+
+  # TODO: Use the isRepairing to manage the slot download.
+  # If isRepairing is true, the slot has to be repaired before
+  # being downloaded.
 
   without manifest =? (await self.fetchManifest(cid)), err:
     trace "Unable to fetch manifest for cid", cid, err = err.msg
@@ -704,9 +712,12 @@ proc start*(self: CodexNodeRef) {.async.} =
 
   if hostContracts =? self.contracts.host:
     hostContracts.sales.onStore = proc(
-        request: StorageRequest, slot: UInt256, onBatch: BatchProc
+        request: StorageRequest,
+        slot: UInt256,
+        onBatch: BatchProc,
+        isRepairing: bool = false,
     ): Future[?!void] =
-      self.onStore(request, slot, onBatch)
+      self.onStore(request, slot, onBatch, isRepairing)
 
     hostContracts.sales.onExpiryUpdate = proc(
         rootCid: Cid, expiry: SecondsSince1970

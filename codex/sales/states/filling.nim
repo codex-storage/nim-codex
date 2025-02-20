@@ -38,18 +38,9 @@ method run*(
     slotIndex = data.slotIndex
 
   try:
-    let slotState = await market.slotState(slotId(data.requestId, data.slotIndex))
-    let requestedCollateral = request.ask.collateralPerSlot
-    var collateral: UInt256
-
-    if slotState == SlotState.Repair:
-      # When repairing the node gets "discount" on the collateral that it needs to
-      let repairRewardPercentage = (await market.repairRewardPercentage).u256
-      collateral =
-        requestedCollateral -
-        ((requestedCollateral * repairRewardPercentage)).div(100.u256)
-    else:
-      collateral = requestedCollateral
+    without collateral =? await market.slotCollateral(data.requestId, data.slotIndex):
+      error "Failure attempting to fill slot: unable to calculate collateral; configuration data may not be retrievable."
+      return
 
     debug "Filling slot"
     try:

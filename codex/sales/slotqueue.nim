@@ -33,7 +33,7 @@ type
     slotSize: UInt256
     duration: UInt256
     pricePerBytePerSecond: UInt256
-    collateralPerByte: UInt256
+    collateral: UInt256 # Collateral computed
     expiry: UInt256
     seen: bool
 
@@ -75,9 +75,6 @@ proc profitability(item: SlotQueueItem): UInt256 =
     slotSize: item.slotSize,
   ).pricePerSlot
 
-proc collateralPerSlot(item: SlotQueueItem): UInt256 =
-  StorageAsk(collateralPerByte: item.collateralPerByte, slotSize: item.slotSize).collateralPerSlot
-
 proc `<`*(a, b: SlotQueueItem): bool =
   # for A to have a higher priority than B (in a min queue), A must be less than
   # B.
@@ -94,8 +91,8 @@ proc `<`*(a, b: SlotQueueItem): bool =
   scoreA.addIf(a.profitability > b.profitability, 3)
   scoreB.addIf(a.profitability < b.profitability, 3)
 
-  scoreA.addIf(a.collateralPerSlot < b.collateralPerSlot, 2)
-  scoreB.addIf(a.collateralPerSlot > b.collateralPerSlot, 2)
+  scoreA.addIf(a.collateral < b.collateral, 2)
+  scoreB.addIf(a.collateral > b.collateral, 2)
 
   scoreA.addIf(a.expiry > b.expiry, 1)
   scoreB.addIf(a.expiry < b.expiry, 1)
@@ -136,6 +133,7 @@ proc init*(
     slotIndex: uint16,
     ask: StorageAsk,
     expiry: UInt256,
+    collateral: UInt256,
     seen = false,
 ): SlotQueueItem =
   SlotQueueItem(
@@ -144,25 +142,32 @@ proc init*(
     slotSize: ask.slotSize,
     duration: ask.duration,
     pricePerBytePerSecond: ask.pricePerBytePerSecond,
-    collateralPerByte: ask.collateralPerByte,
+    collateral: collateral,
     expiry: expiry,
     seen: seen,
   )
 
 proc init*(
-    _: type SlotQueueItem, request: StorageRequest, slotIndex: uint16
+    _: type SlotQueueItem,
+    request: StorageRequest,
+    slotIndex: uint16,
+    collateral: UInt256,
 ): SlotQueueItem =
-  SlotQueueItem.init(request.id, slotIndex, request.ask, request.expiry)
+  SlotQueueItem.init(request.id, slotIndex, request.ask, request.expiry, collateral)
 
 proc init*(
-    _: type SlotQueueItem, requestId: RequestId, ask: StorageAsk, expiry: UInt256
-): seq[SlotQueueItem] =
+    _: type SlotQueueItem,
+    requestId: RequestId,
+    ask: StorageAsk,
+    expiry: UInt256,
+    collateral: UInt256,
+): seq[SlotQueueItem] {.raises: [SlotsOutOfRangeError].} =
   if not ask.slots.inRange:
     raise newException(SlotsOutOfRangeError, "Too many slots")
 
   var i = 0'u16
   proc initSlotQueueItem(): SlotQueueItem =
-    let item = SlotQueueItem.init(requestId, i, ask, expiry)
+    let item = SlotQueueItem.init(requestId, i, ask, expiry, collateral)
     inc i
     return item
 
@@ -170,8 +175,10 @@ proc init*(
   Rng.instance.shuffle(items)
   return items
 
-proc init*(_: type SlotQueueItem, request: StorageRequest): seq[SlotQueueItem] =
-  return SlotQueueItem.init(request.id, request.ask, request.expiry)
+proc init*(
+    _: type SlotQueueItem, request: StorageRequest, collateral: UInt256
+): seq[SlotQueueItem] =
+  return SlotQueueItem.init(request.id, request.ask, request.expiry, collateral)
 
 proc inRange*(val: SomeUnsignedInt): bool =
   val.uint16 in SlotQueueSize.low .. SlotQueueSize.high
@@ -233,25 +240,7 @@ proc unpause*(self: SlotQueue) =
   # set unpaused flag to true -- unblocks coroutines waiting on unpaused.wait()
   self.unpaused.fire()
 
-proc populateItem*(
-    self: SlotQueue, requestId: RequestId, slotIndex: uint16
-): ?SlotQueueItem =
-  trace "populate item, items in queue", len = self.queue.len
-  for item in self.queue.items:
-    trace "populate item search", itemRequestId = item.requestId, requestId
-    if item.requestId == requestId:
-      return some SlotQueueItem(
-        requestId: requestId,
-        slotIndex: slotIndex,
-        slotSize: item.slotSize,
-        duration: item.duration,
-        pricePerBytePerSecond: item.pricePerBytePerSecond,
-        collateralPerByte: item.collateralPerByte,
-        expiry: item.expiry,
-      )
-  return none SlotQueueItem
-
-proc push*(self: SlotQueue, item: SlotQueueItem): ?!void =
+proc push*(self: SlotQueue, item: SlotQueueItem): ?!void {.raises: [].} =
   logScope:
     requestId = item.requestId
     slotIndex = item.slotIndex
