@@ -25,8 +25,6 @@ type
   CircomInputs* = Inputs
   VerifyResult* = Atomic[bool]
 
-export VerifyResult
-
 proc toCircomInputs*(inputs: ProofInputs[Poseidon2Hash]): CircomInputs =
   var
     slotIndex = inputs.slotIndex.toF.toBytes.toArray32
