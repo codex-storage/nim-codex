@@ -136,8 +136,8 @@ proc bootstrapInteractions(s: CodexServer): Future[void] {.async.} =
 
     try:
       await market.loadConfig()
-    except MarketError:
-      error "Cannot load market configuration", error = getCurrentExceptionMsg()
+    except MarketError as e:
+      fatal "Cannot load market configuration", error = e.msg
       quit QuitFailure
 
     let purchasing = Purchasing.new(market, clock)
