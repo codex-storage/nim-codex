@@ -33,7 +33,7 @@ method onFailed*(state: SalePreparing, request: StorageRequest): ?State =
   return some State(SaleFailed())
 
 method onSlotFilled*(
-    state: SalePreparing, requestId: RequestId, slotIndex: UInt256
+    state: SalePreparing, requestId: RequestId, slotIndex: uint64
 ): ?State =
   return some State(SaleFilled())
 
@@ -79,26 +79,26 @@ method run*(
 
     info "Availability found for request, creating reservation"
 
-  without reservation =?
-    await reservations.createReservation(
-      availability.id, request.ask.slotSize, request.id, data.slotIndex,
-      request.ask.collateralPerByte, request.ask.duration,
-    ), error:
-    trace "Creation of reservation failed"
-    # Race condition:
-    # reservations.findAvailability (line 64) is no guarantee. You can never know for certain that the reservation can be created until after you have it.
-    # Should createReservation fail because there's no space, we proceed to SaleIgnored.
-    if error of BytesOutOfBoundsError:
-      # Lets monitor how often this happen and if it is often we can make it more inteligent to handle it
-      codex_reservations_availability_mismatch.inc()
-      return some State(SaleIgnored(reprocessSlot: true))
+    without reservation =?
+      await reservations.createReservation(
+        availability.id, request.ask.slotSize, request.id, data.slotIndex,
+        request.ask.collateralPerByte, request.ask.duration,
+      ), error:
+      trace "Creation of reservation failed"
+      # Race condition:
+      # reservations.findAvailability (line 64) is no guarantee. You can never know for certain that the reservation can be created until after you have it.
+      # Should createReservation fail because there's no space, we proceed to SaleIgnored.
+      if error of BytesOutOfBoundsError:
+        # Lets monitor how often this happen and if it is often we can make it more inteligent to handle it
+        codex_reservations_availability_mismatch.inc()
+        return some State(SaleIgnored(reprocessSlot: true))
 
-      return some State(SaleErrored(error: error))
+        return some State(SaleErrored(error: error))
 
-    trace "Reservation created successfully"
+      trace "Reservation created successfully"
 
-    data.reservation = some reservation
-    return some State(SaleSlotReserving())
+      data.reservation = some reservation
+      return some State(SaleSlotReserving())
   except CancelledError as e:
     trace "SalePreparing.run was cancelled", error = e.msgDetail
   except CatchableError as e:

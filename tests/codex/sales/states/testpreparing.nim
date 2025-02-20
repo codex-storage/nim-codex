@@ -22,7 +22,7 @@ import ../../helpers/mockclock
 
 asyncchecksuite "sales state 'preparing'":
   let request = StorageRequest.example
-  let slotIndex = (request.ask.slots div 2).u256
+  let slotIndex = request.ask.slots div 2
   let market = MockMarket.new()
   let clock = MockClock.new()
   var agent: SalesAgent
@@ -34,9 +34,9 @@ asyncchecksuite "sales state 'preparing'":
 
   setup:
     availability = Availability.init(
-      totalSize = request.ask.slotSize + 100.u256,
-      freeSize = request.ask.slotSize + 100.u256,
-      duration = request.ask.duration + 60.u256,
+      totalSize = request.ask.slotSize + 100.uint64,
+      freeSize = request.ask.slotSize + 100.uint64,
+      duration = request.ask.duration + 60.uint64,
       minPricePerBytePerSecond = request.ask.pricePerBytePerSecond,
       totalCollateral = request.ask.collateralPerSlot * request.ask.slots.u256,
       enabled = true,

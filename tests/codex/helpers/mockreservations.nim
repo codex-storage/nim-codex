@@ -24,9 +24,9 @@ proc setCreateReservationThrowError*(
 method createReservation*(
     self: MockReservations,
     availabilityId: AvailabilityId,
-    slotSize: UInt256,
+    slotSize: uint64,
     requestId: RequestId,
-    slotIndex: UInt256,
+    slotIndex: uint64,
     collateralPerByte: UInt256,
     duration: UInt256,
 ): Future[?!Reservation] {.async.} =

@@ -150,16 +150,16 @@ proc cleanUp(
       ).errorOption:
     error "failure deleting reservation", error = deleteErr.msg
 
+  if data.slotIndex > uint16.high.uint64:
+    error "Cannot cast slot index to uint16", slotIndex = data.slotIndex
+    return
+
   # Re-add items back into the queue to prevent small availabilities from
   # draining the queue. Seen items will be ordered last.
   if reprocessSlot and request =? data.request:
     let queue = sales.context.slotQueue
     var seenItem = SlotQueueItem.init(
-      data.requestId,
-      data.slotIndex.truncate(uint16),
-      data.ask,
-      request.expiry,
-      seen = true,
+      data.requestId, data.slotIndex.uint16, data.ask, request.expiry, seen = true
     )
     trace "pushing ignored item to queue, marked as seen"
     if err =? queue.push(seenItem).errorOption:
@@ -172,7 +172,7 @@ proc cleanUp(
     processing.complete()
 
 proc filled(
-    sales: Sales, request: StorageRequest, slotIndex: UInt256, processing: Future[void]
+    sales: Sales, request: StorageRequest, slotIndex: uint64, processing: Future[void]
 ) =
   if onSale =? sales.context.onSale:
     onSale(request, slotIndex)
@@ -184,16 +184,15 @@ proc filled(
 proc processSlot(sales: Sales, item: SlotQueueItem, done: Future[void]) =
   debug "Processing slot from queue", requestId = item.requestId, slot = item.slotIndex
 
-  let agent = newSalesAgent(
-    sales.context, item.requestId, item.slotIndex.u256, none StorageRequest
-  )
+  let agent =
+    newSalesAgent(sales.context, item.requestId, item.slotIndex, none StorageRequest)
 
   agent.onCleanUp = proc(
       returnBytes = false, reprocessSlot = false, returnedCollateral = UInt256.none
   ) {.async.} =
     await sales.cleanUp(agent, returnBytes, reprocessSlot, returnedCollateral, done)
 
-  agent.onFilled = some proc(request: StorageRequest, slotIndex: UInt256) =
+  agent.onFilled = some proc(request: StorageRequest, slotIndex: uint64) =
     sales.filled(request, slotIndex, done)
 
   agent.start(SalePreparing())
@@ -285,7 +284,7 @@ proc onAvailabilityAdded(
     queue.unpause()
 
 proc onStorageRequested(
-    sales: Sales, requestId: RequestId, ask: StorageAsk, expiry: UInt256
+    sales: Sales, requestId: RequestId, ask: StorageAsk, expiry: uint64
 ) =
   logScope:
     topics = "marketplace sales onStorageRequested"
@@ -314,7 +313,7 @@ proc onStorageRequested(
       else:
         warn "Error adding request to SlotQueue", error = err.msg
 
-proc onSlotFreed(sales: Sales, requestId: RequestId, slotIndex: UInt256) =
+proc onSlotFreed(sales: Sales, requestId: RequestId, slotIndex: uint64) =
   logScope:
     topics = "marketplace sales onSlotFreed"
     requestId
@@ -327,8 +326,12 @@ proc onSlotFreed(sales: Sales, requestId: RequestId, slotIndex: UInt256) =
     let market = context.market
     let queue = context.slotQueue
 
-    # first attempt to populate request using existing slot metadata in queue
-    without var found =? queue.populateItem(requestId, slotIndex.truncate(uint16)):
+    if slotIndex > uint16.high.uint64:
+      error "Cannot cast slot index to uint16, value = ", slotIndex
+      return
+
+    # first attempt to populate request using existing  metadata in queue
+    without var found =? queue.populateItem(requestId, slotIndex.uint16):
       trace "no existing request metadata, getting request info from contract"
       # if there's no existing slot for that request, retrieve the request
       # from the contract.
@@ -337,7 +340,7 @@ proc onSlotFreed(sales: Sales, requestId: RequestId, slotIndex: UInt256) =
           error "unknown request in contract"
           return
 
-        found = SlotQueueItem.init(request, slotIndex.truncate(uint16))
+        found = SlotQueueItem.init(request, slotIndex.uint16)
       except CancelledError:
         discard # do not propagate as addSlotToQueue was asyncSpawned
       except CatchableError as e:
@@ -355,7 +358,7 @@ proc subscribeRequested(sales: Sales) {.async.} =
   let context = sales.context
   let market = context.market
 
-  proc onStorageRequested(requestId: RequestId, ask: StorageAsk, expiry: UInt256) =
+  proc onStorageRequested(requestId: RequestId, ask: StorageAsk, expiry: uint64) =
     sales.onStorageRequested(requestId, ask, expiry)
 
   try:
@@ -428,9 +431,13 @@ proc subscribeSlotFilled(sales: Sales) {.async.} =
   let market = context.market
   let queue = context.slotQueue
 
-  proc onSlotFilled(requestId: RequestId, slotIndex: UInt256) =
+  proc onSlotFilled(requestId: RequestId, slotIndex: uint64) =
+    if slotIndex > uint16.high.uint64:
+      error "Cannot cast slot index to uint16, value = ", slotIndex
+      return
+
     trace "slot filled, removing from slot queue", requestId, slotIndex
-    queue.delete(requestId, slotIndex.truncate(uint16))
+    queue.delete(requestId, slotIndex.uint16)
 
     for agent in sales.agents:
       agent.onSlotFilled(requestId, slotIndex)
@@ -447,7 +454,7 @@ proc subscribeSlotFreed(sales: Sales) {.async.} =
   let context = sales.context
   let market = context.market
 
-  proc onSlotFreed(requestId: RequestId, slotIndex: UInt256) =
+  proc onSlotFreed(requestId: RequestId, slotIndex: uint64) =
     sales.onSlotFreed(requestId, slotIndex)
 
   try:
@@ -463,9 +470,13 @@ proc subscribeSlotReservationsFull(sales: Sales) {.async.} =
   let market = context.market
   let queue = context.slotQueue
 
-  proc onSlotReservationsFull(requestId: RequestId, slotIndex: UInt256) =
+  proc onSlotReservationsFull(requestId: RequestId, slotIndex: uint64) =
+    if slotIndex > uint16.high.uint64:
+      error "Cannot cast slot index to uint16, value = ", slotIndex
+      return
+
     trace "reservations for slot full, removing from slot queue", requestId, slotIndex
-    queue.delete(requestId, slotIndex.truncate(uint16))
+    queue.delete(requestId, slotIndex.uint16)
 
   try:
     let sub = await market.subscribeSlotReservationsFull(onSlotReservationsFull)

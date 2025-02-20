@@ -29,7 +29,7 @@ type
   OnCleanUp* = proc(
     returnBytes = false, reprocessSlot = false, returnedCollateral = UInt256.none
   ): Future[void] {.gcsafe, upraises: [].}
-  OnFilled* = proc(request: StorageRequest, slotIndex: UInt256) {.gcsafe, upraises: [].}
+  OnFilled* = proc(request: StorageRequest, slotIndex: uint64) {.gcsafe, upraises: [].}
 
   SalesAgentError = object of CodexError
   AllSlotsFilledError* = object of SalesAgentError
@@ -40,7 +40,7 @@ func `==`*(a, b: SalesAgent): bool =
 proc newSalesAgent*(
     context: SalesContext,
     requestId: RequestId,
-    slotIndex: UInt256,
+    slotIndex: uint64,
     request: ?StorageRequest,
 ): SalesAgent =
   var agent = SalesAgent.new()
@@ -121,7 +121,7 @@ method onFailed*(
     agent.schedule(failedEvent(request))
 
 method onSlotFilled*(
-    agent: SalesAgent, requestId: RequestId, slotIndex: UInt256
+    agent: SalesAgent, requestId: RequestId, slotIndex: uint64
 ) {.base, gcsafe, upraises: [].} =
   if agent.data.requestId == requestId and agent.data.slotIndex == slotIndex:
     agent.schedule(slotFilledEvent(requestId, slotIndex))

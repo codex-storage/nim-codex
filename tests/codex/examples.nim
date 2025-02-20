@@ -68,13 +68,13 @@ proc example*(_: type MultiHash, mcodec = Sha256HashCodec): MultiHash =
 proc example*(
     _: type Availability, collateralPerByte = uint8.example.u256
 ): Availability =
-  let totalSize = uint16.example.u256
+  let totalSize = uint16.example.uint64
   Availability.init(
     totalSize = totalSize,
-    freeSize = uint16.example.u256,
-    duration = uint16.example.u256,
+    freeSize = uint16.example.uint64,
+    duration = uint16.example.uint64,
     minPricePerBytePerSecond = uint8.example.u256,
-    totalCollateral = totalSize * collateralPerByte,
+    totalCollateral = totalSize.u256 * collateralPerByte,
     enabled = true,
     until = 0.SecondsSince1970,
   )
@@ -82,7 +82,7 @@ proc example*(
 proc example*(_: type Reservation): Reservation =
   Reservation.init(
     availabilityId = AvailabilityId(array[32, byte].example),
-    size = uint16.example.u256,
+    size = uint16.example.uint64,
     slotId = SlotId.example,
   )
 

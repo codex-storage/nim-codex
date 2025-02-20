@@ -117,11 +117,11 @@ proc space*(client: CodexClient): ?!RestRepoStore =
 proc requestStorageRaw*(
     client: CodexClient,
     cid: Cid,
-    duration: UInt256,
+    duration: uint64,
     pricePerBytePerSecond: UInt256,
     proofProbability: UInt256,
     collateralPerByte: UInt256,
-    expiry: uint = 0,
+    expiry: uint64 = 0,
     nodes: uint = 3,
     tolerance: uint = 1,
 ): Response =
@@ -146,10 +146,10 @@ proc requestStorageRaw*(
 proc requestStorage*(
     client: CodexClient,
     cid: Cid,
-    duration: UInt256,
+    duration: uint64,
     pricePerBytePerSecond: UInt256,
     proofProbability: UInt256,
-    expiry: uint,
+    expiry: uint64,
     collateralPerByte: UInt256,
     nodes: uint = 3,
     tolerance: uint = 1,
@@ -187,7 +187,8 @@ proc getSlots*(client: CodexClient): ?!seq[Slot] =
 
 proc postAvailabilityRaw*(
     client: CodexClient,
-    totalSize, duration, minPricePerBytePerSecond, totalCollateral: UInt256,
+    totalSize, duration: uint64,
+    minPricePerBytePerSecond, totalCollateral: UInt256,
     enabled: ?bool = bool.none,
     until: ?SecondsSince1970 = SecondsSince1970.none,
 ): Response =
@@ -226,8 +227,8 @@ proc postAvailability*(
 proc patchAvailabilityRaw*(
     client: CodexClient,
     availabilityId: AvailabilityId,
-    totalSize, freeSize, duration, minPricePerBytePerSecond, totalCollateral: ?UInt256 =
-      UInt256.none,
+    totalSize, freeSize, duration: ?uint64 = uint64.none,
+    minPricePerBytePerSecond, totalCollateral: ?UInt256 = UInt256.none,
     enabled: ?bool = bool.none,
     until: ?SecondsSince1970 = SecondsSince1970.none,
 ): Response =
@@ -264,8 +265,8 @@ proc patchAvailabilityRaw*(
 proc patchAvailability*(
     client: CodexClient,
     availabilityId: AvailabilityId,
-    totalSize, duration, minPricePerBytePerSecond, totalCollateral: ?UInt256 =
-      UInt256.none,
+    totalSize, duration: ?uint64 = uint64.none,
+    minPricePerBytePerSecond, totalCollateral: ?UInt256 = UInt256.none,
     enabled: ?bool = bool.none,
     until: ?SecondsSince1970 = SecondsSince1970.none,
 ): void =
