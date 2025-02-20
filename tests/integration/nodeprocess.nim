@@ -14,6 +14,8 @@ import ./codexclient
 export codexclient
 export chronicles
 
+{.push raises: [].}
+
 logScope:
   topics = "integration testing node process"
 
@@ -39,12 +41,10 @@ method startedOutput(node: NodeProcess): string {.base, gcsafe.} =
 method processOptions(node: NodeProcess): set[AsyncProcessOption] {.base, gcsafe.} =
   raiseAssert "not implemented"
 
-method outputLineEndings(node: NodeProcess): string {.base, gcsafe, raises: [].} =
+method outputLineEndings(node: NodeProcess): string {.base, gcsafe.} =
   raiseAssert "not implemented"
 
-method onOutputLineCaptured(
-    node: NodeProcess, line: string
-) {.base, gcsafe, raises: [].} =
+method onOutputLineCaptured(node: NodeProcess, line: string) {.base, gcsafe.} =
   raiseAssert "not implemented"
 
 method start*(node: NodeProcess) {.base, async.} =
@@ -116,32 +116,37 @@ proc startNode*[T: NodeProcess](
   await node.start()
   return node
 
-method stop*(node: NodeProcess) {.base, async.} =
+method stop*(node: NodeProcess, expectedErrCode: int = -1) {.base, async.} =
   logScope:
     nodeName = node.name
 
   await node.trackedFutures.cancelTracked()
-  if node.process != nil:
+  if not node.process.isNil:
+    trace "terminating node process..."
     try:
-      trace "terminating node process..."
-      if errCode =? node.process.terminate().errorOption:
-        error "failed to terminate process", errCode = $errCode
-
-      trace "waiting for node process to exit"
-      let exitCode = await node.process.waitForExit(3.seconds)
-      if exitCode > 0:
-        error "failed to exit process, check for zombies", exitCode
-
-      trace "closing node process' streams"
-      await node.process.closeWait()
+      let exitCode = await node.process.terminateAndWaitForExit(2.seconds)
+      if exitCode > 0 and exitCode != 143 and # 143 = SIGTERM (initiated above)
+      exitCode != expectedErrCode:
+        error "process exited with a non-zero exit code", exitCode
+      trace "node stopped", exitCode
     except CancelledError as error:
       raise error
-    except CatchableError as e:
-      error "error stopping node process", error = e.msg
+    except CatchableError:
+      try:
+        let forcedExitCode = await node.process.killAndWaitForExit(3.seconds)
+        trace "node process forcibly killed with exit code: ", exitCode = forcedExitCode
+      except CatchableError as e:
+        error "failed to kill node process in time, it will be killed when the parent process exits",
+          error = e.msg
+        writeStackTrace()
     finally:
-      node.process = nil
+      proc closeProcessStreams() {.async: (raises: []).} =
+        trace "closing node process' streams"
+        await node.process.closeWait()
+        node.process = nil
+        trace "node process' streams closed"
 
-    trace "node stopped"
+      asyncSpawn closeProcessStreams()
 
 proc waitUntilOutput*(node: NodeProcess, output: string) {.async.} =
   logScope:
@@ -156,6 +161,9 @@ proc waitUntilOutput*(node: NodeProcess, output: string) {.async.} =
   await started.wait(60.seconds) # allow enough time for proof generation
 
 proc waitUntilStarted*(node: NodeProcess) {.async.} =
+  logScope:
+    nodeName = node.name
+
   try:
     await node.waitUntilOutput(node.startedOutput)
     trace "node started"
@@ -173,5 +181,5 @@ proc restart*(node: NodeProcess) {.async.} =
   await node.start()
   await node.waitUntilStarted()
 
-method removeDataDir*(node: NodeProcess) {.base.} =
+method removeDataDir*(node: NodeProcess) {.base, raises: [NodeProcessError].} =
   raiseAssert "[removeDataDir] not implemented"

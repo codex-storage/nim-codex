@@ -53,13 +53,20 @@ jobs:
         with:
           node-version: 18.15
 
-      - name: Start Ethereum node with Codex contracts
-        if: matrix.tests == 'contract' || matrix.tests == 'integration' || matrix.tests == 'tools' || matrix.tests == 'all'
+      - name: Install Ethereum node dependencies
+        if: matrix.tests == 'contract' || matrix.tests == 'integration' || matrix.tests == 'integration-parallel' || matrix.tests == 'tools' || matrix.tests == 'all'
         working-directory: vendor/codex-contracts-eth
         env:
           MSYS2_PATH_TYPE: inherit
         run: |
           npm install
+
+      - name: Run Ethereum node with Codex contracts
+        if: matrix.tests == 'contract' || matrix.tests == 'integration' || matrix.tests == 'tools' || matrix.tests == 'all'
+        working-directory: vendor/codex-contracts-eth
+        env:
+          MSYS2_PATH_TYPE: inherit
+        run: |
           npm start &
 
       ## Part 2 Tests ##
@@ -70,11 +77,15 @@ jobs:
       ## Part 3 Tests ##
       - name: Integration tests
         if: matrix.tests == 'integration' || matrix.tests == 'all'
-        run: make -j${ncpu} testIntegration
+        run: make -j${ncpu} PARALLEL=0 testIntegration
+
+      - name: Parallel integration tests
+        if: matrix.tests == 'integration-parallel'
+        run: make -j${ncpu} DEBUG=${{ runner.debug }} testIntegration
 
       - name: Upload integration tests log files
         uses: actions/upload-artifact@v4
-        if: (matrix.tests == 'integration' || matrix.tests == 'all') && always()
+        if: (matrix.tests == 'integration' || matrix.tests == 'integration-parallel' || matrix.tests == 'all') && always()
         with:
           name: ${{ matrix.os }}-${{ matrix.cpu }}-${{ matrix.nim_version }}-integration-tests-logs
           path: tests/integration/logs/
