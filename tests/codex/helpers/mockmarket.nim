@@ -132,7 +132,7 @@ proc new*(_: type MockMarket, clock: ?Clock = Clock.none): MockMarket =
       downtimeProduct: 67.uint8,
     ),
     reservations: SlotReservationsConfig(maxReservations: 3),
-    requestDurationLimit: (60 * 60 * 24 * 30).u256,
+    requestDurationLimit: (60 * 60 * 24 * 30).uint64,
   )
   MockMarket(
     signer: Address.example, config: config, canReserveSlot: true, clock: clock
