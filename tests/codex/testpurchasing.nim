@@ -28,8 +28,8 @@ asyncchecksuite "Purchasing":
     request = StorageRequest(
       ask: StorageAsk(
         slots: uint8.example.uint64,
-        slotSize: uint32.example.u256,
-        duration: uint16.example.u256,
+        slotSize: uint32.example.uint64,
+        duration: uint16.example.uint64,
         pricePerBytePerSecond: uint8.example.u256,
       )
     )
@@ -100,7 +100,6 @@ asyncchecksuite "Purchasing":
     market.requestExpiry[populatedRequest.id] = expiry
     let purchase = await purchasing.purchase(populatedRequest)
     check eventually market.requested.len > 0
-    let request = market.requested[0]
 
     clock.set(expiry + 1)
     expect PurchaseTimeout:
@@ -130,8 +129,8 @@ checksuite "Purchasing state machine":
     request = StorageRequest(
       ask: StorageAsk(
         slots: uint8.example.uint64,
-        slotSize: uint32.example.u256,
-        duration: uint16.example.u256,
+        slotSize: uint32.example.uint64,
+        duration: uint16.example.uint64,
         pricePerBytePerSecond: uint8.example.u256,
       )
     )
@@ -185,7 +184,7 @@ checksuite "Purchasing state machine":
   test "moves to PurchaseStarted when request state is Started":
     let request = StorageRequest.example
     let purchase = Purchase.new(request, market, clock)
-    market.requestEnds[request.id] = clock.now() + request.ask.duration.truncate(int64)
+    market.requestEnds[request.id] = clock.now() + request.ask.duration.int64
     market.requested = @[request]
     market.requestState[request.id] = RequestState.Started
     let next = await PurchaseUnknown().run(purchase)
@@ -218,7 +217,7 @@ checksuite "Purchasing state machine":
   test "moves to PurchaseFailed state once RequestFailed emitted":
     let request = StorageRequest.example
     let purchase = Purchase.new(request, market, clock)
-    market.requestEnds[request.id] = clock.now() + request.ask.duration.truncate(int64)
+    market.requestEnds[request.id] = clock.now() + request.ask.duration.int64
     let future = PurchaseStarted().run(purchase)
 
     market.emitRequestFailed(request.id)
@@ -229,10 +228,10 @@ checksuite "Purchasing state machine":
   test "moves to PurchaseFinished state once request finishes":
     let request = StorageRequest.example
     let purchase = Purchase.new(request, market, clock)
-    market.requestEnds[request.id] = clock.now() + request.ask.duration.truncate(int64)
+    market.requestEnds[request.id] = clock.now() + request.ask.duration.int64
     let future = PurchaseStarted().run(purchase)
 
-    clock.advance(request.ask.duration.truncate(int64) + 1)
+    clock.advance(request.ask.duration.int64 + 1)
 
     let next = await future
     check !next of PurchaseFinished

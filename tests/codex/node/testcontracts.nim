@@ -116,7 +116,8 @@ asyncchecksuite "Test Node - Host contracts":
     let onStore = !sales.onStore
     var request = StorageRequest.example
     request.content.cid = verifiableBlock.cid
-    request.expiry = (getTime() + DefaultBlockTtl.toTimesDuration + 1.hours).toUnix.u256
+    request.expiry =
+      (getTime() + DefaultBlockTtl.toTimesDuration + 1.hours).toUnix.uint64
     var fetchedBytes: uint = 0
 
     let onBlocks = proc(blocks: seq[bt.Block]): Future[?!void] {.async.} =
@@ -124,7 +125,7 @@ asyncchecksuite "Test Node - Host contracts":
         fetchedBytes += blk.data.len.uint
       return success()
 
-    (await onStore(request, 1.u256, onBlocks)).tryGet()
+    (await onStore(request, 1.uint64, onBlocks)).tryGet()
     check fetchedBytes == 12 * DefaultBlockSize.uint
 
     let indexer = verifiable.protectedStrategy.init(

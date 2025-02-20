@@ -19,7 +19,7 @@ import ../../helpers/mockclock
 
 asyncchecksuite "sales state 'SlotReserving'":
   let request = StorageRequest.example
-  let slotIndex = (request.ask.slots div 2).u256
+  let slotIndex = request.ask.slots div 2
   var market: MockMarket
   var clock: MockClock
   var agent: SalesAgent

@@ -10,7 +10,7 @@ import ../../helpers
 
 checksuite "sales state 'downloading'":
   let request = StorageRequest.example
-  let slotIndex = (request.ask.slots div 2).u256
+  let slotIndex = request.ask.slots div 2
   var state: SaleDownloading
 
   setup:

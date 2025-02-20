@@ -1,89 +1,50 @@
-import std/os
-import std/httpclient
-import std/strutils
-from std/net import TimeoutError
+import ../examples
+import ./multinodes
 
-import pkg/chronos
-import ../ethertest
-import ./codexprocess
-import ./nodeprocess
-
-ethersuite "Node block expiration tests":
-  var node: CodexProcess
-  var baseurl: string
-
-  let dataDir = getTempDir() / "Codex1"
-  let content = "test file content"
+multinodesuite "Node block expiration tests":
+  var content: seq[byte]
 
   setup:
-    baseurl = "http://localhost:8080/api/codex/v1"
+    content = await RandomChunker.example(blocks = 8)
 
-  teardown:
-    await node.stop()
+  test "node retains not-expired file",
+    NodeConfigs(
+      clients: CodexConfigs
+        .init(nodes = 1)
+        .withBlockTtl(0, 10)
+        .withBlockMaintenanceInterval(0, 1).some,
+      providers: CodexConfigs.none,
+    ):
+    let client = clients()[0]
+    let clientApi = client.client
 
-    dataDir.removeDir()
-
-  proc startTestNode(blockTtlSeconds: int) {.async.} =
-    node = await CodexProcess.startNode(
-      @[
-        "--api-port=8080",
-        "--data-dir=" & dataDir,
-        "--nat=none",
-        "--listen-addrs=/ip4/127.0.0.1/tcp/0",
-        "--disc-port=8090",
-        "--block-ttl=" & $blockTtlSeconds,
-        "--block-mi=1",
-        "--block-mn=10",
-      ],
-      false,
-      "cli-test-node",
-    )
-    await node.waitUntilStarted()
-
-  proc uploadTestFile(): string =
-    let client = newHttpClient()
-    let uploadUrl = baseurl & "/data"
-    let uploadResponse = client.post(uploadUrl, content)
-    check uploadResponse.status == "200 OK"
-    client.close()
-    uploadResponse.body
-
-  proc downloadTestFile(contentId: string, local = false): Response =
-    let client = newHttpClient(timeout = 3000)
-    let downloadUrl =
-      baseurl & "/data/" & contentId & (if local: "" else: "/network/stream")
-
-    let content = client.get(downloadUrl)
-    client.close()
-    content
-
-  proc hasFile(contentId: string): bool =
-    let client = newHttpClient(timeout = 3000)
-    let dataLocalUrl = baseurl & "/data/" & contentId
-    let content = client.get(dataLocalUrl)
-    client.close()
-    content.code == Http200
-
-  test "node retains not-expired file":
-    await startTestNode(blockTtlSeconds = 10)
-
-    let contentId = uploadTestFile()
+    let contentId = clientApi.upload(content).get
 
     await sleepAsync(2.seconds)
 
-    let response = downloadTestFile(contentId, local = true)
+    let download = clientApi.download(contentId, local = true)
+
     check:
-      hasFile(contentId)
-      response.status == "200 OK"
-      response.body == content
+      download.isOk
+      download.get == string.fromBytes(content)
 
-  test "node deletes expired file":
-    await startTestNode(blockTtlSeconds = 1)
+  test "node deletes expired file",
+    NodeConfigs(
+      clients: CodexConfigs
+        .init(nodes = 1)
+        .withBlockTtl(0, 1)
+        .withBlockMaintenanceInterval(0, 1).some,
+      providers: CodexConfigs.none,
+    ):
+    let client = clients()[0]
+    let clientApi = client.client
 
-    let contentId = uploadTestFile()
+    let contentId = clientApi.upload(content).get
 
     await sleepAsync(3.seconds)
 
+    let download = clientApi.download(contentId, local = true)
+
     check:
-      not hasFile(contentId)
-      downloadTestFile(contentId, local = true).code == Http404
+      download.isFailure
+      download.error.msg == "404 Not Found"

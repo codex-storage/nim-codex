@@ -56,9 +56,9 @@ asyncchecksuite "sales state 'simulated-proving'":
 
   proc advanceToNextPeriod(market: Market) {.async.} =
     let periodicity = await market.periodicity()
-    let current = periodicity.periodOf(clock.now().u256)
+    let current = periodicity.periodOf(clock.now().Timestamp)
     let periodEnd = periodicity.periodEnd(current)
-    clock.set(periodEnd.truncate(int64) + 1)
+    clock.set(periodEnd.toSecondsSince1970 + 1)
 
   proc waitForProvingRounds(market: Market, rounds: int) {.async.} =
     var rnds = rounds - 1 # proof round runs prior to advancing

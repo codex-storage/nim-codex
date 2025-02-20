@@ -46,7 +46,7 @@ proc proveLoop(
     market: Market,
     clock: Clock,
     request: StorageRequest,
-    slotIndex: UInt256,
+    slotIndex: uint64,
     onProve: OnProve,
 ) {.async.} =
   let slot = Slot(request: request, slotIndex: slotIndex)
@@ -60,12 +60,12 @@ proc proveLoop(
 
   proc getCurrentPeriod(): Future[Period] {.async.} =
     let periodicity = await market.periodicity()
-    return periodicity.periodOf(clock.now().u256)
+    return periodicity.periodOf(clock.now().Timestamp)
 
   proc waitUntilPeriod(period: Period) {.async.} =
     let periodicity = await market.periodicity()
     # Ensure that we're past the period boundary by waiting an additional second
-    await clock.waitUntil(periodicity.periodStart(period).truncate(int64) + 1)
+    await clock.waitUntil((periodicity.periodStart(period) + 1).toSecondsSince1970)
 
   while true:
     let currentPeriod = await getCurrentPeriod()

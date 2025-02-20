@@ -43,7 +43,10 @@ marketplacesuite "Hosts submit regular proofs":
     let datasetSize =
       datasetSize(blocks = blocks, nodes = ecNodes, tolerance = ecTolerance)
     createAvailabilities(
-      datasetSize, duration, collateralPerByte, minPricePerBytePerSecond
+      datasetSize.truncate(uint64),
+      duration,
+      collateralPerByte,
+      minPricePerBytePerSecond,
     )
 
     let cid = client0.upload(data).get
@@ -117,7 +120,10 @@ marketplacesuite "Simulate invalid proofs":
     let datasetSize =
       datasetSize(blocks = blocks, nodes = ecNodes, tolerance = ecTolerance)
     createAvailabilities(
-      datasetSize, duration, collateralPerByte, minPricePerBytePerSecond
+      datasetSize.truncate(uint64),
+      duration,
+      collateralPerByte,
+      minPricePerBytePerSecond,
     )
 
     let cid = client0.upload(data).get
@@ -128,7 +134,7 @@ marketplacesuite "Simulate invalid proofs":
       duration = duration,
       nodes = ecNodes,
       tolerance = ecTolerance,
-      proofProbability = 1,
+      proofProbability = 1.u256,
     )
     let requestId = client0.requestId(purchaseId).get
 
@@ -177,7 +183,10 @@ marketplacesuite "Simulate invalid proofs":
     let datasetSize =
       datasetSize(blocks = blocks, nodes = ecNodes, tolerance = ecTolerance)
     createAvailabilities(
-      datasetSize, duration, collateralPerByte, minPricePerBytePerSecond
+      datasetSize.truncate(uint64),
+      duration,
+      collateralPerByte,
+      minPricePerBytePerSecond,
     )
 
     let cid = client0.upload(data).get
@@ -188,7 +197,7 @@ marketplacesuite "Simulate invalid proofs":
       duration = duration,
       nodes = ecNodes,
       tolerance = ecTolerance,
-      proofProbability = 1,
+      proofProbability = 1.u256,
     )
     let requestId = client0.requestId(purchaseId).get
 

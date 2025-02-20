@@ -49,8 +49,8 @@ proc example*(_: type StorageRequest): StorageRequest =
     client: Address.example,
     ask: StorageAsk(
       slots: 4,
-      slotSize: (1 * 1024 * 1024 * 1024).u256, # 1 Gigabyte
-      duration: (10 * 60 * 60).u256, # 10 hours
+      slotSize: (1 * 1024 * 1024 * 1024).uint64, # 1 Gigabyte
+      duration: (10 * 60 * 60).uint64, # 10 hours
       collateralPerByte: 1.u256,
       proofProbability: 4.u256, # require a proof roughly once every 4 periods
       pricePerBytePerSecond: 1.u256,
@@ -60,19 +60,19 @@ proc example*(_: type StorageRequest): StorageRequest =
       cid: Cid.init("zb2rhheVmk3bLks5MgzTqyznLu1zqGH5jrfTA1eAZXrjx7Vob").tryGet,
       merkleRoot: array[32, byte].example,
     ),
-    expiry: (60 * 60).u256, # 1 hour ,
+    expiry: (60 * 60).uint64, # 1 hour ,
     nonce: Nonce.example,
   )
 
 proc example*(_: type Slot): Slot =
   let request = StorageRequest.example
-  let slotIndex = rand(request.ask.slots.int).u256
+  let slotIndex = rand(request.ask.slots.int).uint64
   Slot(request: request, slotIndex: slotIndex)
 
 proc example*(_: type SlotQueueItem): SlotQueueItem =
   let request = StorageRequest.example
   let slot = Slot.example
-  SlotQueueItem.init(request, slot.slotIndex.truncate(uint16))
+  SlotQueueItem.init(request, slot.slotIndex.uint16)
 
 proc example(_: type G1Point): G1Point =
   G1Point(x: UInt256.example, y: UInt256.example)

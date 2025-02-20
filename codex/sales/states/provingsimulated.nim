@@ -20,7 +20,7 @@ when codex_enable_proof_failures:
     failEveryNProofs*: int
     proofCount: int
 
-  proc onSubmitProofError(error: ref CatchableError, period: UInt256, slotId: SlotId) =
+  proc onSubmitProofError(error: ref CatchableError, period: Period, slotId: SlotId) =
     error "Submitting invalid proof failed", period, slotId, msg = error.msgDetail
 
   method prove*(

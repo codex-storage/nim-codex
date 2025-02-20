@@ -2,10 +2,10 @@ import pkg/stint
 
 type
   Periodicity* = object
-    seconds*: UInt256
+    seconds*: uint64
 
-  Period* = UInt256
-  Timestamp* = UInt256
+  Period* = uint64
+  Timestamp* = uint64
 
 func periodOf*(periodicity: Periodicity, timestamp: Timestamp): Period =
   timestamp div periodicity.seconds

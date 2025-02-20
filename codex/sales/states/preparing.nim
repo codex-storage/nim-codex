@@ -33,7 +33,7 @@ method onFailed*(state: SalePreparing, request: StorageRequest): ?State =
   return some State(SaleFailed())
 
 method onSlotFilled*(
-    state: SalePreparing, requestId: RequestId, slotIndex: UInt256
+    state: SalePreparing, requestId: RequestId, slotIndex: uint64
 ): ?State =
   return some State(SaleFilled())
 

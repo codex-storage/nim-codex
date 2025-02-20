@@ -200,6 +200,54 @@ proc withLogLevel*(
     config.addCliOption("--log-level", $level)
   return startConfig
 
+proc withBlockTtl*(
+    self: CodexConfig, ttl: int
+): CodexConfig {.raises: [CodexConfigError].} =
+  var config = self
+  config.addCliOption("--block-ttl", $ttl)
+  return config
+
+proc withBlockTtl*(
+    self: CodexConfigs, idx: int, ttl: int
+): CodexConfigs {.raises: [CodexConfigError].} =
+  self.checkBounds idx
+
+  var startConfig = self
+  startConfig.configs[idx].addCliOption("--block-ttl", $ttl)
+  return startConfig
+
+proc withBlockTtl*(
+    self: CodexConfigs, ttl: int
+): CodexConfigs {.raises: [CodexConfigError].} =
+  var startConfig = self
+  for config in startConfig.configs.mitems:
+    config.addCliOption("--block-ttl", $ttl)
+  return startConfig
+
+proc withBlockMaintenanceInterval*(
+    self: CodexConfig, interval: int
+): CodexConfig {.raises: [CodexConfigError].} =
+  var config = self
+  config.addCliOption("--block-mi", $interval)
+  return config
+
+proc withBlockMaintenanceInterval*(
+    self: CodexConfigs, idx: int, interval: int
+): CodexConfigs {.raises: [CodexConfigError].} =
+  self.checkBounds idx
+
+  var startConfig = self
+  startConfig.configs[idx].addCliOption("--block-mi", $interval)
+  return startConfig
+
+proc withBlockMaintenanceInterval*(
+    self: CodexConfigs, interval: int
+): CodexConfigs {.raises: [CodexConfigError].} =
+  var startConfig = self
+  for config in startConfig.configs.mitems:
+    config.addCliOption("--block-mi", $interval)
+  return startConfig
+
 proc withSimulateProofFailures*(
     self: CodexConfigs, idx: int, failEveryNProofs: int
 ): CodexConfigs {.raises: [CodexConfigError].} =

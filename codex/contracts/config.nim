@@ -11,7 +11,7 @@ type
     collateral*: CollateralConfig
     proofs*: ProofConfig
     reservations*: SlotReservationsConfig
-    requestDurationLimit*: UInt256
+    requestDurationLimit*: uint64
 
   CollateralConfig* = object
     repairRewardPercentage*: uint8
@@ -22,14 +22,14 @@ type
       # percentage of the slashed amount going to the validators
 
   ProofConfig* = object
-    period*: UInt256 # proofs requirements are calculated per period (in seconds)
-    timeout*: UInt256 # mark proofs as missing before the timeout (in seconds)
+    period*: uint64 # proofs requirements are calculated per period (in seconds)
+    timeout*: uint64 # mark proofs as missing before the timeout (in seconds)
     downtime*: uint8 # ignore this much recent blocks for proof requirements
+    downtimeProduct*: uint8
     zkeyHash*: string # hash of the zkey file which is linked to the verifier
     # Ensures the pointer does not remain in downtime for many consecutive
     # periods. For each period increase, move the pointer `pointerProduct`
     # blocks. Should be a prime number to ensure there are no cycles.
-    downtimeProduct*: uint8
 
   SlotReservationsConfig* = object
     maxReservations*: uint8
@@ -39,8 +39,8 @@ func fromTuple(_: type ProofConfig, tupl: tuple): ProofConfig =
     period: tupl[0],
     timeout: tupl[1],
     downtime: tupl[2],
-    zkeyHash: tupl[3],
-    downtimeProduct: tupl[4],
+    downtimeProduct: tupl[3],
+    zkeyHash: tupl[4],
   )
 
 func fromTuple(_: type SlotReservationsConfig, tupl: tuple): SlotReservationsConfig =

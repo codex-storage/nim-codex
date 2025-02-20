@@ -28,7 +28,7 @@ method onFailed*(state: SaleDownloading, request: StorageRequest): ?State =
   return some State(SaleFailed())
 
 method onSlotFilled*(
-    state: SaleDownloading, requestId: RequestId, slotIndex: UInt256
+    state: SaleDownloading, requestId: RequestId, slotIndex: uint64
 ): ?State =
   return some State(SaleFilled())
 

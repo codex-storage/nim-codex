@@ -463,7 +463,7 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
           Http400, "Total size must be larger then zero", headers = headers
         )
 
-      if not reservations.hasAvailable(restAv.totalSize.truncate(uint)):
+      if not reservations.hasAvailable(restAv.totalSize):
         return
           RestApiResponse.error(Http422, "Not enough storage quota", headers = headers)
 

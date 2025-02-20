@@ -22,6 +22,7 @@ export hardhatprocess
 export codexprocess
 export hardhatconfig
 export codexconfig
+export nodeconfigs
 
 type
   RunningNode* = ref object

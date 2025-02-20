@@ -20,7 +20,7 @@ import ../helpers/periods
 asyncchecksuite "sales state 'initialproving'":
   let proof = Groth16Proof.example
   let request = StorageRequest.example
-  let slotIndex = (request.ask.slots div 2).u256
+  let slotIndex = request.ask.slots div 2
   let market = MockMarket.new()
   let clock = MockClock.new()
 

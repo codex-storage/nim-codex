@@ -449,13 +449,13 @@ proc iterateManifests*(self: CodexNodeRef, onManifest: OnManifest) {.async.} =
 proc setupRequest(
     self: CodexNodeRef,
     cid: Cid,
-    duration: UInt256,
+    duration: uint64,
     proofProbability: UInt256,
     nodes: uint,
     tolerance: uint,
     pricePerBytePerSecond: UInt256,
     collateralPerByte: UInt256,
-    expiry: UInt256,
+    expiry: uint64,
 ): Future[?!StorageRequest] {.async.} =
   ## Setup slots for a given dataset
   ##
@@ -513,7 +513,7 @@ proc setupRequest(
     request = StorageRequest(
       ask: StorageAsk(
         slots: verifiable.numSlots.uint64,
-        slotSize: builder.slotBytes.uint.u256,
+        slotSize: builder.slotBytes.uint64,
         duration: duration,
         proofProbability: proofProbability,
         pricePerBytePerSecond: pricePerBytePerSecond,
@@ -530,13 +530,13 @@ proc setupRequest(
 proc requestStorage*(
     self: CodexNodeRef,
     cid: Cid,
-    duration: UInt256,
+    duration: uint64,
     proofProbability: UInt256,
     nodes: uint,
     tolerance: uint,
     pricePerBytePerSecond: UInt256,
     collateralPerByte: UInt256,
-    expiry: UInt256,
+    expiry: uint64,
 ): Future[?!PurchaseId] {.async.} =
   ## Initiate a request for storage sequence, this might
   ## be a multistep procedure.
@@ -550,7 +550,7 @@ proc requestStorage*(
     pricePerBytePerSecond = pricePerBytePerSecond
     proofProbability = proofProbability
     collateralPerByte = collateralPerByte
-    expiry = expiry.truncate(int64)
+    expiry = expiry
     now = self.clock.now
 
   trace "Received a request for storage!"
@@ -572,7 +572,7 @@ proc requestStorage*(
   success purchase.id
 
 proc onStore(
-    self: CodexNodeRef, request: StorageRequest, slotIdx: UInt256, blocksCb: BlocksCb
+    self: CodexNodeRef, request: StorageRequest, slotIdx: uint64, blocksCb: BlocksCb
 ): Future[?!void] {.async.} =
   ## store data in local storage
   ##
@@ -594,11 +594,9 @@ proc onStore(
     trace "Unable to create slots builder", err = err.msg
     return failure(err)
 
-  let
-    slotIdx = slotIdx.truncate(int)
-    expiry = request.expiry.toSecondsSince1970
+  let expiry = request.expiry
 
-  if slotIdx > manifest.slotRoots.high:
+  if slotIdx > manifest.slotRoots.high.uint64:
     trace "Slot index not in manifest", slotIdx
     return failure(newException(CodexError, "Slot index not in manifest"))
 
@@ -606,7 +604,7 @@ proc onStore(
     trace "Updating expiry for blocks", blocks = blocks.len
 
     let ensureExpiryFutures =
-      blocks.mapIt(self.networkStore.ensureExpiry(it.cid, expiry))
+      blocks.mapIt(self.networkStore.ensureExpiry(it.cid, expiry.toSecondsSince1970))
     if updateExpiryErr =? (await allFutureResult(ensureExpiryFutures)).errorOption:
       return failure(updateExpiryErr)
 
@@ -622,7 +620,11 @@ proc onStore(
     trace "Unable to create indexing strategy from protected manifest", err = err.msg
     return failure(err)
 
-  without blksIter =? indexer.getIndicies(slotIdx).catch, err:
+  if slotIdx > int.high.uint64:
+    error "Cannot cast slot index to int", slotIndex = slotIdx
+    return
+
+  without blksIter =? indexer.getIndicies(slotIdx.int).catch, err:
     trace "Unable to get indicies from strategy", err = err.msg
     return failure(err)
 
@@ -632,13 +634,13 @@ proc onStore(
     trace "Unable to fetch blocks", err = err.msg
     return failure(err)
 
-  without slotRoot =? (await builder.buildSlot(slotIdx.Natural)), err:
+  without slotRoot =? (await builder.buildSlot(slotIdx.int)), err:
     trace "Unable to build slot", err = err.msg
     return failure(err)
 
   trace "Slot successfully retrieved and reconstructed"
 
-  if cid =? slotRoot.toSlotCid() and cid != manifest.slotRoots[slotIdx.int]:
+  if cid =? slotRoot.toSlotCid() and cid != manifest.slotRoots[slotIdx]:
     trace "Slot root mismatch",
       manifest = manifest.slotRoots[slotIdx.int], recovered = slotRoot.toSlotCid()
     return failure(newException(CodexError, "Slot root mismatch"))
@@ -655,7 +657,7 @@ proc onProve(
 
   let
     cidStr = $slot.request.content.cid
-    slotIdx = slot.slotIndex.truncate(Natural)
+    slotIdx = slot.slotIndex
 
   logScope:
     cid = cidStr
@@ -676,7 +678,8 @@ proc onProve(
       return failure(err)
 
     when defined(verify_circuit):
-      without (inputs, proof) =? await prover.prove(slotIdx, manifest, challenge), err:
+      without (inputs, proof) =? await prover.prove(slotIdx.int, manifest, challenge),
+        err:
         error "Unable to generate proof", err = err.msg
         return failure(err)
 
@@ -690,7 +693,7 @@ proc onProve(
 
       trace "Proof verified successfully"
     else:
-      without (_, proof) =? await prover.prove(slotIdx, manifest, challenge), err:
+      without (_, proof) =? await prover.prove(slotIdx.int, manifest, challenge), err:
         error "Unable to generate proof", err = err.msg
         return failure(err)
 
@@ -707,7 +710,7 @@ proc onExpiryUpdate(
 ): Future[?!void] {.async.} =
   return await self.updateExpiry(rootCid, expiry)
 
-proc onClear(self: CodexNodeRef, request: StorageRequest, slotIndex: UInt256) =
+proc onClear(self: CodexNodeRef, request: StorageRequest, slotIndex: uint64) =
   # TODO: remove data from local storage
   discard
 
@@ -723,7 +726,7 @@ proc start*(self: CodexNodeRef) {.async.} =
 
   if hostContracts =? self.contracts.host:
     hostContracts.sales.onStore = proc(
-        request: StorageRequest, slot: UInt256, onBatch: BatchProc
+        request: StorageRequest, slot: uint64, onBatch: BatchProc
     ): Future[?!void] =
       self.onStore(request, slot, onBatch)
 
@@ -732,7 +735,7 @@ proc start*(self: CodexNodeRef) {.async.} =
     ): Future[?!void] =
       self.onExpiryUpdate(rootCid, expiry)
 
-    hostContracts.sales.onClear = proc(request: StorageRequest, slotIndex: UInt256) =
+    hostContracts.sales.onClear = proc(request: StorageRequest, slotIndex: uint64) =
       # TODO: remove data from local storage
       self.onClear(request, slotIndex)
 
