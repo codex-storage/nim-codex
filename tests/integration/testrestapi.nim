@@ -106,7 +106,7 @@ twonodessuite "REST API":
   test "request storage fails if duration exceeds limit", twoNodesConfig:
     let data = await RandomChunker.example(blocks = 2)
     let cid = client1.upload(data).get
-    let duration = (31 * 24 * 60 * 60).u256
+    let duration = (31 * 24 * 60 * 60).uint64
       # 31 days TODO: this should not be hardcoded, but waits for https://github.com/codex-storage/nim-codex/issues/1056
     let proofProbability = 3.u256
     let expiry = 30.uint
