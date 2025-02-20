@@ -1,7 +1,6 @@
 from std/times import inMilliseconds
 import pkg/questionable
 import pkg/codex/logutils
-import pkg/stew/byteutils
 import ../contracts/time
 import ../contracts/deployment
 import ../codex/helpers
@@ -60,8 +59,7 @@ marketplacesuite "Hosts submit regular proofs":
     let purchase = client0.getPurchase(purchaseId).get
     check purchase.error == none string
 
-    let request = purchase.request.get
-    let slotSize = request.ask.slotSize
+    let slotSize = slotSize(blocks, ecNodes, ecTolerance)
 
     check eventually(
       client0.purchaseStateIs(purchaseId, "started"), timeout = expiry.int * 1000

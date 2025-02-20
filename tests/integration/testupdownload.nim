@@ -88,7 +88,7 @@ twonodessuite "Uploads and downloads":
       let cid = a.upload(data).get
       let response = b.download(cid).get
       check:
-        response == data
+        @response.mapIt(it.byte) == data
 
     for run in 0 .. 10:
       await transferTest(client1, client2)

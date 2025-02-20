@@ -114,7 +114,7 @@ marketplacesuite "Marketplace":
     await ethProvider.advanceTime(duration)
 
     # Checking that the hosting node received reward for at least the time between <expiry;end>
-    let slotSize = slotSize(blocks)
+    let slotSize = slotSize(blocks, ecNodes, ecTolerance)
     let pricePerSlotPerSecond = minPricePerBytePerSecond * slotSize
     check eventually (await token.balanceOf(hostAccount)) - startBalanceHost >=
       (duration - 5 * 60) * pricePerSlotPerSecond * ecNodes.u256
@@ -246,7 +246,7 @@ marketplacesuite "Marketplace payouts":
 
     await advanceToNextPeriod()
 
-    let slotSize = slotSize(blocks)
+    let slotSize = slotSize(blocks, ecNodes, ecTolerance)
     let pricePerSlotPerSecond = minPricePerBytePerSecond * slotSize
 
     check eventually (
