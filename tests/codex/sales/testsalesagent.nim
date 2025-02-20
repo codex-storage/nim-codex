@@ -27,7 +27,7 @@ method onFailed*(state: MockState, request: StorageRequest): ?State =
   onFailedCalled = true
 
 method onSlotFilled*(
-    state: MockState, requestId: RequestId, slotIndex: UInt256
+    state: MockState, requestId: RequestId, slotIndex: uint64
 ): ?State =
   onSlotFilledCalled = true
 
@@ -35,17 +35,16 @@ asyncchecksuite "Sales agent":
   let request = StorageRequest.example
   var agent: SalesAgent
   var context: SalesContext
-  var slotIndex: UInt256
+  var slotIndex: uint64
   var market: MockMarket
   var clock: MockClock
 
   setup:
     market = MockMarket.new()
-    market.requestExpiry[request.id] =
-      getTime().toUnix() + request.expiry.truncate(int64)
+    market.requestExpiry[request.id] = getTime().toUnix() + request.expiry.int64
     clock = MockClock.new()
     context = SalesContext(market: market, clock: clock)
-    slotIndex = 0.u256
+    slotIndex = 0.uint64
     onCancelCalled = false
     onFailedCalled = false
     onSlotFilledCalled = false

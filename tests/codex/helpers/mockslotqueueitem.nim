@@ -4,11 +4,11 @@ import pkg/codex/sales/slotqueue
 type MockSlotQueueItem* = object
   requestId*: RequestId
   slotIndex*: uint16
-  slotSize*: UInt256
-  duration*: UInt256
+  slotSize*: uint64
+  duration*: uint64
   pricePerBytePerSecond*: UInt256
   collateralPerByte*: UInt256
-  expiry*: UInt256
+  expiry*: uint64
   seen*: bool
 
 proc toSlotQueueItem*(item: MockSlotQueueItem): SlotQueueItem =
