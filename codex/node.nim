@@ -45,13 +45,14 @@ import ./utils
 import ./errors
 import ./logutils
 import ./utils/asynciter
+import ./utils/trackedfutures
 
 export logutils
 
 logScope:
   topics = "codex node"
 
-const FetchBatch = 200
+const DefaultFetchBatch = 10
 
 type
   Contracts* =
@@ -72,6 +73,7 @@ type
     clock*: Clock
     storage*: Contracts
     taskpool: Taskpool
+    trackedFutures: TrackedFutures
 
   CodexNodeRef* = ref CodexNode
 
@@ -163,8 +165,9 @@ proc fetchBatched*(
     self: CodexNodeRef,
     cid: Cid,
     iter: Iter[int],
-    batchSize = FetchBatch,
+    batchSize = DefaultFetchBatch,
     onBatch: BatchProc = nil,
+    fetchLocal = true,
 ): Future[?!void] {.async, gcsafe.} =
   ## Fetch blocks in batches of `batchSize`
   ##
@@ -179,7 +182,9 @@ proc fetchBatched*(
     let blocks = collect:
       for i in 0 ..< batchSize:
         if not iter.finished:
-          self.networkStore.getBlock(BlockAddress.init(cid, iter.next()))
+          let address = BlockAddress.init(cid, iter.next())
+          if not (await address in self.networkStore) or fetchLocal:
+            self.networkStore.getBlock(address)
 
     if blocksErr =? (await allFutureResult(blocks)).errorOption:
       return failure(blocksErr)
@@ -188,21 +193,25 @@ proc fetchBatched*(
         batchErr =? (await onBatch(blocks.mapIt(it.read.get))).errorOption:
       return failure(batchErr)
 
+    await sleepAsync(1.millis)
+
   success()
 
 proc fetchBatched*(
     self: CodexNodeRef,
     manifest: Manifest,
-    batchSize = FetchBatch,
+    batchSize = DefaultFetchBatch,
     onBatch: BatchProc = nil,
+    fetchLocal = true,
 ): Future[?!void] =
   ## Fetch manifest in batches of `batchSize`
   ##
 
-  trace "Fetching blocks in batches of", size = batchSize
+  trace "Fetching blocks in batches of",
+    size = batchSize, blocksCount = manifest.blocksCount
 
   let iter = Iter[int].new(0 ..< manifest.blocksCount)
-  self.fetchBatched(manifest.treeCid, iter, batchSize, onBatch)
+  self.fetchBatched(manifest.treeCid, iter, batchSize, onBatch, fetchLocal)
 
 proc streamSingleBlock(self: CodexNodeRef, cid: Cid): Future[?!LPStream] {.async.} =
   ## Streams the contents of a single block.
@@ -223,7 +232,7 @@ proc streamSingleBlock(self: CodexNodeRef, cid: Cid): Future[?!LPStream] {.async
     finally:
       await stream.pushEof()
 
-  asyncSpawn streamOneBlock()
+  self.trackedFutures.track(streamOneBlock())
   LPStream(stream).success
 
 proc streamEntireDataset(
@@ -235,19 +244,29 @@ proc streamEntireDataset(
 
   if manifest.protected:
     # Retrieve, decode and save to the local store all EС groups
-    proc erasureJob(): Future[?!void] {.async.} =
-      # Spawn an erasure decoding job
-      let erasure = Erasure.new(
-        self.networkStore, leoEncoderProvider, leoDecoderProvider, self.taskpool
-      )
-      without _ =? (await erasure.decode(manifest)), error:
-        error "Unable to erasure decode manifest", manifestCid, exc = error.msg
-        return failure(error)
+    proc erasureJob(): Future[void] {.async.} =
+      try:
+        # Spawn an erasure decoding job
+        let erasure = Erasure.new(
+          self.networkStore, leoEncoderProvider, leoDecoderProvider, self.taskpool
+        )
+        without _ =? (await erasure.decode(manifest)), error:
+          error "Unable to erasure decode manifest", manifestCid, exc = error.msg
+      except CatchableError as exc:
+        trace "Error erasure decoding manifest", manifestCid, exc = exc.msg
 
-      return success()
+    self.trackedFutures.track(erasureJob())
 
-    if err =? (await erasureJob()).errorOption:
-      return failure(err)
+  proc prefetch() {.async: (raises: []).} =
+    try:
+      if err =? (
+        await self.fetchBatched(manifest, DefaultFetchBatch, fetchLocal = false)
+      ).errorOption:
+        error "Unable to fetch blocks", err = err.msg
+    except CatchableError as exc:
+      error "Error fetching blocks", exc = exc.msg
+
+  self.trackedFutures.track(prefetch())
 
   # Retrieve all blocks of the dataset sequentially from the local store or network
   trace "Creating store stream for manifest", manifestCid
@@ -758,6 +777,11 @@ proc start*(self: CodexNodeRef) {.async.} =
 proc stop*(self: CodexNodeRef) {.async.} =
   trace "Stopping node"
 
+  if not self.taskpool.isNil:
+    self.taskpool.shutdown()
+
+  await self.trackedFutures.cancelTracked()
+
   if not self.engine.isNil:
     await self.engine.stop()
 
@@ -778,9 +802,6 @@ proc stop*(self: CodexNodeRef) {.async.} =
 
   if not self.networkStore.isNil:
     await self.networkStore.close
-
-  if not self.taskpool.isNil:
-    self.taskpool.shutdown()
 
 proc new*(
     T: type CodexNodeRef,
@@ -803,4 +824,5 @@ proc new*(
     discovery: discovery,
     taskPool: taskpool,
     contracts: contracts,
+    trackedFutures: TrackedFutures(),
   )
