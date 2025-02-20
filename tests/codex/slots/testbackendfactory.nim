@@ -52,7 +52,7 @@ suite "Test BackendFactory":
         circomWasm: InputFile("tests/circuits/fixtures/proof_main.wasm"),
         circomZkey: InputFile("tests/circuits/fixtures/proof_main.zkey"),
       )
-      backend = config.initializeBackend(utilsMock).tryGet
+      backend = config.initializeBackend(utilsMock, taskpool = nil).tryGet
 
     check:
       backend.vkp != nil
@@ -73,7 +73,7 @@ suite "Test BackendFactory":
         # will be picked up as local files:
         circuitDir: OutDir("tests/circuits/fixtures"),
       )
-      backend = config.initializeBackend(utilsMock).tryGet
+      backend = config.initializeBackend(utilsMock, taskpool = nil).tryGet
 
     check:
       backend.vkp != nil
@@ -91,7 +91,7 @@ suite "Test BackendFactory":
         marketplaceAddress: EthAddress.example.some,
         circuitDir: OutDir(circuitDir),
       )
-      backendResult = config.initializeBackend(utilsMock)
+      backendResult = config.initializeBackend(utilsMock, taskpool = nil)
 
     check:
       backendResult.isErr
