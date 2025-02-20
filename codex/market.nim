@@ -93,7 +93,7 @@ method repairRewardPercentage*(
 
 method requestDurationLimit*(market: Market): Future[UInt256] {.base, async.} =
   raiseAssert("not implemented")
-  
+
 method proofDowntime*(
     market: Market
 ): Future[uint8] {.base, async: (raises: [CancelledError, MarketError]).} =
@@ -291,7 +291,7 @@ method queryPastStorageRequestedEvents*(
 
 method slotCollateral*(
     market: Market, requestId: RequestId, slotIndex: UInt256
-): Future[?UInt256] {.base, async: (raises: [CancelledError]).} =
+): Future[?UInt256] {.base, async: (raises: [MarketError, CancelledError]).} =
   raiseAssert("not implemented")
 
 method slotCollateral*(

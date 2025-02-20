@@ -53,7 +53,6 @@ template convertEthersError(body) =
   try:
     body
   except EthersError as error:
-    echo error.msgDetail
     raiseMarketError(error.msgDetail)
 
 proc config(
@@ -553,19 +552,14 @@ method queryPastStorageRequestedEvents*(
 
 method slotCollateral*(
     market: OnChainMarket, requestId: RequestId, slotIndex: UInt256
-): Future[?UInt256] {.async: (raises: [CancelledError]).} =
+): Future[?UInt256] {.async: (raises: [MarketError, CancelledError]).} =
   let slotid = slotId(requestId, slotIndex)
+  let slotState = await market.slotState(slotid)
 
-  try:
-    let slotState = await market.slotState(slotid)
-
-    without request =? await market.getRequest(requestId):
-      return UInt256.none
-
-    return market.slotCollateral(request.ask.collateralPerSlot, slotState)
-  except MarketError as err:
-    error "Cannot retrieve the slot collateral", error = err.msg
+  without request =? await market.getRequest(requestId):
     return UInt256.none
+
+  return market.slotCollateral(request.ask.collateralPerSlot, slotState)
 
 method slotCollateral*(
     market: OnChainMarket, collateralPerSlot: UInt256, slotState: SlotState
