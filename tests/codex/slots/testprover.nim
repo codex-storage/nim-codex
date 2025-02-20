@@ -1,5 +1,6 @@
 import ../../asynctest
 
+import std/atomics
 import pkg/chronos
 import pkg/libp2p/cid
 
@@ -18,6 +19,7 @@ import ./helpers
 import ../helpers
 
 suite "Test Prover":
+  var backend: AnyBackend
   let
     samples = 5
     blockSize = DefaultBlockSize
@@ -44,7 +46,8 @@ suite "Test Prover":
         circomZkey: InputFile("tests/circuits/fixtures/proof_main.zkey"),
         numProofSamples: samples,
       )
-      backend = config.initializeBackend().tryGet()
+
+    backend = config.initializeBackend(taskpool = Taskpool.new()).tryGet()
 
     store = RepoStore.new(repoDs, metaDs)
     prover = Prover.new(store, backend, config.numProofSamples)
@@ -86,3 +89,48 @@ suite "Test Prover":
 
     check:
       (await prover.verify(proof, inputs)).tryGet == true
+
+  test "Should complete prove/verify task when cancelled":
+    let (_, _, verifiable) = await createVerifiableManifest(
+      store,
+      8, # number of blocks in the original dataset (before EC)
+      5, # ecK
+      3, # ecM
+      blockSize,
+      cellSize,
+    )
+
+    let (inputs, proof) = (await prover.prove(1, verifiable, challenge)).tryGet
+
+    var cancelledProof = newProof()
+    defer:
+      destroyProof(cancelledProof)
+
+    # call asyncProve and cancel the task
+    let proveFut = backend.asyncProve(backend.normalizeInput(inputs), cancelledProof)
+    proveFut.cancel()
+
+    try:
+      discard await proveFut
+    except CatchableError as exc:
+      check exc of CancelledError
+    finally:
+      # validate the cancelledProof
+      check:
+        (await prover.verify(cancelledProof[], inputs)).tryGet == true
+
+    var verifyRes = newVerifyResult()
+    defer:
+      destroyVerifyResult(verifyRes)
+
+    # call asyncVerify and cancel the task
+    let verifyFut = backend.asyncVerify(proof, inputs, verifyRes)
+    verifyFut.cancel()
+
+    try:
+      discard await verifyFut
+    except CatchableError as exc:
+      check exc of CancelledError
+    finally:
+      # validate the verifyResponse 
+      check verifyRes[].load() == true
