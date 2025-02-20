@@ -147,7 +147,7 @@ method periodicity*(mock: MockMarket): Future[Periodicity] {.async.} =
 method proofTimeout*(market: MockMarket): Future[uint64] {.async.} =
   return market.config.proofs.timeout
 
-method requestDurationLimit*(market: MockMarket): Future[UInt256] {.async.} =
+method requestDurationLimit*(market: MockMarket): Future[uint64] {.async.} =
   return market.config.requestDurationLimit
 
 method proofDowntime*(market: MockMarket): Future[uint8] {.async.} =

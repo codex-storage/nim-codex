@@ -94,7 +94,7 @@ method repairRewardPercentage*(market: OnChainMarket): Future[uint8] {.async.} =
     let config = await market.config()
     return config.collateral.repairRewardPercentage
 
-method requestDurationLimit*(market: OnChainMarket): Future[UInt256] {.async.} =
+method requestDurationLimit*(market: OnChainMarket): Future[uint64] {.async.} =
   convertEthersError:
     let config = await market.config()
     return config.requestDurationLimit
