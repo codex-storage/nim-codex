@@ -4,6 +4,7 @@ import ../../asynctest
 import pkg/chronos
 import pkg/confutils/defs
 import pkg/codex/conf
+import pkg/taskpools
 import pkg/codex/slots/proofs/backends
 import pkg/codex/slots/proofs/backendfactory
 import pkg/codex/slots/proofs/backendutils
@@ -18,7 +19,11 @@ type BackendUtilsMock = ref object of BackendUtils
   argZKeyFile: string
 
 method initializeCircomBackend*(
-    self: BackendUtilsMock, r1csFile: string, wasmFile: string, zKeyFile: string
+    self: BackendUtilsMock,
+    r1csFile: string,
+    wasmFile: string,
+    zKeyFile: string,
+    taskpool: Taskpool,
 ): AnyBackend =
   self.argR1csFile = r1csFile
   self.argWasmFile = wasmFile
