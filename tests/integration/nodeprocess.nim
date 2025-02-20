@@ -14,7 +14,7 @@ import ./codexclient
 export codexclient
 export chronicles
 
-{.push raises:[].}
+{.push raises: [].}
 
 logScope:
   topics = "integration testing node process"
@@ -44,9 +44,7 @@ method processOptions(node: NodeProcess): set[AsyncProcessOption] {.base, gcsafe
 method outputLineEndings(node: NodeProcess): string {.base, gcsafe.} =
   raiseAssert "not implemented"
 
-method onOutputLineCaptured(
-    node: NodeProcess, line: string
-) {.base, gcsafe.} =
+method onOutputLineCaptured(node: NodeProcess, line: string) {.base, gcsafe.} =
   raiseAssert "not implemented"
 
 method start*(node: NodeProcess) {.base, async.} =
@@ -126,10 +124,9 @@ method stop*(node: NodeProcess, expectedErrCode: int = -1) {.base, async.} =
   if not node.process.isNil:
     trace "terminating node process..."
     try:
-      let exitCode = await node.process.terminateAndWaitForExit(2.seconds)   
-      if exitCode > 0 and
-          exitCode != 143 and # 143 = SIGTERM (initiated above)
-          exitCode != expectedErrCode:
+      let exitCode = await node.process.terminateAndWaitForExit(2.seconds)
+      if exitCode > 0 and exitCode != 143 and # 143 = SIGTERM (initiated above)
+      exitCode != expectedErrCode:
         error "process exited with a non-zero exit code", exitCode
       trace "node stopped", exitCode
     except CancelledError as error:
@@ -139,7 +136,8 @@ method stop*(node: NodeProcess, expectedErrCode: int = -1) {.base, async.} =
         let forcedExitCode = await node.process.killAndWaitForExit(3.seconds)
         trace "node process forcibly killed with exit code: ", exitCode = forcedExitCode
       except CatchableError as e:
-        error "failed to kill node process in time, it will be killed when the parent process exits", error = e.msg
+        error "failed to kill node process in time, it will be killed when the parent process exits",
+          error = e.msg
         writeStackTrace()
     finally:
       proc closeProcessStreams() {.async: (raises: []).} =
@@ -147,6 +145,7 @@ method stop*(node: NodeProcess, expectedErrCode: int = -1) {.base, async.} =
         await node.process.closeWait()
         node.process = nil
         trace "node process' streams closed"
+
       asyncSpawn closeProcessStreams()
 
 proc waitUntilOutput*(node: NodeProcess, output: string) {.async.} =
