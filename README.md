@@ -59,8 +59,8 @@ Feel free to dive in, contributions are welcomed! Open an issue or submit PRs.
 
 ### Linting and formatting
 
-`nim-codex` uses [nph](https://github.com/arnetheduck/nph) for formatting our code and it is requrired to adhere to its styling.
+`nim-codex` uses [nph](https://github.com/arnetheduck/nph) for formatting our code and it is required to adhere to its styling.
 If you are setting up fresh setup, in order to get `nph` run `make build-nph`.
 In order to format files run `make nph/<file/folder you want to format>`. 
-If you want you can install Git pre-commit hook using `make install-nph-commit`, which will format modified files prior commiting them. 
+If you want you can install Git pre-commit hook using `make install-nph-commit`, which will format modified files prior committing them. 
 If you are using VSCode and the [NimLang](https://marketplace.visualstudio.com/items?itemName=NimLang.nimlang) extension you can enable "Format On Save" (eq. the `nim.formatOnSave` property) that will format the files using `nph`.
