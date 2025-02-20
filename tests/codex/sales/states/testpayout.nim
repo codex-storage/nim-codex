@@ -15,7 +15,7 @@ import ../../helpers/mockclock
 
 asyncchecksuite "sales state 'payout'":
   let request = StorageRequest.example
-  let slotIndex = (request.ask.slots div 2).u256
+  let slotIndex = request.ask.slots div 2
   let clock = MockClock.new()
 
   let currentCollateral = UInt256.example

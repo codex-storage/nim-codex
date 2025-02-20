@@ -15,6 +15,7 @@ import std/strformat
 import std/sugar
 import times
 
+import pkg/taskpools
 import pkg/questionable
 import pkg/questionable/results
 import pkg/chronos
@@ -70,6 +71,7 @@ type
     contracts*: Contracts
     clock*: Clock
     storage*: Contracts
+    taskpool: Taskpool
 
   CodexNodeRef* = ref CodexNode
 
@@ -235,8 +237,9 @@ proc streamEntireDataset(
     # Retrieve, decode and save to the local store all EС groups
     proc erasureJob(): Future[?!void] {.async.} =
       # Spawn an erasure decoding job
-      let erasure =
-        Erasure.new(self.networkStore, leoEncoderProvider, leoDecoderProvider)
+      let erasure = Erasure.new(
+        self.networkStore, leoEncoderProvider, leoDecoderProvider, self.taskpool
+      )
       without _ =? (await erasure.decode(manifest)), error:
         error "Unable to erasure decode manifest", manifestCid, exc = error.msg
         return failure(error)
@@ -266,6 +269,65 @@ proc retrieve*(
     return await self.streamSingleBlock(cid)
 
   await self.streamEntireDataset(manifest, cid)
+
+proc deleteSingleBlock(self: CodexNodeRef, cid: Cid): Future[?!void] {.async.} =
+  if err =? (await self.networkStore.delBlock(cid)).errorOption:
+    error "Error deleting block", cid, err = err.msg
+    return failure(err)
+
+  trace "Deleted block", cid
+  return success()
+
+proc deleteEntireDataset(self: CodexNodeRef, cid: Cid): Future[?!void] {.async.} =
+  # Deletion is a strictly local operation
+  var store = self.networkStore.localStore
+
+  if not (await cid in store):
+    # As per the contract for delete*, an absent dataset is not an error.
+    return success()
+
+  without manifestBlock =? await store.getBlock(cid), err:
+    return failure(err)
+
+  without manifest =? Manifest.decode(manifestBlock), err:
+    return failure(err)
+
+  let runtimeQuota = initDuration(milliseconds = 100)
+  var lastIdle = getTime()
+  for i in 0 ..< manifest.blocksCount:
+    if (getTime() - lastIdle) >= runtimeQuota:
+      await idleAsync()
+      lastIdle = getTime()
+
+    if err =? (await store.delBlock(manifest.treeCid, i)).errorOption:
+      # The contract for delBlock is fuzzy, but we assume that if the block is
+      # simply missing we won't get an error. This is a best effort operation and
+      # can simply be retried.
+      error "Failed to delete block within dataset", index = i, err = err.msg
+      return failure(err)
+
+  if err =? (await store.delBlock(cid)).errorOption:
+    error "Error deleting manifest block", err = err.msg
+
+  success()
+
+proc delete*(
+    self: CodexNodeRef, cid: Cid
+): Future[?!void] {.async: (raises: [CatchableError]).} =
+  ## Deletes a whole dataset, if Cid is a Manifest Cid, or a single block, if Cid a block Cid,
+  ## from the underlying block store. This is a strictly local operation.
+  ##
+  ## Missing blocks in dataset deletes are ignored.
+  ##
+
+  without isManifest =? cid.isManifest, err:
+    trace "Bad content type for CID:", cid = cid, err = err.msg
+    return failure(err)
+
+  if not isManifest:
+    return await self.deleteSingleBlock(cid)
+
+  await self.deleteEntireDataset(cid)
 
 proc store*(
     self: CodexNodeRef,
@@ -332,7 +394,6 @@ proc store*(
     codec = dataCodec,
     filename = filename,
     mimetype = mimetype,
-    uploadedAt = now().utc.toTime.toUnix.some,
   )
 
   without manifestBlk =? await self.storeManifest(manifest), err:
@@ -369,13 +430,13 @@ proc iterateManifests*(self: CodexNodeRef, onManifest: OnManifest) {.async.} =
 proc setupRequest(
     self: CodexNodeRef,
     cid: Cid,
-    duration: UInt256,
+    duration: uint64,
     proofProbability: UInt256,
     nodes: uint,
     tolerance: uint,
     pricePerBytePerSecond: UInt256,
     collateralPerByte: UInt256,
-    expiry: UInt256,
+    expiry: uint64,
 ): Future[?!StorageRequest] {.async.} =
   ## Setup slots for a given dataset
   ##
@@ -403,8 +464,9 @@ proc setupRequest(
     return failure error
 
   # Erasure code the dataset according to provided parameters
-  let erasure =
-    Erasure.new(self.networkStore.localStore, leoEncoderProvider, leoDecoderProvider)
+  let erasure = Erasure.new(
+    self.networkStore.localStore, leoEncoderProvider, leoDecoderProvider, self.taskpool
+  )
 
   without encoded =? (await erasure.encode(manifest, ecK, ecM)), error:
     trace "Unable to erasure code dataset"
@@ -432,17 +494,14 @@ proc setupRequest(
     request = StorageRequest(
       ask: StorageAsk(
         slots: verifiable.numSlots.uint64,
-        slotSize: builder.slotBytes.uint.u256,
+        slotSize: builder.slotBytes.uint64,
         duration: duration,
         proofProbability: proofProbability,
         pricePerBytePerSecond: pricePerBytePerSecond,
         collateralPerByte: collateralPerByte,
         maxSlotLoss: tolerance,
       ),
-      content: StorageContent(
-        cid: $manifestBlk.cid, # TODO: why string?
-        merkleRoot: verifyRoot,
-      ),
+      content: StorageContent(cid: manifestBlk.cid, merkleRoot: verifyRoot),
       expiry: expiry,
     )
 
@@ -452,13 +511,13 @@ proc setupRequest(
 proc requestStorage*(
     self: CodexNodeRef,
     cid: Cid,
-    duration: UInt256,
+    duration: uint64,
     proofProbability: UInt256,
     nodes: uint,
     tolerance: uint,
     pricePerBytePerSecond: UInt256,
     collateralPerByte: UInt256,
-    expiry: UInt256,
+    expiry: uint64,
 ): Future[?!PurchaseId] {.async.} =
   ## Initiate a request for storage sequence, this might
   ## be a multistep procedure.
@@ -472,7 +531,7 @@ proc requestStorage*(
     pricePerBytePerSecond = pricePerBytePerSecond
     proofProbability = proofProbability
     collateralPerByte = collateralPerByte
-    expiry = expiry.truncate(int64)
+    expiry = expiry
     now = self.clock.now
 
   trace "Received a request for storage!"
@@ -494,20 +553,18 @@ proc requestStorage*(
   success purchase.id
 
 proc onStore(
-    self: CodexNodeRef, request: StorageRequest, slotIdx: UInt256, blocksCb: BlocksCb
+    self: CodexNodeRef, request: StorageRequest, slotIdx: uint64, blocksCb: BlocksCb
 ): Future[?!void] {.async.} =
   ## store data in local storage
   ##
 
+  let cid = request.content.cid
+
   logScope:
-    cid = request.content.cid
+    cid = $cid
     slotIdx = slotIdx
 
   trace "Received a request to store a slot"
-
-  without cid =? Cid.init(request.content.cid).mapFailure, err:
-    trace "Unable to parse Cid", cid
-    return failure(err)
 
   without manifest =? (await self.fetchManifest(cid)), err:
     trace "Unable to fetch manifest for cid", cid, err = err.msg
@@ -518,11 +575,9 @@ proc onStore(
     trace "Unable to create slots builder", err = err.msg
     return failure(err)
 
-  let
-    slotIdx = slotIdx.truncate(int)
-    expiry = request.expiry.toSecondsSince1970
+  let expiry = request.expiry
 
-  if slotIdx > manifest.slotRoots.high:
+  if slotIdx > manifest.slotRoots.high.uint64:
     trace "Slot index not in manifest", slotIdx
     return failure(newException(CodexError, "Slot index not in manifest"))
 
@@ -530,7 +585,7 @@ proc onStore(
     trace "Updating expiry for blocks", blocks = blocks.len
 
     let ensureExpiryFutures =
-      blocks.mapIt(self.networkStore.ensureExpiry(it.cid, expiry))
+      blocks.mapIt(self.networkStore.ensureExpiry(it.cid, expiry.toSecondsSince1970))
     if updateExpiryErr =? (await allFutureResult(ensureExpiryFutures)).errorOption:
       return failure(updateExpiryErr)
 
@@ -546,7 +601,11 @@ proc onStore(
     trace "Unable to create indexing strategy from protected manifest", err = err.msg
     return failure(err)
 
-  without blksIter =? indexer.getIndicies(slotIdx).catch, err:
+  if slotIdx > int.high.uint64:
+    error "Cannot cast slot index to int", slotIndex = slotIdx
+    return
+
+  without blksIter =? indexer.getIndicies(slotIdx.int).catch, err:
     trace "Unable to get indicies from strategy", err = err.msg
     return failure(err)
 
@@ -556,13 +615,13 @@ proc onStore(
     trace "Unable to fetch blocks", err = err.msg
     return failure(err)
 
-  without slotRoot =? (await builder.buildSlot(slotIdx.Natural)), err:
+  without slotRoot =? (await builder.buildSlot(slotIdx.int)), err:
     trace "Unable to build slot", err = err.msg
     return failure(err)
 
   trace "Slot successfully retrieved and reconstructed"
 
-  if cid =? slotRoot.toSlotCid() and cid != manifest.slotRoots[slotIdx.int]:
+  if cid =? slotRoot.toSlotCid() and cid != manifest.slotRoots[slotIdx]:
     trace "Slot root mismatch",
       manifest = manifest.slotRoots[slotIdx.int], recovered = slotRoot.toSlotCid()
     return failure(newException(CodexError, "Slot root mismatch"))
@@ -578,8 +637,8 @@ proc onProve(
   ##
 
   let
-    cidStr = slot.request.content.cid
-    slotIdx = slot.slotIndex.truncate(Natural)
+    cidStr = $slot.request.content.cid
+    slotIdx = slot.slotIndex
 
   logScope:
     cid = cidStr
@@ -600,7 +659,8 @@ proc onProve(
       return failure(err)
 
     when defined(verify_circuit):
-      without (inputs, proof) =? await prover.prove(slotIdx, manifest, challenge), err:
+      without (inputs, proof) =? await prover.prove(slotIdx.int, manifest, challenge),
+        err:
         error "Unable to generate proof", err = err.msg
         return failure(err)
 
@@ -614,7 +674,7 @@ proc onProve(
 
       trace "Proof verified successfully"
     else:
-      without (_, proof) =? await prover.prove(slotIdx, manifest, challenge), err:
+      without (_, proof) =? await prover.prove(slotIdx.int, manifest, challenge), err:
         error "Unable to generate proof", err = err.msg
         return failure(err)
 
@@ -627,16 +687,11 @@ proc onProve(
     failure "Prover not enabled"
 
 proc onExpiryUpdate(
-    self: CodexNodeRef, rootCid: string, expiry: SecondsSince1970
+    self: CodexNodeRef, rootCid: Cid, expiry: SecondsSince1970
 ): Future[?!void] {.async.} =
-  without cid =? Cid.init(rootCid):
-    trace "Unable to parse Cid", cid
-    let error = newException(CodexError, "Unable to parse Cid")
-    return failure(error)
+  return await self.updateExpiry(rootCid, expiry)
 
-  return await self.updateExpiry(cid, expiry)
-
-proc onClear(self: CodexNodeRef, request: StorageRequest, slotIndex: UInt256) =
+proc onClear(self: CodexNodeRef, request: StorageRequest, slotIndex: uint64) =
   # TODO: remove data from local storage
   discard
 
@@ -652,16 +707,16 @@ proc start*(self: CodexNodeRef) {.async.} =
 
   if hostContracts =? self.contracts.host:
     hostContracts.sales.onStore = proc(
-        request: StorageRequest, slot: UInt256, onBatch: BatchProc
+        request: StorageRequest, slot: uint64, onBatch: BatchProc
     ): Future[?!void] =
       self.onStore(request, slot, onBatch)
 
     hostContracts.sales.onExpiryUpdate = proc(
-        rootCid: string, expiry: SecondsSince1970
+        rootCid: Cid, expiry: SecondsSince1970
     ): Future[?!void] =
       self.onExpiryUpdate(rootCid, expiry)
 
-    hostContracts.sales.onClear = proc(request: StorageRequest, slotIndex: UInt256) =
+    hostContracts.sales.onClear = proc(request: StorageRequest, slotIndex: uint64) =
       # TODO: remove data from local storage
       self.onClear(request, slotIndex)
 
@@ -724,12 +779,16 @@ proc stop*(self: CodexNodeRef) {.async.} =
   if not self.networkStore.isNil:
     await self.networkStore.close
 
+  if not self.taskpool.isNil:
+    self.taskpool.shutdown()
+
 proc new*(
     T: type CodexNodeRef,
     switch: Switch,
     networkStore: NetworkStore,
     engine: BlockExcEngine,
     discovery: Discovery,
+    taskpool: Taskpool,
     prover = Prover.none,
     contracts = Contracts.default,
 ): CodexNodeRef =
@@ -742,5 +801,6 @@ proc new*(
     engine: engine,
     prover: prover,
     discovery: discovery,
+    taskPool: taskpool,
     contracts: contracts,
   )

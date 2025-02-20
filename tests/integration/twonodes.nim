@@ -1,4 +1,3 @@
-import std/os
 import std/macros
 import pkg/questionable
 import ./multinodes

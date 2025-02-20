@@ -10,7 +10,7 @@
 import std/options
 
 import pkg/leopard
-import pkg/stew/results
+import pkg/results
 
 import ../backend
 
@@ -22,11 +22,13 @@ type
     decoder*: Option[LeoDecoder]
 
 method encode*(
-    self: LeoEncoderBackend, data, parity: var openArray[seq[byte]]
+    self: LeoEncoderBackend,
+    data, parity: ptr UncheckedArray[ptr UncheckedArray[byte]],
+    dataLen, parityLen: int,
 ): Result[void, cstring] =
   ## Encode data using Leopard backend
 
-  if parity.len == 0:
+  if parityLen == 0:
     return ok()
 
   var encoder =
@@ -36,10 +38,12 @@ method encode*(
     else:
       self.encoder.get()
 
-  encoder.encode(data, parity)
+  encoder.encode(data, parity, dataLen, parityLen)
 
 method decode*(
-    self: LeoDecoderBackend, data, parity, recovered: var openArray[seq[byte]]
+    self: LeoDecoderBackend,
+    data, parity, recovered: ptr UncheckedArray[ptr UncheckedArray[byte]],
+    dataLen, parityLen, recoveredLen: int,
 ): Result[void, cstring] =
   ## Decode data using given Leopard backend
 
@@ -50,7 +54,7 @@ method decode*(
     else:
       self.decoder.get()
 
-  decoder.decode(data, parity, recovered)
+  decoder.decode(data, parity, recovered, dataLen, parityLen, recoveredLen)
 
 method release*(self: LeoEncoderBackend) =
   if self.encoder.isSome:

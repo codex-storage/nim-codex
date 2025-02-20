@@ -189,7 +189,7 @@ proc getCellHashes*[T, H](
         blkIdx = blkIdx
         pos = i
 
-      trace "Getting block CID for tree at index"
+      trace "Getting block CID for tree at index", index = blkIdx
       without (_, tree) =? (await self.buildBlockTree(blkIdx, i)) and digest =? tree.root,
         err:
         error "Failed to get block CID for tree at index", err = err.msg

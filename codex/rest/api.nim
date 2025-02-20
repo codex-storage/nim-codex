@@ -238,6 +238,15 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
     let json = await formatManifestBlocks(node)
     return RestApiResponse.response($json, contentType = "application/json")
 
+  router.api(MethodOptions, "/api/codex/v1/data/{cid}") do(
+    cid: Cid, resp: HttpResponseRef
+  ) -> RestApiResponse:
+    if corsOrigin =? allowedOrigin:
+      resp.setCorsHeaders("GET,DELETE", corsOrigin)
+
+    resp.status = Http204
+    await resp.sendBody("")
+
   router.api(MethodGet, "/api/codex/v1/data/{cid}") do(
     cid: Cid, resp: HttpResponseRef
   ) -> RestApiResponse:
@@ -253,6 +262,27 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
       resp.setHeader("Access-Control-Headers", "X-Requested-With")
 
     await node.retrieveCid(cid.get(), local = true, resp = resp)
+
+  router.api(MethodDelete, "/api/codex/v1/data/{cid}") do(
+    cid: Cid, resp: HttpResponseRef
+  ) -> RestApiResponse:
+    ## Deletes either a single block or an entire dataset
+    ## from the local node. Does nothing and returns 200
+    ## if the dataset is not locally available.
+    ##
+    var headers = buildCorsHeaders("DELETE", allowedOrigin)
+
+    if cid.isErr:
+      return RestApiResponse.error(Http400, $cid.error(), headers = headers)
+
+    if err =? (await node.delete(cid.get())).errorOption:
+      return RestApiResponse.error(Http500, err.msg, headers = headers)
+
+    if corsOrigin =? allowedOrigin:
+      resp.setCorsHeaders("DELETE", corsOrigin)
+
+    resp.status = Http204
+    await resp.sendBody("")
 
   router.api(MethodPost, "/api/codex/v1/data/{cid}/network") do(
     cid: Cid, resp: HttpResponseRef
@@ -433,7 +463,7 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
           Http400, "Total size must be larger then zero", headers = headers
         )
 
-      if not reservations.hasAvailable(restAv.totalSize.truncate(uint)):
+      if not reservations.hasAvailable(restAv.totalSize):
         return
           RestApiResponse.error(Http422, "Not enough storage quota", headers = headers)
 
@@ -606,6 +636,14 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
 
       without params =? StorageRequestParams.fromJson(body), error:
         return RestApiResponse.error(Http400, error.msg, headers = headers)
+
+      let requestDurationLimit = await contracts.purchasing.market.requestDurationLimit
+      if params.duration > requestDurationLimit:
+        return RestApiResponse.error(
+          Http400,
+          "Duration exceeds limit of " & $requestDurationLimit & " seconds",
+          headers = headers,
+        )
 
       let nodes = params.nodes |? 3
       let tolerance = params.tolerance |? 1

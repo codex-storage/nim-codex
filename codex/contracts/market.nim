@@ -2,6 +2,7 @@ import std/strutils
 import pkg/ethers
 import pkg/upraises
 import pkg/questionable
+import pkg/lrucache
 import ../utils/exceptions
 import ../logutils
 import ../market
@@ -20,6 +21,7 @@ type
     signer: Signer
     rewardRecipient: ?Address
     configuration: ?MarketplaceConfig
+    requestCache: LruCache[string, StorageRequest]
 
   MarketSubscription = market.Subscription
   EventSubscription = ethers.Subscription
@@ -27,12 +29,22 @@ type
     eventSubscription: EventSubscription
 
 func new*(
-    _: type OnChainMarket, contract: Marketplace, rewardRecipient = Address.none
+    _: type OnChainMarket,
+    contract: Marketplace,
+    rewardRecipient = Address.none,
+    requestCacheSize: uint16 = DefaultRequestCacheSize,
 ): OnChainMarket =
   without signer =? contract.signer:
     raiseAssert("Marketplace contract should have a signer")
 
-  OnChainMarket(contract: contract, signer: signer, rewardRecipient: rewardRecipient)
+  var requestCache = newLruCache[string, StorageRequest](int(requestCacheSize))
+
+  OnChainMarket(
+    contract: contract,
+    signer: signer,
+    rewardRecipient: rewardRecipient,
+    requestCache: requestCache,
+  )
 
 proc raiseMarketError(message: string) {.raises: [MarketError].} =
   raise newException(MarketError, message)
@@ -72,15 +84,20 @@ method periodicity*(market: OnChainMarket): Future[Periodicity] {.async.} =
     let period = config.proofs.period
     return Periodicity(seconds: period)
 
-method proofTimeout*(market: OnChainMarket): Future[UInt256] {.async.} =
+method proofTimeout*(market: OnChainMarket): Future[uint64] {.async.} =
   convertEthersError:
     let config = await market.config()
     return config.proofs.timeout
 
 method repairRewardPercentage*(market: OnChainMarket): Future[uint8] {.async.} =
   convertEthersError:
-    let config = await market.contract.configuration()
+    let config = await market.config()
     return config.collateral.repairRewardPercentage
+
+method requestDurationLimit*(market: OnChainMarket): Future[uint64] {.async.} =
+  convertEthersError:
+    let config = await market.config()
+    return config.requestDurationLimit
 
 method proofDowntime*(market: OnChainMarket): Future[uint8] {.async.} =
   convertEthersError:
@@ -112,9 +129,16 @@ method requestStorage(market: OnChainMarket, request: StorageRequest) {.async.} 
 method getRequest*(
     market: OnChainMarket, id: RequestId
 ): Future[?StorageRequest] {.async.} =
+  let key = $id
+
+  if market.requestCache.contains(key):
+    return some market.requestCache[key]
+
   convertEthersError:
     try:
-      return some await market.contract.getRequest(id)
+      let request = await market.contract.getRequest(id)
+      market.requestCache[key] = request
+      return some request
     except Marketplace_UnknownRequest:
       return none StorageRequest
 
@@ -146,7 +170,7 @@ method requestExpiresAt*(
     return await market.contract.requestExpiry(id)
 
 method getHost(
-    market: OnChainMarket, requestId: RequestId, slotIndex: UInt256
+    market: OnChainMarket, requestId: RequestId, slotIndex: uint64
 ): Future[?Address] {.async.} =
   convertEthersError:
     let slotId = slotId(requestId, slotIndex)
@@ -172,7 +196,7 @@ method getActiveSlot*(market: OnChainMarket, slotId: SlotId): Future[?Slot] {.as
 method fillSlot(
     market: OnChainMarket,
     requestId: RequestId,
-    slotIndex: UInt256,
+    slotIndex: uint64,
     proof: Groth16Proof,
     collateral: UInt256,
 ) {.async.} =
@@ -256,7 +280,7 @@ method canProofBeMarkedAsMissing*(
     return false
 
 method reserveSlot*(
-    market: OnChainMarket, requestId: RequestId, slotIndex: UInt256
+    market: OnChainMarket, requestId: RequestId, slotIndex: uint64
 ) {.async.} =
   convertEthersError:
     discard await market.contract
@@ -269,7 +293,7 @@ method reserveSlot*(
     .confirm(1)
 
 method canReserveSlot*(
-    market: OnChainMarket, requestId: RequestId, slotIndex: UInt256
+    market: OnChainMarket, requestId: RequestId, slotIndex: uint64
 ): Future[bool] {.async.} =
   convertEthersError:
     return await market.contract.canReserveSlot(requestId, slotIndex)
@@ -305,10 +329,10 @@ method subscribeSlotFilled*(
 method subscribeSlotFilled*(
     market: OnChainMarket,
     requestId: RequestId,
-    slotIndex: UInt256,
+    slotIndex: uint64,
     callback: OnSlotFilled,
 ): Future[MarketSubscription] {.async.} =
-  proc onSlotFilled(eventRequestId: RequestId, eventSlotIndex: UInt256) =
+  proc onSlotFilled(eventRequestId: RequestId, eventSlotIndex: uint64) =
     if eventRequestId == requestId and eventSlotIndex == slotIndex:
       callback(requestId, slotIndex)
 

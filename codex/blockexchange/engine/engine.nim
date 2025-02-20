@@ -402,7 +402,7 @@ proc wantListHandler*(b: BlockExcEngine, peer: PeerId, wantList: WantList) {.asy
         have = await e.address in b.localStore
         price = @(b.pricing.get(Pricing(price: 0.u256)).price.toBytesBE)
 
-      case e.wantType:
+      case e.wantType
       of WantType.WantHave:
         if have:
           presence.add(

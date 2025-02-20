@@ -36,18 +36,21 @@ asyncchecksuite "Sales - start":
   var repo: RepoStore
   var queue: SlotQueue
   var itemsProcessed: seq[SlotQueueItem]
+  var expiry: SecondsSince1970
 
   setup:
     request = StorageRequest(
       ask: StorageAsk(
         slots: 4,
-        slotSize: 100.u256,
-        duration: 60.u256,
+        slotSize: 100.uint64,
+        duration: 60.uint64,
         pricePerBytePerSecond: 1.u256,
         collateralPerByte: 1.u256,
       ),
-      content: StorageContent(cid: "some cid"),
-      expiry: (getTime() + initDuration(hours = 1)).toUnix.u256,
+      content: StorageContent(
+        cid: Cid.init("zb2rhheVmk3bLks5MgzTqyznLu1zqGH5jrfTA1eAZXrjx7Vob").tryGet
+      ),
+      expiry: (getTime() + initDuration(hours = 1)).toUnix.uint64,
     )
 
     market = MockMarket.new()
@@ -59,12 +62,12 @@ asyncchecksuite "Sales - start":
     sales = Sales.new(market, clock, repo)
     reservations = sales.context.reservations
     sales.onStore = proc(
-        request: StorageRequest, slot: UInt256, onBatch: BatchProc
+        request: StorageRequest, slot: uint64, onBatch: BatchProc
     ): Future[?!void] {.async.} =
       return success()
 
     sales.onExpiryUpdate = proc(
-        rootCid: string, expiry: SecondsSince1970
+        rootCid: Cid, expiry: SecondsSince1970
     ): Future[?!void] {.async.} =
       return success()
 
@@ -74,7 +77,8 @@ asyncchecksuite "Sales - start":
     ): Future[?!Groth16Proof] {.async.} =
       return success(proof)
     itemsProcessed = @[]
-    request.expiry = (clock.now() + 42).u256
+    expiry = (clock.now() + 42)
+    request.expiry = expiry.uint64
 
   teardown:
     await sales.stop()
@@ -82,7 +86,7 @@ asyncchecksuite "Sales - start":
     await repoTmp.destroyDb()
     await metaTmp.destroyDb()
 
-  proc fillSlot(slotIdx: UInt256 = 0.u256) {.async.} =
+  proc fillSlot(slotIdx: uint64 = 0.uint64) {.async.} =
     let address = await market.getSigner()
     let slot =
       MockSlot(requestId: request.id, slotIndex: slotIdx, proof: proof, host: address)
@@ -95,16 +99,15 @@ asyncchecksuite "Sales - start":
     request.ask.slots = 2
     market.requested = @[request]
     market.requestState[request.id] = RequestState.New
+    market.requestExpiry[request.id] = expiry
 
-    let slot0 =
-      MockSlot(requestId: request.id, slotIndex: 0.u256, proof: proof, host: me)
+    let slot0 = MockSlot(requestId: request.id, slotIndex: 0, proof: proof, host: me)
     await fillSlot(slot0.slotIndex)
 
-    let slot1 =
-      MockSlot(requestId: request.id, slotIndex: 1.u256, proof: proof, host: me)
+    let slot1 = MockSlot(requestId: request.id, slotIndex: 1, proof: proof, host: me)
     await fillSlot(slot1.slotIndex)
 
-    market.activeSlots[me] = @[request.slotId(0.u256), request.slotId(1.u256)]
+    market.activeSlots[me] = @[request.slotId(0), request.slotId(1)]
     market.requested = @[request]
     market.activeRequests[me] = @[request.id]
 
@@ -112,10 +115,10 @@ asyncchecksuite "Sales - start":
 
     check eventually sales.agents.len == 2
     check sales.agents.any(
-      agent => agent.data.requestId == request.id and agent.data.slotIndex == 0.u256
+      agent => agent.data.requestId == request.id and agent.data.slotIndex == 0.uint64
     )
     check sales.agents.any(
-      agent => agent.data.requestId == request.id and agent.data.slotIndex == 1.u256
+      agent => agent.data.requestId == request.id and agent.data.slotIndex == 1.uint64
     )
 
 asyncchecksuite "Sales":
@@ -124,7 +127,7 @@ asyncchecksuite "Sales":
     repoTmp = TempLevelDb.new()
     metaTmp = TempLevelDb.new()
 
-  var totalAvailabilitySize: UInt256
+  var totalAvailabilitySize: uint64
   var minPricePerBytePerSecond: UInt256
   var requestedCollateralPerByte: UInt256
   var totalCollateral: UInt256
@@ -139,27 +142,29 @@ asyncchecksuite "Sales":
   var itemsProcessed: seq[SlotQueueItem]
 
   setup:
-    totalAvailabilitySize = 100.u256
+    totalAvailabilitySize = 100.uint64
     minPricePerBytePerSecond = 1.u256
     requestedCollateralPerByte = 1.u256
-    totalCollateral = requestedCollateralPerByte * totalAvailabilitySize
+    totalCollateral = requestedCollateralPerByte * totalAvailabilitySize.stuint(256)
     availability = Availability.init(
       totalSize = totalAvailabilitySize,
       freeSize = totalAvailabilitySize,
-      duration = 60.u256,
+      duration = 60.uint64,
       minPricePerBytePerSecond = minPricePerBytePerSecond,
       totalCollateral = totalCollateral,
     )
     request = StorageRequest(
       ask: StorageAsk(
         slots: 4,
-        slotSize: 100.u256,
-        duration: 60.u256,
+        slotSize: 100.uint64,
+        duration: 60.uint64,
         pricePerBytePerSecond: minPricePerBytePerSecond,
         collateralPerByte: 1.u256,
       ),
-      content: StorageContent(cid: "some cid"),
-      expiry: (getTime() + initDuration(hours = 1)).toUnix.u256,
+      content: StorageContent(
+        cid: Cid.init("zb2rhheVmk3bLks5MgzTqyznLu1zqGH5jrfTA1eAZXrjx7Vob").tryGet
+      ),
+      expiry: (getTime() + initDuration(hours = 1)).toUnix.uint64,
     )
 
     market = MockMarket.new()
@@ -176,12 +181,12 @@ asyncchecksuite "Sales":
     sales = Sales.new(market, clock, repo)
     reservations = sales.context.reservations
     sales.onStore = proc(
-        request: StorageRequest, slot: UInt256, onBatch: BatchProc
+        request: StorageRequest, slot: uint64, onBatch: BatchProc
     ): Future[?!void] {.async.} =
       return success()
 
     sales.onExpiryUpdate = proc(
-        rootCid: string, expiry: SecondsSince1970
+        rootCid: Cid, expiry: SecondsSince1970
     ): Future[?!void] {.async.} =
       return success()
 
@@ -281,13 +286,13 @@ asyncchecksuite "Sales":
 
   test "removes slot index from slot queue once SlotFilled emitted":
     let request1 = await addRequestToSaturatedQueue()
-    market.emitSlotFilled(request1.id, 1.u256)
+    market.emitSlotFilled(request1.id, 1.uint64)
     let expected = SlotQueueItem.init(request1, 1'u16)
     check always (not itemsProcessed.contains(expected))
 
   test "removes slot index from slot queue once SlotReservationsFull emitted":
     let request1 = await addRequestToSaturatedQueue()
-    market.emitSlotReservationsFull(request1.id, 1.u256)
+    market.emitSlotReservationsFull(request1.id, 1.uint64)
     let expected = SlotQueueItem.init(request1, 1'u16)
     check always (not itemsProcessed.contains(expected))
 
@@ -298,7 +303,7 @@ asyncchecksuite "Sales":
 
     createAvailability()
     market.requested.add request # "contract" must be able to return request
-    market.emitSlotFreed(request.id, 2.u256)
+    market.emitSlotFreed(request.id, 2.uint64)
 
     let expected = SlotQueueItem.init(request, 2.uint16)
     check eventually itemsProcessed.contains(expected)
@@ -343,10 +348,10 @@ asyncchecksuite "Sales":
 
   test "availability size is reduced by request slot size when fully downloaded":
     sales.onStore = proc(
-        request: StorageRequest, slot: UInt256, onBatch: BatchProc
+        request: StorageRequest, slot: uint64, onBatch: BatchProc
     ): Future[?!void] {.async.} =
       let blk = bt.Block.new(@[1.byte]).get
-      await onBatch(blk.repeat(request.ask.slotSize.truncate(int)))
+      await onBatch(blk.repeat(request.ask.slotSize.int))
 
     createAvailability()
     await market.requestStorage(request)
@@ -354,16 +359,16 @@ asyncchecksuite "Sales":
       availability.freeSize - request.ask.slotSize
 
   test "non-downloaded bytes are returned to availability once finished":
-    var slotIndex = 0.u256
+    var slotIndex = 0.uint64
     sales.onStore = proc(
-        request: StorageRequest, slot: UInt256, onBatch: BatchProc
+        request: StorageRequest, slot: uint64, onBatch: BatchProc
     ): Future[?!void] {.async.} =
       slotIndex = slot
       let blk = bt.Block.new(@[1.byte]).get
       await onBatch(@[blk])
 
     let sold = newFuture[void]()
-    sales.onSale = proc(request: StorageRequest, slotIndex: UInt256) =
+    sales.onSale = proc(request: StorageRequest, slotIndex: uint64) =
       sold.complete()
 
     createAvailability()
@@ -374,7 +379,7 @@ asyncchecksuite "Sales":
 
     # complete request
     market.slotState[request.slotId(slotIndex)] = SlotState.Finished
-    clock.advance(request.ask.duration.truncate(int64))
+    clock.advance(request.ask.duration.int64)
 
     check eventually getAvailability().freeSize == origSize - 1
 
@@ -406,17 +411,17 @@ asyncchecksuite "Sales":
   test "ignores request when slot state is not free":
     createAvailability()
     await market.requestStorage(request)
-    market.slotState[request.slotId(0.u256)] = SlotState.Filled
-    market.slotState[request.slotId(1.u256)] = SlotState.Filled
-    market.slotState[request.slotId(2.u256)] = SlotState.Filled
-    market.slotState[request.slotId(3.u256)] = SlotState.Filled
+    market.slotState[request.slotId(0.uint64)] = SlotState.Filled
+    market.slotState[request.slotId(1.uint64)] = SlotState.Filled
+    market.slotState[request.slotId(2.uint64)] = SlotState.Filled
+    market.slotState[request.slotId(3.uint64)] = SlotState.Filled
     check wasIgnored()
 
   test "retrieves and stores data locally":
     var storingRequest: StorageRequest
-    var storingSlot: UInt256
+    var storingSlot: uint64
     sales.onStore = proc(
-        request: StorageRequest, slot: UInt256, onBatch: BatchProc
+        request: StorageRequest, slot: uint64, onBatch: BatchProc
     ): Future[?!void] {.async.} =
       storingRequest = request
       storingSlot = slot
@@ -424,29 +429,12 @@ asyncchecksuite "Sales":
     createAvailability()
     await market.requestStorage(request)
     check eventually storingRequest == request
-    check storingSlot < request.ask.slots.u256
-
-  test "handles errors during state run":
-    var saleFailed = false
-    sales.onProve = proc(
-        slot: Slot, challenge: ProofChallenge
-    ): Future[?!Groth16Proof] {.async.} =
-      # raise exception so machine.onError is called
-      raise newException(ValueError, "some error")
-
-    # onClear is called in SaleErrored.run
-    sales.onClear = proc(request: StorageRequest, idx: UInt256) =
-      saleFailed = true
-    createAvailability()
-    await market.requestStorage(request)
-    await allowRequestToStart()
-
-    check eventually saleFailed
+    check storingSlot < request.ask.slots
 
   test "makes storage available again when data retrieval fails":
     let error = newException(IOError, "data retrieval failed")
     sales.onStore = proc(
-        request: StorageRequest, slot: UInt256, onBatch: BatchProc
+        request: StorageRequest, slot: uint64, onBatch: BatchProc
     ): Future[?!void] {.async.} =
       return failure(error)
     createAvailability()
@@ -455,7 +443,7 @@ asyncchecksuite "Sales":
 
   test "generates proof of storage":
     var provingRequest: StorageRequest
-    var provingSlot: UInt256
+    var provingSlot: uint64
     sales.onProve = proc(
         slot: Slot, challenge: ProofChallenge
     ): Future[?!Groth16Proof] {.async.} =
@@ -467,7 +455,7 @@ asyncchecksuite "Sales":
     await allowRequestToStart()
 
     check eventually provingRequest == request
-    check provingSlot < request.ask.slots.u256
+    check provingSlot < request.ask.slots
 
   test "fills a slot":
     createAvailability()
@@ -476,14 +464,14 @@ asyncchecksuite "Sales":
 
     check eventually market.filled.len > 0
     check market.filled[0].requestId == request.id
-    check market.filled[0].slotIndex < request.ask.slots.u256
+    check market.filled[0].slotIndex < request.ask.slots
     check market.filled[0].proof == proof
     check market.filled[0].host == await market.getSigner()
 
   test "calls onFilled when slot is filled":
     var soldRequest = StorageRequest.default
-    var soldSlotIndex = UInt256.high
-    sales.onSale = proc(request: StorageRequest, slotIndex: UInt256) =
+    var soldSlotIndex = uint64.high
+    sales.onSale = proc(request: StorageRequest, slotIndex: uint64) =
       soldRequest = request
       soldSlotIndex = slotIndex
     createAvailability()
@@ -491,7 +479,7 @@ asyncchecksuite "Sales":
     await allowRequestToStart()
 
     check eventually soldRequest == request
-    check soldSlotIndex < request.ask.slots.u256
+    check soldSlotIndex < request.ask.slots
 
   test "calls onClear when storage becomes available again":
     # fail the proof intentionally to trigger `agent.finish(success=false)`,
@@ -501,8 +489,8 @@ asyncchecksuite "Sales":
     ): Future[?!Groth16Proof] {.async.} =
       raise newException(IOError, "proof failed")
     var clearedRequest: StorageRequest
-    var clearedSlotIndex: UInt256
-    sales.onClear = proc(request: StorageRequest, slotIndex: UInt256) =
+    var clearedSlotIndex: uint64
+    sales.onClear = proc(request: StorageRequest, slotIndex: uint64) =
       clearedRequest = request
       clearedSlotIndex = slotIndex
     createAvailability()
@@ -510,19 +498,19 @@ asyncchecksuite "Sales":
     await allowRequestToStart()
 
     check eventually clearedRequest == request
-    check clearedSlotIndex < request.ask.slots.u256
+    check clearedSlotIndex < request.ask.slots
 
   test "makes storage available again when other host fills the slot":
     let otherHost = Address.example
     sales.onStore = proc(
-        request: StorageRequest, slot: UInt256, onBatch: BatchProc
+        request: StorageRequest, slot: uint64, onBatch: BatchProc
     ): Future[?!void] {.async.} =
       await sleepAsync(chronos.hours(1))
       return success()
     createAvailability()
     await market.requestStorage(request)
     for slotIndex in 0 ..< request.ask.slots:
-      market.fillSlot(request.id, slotIndex.u256, proof, otherHost)
+      market.fillSlot(request.id, slotIndex.uint64, proof, otherHost)
     check eventually (await reservations.all(Availability)).get == @[availability]
 
   test "makes storage available again when request expires":
@@ -531,7 +519,7 @@ asyncchecksuite "Sales":
 
     let origSize = availability.freeSize
     sales.onStore = proc(
-        request: StorageRequest, slot: UInt256, onBatch: BatchProc
+        request: StorageRequest, slot: uint64, onBatch: BatchProc
     ): Future[?!void] {.async.} =
       await sleepAsync(chronos.hours(1))
       return success()
@@ -551,12 +539,12 @@ asyncchecksuite "Sales":
     # ensure only one slot, otherwise once bytes are returned to the
     # availability, the queue will be unpaused and availability will be consumed
     # by other slots
-    request.ask.slots = 1.uint64
+    request.ask.slots = 1
     market.requestExpiry[request.id] = expiry
 
     let origSize = availability.freeSize
     sales.onStore = proc(
-        request: StorageRequest, slot: UInt256, onBatch: BatchProc
+        request: StorageRequest, slot: uint64, onBatch: BatchProc
     ): Future[?!void] {.async.} =
       await sleepAsync(chronos.hours(1))
       return success()
@@ -583,21 +571,19 @@ asyncchecksuite "Sales":
     market.requestState[request.id] = RequestState.New
     market.requestEnds[request.id] = request.expiry.toSecondsSince1970
 
-    proc fillSlot(slotIdx: UInt256 = 0.u256) {.async.} =
+    proc fillSlot(slotIdx: uint64 = 0) {.async.} =
       let address = await market.getSigner()
       let slot =
         MockSlot(requestId: request.id, slotIndex: slotIdx, proof: proof, host: address)
       market.filled.add slot
       market.slotState[slotId(request.id, slotIdx)] = SlotState.Filled
 
-    let slot0 =
-      MockSlot(requestId: request.id, slotIndex: 0.u256, proof: proof, host: me)
+    let slot0 = MockSlot(requestId: request.id, slotIndex: 0, proof: proof, host: me)
     await fillSlot(slot0.slotIndex)
 
-    let slot1 =
-      MockSlot(requestId: request.id, slotIndex: 1.u256, proof: proof, host: me)
+    let slot1 = MockSlot(requestId: request.id, slotIndex: 1, proof: proof, host: me)
     await fillSlot(slot1.slotIndex)
-    market.activeSlots[me] = @[request.slotId(0.u256), request.slotId(1.u256)]
+    market.activeSlots[me] = @[request.slotId(0), request.slotId(1)]
     market.requested = @[request]
     market.activeRequests[me] = @[request.id]
 
@@ -605,16 +591,16 @@ asyncchecksuite "Sales":
 
     check eventually sales.agents.len == 2
     check sales.agents.any(
-      agent => agent.data.requestId == request.id and agent.data.slotIndex == 0.u256
+      agent => agent.data.requestId == request.id and agent.data.slotIndex == 0.uint64
     )
     check sales.agents.any(
-      agent => agent.data.requestId == request.id and agent.data.slotIndex == 1.u256
+      agent => agent.data.requestId == request.id and agent.data.slotIndex == 1.uint64
     )
 
   test "deletes inactive reservations on load":
     createAvailability()
     discard await reservations.createReservation(
-      availability.id, 100.u256, RequestId.example, UInt256.example, UInt256.example
+      availability.id, 100.uint64, RequestId.example, 0.uint64, UInt256.example
     )
     check (await reservations.all(Reservation)).get.len == 1
     await sales.load()

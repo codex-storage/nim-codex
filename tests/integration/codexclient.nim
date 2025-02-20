@@ -86,6 +86,16 @@ proc downloadBytes*(
 
   success bytes
 
+proc delete*(client: CodexClient, cid: Cid): ?!void =
+  let
+    url = client.baseurl & "/data/" & $cid
+    response = client.http.delete(url)
+
+  if response.status != "204 No Content":
+    return failure(response.status)
+
+  success()
+
 proc list*(client: CodexClient): ?!RestContentList =
   let url = client.baseurl & "/data"
   let response = client.http.get(url)
@@ -107,11 +117,11 @@ proc space*(client: CodexClient): ?!RestRepoStore =
 proc requestStorageRaw*(
     client: CodexClient,
     cid: Cid,
-    duration: UInt256,
+    duration: uint64,
     pricePerBytePerSecond: UInt256,
     proofProbability: UInt256,
     collateralPerByte: UInt256,
-    expiry: uint = 0,
+    expiry: uint64 = 0,
     nodes: uint = 3,
     tolerance: uint = 1,
 ): Response =
@@ -136,10 +146,10 @@ proc requestStorageRaw*(
 proc requestStorage*(
     client: CodexClient,
     cid: Cid,
-    duration: UInt256,
+    duration: uint64,
     pricePerBytePerSecond: UInt256,
     proofProbability: UInt256,
-    expiry: uint,
+    expiry: uint64,
     collateralPerByte: UInt256,
     nodes: uint = 3,
     tolerance: uint = 1,
@@ -177,7 +187,8 @@ proc getSlots*(client: CodexClient): ?!seq[Slot] =
 
 proc postAvailability*(
     client: CodexClient,
-    totalSize, duration, minPricePerBytePerSecond, totalCollateral: UInt256,
+    totalSize, duration: uint64,
+    minPricePerBytePerSecond, totalCollateral: UInt256,
 ): ?!Availability =
   ## Post sales availability endpoint
   ##
@@ -197,8 +208,8 @@ proc postAvailability*(
 proc patchAvailabilityRaw*(
     client: CodexClient,
     availabilityId: AvailabilityId,
-    totalSize, freeSize, duration, minPricePerBytePerSecond, totalCollateral: ?UInt256 =
-      UInt256.none,
+    totalSize, freeSize, duration: ?uint64 = uint64.none,
+    minPricePerBytePerSecond, totalCollateral: ?UInt256 = UInt256.none,
 ): Response =
   ## Updates availability
   ##
@@ -227,8 +238,8 @@ proc patchAvailabilityRaw*(
 proc patchAvailability*(
     client: CodexClient,
     availabilityId: AvailabilityId,
-    totalSize, duration, minPricePerBytePerSecond, totalCollateral: ?UInt256 =
-      UInt256.none,
+    totalSize, duration: ?uint64 = uint64.none,
+    minPricePerBytePerSecond, totalCollateral: ?UInt256 = UInt256.none,
 ): void =
   let response = client.patchAvailabilityRaw(
     availabilityId,
@@ -284,3 +295,6 @@ proc downloadRaw*(client: CodexClient, cid: string, local = false): Response =
     client.baseurl & "/data/" & cid & (if local: "" else: "/network/stream"),
     httpMethod = HttpGet,
   )
+
+proc deleteRaw*(client: CodexClient, cid: string): Response =
+  return client.http.request(client.baseurl & "/data/" & cid, httpMethod = HttpDelete)
