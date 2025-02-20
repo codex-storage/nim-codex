@@ -36,10 +36,8 @@ method workingDir(node: HardhatProcess): string =
   return currentSourcePath() / ".." / ".." / ".." / "vendor" / "codex-contracts-eth"
 
 method executable(node: HardhatProcess): string =
-  return "node_modules" / ".bin" / (when defined(windows):
-                                      "hardhat.cmd"
-                                    else:
-                                      "hardhat")
+  return
+    "node_modules" / ".bin" / (when defined(windows): "hardhat.cmd" else: "hardhat")
 
 method startedOutput(node: HardhatProcess): string =
   return "Started HTTP and WebSocket JSON-RPC server at"
@@ -80,10 +78,7 @@ method start*(
   let poptions = node.processOptions + {AsyncProcessOption.StdErrToStdOut}
   let args = @["node", "--export", "deployment-localhost.json"].concat(node.arguments)
   trace "starting node",
-    args,
-    executable,
-    workingDir = node.workingDir,
-    processOptions = poptions
+    args, executable, workingDir = node.workingDir, processOptions = poptions
 
   try:
     node.process = await startProcess(
