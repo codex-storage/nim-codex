@@ -325,7 +325,7 @@ proc asyncEncode*(
   var data = makeUncheckedArray(blocks)
 
   defer:
-    deallocShared(data)
+    dealloc(data)
 
   ## Create an ecode task with block data 
   var task = EncodeTask(
@@ -521,8 +521,8 @@ proc asyncDecode*(
     parityData = makeUncheckedArray(parity)
 
   defer:
-    deallocShared(blockData)
-    deallocShared(parityData)
+    dealloc(blockData)
+    dealloc(parityData)
 
   ## Create an decode task with block data 
   var task = DecodeTask(

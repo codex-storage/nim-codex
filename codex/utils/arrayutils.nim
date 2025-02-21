@@ -27,7 +27,7 @@ proc freeDoubleArray*(
 proc makeUncheckedArray*(
     data: ref seq[seq[byte]]
 ): ptr UncheckedArray[ptr UncheckedArray[byte]] =
-  result = cast[ptr UncheckedArray[ptr UncheckedArray[byte]]](allocShared0(
+  result = cast[ptr UncheckedArray[ptr UncheckedArray[byte]]](alloc0(
     sizeof(ptr UncheckedArray[byte]) * data[].len
   ))
 
