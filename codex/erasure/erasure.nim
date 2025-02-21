@@ -310,10 +310,10 @@ proc leopardEncodeTask(tp: Taskpool, task: ptr EncodeTask) {.gcsafe.} =
   else:
     task[].success.store(true)
 
-proc encodeAsync*(
+proc asyncEncode*(
     self: Erasure,
     blockSize, blocksLen, parityLen: int,
-    data: ref seq[seq[byte]],
+    blocks: ref seq[seq[byte]],
     parity: ptr UncheckedArray[ptr UncheckedArray[byte]],
 ): Future[?!void] {.async: (raises: [CancelledError]).} =
   without threadPtr =? ThreadSignalPtr.new():
@@ -322,13 +322,10 @@ proc encodeAsync*(
   defer:
     threadPtr.close().expect("closing once works")
 
-  var blockData = createDoubleArray(blocksLen, blockSize)
-
-  for i in 0 ..< data[].len:
-    copyMem(blockData[i], addr data[i][0], blockSize)
+  var data = makeUncheckedArray(blocks)
 
   defer:
-    freeDoubleArray(blockData, blocksLen)
+    deallocShared(data)
 
   ## Create an ecode task with block data 
   var task = EncodeTask(
@@ -336,7 +333,7 @@ proc encodeAsync*(
     blockSize: blockSize,
     blocksLen: blocksLen,
     parityLen: parityLen,
-    blocks: blockData,
+    blocks: data,
     parity: parity,
     signal: threadPtr,
   )
@@ -409,7 +406,7 @@ proc encodeData(
 
       try:
         if err =? (
-          await self.encodeAsync(
+          await self.asyncEncode(
             manifest.blockSize.int, params.ecK, params.ecM, data, parity
           )
         ).errorOption:
@@ -489,6 +486,7 @@ proc leopardDecodeTask(tp: Taskpool, task: ptr DecodeTask) {.gcsafe.} =
     task[].erasure.decoderProvider(task[].blockSize, task[].blocksLen, task[].parityLen)
   defer:
     decoder.release()
+    discard task[].signal.fireSync()
 
   if (
     let res = decoder.decode(
@@ -506,9 +504,7 @@ proc leopardDecodeTask(tp: Taskpool, task: ptr DecodeTask) {.gcsafe.} =
   else:
     task[].success.store(true)
 
-  discard task[].signal.fireSync()
-
-proc decodeAsync*(
+proc asyncDecode*(
     self: Erasure,
     blockSize, blocksLen, parityLen: int,
     blocks, parity: ref seq[seq[byte]],
@@ -521,24 +517,12 @@ proc decodeAsync*(
     threadPtr.close().expect("closing once works")
 
   var
-    blocksData = createDoubleArray(blocksLen, blockSize)
-    parityData = createDoubleArray(parityLen, blockSize)
-
-  for i in 0 ..< blocks[].len:
-    if blocks[i].len > 0:
-      copyMem(blocksData[i], addr blocks[i][0], blockSize)
-    else:
-      blocksData[i] = nil
-
-  for i in 0 ..< parity[].len:
-    if parity[i].len > 0:
-      copyMem(parityData[i], addr parity[i][0], blockSize)
-    else:
-      parityData[i] = nil
+    blockData = makeUncheckedArray(blocks)
+    parityData = makeUncheckedArray(parity)
 
   defer:
-    freeDoubleArray(blocksData, blocksLen)
-    freeDoubleArray(parityData, parityLen)
+    deallocShared(blockData)
+    deallocShared(parityData)
 
   ## Create an decode task with block data 
   var task = DecodeTask(
@@ -547,7 +531,7 @@ proc decodeAsync*(
     blocksLen: blocksLen,
     parityLen: parityLen,
     recoveredLen: blocksLen,
-    blocks: blocksData,
+    blocks: blockData,
     parity: parityData,
     recovered: recovered,
     signal: threadPtr,
@@ -627,7 +611,7 @@ proc decode*(self: Erasure, encoded: Manifest): Future[?!Manifest] {.async.} =
       trace "Erasure decoding data"
       try:
         if err =? (
-          await self.decodeAsync(
+          await self.asyncDecode(
             encoded.blockSize.int, encoded.ecK, encoded.ecM, data, parityData, recovered
           )
         ).errorOption:
