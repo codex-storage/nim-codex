@@ -121,7 +121,7 @@ suite "Test Prover":
 
     for i in 0 ..< verifyResults.len:
       check:
-        verifyResults[i].read().isErr == false
+        verifyResults[i].read().tryGet() == true
 
   test "Should complete prove/verify task when cancelled":
     let (_, _, verifiable) = await createVerifiableManifest(
@@ -135,7 +135,7 @@ suite "Test Prover":
 
     let (inputs, proof) = (await prover.prove(1, verifiable, challenge)).tryGet
 
-    var cancelledProof = newProof()
+    var cancelledProof = ProofPtr.new()
     defer:
       destroyProof(cancelledProof)
 
@@ -152,7 +152,7 @@ suite "Test Prover":
       check:
         (await prover.verify(cancelledProof[], inputs)).tryGet == true
 
-    var verifyRes = newVerifyResult()
+    var verifyRes = VerifyResult.new()
     defer:
       destroyVerifyResult(verifyRes)
 
