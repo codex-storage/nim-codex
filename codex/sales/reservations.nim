@@ -482,7 +482,13 @@ method createReservation*(
       )
       return failure(error)
 
+    if duration > SecondsSince1970.high.uint64:
+      error "Cannot cast duration to int64", duration = duration
+      let error = newException(ReservationsError, "Cannot cast duration to int64")
+      return failure(error)
+
     let validUntil = times.now().utc().toTime().toUnix() + duration.SecondsSince1970
+
     trace "Creating reservation",
       availabilityId, slotSize, requestId, slotIndex, validUntil = validUntil
 
@@ -497,7 +503,7 @@ method createReservation*(
     availability.freeSize -= slotSize
 
     # adjust the remaining totalRemainingCollateral
-    availability.totalRemainingCollateral -= slotSize.stuint(256) * collateralPerByte
+    availability.totalRemainingCollateral -= slotSize.u256 * collateralPerByte
 
     # update availability with reduced size
     trace "Updating availability with reduced size"

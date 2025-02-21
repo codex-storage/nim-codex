@@ -57,20 +57,20 @@ multinodesuite "Sales":
     check availability in host.getAvailabilities().get
 
   test "creating availability fails when until is negative", salesConfig:
-    let totalSize = 12.u256
+    let totalSize = 12.uint64
     let minPricePerBytePerSecond = 1.u256
-    let totalCollateral = totalSize * minPricePerBytePerSecond
+    let totalCollateral = totalSize.u256 * minPricePerBytePerSecond
     let response = host.postAvailabilityRaw(
       totalSize = totalSize,
-      duration = 2.u256,
+      duration = 2.uint64,
       minPricePerBytePerSecond = minPricePerBytePerSecond,
       totalCollateral = totalCollateral,
-      until = cast[SecondsSince1970](-1).some,
+      until = -1.SecondsSince1970.some,
     )
 
     check:
-      response.status == "400 Bad Request"
-      response.body == "Until parameter must be greater or equal 0. Got: -1"
+      response.status == "422 Unprocessable Entity"
+      response.body == "Cannot set until to a negative value"
 
   test "updating non-existing availability", salesConfig:
     let nonExistingResponse = host.patchAvailabilityRaw(
@@ -131,6 +131,9 @@ multinodesuite "Sales":
       totalCollateral = 300.u256,
     ).get
     host.patchAvailability(availability.id, totalSize = 100000.uint64.some)
+
+    host.restart()
+
     let updatedAvailability = (host.getAvailabilities().get).findItem(availability).get
     check updatedAvailability.totalSize == 100000
     check updatedAvailability.freeSize == 100000
@@ -169,10 +172,16 @@ multinodesuite "Sales":
     let utilizedSize = updatedAvailability.totalSize - updatedAvailability.freeSize
     let totalSizeResponse =
       host.patchAvailabilityRaw(availability.id, totalSize = (utilizedSize - 1).some)
+
+    host.restart()
+
     check totalSizeResponse.status == "400 Bad Request"
     check "totalSize must be larger then current totalSize" in totalSizeResponse.body
 
     host.patchAvailability(availability.id, totalSize = (originalSize + 20000).some)
+
+    host.restart()
+
     let newUpdatedAvailability =
       (host.getAvailabilities().get).findItem(availability).get
     check newUpdatedAvailability.totalSize == originalSize + 20000
@@ -180,16 +189,15 @@ multinodesuite "Sales":
 
   test "updating availability fails with until negative", salesConfig:
     let availability = host.postAvailability(
-      totalSize = 140000.u256,
-      duration = 200.u256,
+      totalSize = 140000.uint64,
+      duration = 200.uint64,
       minPricePerBytePerSecond = 3.u256,
       totalCollateral = 300.u256,
     ).get
 
-    let response = host.patchAvailabilityRaw(
-      availability.id, until = cast[SecondsSince1970](-1).some
-    )
+    let response =
+      host.patchAvailabilityRaw(availability.id, until = -1.SecondsSince1970.some)
 
     check:
-      response.status == "400 Bad Request"
-      response.body == "Until parameter must be greater or equal 0. Got: -1"
+      response.status == "422 Unprocessable Entity"
+      response.body == "Cannot set until to a negative value"

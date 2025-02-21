@@ -127,34 +127,36 @@ marketplacesuite "Marketplace":
 
   test "returns an error when trying to update the until date before an existing a request is finished",
     marketplaceConfig:
-    let size = 0xFFFFFF.u256
+    let size = 0xFFFFFF.uint64
     let data = await RandomChunker.example(blocks = blocks)
     let marketplace = Marketplace.new(Marketplace.address, ethProvider.getSigner())
     let tokenAddress = await marketplace.token()
     let token = Erc20Token.new(tokenAddress, ethProvider.getSigner())
-    let duration = 20 * 60.u256
+    let duration = 20 * 60.uint64
 
     # host makes storage available
     let startBalanceHost = await token.balanceOf(hostAccount)
     let availability = host.postAvailability(
       totalSize = size,
-      duration = 20 * 60.u256,
+      duration = 20 * 60.uint64,
       minPricePerBytePerSecond = minPricePerBytePerSecond,
-      totalCollateral = size * minPricePerBytePerSecond,
+      totalCollateral = size.u256 * minPricePerBytePerSecond,
     ).get
 
     # client requests storage
     let cid = client.upload(data).get
-    let id = client.requestStorage(
-      cid,
-      duration = duration,
-      pricePerBytePerSecond = minPricePerBytePerSecond,
-      proofProbability = 3.u256,
-      expiry = 10 * 60,
-      collateralPerByte = collateralPerByte,
-      nodes = ecNodes,
-      tolerance = ecTolerance,
-    ).get
+    let id = (
+      await client.requestStorage(
+        cid,
+        duration = duration,
+        pricePerBytePerSecond = minPricePerBytePerSecond,
+        proofProbability = 3.u256,
+        expiry = 10 * 60.uint64,
+        collateralPerByte = collateralPerByte,
+        nodes = ecNodes,
+        tolerance = ecTolerance,
+      )
+    )
 
     check eventually(client.purchaseStateIs(id, "started"), timeout = 10 * 60 * 1000)
     let purchase = client.getPurchase(id).get

@@ -208,7 +208,8 @@ proc postAvailabilityRaw*(
 
 proc postAvailability*(
     client: CodexClient,
-    totalSize, duration, minPricePerBytePerSecond, totalCollateral: UInt256,
+    totalSize, duration: uint64,
+    minPricePerBytePerSecond, totalCollateral: UInt256,
     enabled: ?bool = bool.none,
     until: ?SecondsSince1970 = SecondsSince1970.none,
 ): ?!Availability =
@@ -220,6 +221,7 @@ proc postAvailability*(
     enabled = enabled,
     until = until,
   )
+
   doAssert response.status == "201 Created",
     "expected 201 Created, got " & response.status & ", body: " & response.body
   Availability.fromJson(response.body)

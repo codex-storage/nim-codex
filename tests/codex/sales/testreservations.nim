@@ -53,7 +53,7 @@ asyncchecksuite "Reservations module":
   proc createReservation(availability: Availability): Reservation =
     let size = rand(1 ..< availability.freeSize.int)
     let reservation = waitFor reservations.createReservation(
-      availability.id, size.uint64, RequestId.example, uint64.example, 1.u256
+      availability.id, size.uint64, RequestId.example, uint64.example, 1.u256, 30.uint64
     )
     return reservation.get
 
@@ -136,7 +136,7 @@ asyncchecksuite "Reservations module":
     let availability = Availability.example
     let created = await reservations.createReservation(
       availability.id, uint64.example, RequestId.example, uint64.example, 1.u256,
-      30.u256,
+      30.uint64,
     )
     check created.isErr
     check created.error of NotExistsError
@@ -149,7 +149,7 @@ asyncchecksuite "Reservations module":
       RequestId.example,
       uint64.example,
       UInt256.example,
-      UInt256.example,
+      30.uint64,
     )
     check created.isErr
     check created.error of BytesOutOfBoundsError
@@ -163,18 +163,19 @@ asyncchecksuite "Reservations module":
         RequestId.example,
         uint64.example,
         UInt256.example,
-        UInt256.example,
+        30.uint64,
       )
 
       let two = reservations.createReservation(
         availability.id, availability.totalSize, RequestId.example, uint64.example,
-        UInt256.example, UInt256.example,
+        UInt256.example, uint64.example,
       )
 
       let oneResult = await one
       let twoResult = await two
 
       check oneResult.isErr or twoResult.isErr
+
       if oneResult.isErr:
         check oneResult.error of BytesOutOfBoundsError
       if twoResult.isErr:
@@ -284,9 +285,9 @@ asyncchecksuite "Reservations module":
     check availability.until == until
 
   test "create an availability fails when trying set until with a negative value":
-    let totalSize = rand(100000 .. 200000).u256
+    let totalSize = rand(100000 .. 200000).uint64
     let example = Availability.example(collateralPerByte)
-    let totalCollateral = totalSize * collateralPerByte
+    let totalCollateral = totalSize.u256 * collateralPerByte
 
     let result = await reservations.createAvailability(
       totalSize,

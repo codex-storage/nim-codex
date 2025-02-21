@@ -640,7 +640,7 @@ asyncchecksuite "Sales":
     createAvailability()
     discard await reservations.createReservation(
       availability.id, 100.uint64, RequestId.example, 0.uint64, UInt256.example,
-      UInt256.example,
+      30.uint64,
     )
     check (await reservations.all(Reservation)).get.len == 1
     await sales.load()
