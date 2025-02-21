@@ -26,8 +26,6 @@ type
   VerifyResult* = ptr Atomic[bool]
   ProofPtr* = ptr Proof
 
-export ProofPtr
-
 proc new*(_: type ProofPtr): ProofPtr =
   cast[ptr Proof](allocShared0(sizeof(Proof)))
 
