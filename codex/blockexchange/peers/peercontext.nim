@@ -37,12 +37,6 @@ type BlockExcPeerCtx* = ref object of RootObj
 proc peerHave*(self: BlockExcPeerCtx): seq[BlockAddress] =
   toSeq(self.blocks.keys)
 
-proc peerHaveCids*(self: BlockExcPeerCtx): HashSet[Cid] =
-  self.blocks.keys.toSeq.mapIt(it.cidOrTreeCid).toHashSet
-
-proc peerWantsCids*(self: BlockExcPeerCtx): HashSet[Cid] =
-  self.peerWants.mapIt(it.address.cidOrTreeCid).toHashSet
-
 proc contains*(self: BlockExcPeerCtx, address: BlockAddress): bool =
   address in self.blocks
 
