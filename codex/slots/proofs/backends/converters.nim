@@ -23,7 +23,16 @@ type
   CircomProof* = Proof
   CircomKey* = VerifyingKey
   CircomInputs* = Inputs
-  VerifyResult* = Atomic[bool]
+  VerifyResult* = ptr Atomic[bool]
+  ProofPtr* = ptr Proof
+
+export ProofPtr
+
+proc new*(_: type ProofPtr): ProofPtr =
+  cast[ptr Proof](allocShared0(sizeof(Proof)))
+
+proc new*(_: type VerifyResult): VerifyResult =
+  cast[ptr Atomic[bool]](allocShared0(sizeof(Atomic[bool])))
 
 proc toCircomInputs*(inputs: ProofInputs[Poseidon2Hash]): CircomInputs =
   var
@@ -55,17 +64,11 @@ func toG2*(g: CircomG2): G2Point =
 func toGroth16Proof*(proof: CircomProof): Groth16Proof =
   Groth16Proof(a: proof.a.toG1, b: proof.b.toG2, c: proof.c.toG1)
 
-proc newProof*(): ptr Proof =
-  result = cast[ptr Proof](allocShared0(sizeof(Proof)))
-
-proc newVerifyResult*(): ptr VerifyResult =
-  result = cast[ptr VerifyResult](allocShared0(sizeof(VerifyResult)))
-
-proc destroyVerifyResult*(result: ptr VerifyResult) =
+proc destroyVerifyResult*(result: VerifyResult) =
   if result != nil:
     deallocShared(result)
 
-proc destroyProof*(proof: ptr Proof) =
+proc destroyProof*(proof: ProofPtr) =
   if proof != nil:
     deallocShared(proof)
 

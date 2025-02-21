@@ -53,7 +53,7 @@ type
     proof: ptr CircomProof
     vkp: ptr CircomKey
     inputs: ptr CircomInputs
-    success: ptr Atomic[bool]
+    success: VerifyResult
     signal: ThreadSignalPtr
 
 func normalizeInput*[H](
@@ -230,7 +230,7 @@ proc asyncProve*[H](
 proc prove*[H](
     self: CircomCompat, input: ProofInputs[H]
 ): Future[?!CircomProof] {.async, raises: [CancelledError].} =
-  var proof = newProof()
+  var proof = ProofPtr.new()
   defer:
     destroyProof(proof)
 
@@ -245,6 +245,7 @@ proc circomVerifyTask(task: ptr VerifyTask) {.gcsafe.} =
   defer:
     task[].inputs[].releaseCircomInputs()
     discard task[].signal.fireSync()
+
   let res = verify_circuit(task[].proof, task[].inputs, task[].vkp)
   if res == ERR_OK:
     task[].success[].store(true)
@@ -258,7 +259,7 @@ proc asyncVerify*[H](
     self: CircomCompat,
     proof: CircomProof,
     inputs: ProofInputs[H],
-    success: ptr Atomic[bool],
+    success: VerifyResult,
 ): Future[?!void] {.async.} =
   var proofPtr = unsafeAddr proof
   var inputs = inputs.toCircomInputs()
@@ -298,7 +299,6 @@ proc asyncVerify*[H](
         raise (ref CancelledError) exc
       else:
         return failure(exc.msg)
-
   success()
 
 proc verify*[H](
@@ -306,7 +306,7 @@ proc verify*[H](
 ): Future[?!bool] {.async, raises: [CancelledError].} =
   ## Verify a proof using a ctx
   ##
-  var res = newVerifyResult()
+  var res = VerifyResult.new()
   defer:
     destroyVerifyResult(res)
   try:
