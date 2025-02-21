@@ -247,6 +247,9 @@ components:
         slotIndex:
           type: string
           description: Slot Index as decimal string
+        validUntil:
+          type: integer
+          description: Date after which the reservation will no longer be valid.
 
     StorageRequestCreation:
       type: object
