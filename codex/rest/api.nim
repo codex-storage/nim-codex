@@ -463,14 +463,6 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
           Http400, "Total size must be larger then zero", headers = headers
         )
 
-      let until = restAv.until |? 0
-      if until < 0:
-        return RestApiResponse.error(
-          Http400,
-          "Until parameter must be greater or equal 0. Got: " & $until,
-          headers = headers,
-        )
-
       if not reservations.hasAvailable(restAv.totalSize.truncate(uint)):
         return
           RestApiResponse.error(Http422, "Not enough storage quota", headers = headers)
@@ -482,7 +474,7 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
           restAv.minPricePerBytePerSecond,
           restAv.totalCollateral,
           enabled = restAv.enabled |? true,
-          until = until,
+          until = restAv.until |? 0,
         )
       ), error:
         return RestApiResponse.error(Http500, error.msg, headers = headers)
