@@ -10,6 +10,10 @@ on:
 env:
   cache_nonce: 0 # Allows for easily busting actions/cache caches
   nim_version: v2.0.14
+  builder_integration_from_vars: true
+  builder_integration_linux: runner-node-01-linux-03-eu-hel1
+  builder_integration_macos: macos-14-large
+  builder_integration_windows: windows-latest-amd64-32vcpu
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
@@ -17,20 +21,27 @@ concurrency:
 
 jobs:
   matrix:
+    name: Compute matrix
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.matrix.outputs.matrix }}
       cache_nonce: ${{ env.cache_nonce }}
     steps:
+      - name: Compute builders
+        if: ${{ env.builder_integration_from_vars == 'true' }}
+        run: |
+          if [[ -n "${{ vars.builder_integration_linux }}" ]]; then echo "builder_integration_linux=${{ vars.builder_integration_linux }}"; fi >> $GITHUB_ENV
+          if [[ -n "${{ vars.builder_integration_macos }}" ]]; then echo "builder_integration_macos=${{ vars.builder_integration_macos }}"; fi >> $GITHUB_ENV
+          if [[ -n "${{ vars.builder_integration_windows }}" ]]; then echo "builder_integration_windows=${{ vars.builder_integration_windows }}"; fi >> $GITHUB_ENV
+
       - name: Compute matrix
         id: matrix
         uses: fabiocaccamo/create-matrix-action@v5
         with:
           matrix: |
-            os {linux},   cpu {amd64}, builder {runner-node-01-linux-03-eu-hel1},   tests {integration-parallel}, nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
-            os {macos},   cpu {amd64}, builder {macos-14-large},       tests {integration-parallel}, nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
-            os {windows}, cpu {amd64}, builder {windows-latest-amd64-32vcpu}, tests {integration-parallel}, nim_version {${{ env.nim_version }}}, shell {msys2}
-
+            os {linux},   cpu {amd64}, builder {${{ env.builder_integration_linux }}},   tests {integration}, nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
+            os {macos},   cpu {amd64}, builder {${{ env.builder_integration_macos }}},   tests {integration}, nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
+            os {windows}, cpu {amd64}, builder {${{ env.builder_integration_windows }}}, tests {integration}, nim_version {${{ env.nim_version }}}, shell {msys2}
 
   build:
     needs: matrix
@@ -51,4 +62,3 @@ jobs:
           options: "codex/ tests/"
           fail: true
           suggest: true
-
