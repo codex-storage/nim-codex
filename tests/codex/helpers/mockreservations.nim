@@ -28,6 +28,7 @@ method createReservation*(
     requestId: RequestId,
     slotIndex: UInt256,
     collateralPerByte: UInt256,
+    duration: UInt256,
 ): Future[?!Reservation] {.async.} =
   if self.createReservationThrowBytesOutOfBoundsError:
     let error = newException(
@@ -45,4 +46,5 @@ method createReservation*(
     requestId,
     slotIndex,
     collateralPerByte,
+    duration,
   )

@@ -161,16 +161,15 @@ marketplacesuite "Marketplace":
     check purchase.error == none string
 
     let unixNow = getTime().toUnix()
-    let until = unixNow + 1
+    let until = unixNow + 1.SecondsSince1970
 
-    let response = host.patchAvailabilityRaw(
-      availabilityId = availability.id, until = cast[SecondsSince1970](until).some
-    )
+    let response =
+      host.patchAvailabilityRaw(availabilityId = availability.id, until = until.some)
 
     check:
-      response.status == "400 Bad Request"
+      response.status == "422 Unprocessable Entity"
       response.body ==
-        "Until parameter must be greater or equal the current longest request."
+        "Until parameter must be greater or equal the current longest request"
 
 marketplacesuite "Marketplace payouts":
   const minPricePerBytePerSecond = 1.u256

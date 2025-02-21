@@ -18,7 +18,11 @@ proc findItem[T](items: seq[T], item: T): ?!T =
 multinodesuite "Sales":
   let salesConfig = NodeConfigs(
     clients: CodexConfigs.init(nodes = 1).some,
-    providers: CodexConfigs.init(nodes = 1).some,
+    providers: CodexConfigs.init(nodes = 1)
+    # .debug() # uncomment to enable console log output
+    # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+    # .withLogTopics("node", "marketplace", "sales", "reservations", "node", "proving", "clock")
+    .some,
   )
 
   var host: CodexClient
@@ -96,6 +100,8 @@ multinodesuite "Sales":
       until = until.some,
     )
 
+    host.restart()
+
     let updatedAvailability = (host.getAvailabilities().get).findItem(availability).get
     check updatedAvailability.duration == 100
     check updatedAvailability.minPricePerBytePerSecond == 2
@@ -172,19 +178,3 @@ multinodesuite "Sales":
       (host.getAvailabilities().get).findItem(availability).get
     check newUpdatedAvailability.totalSize == originalSize + 20000
     check newUpdatedAvailability.freeSize - updatedAvailability.freeSize == 20000
-
-  test "updating availability fails with until negative", salesConfig:
-    let availability = host.postAvailability(
-      totalSize = 140000.u256,
-      duration = 200.u256,
-      minPricePerBytePerSecond = 3.u256,
-      totalCollateral = 300.u256,
-    ).get
-
-    let response = host.patchAvailabilityRaw(
-      availability.id, until = cast[SecondsSince1970](-1).some
-    )
-
-    check:
-      response.status == "400 Bad Request"
-      response.body == "Until parameter must be greater or equal 0. Got: -1"

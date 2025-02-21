@@ -53,7 +53,7 @@ asyncchecksuite "Reservations module":
   proc createReservation(availability: Availability): Reservation =
     let size = rand(1 ..< availability.freeSize.truncate(int))
     let reservation = waitFor reservations.createReservation(
-      availability.id, size.u256, RequestId.example, UInt256.example, 1.u256
+      availability.id, size.u256, RequestId.example, UInt256.example, 1.u256, 30.u256
     )
     return reservation.get
 
@@ -135,7 +135,8 @@ asyncchecksuite "Reservations module":
   test "cannot create reservation with non-existant availability":
     let availability = Availability.example
     let created = await reservations.createReservation(
-      availability.id, UInt256.example, RequestId.example, UInt256.example, 1.u256
+      availability.id, UInt256.example, RequestId.example, UInt256.example, 1.u256,
+      30.u256,
     )
     check created.isErr
     check created.error of NotExistsError
@@ -146,6 +147,7 @@ asyncchecksuite "Reservations module":
       availability.id,
       availability.totalSize + 1,
       RequestId.example,
+      UInt256.example,
       UInt256.example,
       UInt256.example,
     )
@@ -161,11 +163,12 @@ asyncchecksuite "Reservations module":
         RequestId.example,
         UInt256.example,
         UInt256.example,
+        UInt256.example,
       )
 
       let two = reservations.createReservation(
         availability.id, availability.totalSize, RequestId.example, UInt256.example,
-        UInt256.example,
+        UInt256.example, UInt256.example,
       )
 
       let oneResult = await one
@@ -279,6 +282,33 @@ asyncchecksuite "Reservations module":
     let availability = createAvailability(enabled = false, until = until)
     check availability.enabled == false
     check availability.until == until
+
+  test "create an availability fails when trying set until with a negative value":
+    let totalSize = rand(100000 .. 200000).u256
+    let example = Availability.example(collateralPerByte)
+    let totalCollateral = totalSize * collateralPerByte
+
+    let result = await reservations.createAvailability(
+      totalSize,
+      example.duration,
+      example.minPricePerBytePerSecond,
+      totalCollateral,
+      enabled = true,
+      until = -1.SecondsSince1970,
+    )
+
+    check result.isErr
+    check result.error of UntilOutOfBoundsError
+
+  test "update an availability fails when trying set until with a negative value":
+    let until = getTime().toUnix()
+    let availability = createAvailability(until = until)
+
+    availability.until = -1
+
+    let result = await reservations.update(availability)
+    check result.isErr
+    check result.error of UntilOutOfBoundsError
 
   test "reservation can be partially released":
     let availability = createAvailability()

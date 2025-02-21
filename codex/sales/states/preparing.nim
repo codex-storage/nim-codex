@@ -79,7 +79,7 @@ method run*(state: SalePreparing, machine: Machine): Future[?State] {.async.} =
   without reservation =?
     await reservations.createReservation(
       availability.id, request.ask.slotSize, request.id, data.slotIndex,
-      request.ask.collateralPerByte,
+      request.ask.collateralPerByte, request.ask.duration,
     ), error:
     trace "Creation of reservation failed"
     # Race condition:

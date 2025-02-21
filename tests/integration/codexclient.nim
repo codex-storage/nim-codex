@@ -278,7 +278,8 @@ proc patchAvailability*(
     enabled = enabled,
     until = until,
   )
-  doAssert response.status == "200 OK", "expected 200 OK, got " & response.status
+  doAssert response.status == "204 No Content",
+    "expected 200 OK, got " & response.status
 
 proc getAvailabilities*(client: CodexClient): ?!seq[Availability] =
   ## Call sales availability REST endpoint

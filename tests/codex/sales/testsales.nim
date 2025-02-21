@@ -657,9 +657,22 @@ asyncchecksuite "Sales":
   test "deletes inactive reservations on load":
     createAvailability()
     discard await reservations.createReservation(
-      availability.id, 100.u256, RequestId.example, UInt256.example, UInt256.example
+      availability.id, 100.u256, RequestId.example, UInt256.example, UInt256.example,
+      UInt256.example,
     )
     check (await reservations.all(Reservation)).get.len == 1
     await sales.load()
     check (await reservations.all(Reservation)).get.len == 0
     check getAvailability().freeSize == availability.freeSize # was restored
+
+  test "update an availability fails when trying change the until date before an existing reservation":
+    let until = getTime().toUnix() + 300.SecondsSince1970
+    createAvailability(until = until)
+    await market.requestStorage(request)
+    await allowRequestToStart()
+
+    availability.until = getTime().toUnix()
+
+    let result = await reservations.update(availability)
+    check result.isErr
+    check result.error of UntilOutOfBoundsError

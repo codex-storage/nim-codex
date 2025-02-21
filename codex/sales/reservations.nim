@@ -84,6 +84,7 @@ type
     size* {.serialize.}: UInt256
     requestId* {.serialize.}: RequestId
     slotIndex* {.serialize.}: UInt256
+    validUntil* {.serialize.}: SecondsSince1970
 
   Reservations* = ref object of RootObj
     availabilityLock: AsyncLock
@@ -110,13 +111,20 @@ type
   SerializationError* = object of ReservationsError
   UpdateFailedError* = object of ReservationsError
   BytesOutOfBoundsError* = object of ReservationsError
+  UntilOutOfBoundsError* = object of ReservationsError
 
 const
   SalesKey = (CodexMetaKey / "sales").tryGet # TODO: move to sales module
   ReservationsKey = (SalesKey / "reservations").tryGet
 
 proc hash*(x: AvailabilityId): Hash {.borrow.}
-proc all*(self: Reservations, T: type SomeStorableObject): Future[?!seq[T]] {.async.}
+proc all*(
+  self: Reservations, T: type SomeStorableObject
+): Future[?!seq[T]] {.async: (raises: [CancelledError]).}
+
+proc all*(
+  self: Reservations, T: type SomeStorableObject, availabilityId: AvailabilityId
+): Future[?!seq[T]] {.async: (raises: [CancelledError]).}
 
 template withLock(lock, body) =
   try:
@@ -166,6 +174,7 @@ proc init*(
     size: UInt256,
     requestId: RequestId,
     slotIndex: UInt256,
+    validUntil: SecondsSince1970,
 ): Reservation =
   var id: array[32, byte]
   doAssert randomBytes(id) == 32
@@ -175,6 +184,7 @@ proc init*(
     size: size,
     requestId: requestId,
     slotIndex: slotIndex,
+    validUntil: validUntil,
   )
 
 func toArray(id: SomeStorableId): array[32, byte] =
@@ -233,6 +243,10 @@ proc exists*(self: Reservations, key: Key): Future[bool] {.async.} =
   let exists = await self.repo.metaDs.ds.contains(key)
   return exists
 
+iterator items(self: StorableIter): Future[?seq[byte]] =
+  while not self.finished:
+    yield self.next()
+
 proc getImpl(self: Reservations, key: Key): Future[?!seq[byte]] {.async.} =
   if not await self.exists(key):
     let err =
@@ -268,57 +282,91 @@ proc updateImpl(self: Reservations, obj: SomeStorableObject): Future[?!void] {.a
 
 proc updateAvailability(
     self: Reservations, obj: Availability
-): Future[?!void] {.async.} =
+): Future[?!void] {.async: (raises: [CancelledError]).} =
   logScope:
     availabilityId = obj.id
+
+  if obj.until < 0:
+    let error =
+      newException(UntilOutOfBoundsError, "Cannot set until to a negative value")
+    return failure(error)
 
   without key =? obj.key, error:
     return failure(error)
 
-  without oldAvailability =? await self.get(key, Availability), err:
-    if err of NotExistsError:
-      trace "Creating new Availability"
-      let res = await self.updateImpl(obj)
-      # inform subscribers that Availability has been added
-      if obj.enabled and onAvailabilityAdded =? self.onAvailabilityAdded:
+  try:
+    without oldAvailability =? await self.get(key, Availability), err:
+      if err of NotExistsError:
+        trace "Creating new Availability"
+        let res = await self.updateImpl(obj)
+        # inform subscribers that Availability has been added
+        if onAvailabilityAdded =? self.onAvailabilityAdded:
+          await onAvailabilityAdded(obj)
+        return res
+      else:
+        return failure(err)
+
+    if obj.until > 0:
+      without allReservations =? await self.all(Reservation, obj.id):
+        let error = newException(
+          GetFailedError,
+          "Until parameter must be greater or equal the current longest request",
+        )
+        return failure(error)
+
+      let requestEnds = allReservations.mapIt(it.validUntil)
+
+      if requestEnds.len > 0 and requestEnds.max > obj.until:
+        let error = newException(
+          UntilOutOfBoundsError,
+          "Until parameter must be greater or equal the current longest request",
+        )
+        return failure(error)
+
+    # Sizing of the availability changed, we need to adjust the repo reservation accordingly
+    if oldAvailability.totalSize != obj.totalSize:
+      trace "totalSize changed, updating repo reservation"
+      if oldAvailability.totalSize < obj.totalSize: # storage added
+        if reserveErr =? (
+          await self.repo.reserve(
+            (obj.totalSize - oldAvailability.totalSize).truncate(uint).NBytes
+          )
+        ).errorOption:
+          return failure(reserveErr.toErr(ReserveFailedError))
+      elif oldAvailability.totalSize > obj.totalSize: # storage removed
+        if reserveErr =? (
+          await self.repo.release(
+            (oldAvailability.totalSize - obj.totalSize).truncate(uint).NBytes
+          )
+        ).errorOption:
+          return failure(reserveErr.toErr(ReleaseFailedError))
+
+    let res = await self.updateImpl(obj)
+
+    if oldAvailability.freeSize < obj.freeSize: # availability added
+      # inform subscribers that Availability has been modified (with increased
+      # size)
+      if onAvailabilityAdded =? self.onAvailabilityAdded:
         await onAvailabilityAdded(obj)
-      return res
-    else:
-      return failure(err)
-
-  # Sizing of the availability changed, we need to adjust the repo reservation accordingly
-  if oldAvailability.totalSize != obj.totalSize:
-    trace "totalSize changed, updating repo reservation"
-    if oldAvailability.totalSize < obj.totalSize: # storage added
-      if reserveErr =? (
-        await self.repo.reserve(
-          (obj.totalSize - oldAvailability.totalSize).truncate(uint).NBytes
-        )
-      ).errorOption:
-        return failure(reserveErr.toErr(ReserveFailedError))
-    elif oldAvailability.totalSize > obj.totalSize: # storage removed
-      if reserveErr =? (
-        await self.repo.release(
-          (oldAvailability.totalSize - obj.totalSize).truncate(uint).NBytes
-        )
-      ).errorOption:
-        return failure(reserveErr.toErr(ReleaseFailedError))
-
-  let res = await self.updateImpl(obj)
-
-  if obj.enabled and oldAvailability.freeSize < obj.freeSize: # availability added
-    # inform subscribers that Availability has been modified (with increased
-    # size)
-    if onAvailabilityAdded =? self.onAvailabilityAdded:
-      await onAvailabilityAdded(obj)
-  return res
+    return res
+  except CancelledError as e:
+    raise e
+  except CatchableError as e:
+    error "Error when trying to update availability", error = e.msg
+    return failure(e)
 
 proc update*(self: Reservations, obj: Reservation): Future[?!void] {.async.} =
   return await self.updateImpl(obj)
 
-proc update*(self: Reservations, obj: Availability): Future[?!void] {.async.} =
-  withLock(self.availabilityLock):
-    return await self.updateAvailability(obj)
+proc update*(
+    self: Reservations, obj: Availability
+): Future[?!void] {.async: (raises: [CancelledError]).} =
+  try:
+    withLock(self.availabilityLock):
+      return await self.updateAvailability(obj)
+  except AsyncLockError as e:
+    error "Lock error when trying to update the availability", err = e.msg
+    return failure(e)
 
 proc delete(self: Reservations, key: Key): Future[?!void] {.async.} =
   trace "deleting object", key
@@ -390,6 +438,11 @@ proc createAvailability*(
   trace "creating availability",
     size, duration, minPricePerBytePerSecond, totalCollateral, enabled, until
 
+  if until < 0:
+    let error =
+      newException(UntilOutOfBoundsError, "Cannot set until to a negative value")
+    return failure(error)
+
   let availability = Availability.init(
     size, size, duration, minPricePerBytePerSecond, totalCollateral, enabled, until
   )
@@ -416,6 +469,7 @@ method createReservation*(
     requestId: RequestId,
     slotIndex: UInt256,
     collateralPerByte: UInt256,
+    duration: UInt256,
 ): Future[?!Reservation] {.async, base.} =
   withLock(self.availabilityLock):
     without availabilityKey =? availabilityId.key, error:
@@ -432,9 +486,13 @@ method createReservation*(
       )
       return failure(error)
 
-    trace "Creating reservation", availabilityId, slotSize, requestId, slotIndex
+    let validUntil =
+      times.now().utc().toTime().toUnix() + duration.truncate(SecondsSince1970)
+    trace "Creating reservation",
+      availabilityId, slotSize, requestId, slotIndex, validUntil = validUntil
 
-    let reservation = Reservation.init(availabilityId, slotSize, requestId, slotIndex)
+    let reservation =
+      Reservation.init(availabilityId, slotSize, requestId, slotIndex, validUntil)
 
     if createResErr =? (await self.update(reservation)).errorOption:
       return failure(createResErr)
@@ -563,13 +621,9 @@ proc release*(
 
   return success()
 
-iterator items(self: StorableIter): Future[?seq[byte]] =
-  while not self.finished:
-    yield self.next()
-
 proc storables(
     self: Reservations, T: type SomeStorableObject, queryKey: Key = ReservationsKey
-): Future[?!StorableIter] {.async.} =
+): Future[?!StorableIter] {.async: (raises: [CancelledError]).} =
   var iter = StorableIter()
   let query = Query.init(queryKey)
   when T is Availability:
@@ -583,54 +637,68 @@ proc storables(
   else:
     raiseAssert "unknown type"
 
-  without results =? await self.repo.metaDs.ds.query(query), error:
-    return failure(error)
+  try:
+    without results =? await self.repo.metaDs.ds.query(query), error:
+      return failure(error)
 
-  # /sales/reservations
-  proc next(): Future[?seq[byte]] {.async.} =
-    await idleAsync()
-    iter.finished = results.finished
-    if not results.finished and res =? (await results.next()) and res.data.len > 0 and
-        key =? res.key and key.namespaces.len == defaultKey.namespaces.len:
-      return some res.data
+    # /sales/reservations
+    proc next(): Future[?seq[byte]] {.async.} =
+      await idleAsync()
+      iter.finished = results.finished
+      if not results.finished and res =? (await results.next()) and res.data.len > 0 and
+          key =? res.key and key.namespaces.len == defaultKey.namespaces.len:
+        return some res.data
 
-    return none seq[byte]
+      return none seq[byte]
 
-  proc dispose(): Future[?!void] {.async.} =
-    return await results.dispose()
+    proc dispose(): Future[?!void] {.async.} =
+      return await results.dispose()
 
-  iter.next = next
-  iter.dispose = dispose
-  return success iter
+    iter.next = next
+    iter.dispose = dispose
+    return success iter
+  except CancelledError as e:
+    raise e
+  except CatchableError as e:
+    error "Cannot retrieve the storables from the datastore", error = e.msg
+    return failure(e)
 
 proc allImpl(
     self: Reservations, T: type SomeStorableObject, queryKey: Key = ReservationsKey
-): Future[?!seq[T]] {.async.} =
+): Future[?!seq[T]] {.async: (raises: [CancelledError]).} =
   var ret: seq[T] = @[]
 
   without storables =? (await self.storables(T, queryKey)), error:
     return failure(error)
 
-  for storable in storables.items:
-    without bytes =? (await storable):
-      continue
+  try:
+    for storable in storables.items:
+      without bytes =? (await storable):
+        continue
 
-    without obj =? T.fromJson(bytes), error:
-      error "json deserialization error",
-        json = string.fromBytes(bytes), error = error.msg
-      continue
+      without obj =? T.fromJson(bytes), error:
+        error "json deserialization error",
+          json = string.fromBytes(bytes), error = error.msg
+        continue
 
-    ret.add obj
+      ret.add obj
+  except CancelledError as e:
+    raise e
+  except CatchableError as e:
+    error "error when retrieving storable", error = e.msg
+    return failure(e)
 
   return success(ret)
 
-proc all*(self: Reservations, T: type SomeStorableObject): Future[?!seq[T]] {.async.} =
+proc all*(
+    self: Reservations, T: type SomeStorableObject
+): Future[?!seq[T]] {.async: (raises: [CancelledError]).} =
   return await self.allImpl(T)
 
 proc all*(
     self: Reservations, T: type SomeStorableObject, availabilityId: AvailabilityId
-): Future[?!seq[T]] {.async.} =
-  without key =? (ReservationsKey / $availabilityId):
+): Future[?!seq[T]] {.async: (raises: [CancelledError]).} =
+  without key =? key(availabilityId):
     return failure("no key")
 
   return await self.allImpl(T, key)
