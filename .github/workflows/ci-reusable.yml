@@ -42,6 +42,46 @@ jobs:
           nim_version: ${{ matrix.nim_version }}
           coverage: false
 
+      - name: Check runner resources for parallel integration tests
+        run: |
+          echo "Determining runner"
+          case "${{ matrix.os }}" in
+            linux)    CPU=$(nproc --all)
+                      RAM=$(awk '/MemTotal/ {print int($2 / 1024 / 1024 + 0.5)}' /proc/meminfo)
+                      ;;
+            macos)    CPU=$(sysctl -n hw.ncpu)
+                      RAM=$(sysctl -n hw.memsize | awk '{print $0/1073741824}')
+                      sysctl -n hw.ncpu
+                      ;;
+            windows)  CPU=$NUMBER_OF_PROCESSORS
+                      RAM=$(systeminfo | awk '/Total Physical Memory:/ { gsub(/,/,"."); print int($4 + 0.5) }')
+                      ;;
+            *)        CPU=2
+                      RAM=8
+                      echo "Unknown runner"
+                      ;;
+          esac
+          echo "CPU=${CPU}" >> $GITHUB_ENV
+          echo "RAM=${RAM}" >> $GITHUB_ENV
+          echo "TYPE=${RUNNER_ENVIRONMENT}" >> $GITHUB_ENV
+
+          # Set PARALLEL=1 if the runner has enough resources
+          if [[ ("${{ matrix.os }}" == "linux" || "${{ matrix.os }}" == "windows") && "${CPU}" -ge 16 ]]; then
+            echo "PARALLEL=1" >> $GITHUB_ENV
+          elif [[ "${{ matrix.os }}" == "macos" && "${CPU}" -ge 6 ]]; then
+            echo "PARALLEL=1" >> $GITHUB_ENV
+          else
+            echo "PARALLEL=0" >> $GITHUB_ENV
+          fi
+
+      - name: Show runner information
+        run: |
+          echo "OS: ${{ matrix.os }}"
+          echo "CPU: ${{ env.CPU }}"
+          echo "RAM: ${{ env.RAM }} GB"
+          echo "TYPE: ${{ env.TYPE }}"
+          echo "PARALLEL: ${{ env.PARALLEL }}"
+
       ## Part 1 Tests ##
       - name: Unit tests
         if: matrix.tests == 'unittest' || matrix.tests == 'all'
@@ -54,7 +94,7 @@ jobs:
           node-version: 18.15
 
       - name: Install Ethereum node dependencies
-        if: matrix.tests == 'contract' || matrix.tests == 'integration' || matrix.tests == 'integration-parallel' || matrix.tests == 'tools' || matrix.tests == 'all'
+        if: matrix.tests == 'contract' || matrix.tests == 'integration' || matrix.tests == 'tools' || matrix.tests == 'all'
         working-directory: vendor/codex-contracts-eth
         env:
           MSYS2_PATH_TYPE: inherit
@@ -77,17 +117,13 @@ jobs:
       ## Part 3 Tests ##
       - name: Integration tests
         if: matrix.tests == 'integration' || matrix.tests == 'all'
-        run: make -j${ncpu} PARALLEL=0 testIntegration
-
-      - name: Parallel integration tests
-        if: matrix.tests == 'integration-parallel'
-        run: make -j${ncpu} DEBUG=${{ runner.debug }} testIntegration
+        run: make -j${ncpu} PARALLEL=${{ env.PARALLEL }} DEBUG=${{ runner.debug }} testIntegration
 
       - name: Upload integration tests log files
         uses: actions/upload-artifact@v4
-        if: (matrix.tests == 'integration' || matrix.tests == 'integration-parallel' || matrix.tests == 'all') && always()
+        if: (matrix.tests == 'integration' || matrix.tests == 'all') && always()
         with:
-          name: ${{ matrix.os }}-${{ matrix.cpu }}-${{ matrix.nim_version }}-integration-tests-logs
+          name: ${{ matrix.os }}-${{ matrix.cpu }}-${{ matrix.nim_version }}-${{ matrix.tests }}-tests-logs
           path: tests/integration/logs/
           retention-days: 1
 
