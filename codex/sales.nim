@@ -486,7 +486,8 @@ proc startSlotQueue(sales: Sales) =
   slotQueue.start()
 
   proc onAvailabilityAdded(availability: Availability) {.async: (raises: []).} =
-    await sales.onAvailabilityAdded(availability)
+    if availability.enabled:
+      await sales.onAvailabilityAdded(availability)
 
   reservations.onAvailabilityAdded = onAvailabilityAdded
 
