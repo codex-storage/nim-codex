@@ -80,7 +80,7 @@ proc getWantHandle*(
     handle.cancelCallback = proc(data: pointer) {.raises: [].} =
       if not handle.finished:
         handle.removeCallback(cleanUpBlock)
-        cleanUpBlock(nil)
+      cleanUpBlock(nil)
 
     self.updatePendingBlockGauge()
     return handle
