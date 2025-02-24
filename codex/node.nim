@@ -236,11 +236,19 @@ proc streamSingleBlock(self: CodexNodeRef, cid: Cid): Future[?!LPStream] {.async
   LPStream(stream).success
 
 proc streamEntireDataset(
-    self: CodexNodeRef, manifest: Manifest, manifestCid: Cid
+    self: CodexNodeRef,
+    manifest: Manifest,
+    manifestCid: Cid,
+    prefetchBatch = DefaultFetchBatch,
 ): Future[?!LPStream] {.async.} =
   ## Streams the contents of the entire dataset described by the manifest.
+  ## Background jobs (erasure decoding and prefetching) will be cancelled when
+  ## the stream is closed.
   ##
   trace "Retrieving blocks from manifest", manifestCid
+
+  let stream = LPStream(StoreStream.new(self.networkStore, manifest, pad = false))
+  var jobs: seq[Future[void]]
 
   if manifest.protected:
     # Retrieve, decode and save to the local store all EС groups
@@ -252,25 +260,36 @@ proc streamEntireDataset(
         )
         without _ =? (await erasure.decode(manifest)), error:
           error "Unable to erasure decode manifest", manifestCid, exc = error.msg
+      except CancelledError:
+        trace "Erasure job cancelled", manifestCid
       except CatchableError as exc:
         trace "Error erasure decoding manifest", manifestCid, exc = exc.msg
 
-    self.trackedFutures.track(erasureJob())
+    jobs.add(erasureJob())
 
-  proc prefetch() {.async: (raises: []).} =
+  proc prefetch(): Future[void] {.async.} =
     try:
-      if err =? (
-        await self.fetchBatched(manifest, DefaultFetchBatch, fetchLocal = false)
-      ).errorOption:
+      if err =?
+          (await self.fetchBatched(manifest, prefetchBatch, fetchLocal = false)).errorOption:
         error "Unable to fetch blocks", err = err.msg
+    except CancelledError:
+      trace "Prefetch job cancelled"
     except CatchableError as exc:
       error "Error fetching blocks", exc = exc.msg
 
-  self.trackedFutures.track(prefetch())
+  jobs.add(prefetch())
 
-  # Retrieve all blocks of the dataset sequentially from the local store or network
+  # Monitor stream completion and cancel background jobs when done
+  proc monitorStream() {.async.} =
+    try:
+      await stream.join()
+    finally:
+      await allFutures(jobs.mapIt(it.cancelAndWait))
+
+  self.trackedFutures.track(monitorStream())
+
   trace "Creating store stream for manifest", manifestCid
-  LPStream(StoreStream.new(self.networkStore, manifest, pad = false)).success
+  stream.success
 
 proc retrieve*(
     self: CodexNodeRef, cid: Cid, local: bool = true
