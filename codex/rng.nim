@@ -35,7 +35,7 @@ proc rand*(rng: Rng, max: Natural): int =
     if x < randMax - (randMax mod (uint64(max) + 1'u64)): # against modulo bias
       return int(x mod (uint64(max) + 1'u64))
 
-proc sampleNoReplacement[T](a: seq[T], n: int): seq[T] =
+proc sampleNoReplacement[T](a: seq[T], n: int): seq[T] {.raises: [RngSampleError].} =
   if n > a.len:
     raise newException(
       RngSampleError,
@@ -60,11 +60,12 @@ proc sampleWithReplacement[T](a: seq[T], n: int): seq[T] =
 proc sample*[T](rng: Rng, a: openArray[T]): T =
   result = a[rng.rand(a.high)]
 
-proc sample*[T](rng: Rng, a: seq[T], n: int, replace: bool = false): seq[T] =
-  ## Sample `n` elements from a set `a` with or without replacement. In case of
-  ## sampling with replacement, `n` must not be greater than the size of `a`.
+proc sample*[T](
+    rng: Rng, a: seq[T], n: int, replace: bool = false
+): seq[T] {.raises: [RngSampleError].} =
+  ## Sample `n` elements from a set `a` with or without replacement.
   ## In case of sampling without replacement, `n` must not be greater than the
-  ## size of `a` minus 1.
+  ## size of `a`.
   if replace:
     sampleWithReplacement(a, n)
   else:
