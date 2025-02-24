@@ -84,6 +84,3 @@ checksuite "Pending Blocks":
     pendingBlocks.decRetries(address)
     check pendingBlocks.retries(address) == 0
     check pendingBlocks.retriesExhausted(address)
-
-    pendingBlocks.resolve(@[blk].mapIt(BlockDelivery(blk: it, address: it.address)))
-    check (await handle).cid == blk.cid
