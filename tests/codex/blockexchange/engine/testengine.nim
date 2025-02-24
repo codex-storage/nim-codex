@@ -433,7 +433,7 @@ asyncchecksuite "Block Download":
       discard (await pending).tryGet()
 
   test "Should retry block request":
-    var
+    let
       address = BlockAddress.init(blocks[0].cid)
       steps = newAsyncEvent()
 
@@ -467,7 +467,7 @@ asyncchecksuite "Block Download":
     let pending = engine.requestBlock(address)
     await steps.wait()
 
-    # add blocks precense
+    # add blocks presence
     peerCtx.blocks = blocks.mapIt(
       (it.address, Presence(address: it.address, have: true, price: UInt256.example))
     ).toTable
