@@ -146,18 +146,18 @@ suite "Slot queue":
 
   test "correctly compares SlotQueueItems":
     var requestA = StorageRequest.example
-    requestA.ask.duration = 1.u256
+    requestA.ask.duration = 1.uint64
     requestA.ask.pricePerBytePerSecond = 1.u256
-    check requestA.ask.pricePerSlot == 1.u256 * requestA.ask.slotSize
+    check requestA.ask.pricePerSlot == 1.u256 * requestA.ask.slotSize.u256
     requestA.ask.collateralPerByte = 100000.u256
-    requestA.expiry = 1001.u256
+    requestA.expiry = 1001.uint64
 
     var requestB = StorageRequest.example
-    requestB.ask.duration = 100.u256
+    requestB.ask.duration = 100.uint64
     requestB.ask.pricePerBytePerSecond = 1000.u256
-    check requestB.ask.pricePerSlot == 100000.u256 * requestB.ask.slotSize
+    check requestB.ask.pricePerSlot == 100000.u256 * requestB.ask.slotSize.u256
     requestB.ask.collateralPerByte = 1.u256
-    requestB.expiry = 1000.u256
+    requestB.expiry = 1000.uint64
 
     let itemA =
       SlotQueueItem.init(requestA, 0, collateral = requestA.ask.collateralPerSlot)
@@ -171,21 +171,21 @@ suite "Slot queue":
     let itemA = MockSlotQueueItem(
       requestId: request.id,
       slotIndex: 0,
-      slotSize: 1.u256,
-      duration: 1.u256,
+      slotSize: 1.uint64,
+      duration: 1.uint64,
       pricePerBytePerSecond: 2.u256, # profitability is higher (good)
       collateral: 1.u256,
-      expiry: 1.u256,
+      expiry: 1.uint64,
       seen: true, # seen (bad), more weight than profitability
     )
     let itemB = MockSlotQueueItem(
       requestId: request.id,
       slotIndex: 0,
-      slotSize: 1.u256,
-      duration: 1.u256,
+      slotSize: 1.uint64,
+      duration: 1.uint64,
       pricePerBytePerSecond: 1.u256, # profitability is lower (bad)
       collateral: 1.u256,
-      expiry: 1.u256,
+      expiry: 1.uint64,
       seen: false, # not seen (good)
     )
     check itemB.toSlotQueueItem < itemA.toSlotQueueItem # B higher priority than A
@@ -196,22 +196,22 @@ suite "Slot queue":
     let itemA = MockSlotQueueItem(
       requestId: request.id,
       slotIndex: 0,
-      slotSize: 1.u256,
-      duration: 1.u256,
+      slotSize: 1.uint64,
+      duration: 1.uint64,
       pricePerBytePerSecond: 1.u256, # reward is lower (bad)
       collateral: 1.u256, # collateral is lower (good)
-      expiry: 1.u256,
+      expiry: 1.uint64,
       seen: false,
     )
     let itemB = MockSlotQueueItem(
       requestId: request.id,
       slotIndex: 0,
-      slotSize: 1.u256,
-      duration: 1.u256,
+      slotSize: 1.uint64,
+      duration: 1.uint64,
       pricePerBytePerSecond: 2.u256,
         # reward is higher (good), more weight than collateral
       collateral: 2.u256, # collateral is higher (bad)
-      expiry: 1.u256,
+      expiry: 1.uint64,
       seen: false,
     )
 
@@ -222,21 +222,21 @@ suite "Slot queue":
     let itemA = MockSlotQueueItem(
       requestId: request.id,
       slotIndex: 0,
-      slotSize: 1.u256,
-      duration: 1.u256,
+      slotSize: 1.uint64,
+      duration: 1.uint64,
       pricePerBytePerSecond: 1.u256,
       collateral: 2.u256, # collateral is higher (bad)
-      expiry: 2.u256, # expiry is longer (good)
+      expiry: 2.uint64, # expiry is longer (good)
       seen: false,
     )
     let itemB = MockSlotQueueItem(
       requestId: request.id,
       slotIndex: 0,
-      slotSize: 1.u256,
-      duration: 1.u256,
+      slotSize: 1.uint64,
+      duration: 1.uint64,
       pricePerBytePerSecond: 1.u256,
       collateral: 1.u256, # collateral is lower (good), more weight than expiry
-      expiry: 1.u256, # expiry is shorter (bad)
+      expiry: 1.uint64, # expiry is shorter (bad)
       seen: false,
     )
 
@@ -247,21 +247,21 @@ suite "Slot queue":
     let itemA = MockSlotQueueItem(
       requestId: request.id,
       slotIndex: 0,
-      slotSize: 1.u256, # slotSize is smaller (good)
-      duration: 1.u256,
+      slotSize: 1.uint64, # slotSize is smaller (good)
+      duration: 1.uint64,
       pricePerBytePerSecond: 1.u256,
       collateral: 1.u256,
-      expiry: 1.u256, # expiry is shorter (bad)
+      expiry: 1.uint64, # expiry is shorter (bad)
       seen: false,
     )
     let itemB = MockSlotQueueItem(
       requestId: request.id,
       slotIndex: 0,
-      slotSize: 2.u256, # slotSize is larger (bad)
-      duration: 1.u256,
+      slotSize: 2.uint64, # slotSize is larger (bad)
+      duration: 1.uint64,
       pricePerBytePerSecond: 1.u256,
       collateral: 1.u256,
-      expiry: 2.u256, # expiry is longer (good), more weight than slotSize
+      expiry: 2.uint64, # expiry is longer (good), more weight than slotSize
       seen: false,
     )
 
@@ -272,21 +272,21 @@ suite "Slot queue":
     let itemA = MockSlotQueueItem(
       requestId: request.id,
       slotIndex: 0,
-      slotSize: 2.u256, # slotSize is larger (bad)
-      duration: 1.u256,
+      slotSize: 2.uint64, # slotSize is larger (bad)
+      duration: 1.uint64,
       pricePerBytePerSecond: 1.u256,
       collateral: 1.u256,
-      expiry: 1.u256, # expiry is shorter (bad)
+      expiry: 1.uint64, # expiry is shorter (bad)
       seen: false,
     )
     let itemB = MockSlotQueueItem(
       requestId: request.id,
       slotIndex: 0,
-      slotSize: 1.u256, # slotSize is smaller (good)
-      duration: 1.u256,
+      slotSize: 1.uint64, # slotSize is smaller (good)
+      duration: 1.uint64,
       pricePerBytePerSecond: 1.u256,
       collateral: 1.u256,
-      expiry: 1.u256,
+      expiry: 1.uint64,
       seen: false,
     )
 
@@ -470,7 +470,7 @@ suite "Slot queue":
     var request = StorageRequest.example
     let item0 =
       SlotQueueItem.init(request, 0, collateral = request.ask.collateralPerSlot)
-    request.expiry += 1.u256
+    request.expiry += 1
     let item1 =
       SlotQueueItem.init(request, 1, collateral = request.ask.collateralPerSlot)
     check item1 < item0
@@ -479,7 +479,7 @@ suite "Slot queue":
     var request = StorageRequest.example
     let item0 =
       SlotQueueItem.init(request, 0, collateral = request.ask.collateralPerSlot)
-    request.ask.slotSize += 1.u256
+    request.ask.slotSize += 1
     let item1 =
       SlotQueueItem.init(request, 1, collateral = request.ask.collateralPerSlot)
     check item1 < item0

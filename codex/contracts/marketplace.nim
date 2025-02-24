@@ -60,10 +60,6 @@ proc currentCollateral*(
   marketplace: Marketplace, id: SlotId
 ): UInt256 {.contract, view.}
 
-proc slashMisses*(marketplace: Marketplace): UInt256 {.contract, view.}
-proc slashPercentage*(marketplace: Marketplace): UInt256 {.contract, view.}
-proc minCollateralThreshold*(marketplace: Marketplace): UInt256 {.contract, view.}
-
 proc requestStorage*(
   marketplace: Marketplace, request: StorageRequest
 ): Confirmable {.
@@ -76,10 +72,7 @@ proc requestStorage*(
 .}
 
 proc fillSlot*(
-  marketplace: Marketplace,
-  requestId: RequestId,
-  slotIndex: UInt256,
-  proof: Groth16Proof,
+  marketplace: Marketplace, requestId: RequestId, slotIndex: uint64, proof: Groth16Proof
 ): Confirmable {.
   contract,
   errors: [
@@ -155,9 +148,6 @@ proc requestExpiry*(
   marketplace: Marketplace, requestId: RequestId
 ): SecondsSince1970 {.contract, view.}
 
-proc proofTimeout*(marketplace: Marketplace): UInt256 {.contract, view.}
-
-proc proofEnd*(marketplace: Marketplace, id: SlotId): UInt256 {.contract, view.}
 proc missingProofs*(marketplace: Marketplace, id: SlotId): UInt256 {.contract, view.}
 proc isProofRequired*(marketplace: Marketplace, id: SlotId): bool {.contract, view.}
 proc willProofBeRequired*(marketplace: Marketplace, id: SlotId): bool {.contract, view.}
@@ -176,7 +166,7 @@ proc submitProof*(
 .}
 
 proc markProofAsMissing*(
-  marketplace: Marketplace, id: SlotId, period: UInt256
+  marketplace: Marketplace, id: SlotId, period: uint64
 ): Confirmable {.
   contract,
   errors: [
@@ -187,9 +177,9 @@ proc markProofAsMissing*(
 .}
 
 proc reserveSlot*(
-  marketplace: Marketplace, requestId: RequestId, slotIndex: UInt256
+  marketplace: Marketplace, requestId: RequestId, slotIndex: uint64
 ): Confirmable {.contract.}
 
 proc canReserveSlot*(
-  marketplace: Marketplace, requestId: RequestId, slotIndex: UInt256
+  marketplace: Marketplace, requestId: RequestId, slotIndex: uint64
 ): bool {.contract, view.}

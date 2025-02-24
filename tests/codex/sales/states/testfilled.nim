@@ -16,7 +16,7 @@ import ../../helpers
 
 checksuite "sales state 'filled'":
   let request = StorageRequest.example
-  let slotIndex = (request.ask.slots div 2).u256
+  let slotIndex = request.ask.slots div 2
 
   var market: MockMarket
   var slot: MockSlot

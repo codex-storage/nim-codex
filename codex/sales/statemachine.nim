@@ -25,7 +25,7 @@ method onFailed*(
   discard
 
 method onSlotFilled*(
-    state: SaleState, requestId: RequestId, slotIndex: UInt256
+    state: SaleState, requestId: RequestId, slotIndex: uint64
 ): ?State {.base, upraises: [].} =
   discard
 
@@ -37,6 +37,6 @@ proc failedEvent*(request: StorageRequest): Event =
   return proc(state: State): ?State =
     SaleState(state).onFailed(request)
 
-proc slotFilledEvent*(requestId: RequestId, slotIndex: UInt256): Event =
+proc slotFilledEvent*(requestId: RequestId, slotIndex: uint64): Event =
   return proc(state: State): ?State =
     SaleState(state).onSlotFilled(requestId, slotIndex)

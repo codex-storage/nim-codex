@@ -16,8 +16,8 @@ logScope:
   topics = "testValidation"
 
 asyncchecksuite "validation":
-  let period = 10
-  let timeout = 5
+  let period = 10.uint64
+  let timeout = 5.uint64
   let maxSlots = MaxSlots(100)
   let validationGroups = ValidationGroups(8).some
   let slot = Slot.example
@@ -51,8 +51,8 @@ asyncchecksuite "validation":
     groupIndex = groupIndexForSlotId(slot.id, !validationGroups)
     clock = MockClock.new()
     market = MockMarket.new(clock = Clock(clock).some)
-    market.config.proofs.period = period.u256
-    market.config.proofs.timeout = timeout.u256
+    market.config.proofs.period = period
+    market.config.proofs.timeout = timeout
     validation = newValidation(clock, market, maxSlots, validationGroups, groupIndex)
 
   teardown:
@@ -60,10 +60,10 @@ asyncchecksuite "validation":
     await validation.stop()
 
   proc advanceToNextPeriod() =
-    let periodicity = Periodicity(seconds: period.u256)
-    let period = periodicity.periodOf(clock.now().u256)
+    let periodicity = Periodicity(seconds: period)
+    let period = periodicity.periodOf(clock.now().Timestamp)
     let periodEnd = periodicity.periodEnd(period)
-    clock.set((periodEnd + 1).truncate(int))
+    clock.set(periodEnd.toSecondsSince1970 + 1)
 
   test "the list of slots that it's monitoring is empty initially":
     check validation.slots.len == 0

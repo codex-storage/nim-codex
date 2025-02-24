@@ -12,6 +12,6 @@ method onFailed*(agent: SalesAgent, requestId: RequestId) =
   failedCalled = true
 
 method onSlotFilled*(
-    agent: SalesAgent, requestId: RequestId, slotIndex: UInt256
+    agent: SalesAgent, requestId: RequestId, slotIndex: uint64
 ) {.base.} =
   slotFilledCalled = true

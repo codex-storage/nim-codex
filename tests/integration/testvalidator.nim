@@ -37,7 +37,7 @@ marketplacesuite "Validation":
   const blocks = 8
   const ecNodes = 3
   const ecTolerance = 1
-  const proofProbability = 1
+  const proofProbability = 1.u256
 
   const collateralPerByte = 1.u256
   const minPricePerBytePerSecond = 1.u256
@@ -100,7 +100,10 @@ marketplacesuite "Validation":
     let datasetSize =
       datasetSize(blocks = blocks, nodes = ecNodes, tolerance = ecTolerance)
     createAvailabilities(
-      datasetSize, duration, collateralPerByte, minPricePerBytePerSecond
+      datasetSize.truncate(uint64),
+      duration,
+      collateralPerByte,
+      minPricePerBytePerSecond,
     )
 
     let cid = client0.upload(data).get
@@ -167,7 +170,10 @@ marketplacesuite "Validation":
     let datasetSize =
       datasetSize(blocks = blocks, nodes = ecNodes, tolerance = ecTolerance)
     createAvailabilities(
-      datasetSize, duration, collateralPerByte, minPricePerBytePerSecond
+      datasetSize.truncate(uint64),
+      duration,
+      collateralPerByte,
+      minPricePerBytePerSecond,
     )
 
     let cid = client0.upload(data).get

@@ -112,7 +112,7 @@ method periodicity*(
 
 method proofTimeout*(
     market: OnChainMarket
-): Future[UInt256] {.async: (raises: [CancelledError, MarketError]).} =
+): Future[uint64] {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError:
     let config = await market.config()
     return config.proofs.timeout
@@ -124,7 +124,7 @@ method repairRewardPercentage*(
     let config = await market.config()
     return config.collateral.repairRewardPercentage
 
-method requestDurationLimit*(market: OnChainMarket): Future[UInt256] {.async.} =
+method requestDurationLimit*(market: OnChainMarket): Future[uint64] {.async.} =
   convertEthersError:
     let config = await market.config()
     return config.requestDurationLimit
@@ -212,7 +212,7 @@ method requestExpiresAt*(
     return await market.contract.requestExpiry(id)
 
 method getHost(
-    market: OnChainMarket, requestId: RequestId, slotIndex: UInt256
+    market: OnChainMarket, requestId: RequestId, slotIndex: uint64
 ): Future[?Address] {.async.} =
   convertEthersError:
     let slotId = slotId(requestId, slotIndex)
@@ -238,7 +238,7 @@ method getActiveSlot*(market: OnChainMarket, slotId: SlotId): Future[?Slot] {.as
 method fillSlot(
     market: OnChainMarket,
     requestId: RequestId,
-    slotIndex: UInt256,
+    slotIndex: uint64,
     proof: Groth16Proof,
     collateral: UInt256,
 ) {.async.} =
@@ -322,7 +322,7 @@ method canProofBeMarkedAsMissing*(
     return false
 
 method reserveSlot*(
-    market: OnChainMarket, requestId: RequestId, slotIndex: UInt256
+    market: OnChainMarket, requestId: RequestId, slotIndex: uint64
 ) {.async.} =
   convertEthersError:
     discard await market.contract
@@ -335,7 +335,7 @@ method reserveSlot*(
     .confirm(1)
 
 method canReserveSlot*(
-    market: OnChainMarket, requestId: RequestId, slotIndex: UInt256
+    market: OnChainMarket, requestId: RequestId, slotIndex: uint64
 ): Future[bool] {.async.} =
   convertEthersError:
     return await market.contract.canReserveSlot(requestId, slotIndex)
@@ -371,10 +371,10 @@ method subscribeSlotFilled*(
 method subscribeSlotFilled*(
     market: OnChainMarket,
     requestId: RequestId,
-    slotIndex: UInt256,
+    slotIndex: uint64,
     callback: OnSlotFilled,
 ): Future[MarketSubscription] {.async.} =
-  proc onSlotFilled(eventRequestId: RequestId, eventSlotIndex: UInt256) =
+  proc onSlotFilled(eventRequestId: RequestId, eventSlotIndex: uint64) =
     if eventRequestId == requestId and eventSlotIndex == slotIndex:
       callback(requestId, slotIndex)
 
@@ -551,7 +551,7 @@ method queryPastStorageRequestedEvents*(
     return await market.queryPastStorageRequestedEvents(fromBlock)
 
 method slotCollateral*(
-    market: OnChainMarket, requestId: RequestId, slotIndex: UInt256
+    market: OnChainMarket, requestId: RequestId, slotIndex: uint64
 ): Future[?UInt256] {.async: (raises: [MarketError, CancelledError]).} =
   let slotid = slotId(requestId, slotIndex)
   let slotState = await market.slotState(slotid)

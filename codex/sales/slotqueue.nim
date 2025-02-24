@@ -5,6 +5,7 @@ import pkg/questionable
 import pkg/questionable/results
 import pkg/upraises
 import ../errors
+import ../clock
 import ../logutils
 import ../rng
 import ../utils
@@ -30,11 +31,11 @@ type
   SlotQueueItem* = object
     requestId: RequestId
     slotIndex: uint16
-    slotSize: UInt256
-    duration: UInt256
+    slotSize: uint64
+    duration: uint64
     pricePerBytePerSecond: UInt256
     collateral: UInt256 # Collateral computed
-    expiry: UInt256
+    expiry: uint64
     seen: bool
 
   # don't need to -1 to prevent overflow when adding 1 (to always allow push)
@@ -132,7 +133,7 @@ proc init*(
     requestId: RequestId,
     slotIndex: uint16,
     ask: StorageAsk,
-    expiry: UInt256,
+    expiry: uint64,
     collateral: UInt256,
     seen = false,
 ): SlotQueueItem =
@@ -159,7 +160,7 @@ proc init*(
     _: type SlotQueueItem,
     requestId: RequestId,
     ask: StorageAsk,
-    expiry: UInt256,
+    expiry: uint64,
     collateral: UInt256,
 ): seq[SlotQueueItem] {.raises: [SlotsOutOfRangeError].} =
   if not ask.slots.inRange:
@@ -189,10 +190,10 @@ proc requestId*(self: SlotQueueItem): RequestId =
 proc slotIndex*(self: SlotQueueItem): uint16 =
   self.slotIndex
 
-proc slotSize*(self: SlotQueueItem): UInt256 =
+proc slotSize*(self: SlotQueueItem): uint64 =
   self.slotSize
 
-proc duration*(self: SlotQueueItem): UInt256 =
+proc duration*(self: SlotQueueItem): uint64 =
   self.duration
 
 proc pricePerBytePerSecond*(self: SlotQueueItem): UInt256 =

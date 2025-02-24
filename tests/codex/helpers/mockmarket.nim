@@ -57,7 +57,7 @@ type
   MockSlot* = object
     requestId*: RequestId
     host*: Address
-    slotIndex*: UInt256
+    slotIndex*: uint64
     proof*: Groth16Proof
     timestamp: ?SecondsSince1970
     collateral*: UInt256
@@ -84,7 +84,7 @@ type
   SlotFilledSubscription* = ref object of Subscription
     market: MockMarket
     requestId: ?RequestId
-    slotIndex: ?UInt256
+    slotIndex: ?uint64
     callback: OnSlotFilled
 
   SlotFreedSubscription* = ref object of Subscription
@@ -126,10 +126,13 @@ proc new*(_: type MockMarket, clock: ?Clock = Clock.none): MockMarket =
       validatorRewardPercentage: 20,
     ),
     proofs: ProofConfig(
-      period: 10.u256, timeout: 5.u256, downtime: 64.uint8, downtimeProduct: 67.uint8
+      period: 10.Period,
+      timeout: 5.uint64,
+      downtime: 64.uint8,
+      downtimeProduct: 67.uint8,
     ),
     reservations: SlotReservationsConfig(maxReservations: 3),
-    requestDurationLimit: (60 * 60 * 24 * 30).u256,
+    requestDurationLimit: (60 * 60 * 24 * 30).uint64,
   )
   MockMarket(
     signer: Address.example, config: config, canReserveSlot: true, clock: clock
@@ -150,10 +153,10 @@ method periodicity*(
 
 method proofTimeout*(
     market: MockMarket
-): Future[UInt256] {.async: (raises: [CancelledError, MarketError]).} =
+): Future[uint64] {.async: (raises: [CancelledError, MarketError]).} =
   return market.config.proofs.timeout
 
-method requestDurationLimit*(market: MockMarket): Future[UInt256] {.async.} =
+method requestDurationLimit*(market: MockMarket): Future[uint64] {.async.} =
   return market.config.requestDurationLimit
 
 method proofDowntime*(
@@ -189,9 +192,9 @@ method getRequest*(
       return some request
   return none StorageRequest
 
-method getActiveSlot*(market: MockMarket, slotId: SlotId): Future[?Slot] {.async.} =
+method getActiveSlot*(market: MockMarket, id: SlotId): Future[?Slot] {.async.} =
   for slot in market.filled:
-    if slotId(slot.requestId, slot.slotIndex) == slotId and
+    if slotId(slot.requestId, slot.slotIndex) == id and
         request =? await market.getRequest(slot.requestId):
       return some Slot(request: request, slotIndex: slot.slotIndex)
   return none Slot
@@ -223,7 +226,7 @@ method requestExpiresAt*(
   return market.requestExpiry[id]
 
 method getHost*(
-    market: MockMarket, requestId: RequestId, slotIndex: UInt256
+    market: MockMarket, requestId: RequestId, slotIndex: uint64
 ): Future[?Address] {.async.} =
   for slot in market.filled:
     if slot.requestId == requestId and slot.slotIndex == slotIndex:
@@ -238,7 +241,7 @@ method currentCollateral*(
       return slot.collateral
   return 0.u256
 
-proc emitSlotFilled*(market: MockMarket, requestId: RequestId, slotIndex: UInt256) =
+proc emitSlotFilled*(market: MockMarket, requestId: RequestId, slotIndex: uint64) =
   var subscriptions = market.subscriptions.onSlotFilled
   for subscription in subscriptions:
     let requestMatches =
@@ -248,13 +251,13 @@ proc emitSlotFilled*(market: MockMarket, requestId: RequestId, slotIndex: UInt25
     if requestMatches and slotMatches:
       subscription.callback(requestId, slotIndex)
 
-proc emitSlotFreed*(market: MockMarket, requestId: RequestId, slotIndex: UInt256) =
+proc emitSlotFreed*(market: MockMarket, requestId: RequestId, slotIndex: uint64) =
   var subscriptions = market.subscriptions.onSlotFreed
   for subscription in subscriptions:
     subscription.callback(requestId, slotIndex)
 
 proc emitSlotReservationsFull*(
-    market: MockMarket, requestId: RequestId, slotIndex: UInt256
+    market: MockMarket, requestId: RequestId, slotIndex: uint64
 ) =
   var subscriptions = market.subscriptions.onSlotReservationsFull
   for subscription in subscriptions:
@@ -281,7 +284,7 @@ proc emitRequestFailed*(market: MockMarket, requestId: RequestId) =
 proc fillSlot*(
     market: MockMarket,
     requestId: RequestId,
-    slotIndex: UInt256,
+    slotIndex: uint64,
     proof: Groth16Proof,
     host: Address,
     collateral = 0.u256,
@@ -301,7 +304,7 @@ proc fillSlot*(
 method fillSlot*(
     market: MockMarket,
     requestId: RequestId,
-    slotIndex: UInt256,
+    slotIndex: uint64,
     proof: Groth16Proof,
     collateral: UInt256,
 ) {.async.} =
@@ -365,13 +368,13 @@ method canProofBeMarkedAsMissing*(
   return market.canBeMarkedAsMissing.contains(id)
 
 method reserveSlot*(
-    market: MockMarket, requestId: RequestId, slotIndex: UInt256
+    market: MockMarket, requestId: RequestId, slotIndex: uint64
 ) {.async.} =
   if error =? market.reserveSlotThrowError:
     raise error
 
 method canReserveSlot*(
-    market: MockMarket, requestId: RequestId, slotIndex: UInt256
+    market: MockMarket, requestId: RequestId, slotIndex: uint64
 ): Future[bool] {.async.} =
   return market.canReserveSlot
 
@@ -414,7 +417,7 @@ method subscribeSlotFilled*(
   return subscription
 
 method subscribeSlotFilled*(
-    market: MockMarket, requestId: RequestId, slotIndex: UInt256, callback: OnSlotFilled
+    market: MockMarket, requestId: RequestId, slotIndex: uint64, callback: OnSlotFilled
 ): Future[Subscription] {.async.} =
   let subscription = SlotFilledSubscription(
     market: market,
@@ -552,7 +555,7 @@ method unsubscribe*(subscription: SlotReservationsFullSubscription) {.async.} =
   subscription.market.subscriptions.onSlotReservationsFull.keepItIf(it != subscription)
 
 method slotCollateral*(
-    market: MockMarket, requestId: RequestId, slotIndex: UInt256
+    market: MockMarket, requestId: RequestId, slotIndex: uint64
 ): Future[?UInt256] {.async: (raises: [MarketError, CancelledError]).} =
   let slotid = slotId(requestId, slotIndex)
   let state = await slotState(market, slotid)
