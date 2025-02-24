@@ -56,22 +56,6 @@ multinodesuite "Sales":
     ).get
     check availability in host.getAvailabilities().get
 
-  test "creating availability fails when until is negative", salesConfig:
-    let totalSize = 12.uint64
-    let minPricePerBytePerSecond = 1.u256
-    let totalCollateral = totalSize.u256 * minPricePerBytePerSecond
-    let response = host.postAvailabilityRaw(
-      totalSize = totalSize,
-      duration = 2.uint64,
-      minPricePerBytePerSecond = minPricePerBytePerSecond,
-      totalCollateral = totalCollateral,
-      until = -1.SecondsSince1970.some,
-    )
-
-    check:
-      response.status == "422 Unprocessable Entity"
-      response.body == "Cannot set until to a negative value"
-
   test "updating non-existing availability", salesConfig:
     let nonExistingResponse = host.patchAvailabilityRaw(
       AvailabilityId.example,
@@ -201,3 +185,49 @@ multinodesuite "Sales":
     check:
       response.status == "422 Unprocessable Entity"
       response.body == "Cannot set until to a negative value"
+
+  test "returns an error when trying to update the until date before an existing a request is finished",
+    salesConfig:
+    let size = 0xFFFFFF.uint64
+    let data = await RandomChunker.example(blocks = 8)
+    let duration = 20 * 60.uint64
+    let minPricePerBytePerSecond = 3.u256
+    let collateralPerByte = 1.u256
+    let ecNodes = 3.uint
+    let ecTolerance = 1.uint
+
+    # host makes storage available
+    let availability = host.postAvailability(
+      totalSize = size,
+      duration = duration,
+      minPricePerBytePerSecond = minPricePerBytePerSecond,
+      totalCollateral = size.u256 * minPricePerBytePerSecond,
+    ).get
+
+    # client requests storage
+    let cid = client.upload(data).get
+    let id = client.requestStorage(
+      cid,
+      duration = duration,
+      pricePerBytePerSecond = minPricePerBytePerSecond,
+      proofProbability = 3.u256,
+      expiry = 10 * 60.uint64,
+      collateralPerByte = collateralPerByte,
+      nodes = ecNodes,
+      tolerance = ecTolerance,
+    ).get
+
+    check eventually(client.purchaseStateIs(id, "started"), timeout = 10 * 60 * 1000)
+    let purchase = client.getPurchase(id).get
+    check purchase.error == none string
+
+    let unixNow = getTime().toUnix()
+    let until = unixNow + 1.SecondsSince1970
+
+    let response =
+      host.patchAvailabilityRaw(availabilityId = availability.id, until = until.some)
+
+    check:
+      response.status == "422 Unprocessable Entity"
+      response.body ==
+        "Until parameter must be greater or equal the current longest request"

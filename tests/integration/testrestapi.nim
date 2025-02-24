@@ -306,3 +306,19 @@ twonodessuite "REST API":
     let cid = Manifest.example().makeManifestBlock().get.cid
     let response = client1.deleteRaw($cid)
     check response.status == "204 No Content"
+
+  test "creating availability fails when until is negative", twoNodesConfig:
+    let totalSize = 12.uint64
+    let minPricePerBytePerSecond = 1.u256
+    let totalCollateral = totalSize.u256 * minPricePerBytePerSecond
+    let response = client1.postAvailabilityRaw(
+      totalSize = totalSize,
+      duration = 2.uint64,
+      minPricePerBytePerSecond = minPricePerBytePerSecond,
+      totalCollateral = totalCollateral,
+      until = -1.SecondsSince1970.some,
+    )
+
+    check:
+      response.status == "422 Unprocessable Entity"
+      response.body == "Cannot set until to a negative value"

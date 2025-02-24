@@ -125,54 +125,6 @@ marketplacesuite "Marketplace":
       timeout = 10 * 1000, # give client a bit of time to withdraw its funds
     )
 
-  test "returns an error when trying to update the until date before an existing a request is finished",
-    marketplaceConfig:
-    let size = 0xFFFFFF.uint64
-    let data = await RandomChunker.example(blocks = blocks)
-    let marketplace = Marketplace.new(Marketplace.address, ethProvider.getSigner())
-    let tokenAddress = await marketplace.token()
-    let token = Erc20Token.new(tokenAddress, ethProvider.getSigner())
-    let duration = 20 * 60.uint64
-
-    # host makes storage available
-    let startBalanceHost = await token.balanceOf(hostAccount)
-    let availability = host.postAvailability(
-      totalSize = size,
-      duration = 20 * 60.uint64,
-      minPricePerBytePerSecond = minPricePerBytePerSecond,
-      totalCollateral = size.u256 * minPricePerBytePerSecond,
-    ).get
-
-    # client requests storage
-    let cid = client.upload(data).get
-    let id = (
-      await client.requestStorage(
-        cid,
-        duration = duration,
-        pricePerBytePerSecond = minPricePerBytePerSecond,
-        proofProbability = 3.u256,
-        expiry = 10 * 60.uint64,
-        collateralPerByte = collateralPerByte,
-        nodes = ecNodes,
-        tolerance = ecTolerance,
-      )
-    )
-
-    check eventually(client.purchaseStateIs(id, "started"), timeout = 10 * 60 * 1000)
-    let purchase = client.getPurchase(id).get
-    check purchase.error == none string
-
-    let unixNow = getTime().toUnix()
-    let until = unixNow + 1.SecondsSince1970
-
-    let response =
-      host.patchAvailabilityRaw(availabilityId = availability.id, until = until.some)
-
-    check:
-      response.status == "422 Unprocessable Entity"
-      response.body ==
-        "Until parameter must be greater or equal the current longest request"
-
 marketplacesuite "Marketplace payouts":
   const minPricePerBytePerSecond = 1.u256
   const collateralPerByte = 1.u256
