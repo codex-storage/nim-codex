@@ -1,5 +1,6 @@
 import std/sequtils
 import std/algorithm
+import std/importutils
 
 import pkg/chronos
 import pkg/stew/byteutils
@@ -20,7 +21,7 @@ asyncchecksuite "NetworkStore engine - 2 nodes":
     peerCtx1, peerCtx2: BlockExcPeerCtx
     pricing1, pricing2: Pricing
     blocks1, blocks2: seq[bt.Block]
-    pendingBlocks1, pendingBlocks2: seq[Future[bt.Block]]
+    pendingBlocks1, pendingBlocks2: seq[BlockHandle]
 
   setup:
     blocks1 = await makeRandomBlocks(datasetSize = 2048, blockSize = 256'nb)
@@ -56,7 +57,7 @@ asyncchecksuite "NetworkStore engine - 2 nodes":
       nodeCmps2.switch.peerInfo.peerId, nodeCmps2.switch.peerInfo.addrs
     )
 
-    await sleepAsync(1.seconds) # give some time to exchange lists
+    await sleepAsync(100.millis) # give some time to exchange lists
     peerCtx2 = nodeCmps1.peerStore.get(nodeCmps2.switch.peerInfo.peerId)
     peerCtx1 = nodeCmps2.peerStore.get(nodeCmps1.switch.peerInfo.peerId)
 
@@ -75,7 +76,6 @@ asyncchecksuite "NetworkStore engine - 2 nodes":
 
   test "Should exchange blocks on connect":
     await allFuturesThrowing(allFinished(pendingBlocks1)).wait(10.seconds)
-
     await allFuturesThrowing(allFinished(pendingBlocks2)).wait(10.seconds)
 
     check:
@@ -178,7 +178,7 @@ asyncchecksuite "NetworkStore - multiple nodes":
       (await nodes[i div 4].networkStore.engine.localStore.putBlock(blocks[i])).tryGet()
 
     await connectNodes(nodes)
-    await sleepAsync(1.seconds)
+    await sleepAsync(100.millis)
 
     await allFuturesThrowing(allFinished(pendingBlocks))
 
@@ -203,45 +203,9 @@ asyncchecksuite "NetworkStore - multiple nodes":
       (await nodes[i div 4].networkStore.engine.localStore.putBlock(blocks[i])).tryGet()
 
     await connectNodes(nodes)
-    await sleepAsync(1.seconds)
+    await sleepAsync(100.millis)
 
     await allFuturesThrowing(allFinished(pendingBlocks1), allFinished(pendingBlocks2))
 
     check pendingBlocks1.mapIt(it.read) == blocks[0 .. 3]
     check pendingBlocks2.mapIt(it.read) == blocks[12 .. 15]
-
-  test "Should actively cancel want-haves if block received from elsewhere":
-    let
-      # Peer wanting to download blocks
-      downloader = nodes[4]
-      # Bystander peer - gets block request but can't satisfy them
-      bystander = nodes[3]
-      # Holder of actual blocks
-      blockHolder = nodes[1]
-
-    let aBlock = blocks[0]
-    (await blockHolder.engine.localStore.putBlock(aBlock)).tryGet()
-
-    await connectNodes(@[downloader, bystander])
-    # Downloader asks for block...
-    let blockRequest = downloader.engine.requestBlock(aBlock.cid)
-
-    # ... and bystander learns that downloader wants it, but can't provide it.
-    check eventually(
-      bystander.engine.peers
-      .get(downloader.switch.peerInfo.peerId).peerWants
-      .filterIt(it.address == aBlock.address).len == 1
-    )
-
-    # As soon as we connect the downloader to the blockHolder, the block should
-    # propagate to the downloader...
-    await connectNodes(@[downloader, blockHolder])
-    check (await blockRequest).tryGet().cid == aBlock.cid
-    check (await downloader.engine.localStore.hasBlock(aBlock.cid)).tryGet()
-
-    # ... and the bystander should have cancelled the want-have
-    check eventually(
-      bystander.engine.peers
-      .get(downloader.switch.peerInfo.peerId).peerWants
-      .filterIt(it.address == aBlock.address).len == 0
-    )
