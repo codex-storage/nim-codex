@@ -119,7 +119,7 @@ proc startNode*(
     debug: string | bool = false,
     name: string,
     onOutputLineCaptured: OnOutputLineCaptured = nil,
-): Future[HardhatProcess] {.async.} =
+): Future[HardhatProcess] {.async: (raises: [CancelledError, NodeProcessError]).} =
   logScope:
     nodeName = name
 
@@ -150,7 +150,7 @@ proc startNode*(
 
   return hardhat
 
-method onOutputLineCaptured(node: HardhatProcess, line: string) {.raises: [].} =
+method onOutputLineCaptured(node: HardhatProcess, line: string) =
   logScope:
     nodeName = node.name
 
@@ -165,7 +165,7 @@ method onOutputLineCaptured(node: HardhatProcess, line: string) {.raises: [].} =
     discard logFile.closeFile()
     node.logFile = none IoHandle
 
-method stop*(node: HardhatProcess) {.async.} =
+method stop*(node: HardhatProcess) {.async: (raises: []).} =
   # terminate the process
   await procCall NodeProcess(node).stop()
 
