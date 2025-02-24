@@ -93,12 +93,12 @@ method run*(
         codex_reservations_availability_mismatch.inc()
         return some State(SaleIgnored(reprocessSlot: true))
 
-        return some State(SaleErrored(error: error))
+      return some State(SaleErrored(error: error))
 
-      trace "Reservation created successfully"
+    trace "Reservation created successfully"
 
-      data.reservation = some reservation
-      return some State(SaleSlotReserving())
+    data.reservation = some reservation
+    return some State(SaleSlotReserving())
   except CancelledError as e:
     trace "SalePreparing.run was cancelled", error = e.msgDetail
   except CatchableError as e:
