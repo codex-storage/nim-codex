@@ -307,11 +307,8 @@ proc updateAvailability(
         return failure(err)
 
     if obj.until > 0:
-      without allReservations =? await self.all(Reservation, obj.id):
-        let error = newException(
-          GetFailedError,
-          "Until parameter must be greater or equal the current longest request",
-        )
+      without allReservations =? await self.all(Reservation, obj.id), error:
+        error.msg = "Error updating reservation: " & error.msg
         return failure(error)
 
       let requestEnds = allReservations.mapIt(it.validUntil)
