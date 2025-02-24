@@ -47,7 +47,7 @@ method outputLineEndings(node: NodeProcess): string {.base, gcsafe.} =
 method onOutputLineCaptured(node: NodeProcess, line: string) {.base, gcsafe.} =
   raiseAssert "not implemented"
 
-method start*(node: NodeProcess) {.base, async.} =
+method start*(node: NodeProcess) {.base, async: (raises: [CancelledError]).} =
   logScope:
     nodeName = node.name
 
@@ -104,7 +104,7 @@ proc captureOutput(
 
 proc startNode*[T: NodeProcess](
     _: type T, args: seq[string], debug: string | bool = false, name: string
-): Future[T] {.async.} =
+): Future[T] {.async: (raises: [CancelledError]).} =
   ## Starts a Codex Node with the specified arguments.
   ## Set debug to 'true' to see output of the node.
   let node = T(
@@ -116,7 +116,9 @@ proc startNode*[T: NodeProcess](
   await node.start()
   return node
 
-method stop*(node: NodeProcess, expectedErrCode: int = -1) {.base, async.} =
+method stop*(
+    node: NodeProcess, expectedErrCode: int = -1
+) {.base, async: (raises: []).} =
   logScope:
     nodeName = node.name
 
@@ -124,16 +126,14 @@ method stop*(node: NodeProcess, expectedErrCode: int = -1) {.base, async.} =
   if not node.process.isNil:
     trace "terminating node process..."
     try:
-      let exitCode = await node.process.terminateAndWaitForExit(2.seconds)
+      let exitCode = await noCancel node.process.terminateAndWaitForExit(2.seconds)
       if exitCode > 0 and exitCode != 143 and # 143 = SIGTERM (initiated above)
       exitCode != expectedErrCode:
         error "process exited with a non-zero exit code", exitCode
       trace "node stopped", exitCode
-    except CancelledError as error:
-      raise error
     except CatchableError:
       try:
-        let forcedExitCode = await node.process.killAndWaitForExit(3.seconds)
+        let forcedExitCode = await noCancel node.process.killAndWaitForExit(3.seconds)
         trace "node process forcibly killed with exit code: ", exitCode = forcedExitCode
       except CatchableError as e:
         error "failed to kill node process in time, it will be killed when the parent process exits",
@@ -148,7 +148,9 @@ method stop*(node: NodeProcess, expectedErrCode: int = -1) {.base, async.} =
 
       asyncSpawn closeProcessStreams()
 
-proc waitUntilOutput*(node: NodeProcess, output: string) {.async.} =
+proc waitUntilOutput*(
+    node: NodeProcess, output: string
+) {.async: (raises: [CancelledError, AsyncTimeoutError]).} =
   logScope:
     nodeName = node.name
 
@@ -158,9 +160,18 @@ proc waitUntilOutput*(node: NodeProcess, output: string) {.async.} =
   let fut = node.captureOutput(output, started)
   node.trackedFutures.track(fut)
   asyncSpawn fut
-  await started.wait(60.seconds) # allow enough time for proof generation
+  try:
+    await started.wait(60.seconds) # allow enough time for proof generation
+  except AsyncTimeoutError as e:
+    raise e
+  except CancelledError as e:
+    raise e
+  except CatchableError as e: # unsure where this originates from
+    error "unexpected error occurred waiting for node output", error = e.msg
 
-proc waitUntilStarted*(node: NodeProcess) {.async.} =
+proc waitUntilStarted*(
+    node: NodeProcess
+) {.async: (raises: [CancelledError, NodeProcessError]).} =
   logScope:
     nodeName = node.name
 
