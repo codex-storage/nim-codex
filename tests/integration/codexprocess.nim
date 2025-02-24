@@ -85,7 +85,7 @@ proc client*(node: CodexProcess): CodexClient {.raises: [CodexProcessError].} =
   node.client = some client
   return client
 
-method stop*(node: CodexProcess) {.async.} =
+method stop*(node: CodexProcess) {.async: (raises: []).} =
   logScope:
     nodeName = node.name
 
