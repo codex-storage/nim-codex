@@ -78,17 +78,15 @@ asyncchecksuite "Test Node - Basic":
         )
       ).tryGet()
 
-  test "Store and retrieve Data Stream":
+  test "Should store Data Stream":
     let
       stream = BufferStream.new()
       storeFut = node.store(stream)
-      oddChunkSize = math.trunc(DefaultBlockSize.float / 3.14).NBytes
         # Let's check that node.store can correctly rechunk these odd chunks
-      oddChunker = FileChunker.new(file = file, chunkSize = oddChunkSize, pad = false)
-        # TODO: doesn't work with pad=tue
+      oddChunker = FileChunker.new(file = file, chunkSize = 1024.NBytes, pad = false)
+        # don't pad, so `node.store` gets the correct size
 
     var original: seq[byte]
-
     try:
       while (let chunk = await oddChunker.getBytes(); chunk.len > 0):
         original &= chunk
@@ -101,12 +99,34 @@ asyncchecksuite "Test Node - Basic":
       manifestCid = (await storeFut).tryGet()
       manifestBlock = (await localStore.getBlock(manifestCid)).tryGet()
       localManifest = Manifest.decode(manifestBlock).tryGet()
-      data = await (await node.retrieve(manifestCid)).drain()
 
+    var data: seq[byte]
+    for i in 0 ..< localManifest.blocksCount:
+      let blk = (await localStore.getBlock(localManifest.treeCid, i)).tryGet()
+      data &= blk.data
+
+    data.setLen(localManifest.datasetSize.int) # truncate data to original size
     check:
-      data.len == localManifest.datasetSize.int
       data.len == original.len
       sha256.digest(data) == sha256.digest(original)
+
+  test "Should retrieve a Data Stream":
+    let
+      manifest = await storeDataGetManifest(localStore, chunker)
+      manifestBlk =
+        bt.Block.new(data = manifest.encode().tryGet, codec = ManifestCodec).tryGet()
+
+    (await localStore.putBlock(manifestBlk)).tryGet()
+    let data = await ((await node.retrieve(manifestBlk.cid)).tryGet()).drain()
+
+    var storedData: seq[byte]
+    for i in 0 ..< manifest.blocksCount:
+      let blk = (await localStore.getBlock(manifest.treeCid, i)).tryGet()
+      storedData &= blk.data
+
+    storedData.setLen(manifest.datasetSize.int) # truncate data to original size
+    check:
+      storedData == data
 
   test "Retrieve One Block":
     let
