@@ -405,7 +405,7 @@ asyncchecksuite "Reservations module":
 
   test "finds an availability when the until date is after the duration":
     let example = Availability.example(collateralPerByte)
-    let until = getTime().toUnix() + cast[int64](example.duration)
+    let until = getTime().toUnix() + example.duration.SecondsSince1970
     let availability = createAvailability(until = until)
 
     let found = await reservations.findAvailability(

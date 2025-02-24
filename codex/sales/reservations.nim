@@ -484,7 +484,7 @@ method createReservation*(
       let error = newException(ReservationsError, "Cannot cast duration to int64")
       return failure(error)
 
-    let validUntil = times.now().utc().toTime().toUnix() + duration.SecondsSince1970
+    let validUntil = getTime().toUnix() + duration.SecondsSince1970
 
     trace "Creating reservation",
       availabilityId, slotSize, requestId, slotIndex, validUntil = validUntil
