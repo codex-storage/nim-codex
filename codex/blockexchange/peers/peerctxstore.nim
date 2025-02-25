@@ -7,15 +7,12 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+{.push raises: [].}
+
 import std/sequtils
 import std/tables
 import std/algorithm
 import std/sequtils
-
-import pkg/upraises
-
-push:
-  {.upraises: [].}
 
 import pkg/chronos
 import pkg/libp2p

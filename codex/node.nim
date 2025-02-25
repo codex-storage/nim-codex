@@ -223,36 +223,27 @@ proc streamSingleBlock(self: CodexNodeRef, cid: Cid): Future[?!LPStream] {.async
   without blk =? (await self.networkStore.getBlock(BlockAddress.init(cid))), err:
     return failure(err)
 
-  proc streamOneBlock(): Future[void] {.async.} =
+  proc streamOneBlock(): Future[void] {.async: (raises: []).} =
     try:
+      defer:
+        await stream.pushEof()
       await stream.pushData(blk.data)
     except CatchableError as exc:
       trace "Unable to send block", cid, exc = exc.msg
-      discard
-    finally:
-      await stream.pushEof()
 
   self.trackedFutures.track(streamOneBlock())
   LPStream(stream).success
 
 proc streamEntireDataset(
-    self: CodexNodeRef,
-    manifest: Manifest,
-    manifestCid: Cid,
-    prefetchBatch = DefaultFetchBatch,
+    self: CodexNodeRef, manifest: Manifest, manifestCid: Cid
 ): Future[?!LPStream] {.async.} =
   ## Streams the contents of the entire dataset described by the manifest.
-  ## Background jobs (erasure decoding and prefetching) will be cancelled when
-  ## the stream is closed.
   ##
   trace "Retrieving blocks from manifest", manifestCid
 
-  let stream = LPStream(StoreStream.new(self.networkStore, manifest, pad = false))
-  var jobs: seq[Future[void]]
-
   if manifest.protected:
     # Retrieve, decode and save to the local store all EС groups
-    proc erasureJob(): Future[void] {.async.} =
+    proc erasureJob(): Future[void] {.async: (raises: []).} =
       try:
         # Spawn an erasure decoding job
         let erasure = Erasure.new(
@@ -260,36 +251,25 @@ proc streamEntireDataset(
         )
         without _ =? (await erasure.decode(manifest)), error:
           error "Unable to erasure decode manifest", manifestCid, exc = error.msg
-      except CancelledError:
-        trace "Erasure job cancelled", manifestCid
       except CatchableError as exc:
         trace "Error erasure decoding manifest", manifestCid, exc = exc.msg
 
-    jobs.add(erasureJob())
+    self.trackedFutures.track(erasureJob())
 
-  proc prefetch(): Future[void] {.async.} =
+  proc prefetch() {.async: (raises: []).} =
     try:
-      if err =?
-          (await self.fetchBatched(manifest, prefetchBatch, fetchLocal = false)).errorOption:
+      if err =? (
+        await self.fetchBatched(manifest, DefaultFetchBatch, fetchLocal = false)
+      ).errorOption:
         error "Unable to fetch blocks", err = err.msg
-    except CancelledError:
-      trace "Prefetch job cancelled"
     except CatchableError as exc:
       error "Error fetching blocks", exc = exc.msg
 
-  jobs.add(prefetch())
+  self.trackedFutures.track(prefetch())
 
-  # Monitor stream completion and cancel background jobs when done
-  proc monitorStream() {.async.} =
-    try:
-      await stream.join()
-    finally:
-      await allFutures(jobs.mapIt(it.cancelAndWait))
-
-  self.trackedFutures.track(monitorStream())
-
+  # Retrieve all blocks of the dataset sequentially from the local store or network
   trace "Creating store stream for manifest", manifestCid
-  stream.success
+  LPStream(StoreStream.new(self.networkStore, manifest, pad = false)).success
 
 proc retrieve*(
     self: CodexNodeRef, cid: Cid, local: bool = true
