@@ -286,7 +286,7 @@ proc streamEntireDataset(
       except CatchableError as exc:
         trace "Error erasure decoding manifest", manifestCid, exc = exc.msg
 
-    jobs.add(erasureJob())
+    self.trackedFutures.track(erasureJob())
 
   jobs.add(self.fetchDatasetAsync(manifest))
 
