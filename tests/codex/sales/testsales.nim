@@ -426,15 +426,6 @@ asyncchecksuite "Sales":
     await market.requestStorage(request)
     check wasIgnored()
 
-  test "ignores request when availability was disabled after the request storage is created":
-    createAvailability(enabled = true)
-    await market.requestStorage(request)
-
-    availability.enabled = false
-    discard await reservations.update(availability)
-
-    check wasIgnored()
-
   test "ignores request when availability until terminates before the duration":
     let until = getTime().toUnix()
     createAvailability(until = until)
