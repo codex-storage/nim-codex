@@ -41,7 +41,7 @@ type Advertiser* = ref object of RootObj
   advertiserRunning*: bool # Indicates if discovery is running
   concurrentAdvReqs: int # Concurrent advertise requests
 
-  advertiseLocalStoreLoop*: Future[void] # Advertise loop task handle
+  advertiseLocalStoreLoop*: Future[void].Raising([]) # Advertise loop task handle
   advertiseQueue*: AsyncQueue[Cid] # Advertise queue
   trackedFutures*: TrackedFutures # Advertise tasks futures
 
@@ -82,8 +82,6 @@ proc advertiseLocalStoreLoop(b: Advertiser) {.async: (raises: []).} =
         trace "Advertiser iterating blocks finished."
 
       await sleepAsync(b.advertiseLocalStoreLoopSleep)
-    except CancelledError:
-      break # do not propagate as advertiseLocalStoreLoop was asyncSpawned
     except CatchableError as e:
       error "failed to advertise blocks in local store", error = e.msgDetail
 

@@ -522,7 +522,9 @@ proc startSlotQueue(sales: Sales) =
   let slotQueue = sales.context.slotQueue
   let reservations = sales.context.reservations
 
-  slotQueue.onProcessSlot = proc(item: SlotQueueItem, done: Future[void]) {.async.} =
+  slotQueue.onProcessSlot = proc(
+      item: SlotQueueItem, done: Future[void]
+  ) {.async: (raises: []).} =
     trace "processing slot queue item", reqId = item.requestId, slotIdx = item.slotIndex
     sales.processSlot(item, done)
 

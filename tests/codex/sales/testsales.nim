@@ -236,10 +236,17 @@ asyncchecksuite "Sales":
     return true
 
   proc addRequestToSaturatedQueue(): Future[StorageRequest] {.async.} =
-    queue.onProcessSlot = proc(item: SlotQueueItem, done: Future[void]) {.async.} =
-      await sleepAsync(10.millis)
-      itemsProcessed.add item
-      done.complete()
+    queue.onProcessSlot = proc(
+        item: SlotQueueItem, done: Future[void]
+    ) {.async: (raises: []).} =
+      try:
+        await sleepAsync(10.millis)
+        itemsProcessed.add item
+      except CancelledError as exc:
+        checkpoint(exc.msg)
+      finally:
+        if not done.finished:
+          done.complete()
 
     var request1 = StorageRequest.example
     request1.ask.collateralPerByte = request.ask.collateralPerByte + 1
@@ -261,9 +268,12 @@ asyncchecksuite "Sales":
     waitFor run()
 
   test "processes all request's slots once StorageRequested emitted":
-    queue.onProcessSlot = proc(item: SlotQueueItem, done: Future[void]) {.async.} =
+    queue.onProcessSlot = proc(
+        item: SlotQueueItem, done: Future[void]
+    ) {.async: (raises: []).} =
       itemsProcessed.add item
-      done.complete()
+      if not done.finished:
+        done.complete()
     createAvailability()
     await market.requestStorage(request)
     let items = SlotQueueItem.init(request, collateral = request.ask.collateralPerSlot)
@@ -299,9 +309,12 @@ asyncchecksuite "Sales":
     check always (not itemsProcessed.contains(expected))
 
   test "adds slot index to slot queue once SlotFreed emitted":
-    queue.onProcessSlot = proc(item: SlotQueueItem, done: Future[void]) {.async.} =
+    queue.onProcessSlot = proc(
+        item: SlotQueueItem, done: Future[void]
+    ) {.async: (raises: []).} =
       itemsProcessed.add item
-      done.complete()
+      if not done.finished:
+        done.complete()
 
     createAvailability()
     market.requested.add request # "contract" must be able to return request

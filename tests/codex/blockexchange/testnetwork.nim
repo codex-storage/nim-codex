@@ -26,7 +26,7 @@ asyncchecksuite "Network - Handlers":
     blocks: seq[bt.Block]
     done: Future[void]
 
-  proc getConn(): Future[Connection] {.async.} =
+  proc getConn(): Future[Connection] {.async: (raises: [CancelledError]).} =
     return Connection(buffer)
 
   setup:
@@ -45,7 +45,7 @@ asyncchecksuite "Network - Handlers":
     discard await networkPeer.connect()
 
   test "Want List handler":
-    proc wantListHandler(peer: PeerId, wantList: WantList) {.gcsafe, async.} =
+    proc wantListHandler(peer: PeerId, wantList: WantList) {.async: (raises: []).} =
       # check that we got the correct amount of entries
       check wantList.entries.len == 4
 
@@ -72,7 +72,7 @@ asyncchecksuite "Network - Handlers":
   test "Blocks Handler":
     proc blocksDeliveryHandler(
         peer: PeerId, blocksDelivery: seq[BlockDelivery]
-    ) {.gcsafe, async.} =
+    ) {.async: (raises: []).} =
       check blocks == blocksDelivery.mapIt(it.blk)
       done.complete()
 
@@ -85,7 +85,9 @@ asyncchecksuite "Network - Handlers":
     await done.wait(500.millis)
 
   test "Presence Handler":
-    proc presenceHandler(peer: PeerId, presence: seq[BlockPresence]) {.gcsafe, async.} =
+    proc presenceHandler(
+        peer: PeerId, presence: seq[BlockPresence]
+    ) {.async: (raises: []).} =
       for b in blocks:
         check:
           b.address in presence
@@ -105,7 +107,7 @@ asyncchecksuite "Network - Handlers":
   test "Handles account messages":
     let account = Account(address: EthAddress.example)
 
-    proc handleAccount(peer: PeerId, received: Account) {.gcsafe, async.} =
+    proc handleAccount(peer: PeerId, received: Account) {.async: (raises: []).} =
       check received == account
       done.complete()
 
@@ -119,7 +121,7 @@ asyncchecksuite "Network - Handlers":
   test "Handles payment messages":
     let payment = SignedState.example
 
-    proc handlePayment(peer: PeerId, received: SignedState) {.gcsafe, async.} =
+    proc handlePayment(peer: PeerId, received: SignedState) {.async: (raises: []).} =
       check received == payment
       done.complete()
 
@@ -165,7 +167,7 @@ asyncchecksuite "Network - Senders":
     await allFuturesThrowing(switch1.stop(), switch2.stop())
 
   test "Send want list":
-    proc wantListHandler(peer: PeerId, wantList: WantList) {.gcsafe, async.} =
+    proc wantListHandler(peer: PeerId, wantList: WantList) {.async: (raises: []).} =
       # check that we got the correct amount of entries
       check wantList.entries.len == 4
 
@@ -195,7 +197,7 @@ asyncchecksuite "Network - Senders":
   test "send blocks":
     proc blocksDeliveryHandler(
         peer: PeerId, blocksDelivery: seq[BlockDelivery]
-    ) {.gcsafe, async.} =
+    ) {.async: (raises: []).} =
       check blocks == blocksDelivery.mapIt(it.blk)
       done.complete()
 
@@ -207,7 +209,9 @@ asyncchecksuite "Network - Senders":
     await done.wait(500.millis)
 
   test "send presence":
-    proc presenceHandler(peer: PeerId, precense: seq[BlockPresence]) {.gcsafe, async.} =
+    proc presenceHandler(
+        peer: PeerId, precense: seq[BlockPresence]
+    ) {.async: (raises: []).} =
       for b in blocks:
         check:
           b.address in precense
@@ -226,7 +230,7 @@ asyncchecksuite "Network - Senders":
   test "send account":
     let account = Account(address: EthAddress.example)
 
-    proc handleAccount(peer: PeerId, received: Account) {.gcsafe, async.} =
+    proc handleAccount(peer: PeerId, received: Account) {.async: (raises: []).} =
       check received == account
       done.complete()
 
@@ -238,7 +242,7 @@ asyncchecksuite "Network - Senders":
   test "send payment":
     let payment = SignedState.example
 
-    proc handlePayment(peer: PeerId, received: SignedState) {.gcsafe, async.} =
+    proc handlePayment(peer: PeerId, received: SignedState) {.async: (raises: []).} =
       check received == payment
       done.complete()
 
@@ -276,7 +280,7 @@ asyncchecksuite "Network - Test Limits":
     let account = Account(address: EthAddress.example)
     network2.handlers.onAccount = proc(
         peer: PeerId, received: Account
-    ) {.gcsafe, async.} =
+    ) {.async: (raises: []).} =
       check false
 
     let fut = network1.send(

@@ -1,6 +1,7 @@
 import std/options
 import std/strutils
-import std/unittest
+
+import pkg/unittest2
 import pkg/codex/blocktype
 import pkg/codex/conf
 import pkg/codex/contracts/requests

@@ -1,4 +1,4 @@
-import std/unittest
+import pkg/unittest2
 
 import pkg/questionable/results
 import pkg/stew/byteutils
@@ -18,7 +18,7 @@ const data = [
   "00000000000000000000000000000009".toBytes, "00000000000000000000000000000010".toBytes,
 ]
 
-checksuite "merkletree - coders":
+suite "merkletree - coders":
   test "encoding and decoding a tree yields the same tree":
     let
       tree = CodexTree.init(Sha256HashCodec, data).tryGet()

@@ -644,23 +644,29 @@ proc new*(
     network.switch.addPeerEventHandler(peerEventHandler, PeerEventKind.Joined)
     network.switch.addPeerEventHandler(peerEventHandler, PeerEventKind.Left)
 
-  proc blockWantListHandler(peer: PeerId, wantList: WantList): Future[void] {.gcsafe.} =
+  proc blockWantListHandler(
+      peer: PeerId, wantList: WantList
+  ): Future[void] {.async: (raises: []).} =
     self.wantListHandler(peer, wantList)
 
   proc blockPresenceHandler(
       peer: PeerId, presence: seq[BlockPresence]
-  ): Future[void] {.gcsafe.} =
+  ): Future[void] {.async: (raises: []).} =
     self.blockPresenceHandler(peer, presence)
 
   proc blocksDeliveryHandler(
       peer: PeerId, blocksDelivery: seq[BlockDelivery]
-  ): Future[void] {.gcsafe.} =
+  ): Future[void] {.async: (raises: []).} =
     self.blocksDeliveryHandler(peer, blocksDelivery)
 
-  proc accountHandler(peer: PeerId, account: Account): Future[void] {.gcsafe.} =
+  proc accountHandler(
+      peer: PeerId, account: Account
+  ): Future[void] {.async: (raises: []).} =
     self.accountHandler(peer, account)
 
-  proc paymentHandler(peer: PeerId, payment: SignedState): Future[void] {.gcsafe.} =
+  proc paymentHandler(
+      peer: PeerId, payment: SignedState
+  ): Future[void] {.async: (raises: []).} =
     self.paymentHandler(peer, payment)
 
   network.handlers = BlockExcHandlers(

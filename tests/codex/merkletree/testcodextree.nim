@@ -1,6 +1,6 @@
-import std/unittest
 import std/sequtils
 
+import pkg/unittest2
 import pkg/questionable/results
 import pkg/stew/byteutils
 import pkg/libp2p

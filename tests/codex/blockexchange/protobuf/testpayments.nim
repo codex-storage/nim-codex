@@ -6,7 +6,7 @@ import ../../../asynctest
 import ../../examples
 import ../../helpers
 
-checksuite "account protobuf messages":
+suite "account protobuf messages":
   let account = Account(address: EthAddress.example)
   let message = AccountMessage.init(account)
 
@@ -21,7 +21,7 @@ checksuite "account protobuf messages":
     incorrect.address.del(0)
     check Account.init(incorrect).isNone
 
-checksuite "channel update messages":
+suite "channel update messages":
   let state = SignedState.example
   let update = StateChannelUpdate.init(state)
 

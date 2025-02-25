@@ -48,7 +48,7 @@ type DiscoveryEngine* = ref object of RootObj
   pendingBlocks*: PendingBlocksManager # Blocks we're awaiting to be resolved
   discEngineRunning*: bool # Indicates if discovery is running
   concurrentDiscReqs: int # Concurrent discovery requests
-  discoveryLoop*: Future[void] # Discovery loop task handle
+  discoveryLoop*: Future[void].Raising([]) # Discovery loop task handle
   discoveryQueue*: AsyncQueue[Cid] # Discovery queue
   trackedFutures*: TrackedFutures # Tracked Discovery tasks futures
   minPeersPerBlock*: int # Max number of peers with block
