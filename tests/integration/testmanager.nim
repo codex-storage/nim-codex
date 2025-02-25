@@ -246,6 +246,15 @@ proc printOutputMarker(test: IntegrationTest, position: MarkerPosition, msg: str
   if position == MarkerPosition.Finish:
     echo ""
 
+proc colorise(output: string): string =
+  proc setColour(text: string, colour: ForegroundColor): string =
+    &"{ansiForegroundColorCode(colour, true)}{text}{ansiResetCode}"
+
+  let replacements = @[("[OK]", fgGreen), ("[FAILED]", fgRed), ("[Suite]", fgBlue)]
+  result = output
+  for (text, colour) in replacements:
+    result = result.replace(text, text.setColour(colour))
+
 proc printResult(
     test: IntegrationTest,
     printStdOut = test.manager.debugCodexNodes,
@@ -271,19 +280,19 @@ proc printResult(
         test.printOutputMarker(MarkerPosition.Finish, "test file errors (stderr)")
       # if printStdOut:
       test.printOutputMarker(MarkerPosition.Start, "codex node output (stdout)")
-      echo output.stdOut
+      echo output.stdOut.colorise
       test.printOutputMarker(MarkerPosition.Finish, "codex node output (stdout)")
     test.printResult(fgRed)
   of IntegrationTestStatus.Timeout:
     if printStdOut and output =? test.output:
       test.printOutputMarker(MarkerPosition.Start, "codex node output (stdout)")
-      echo output.stdOut
+      echo output.stdOut.colorise
       test.printOutputMarker(MarkerPosition.Finish, "codex node output (stdout)")
     test.printResult(fgYellow)
   of IntegrationTestStatus.Ok:
     if printStdOut and output =? test.output:
       test.printOutputMarker(MarkerPosition.Start, "codex node output (stdout)")
-      echo output.stdOut
+      echo output.stdOut.colorise
       test.printOutputMarker(MarkerPosition.Finish, "codex node output (stdout)")
     test.printResult(fgGreen)
 
