@@ -140,7 +140,6 @@ proc start*(b: DiscoveryEngine) {.async.} =
   for i in 0 ..< b.concurrentDiscReqs:
     let fut = b.discoveryTaskLoop()
     b.trackedFutures.track(fut)
-    asyncSpawn fut
 
   b.discoveryLoop = b.discoveryQueueLoop()
   b.trackedFutures.track(b.discoveryLoop)
