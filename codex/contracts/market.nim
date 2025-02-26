@@ -68,9 +68,6 @@ proc config(
 
   return resolvedConfig
 
-proc configSync(market: OnChainMarket): ?MarketplaceConfig =
-  return market.configuration
-
 proc approveFunds(market: OnChainMarket, amount: UInt256) {.async.} =
   debug "Approving tokens", amount
   convertEthersError:
@@ -566,7 +563,7 @@ method slotCollateral*(
 ): ?UInt256 {.raises: [].} =
   if slotState == SlotState.Repair:
     without repairRewardPercentage =?
-      market.configSync .? collateral .? repairRewardPercentage:
+      market.configuration .? collateral .? repairRewardPercentage:
       return UInt256.none
 
     return (
