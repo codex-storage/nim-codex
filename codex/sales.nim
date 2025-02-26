@@ -382,7 +382,6 @@ proc onSlotFreed(sales: Sales, requestId: RequestId, slotIndex: uint64) =
   # so we would not need to call getRequest to get the collateralPerSlot.
   let fut = addSlotToQueue()
   sales.trackedFutures.track(fut)
-  asyncSpawn fut
 
 proc subscribeRequested(sales: Sales) {.async.} =
   let context = sales.context
