@@ -232,6 +232,8 @@ proc fetchDatasetAsync*(
       )
     ).errorOption:
       error "Unable to fetch blocks", err = err.msg
+  except CancelledError as exc:
+    trace "Cancelled fetching blocks", exc = exc.msg
   except CatchableError as exc:
     error "Error fetching blocks", exc = exc.msg
 
