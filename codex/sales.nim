@@ -285,7 +285,9 @@ proc load*(sales: Sales) {.async.} =
     agent.start(SaleUnknown())
     sales.agents.add agent
 
-proc onAvailabilityAdded(sales: Sales, availability: Availability) {.async.} =
+proc onAvailabilityAdded(
+    sales: Sales, availability: Availability
+) {.async: (raises: []).} =
   ## When availabilities are modified or added, the queue should be unpaused if
   ## it was paused and any slots in the queue should have their `seen` flag
   ## cleared.
@@ -528,8 +530,9 @@ proc startSlotQueue(sales: Sales) =
 
   slotQueue.start()
 
-  proc onAvailabilityAdded(availability: Availability) {.async.} =
-    await sales.onAvailabilityAdded(availability)
+  proc onAvailabilityAdded(availability: Availability) {.async: (raises: []).} =
+    if availability.enabled:
+      await sales.onAvailabilityAdded(availability)
 
   reservations.onAvailabilityAdded = onAvailabilityAdded
 
