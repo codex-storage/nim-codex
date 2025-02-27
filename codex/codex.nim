@@ -315,7 +315,7 @@ proc new*(
         bufferSize = (1024 * 64),
         maxRequestBodySize = int.high,
       )
-      .expect("Should start rest server!")
+      .expect("Should create rest server!")
 
   switch.mount(network)
 

@@ -21,8 +21,8 @@ import ../../systemclock
 import ../../units
 
 const
-  DefaultBlockTtl* = 24.hours
-  DefaultQuotaBytes* = 8.GiBs
+  DefaultBlockTtl* = 30.days
+  DefaultQuotaBytes* = 20.GiBs
 
 type
   QuotaNotEnoughError* = object of CodexError
