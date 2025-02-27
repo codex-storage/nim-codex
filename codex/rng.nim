@@ -84,6 +84,15 @@ proc sample*[T](
 
     break
 
+proc sample*[T](
+    rng: Rng, sample: openArray[T], limit: int
+): seq[T] {.raises: [Defect, RngSampleError].} =
+  if limit > sample.len:
+    raise newException(RngSampleError, "Limit cannot be larger than sample!")
+
+  for _ in 0 ..< min(sample.len, limit):
+    result.add(rng.sample(sample, result))
+
 proc shuffle*[T](rng: Rng, a: var openArray[T]) =
   for i in countdown(a.high, 1):
     let j = rng.rand(i)

@@ -137,6 +137,14 @@ method hasBlock*(self: NetworkStore, cid: Cid): Future[?!bool] {.async.} =
   trace "Checking network store for block existence", cid
   return await self.localStore.hasBlock(cid)
 
+method hasBlock*(
+    self: NetworkStore, tree: Cid, index: Natural
+): Future[?!bool] {.async.} =
+  ## Check if the block exists in the blockstore
+  ##
+  trace "Checking network store for block existence", tree, index
+  return await self.localStore.hasBlock(tree, index)
+
 method close*(self: NetworkStore): Future[void] {.async.} =
   ## Close the underlying local blockstore
   ##

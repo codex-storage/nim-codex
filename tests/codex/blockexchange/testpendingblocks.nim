@@ -28,7 +28,10 @@ checksuite "Pending Blocks":
 
     check blk.cid in pendingBlocks
     pendingBlocks.resolve(@[blk].mapIt(BlockDelivery(blk: it, address: it.address)))
-    check (await handle) == blk
+    await sleepAsync(0.millis)
+      # trigger the event loop, otherwise the block finishes before poll runs
+    let resolved = await handle
+    check resolved == blk
     check blk.cid notin pendingBlocks
 
   test "Should cancel want handle":
@@ -39,20 +42,6 @@ checksuite "Pending Blocks":
 
     check blk.cid in pendingBlocks
     await handle.cancelAndWait()
-    check blk.cid notin pendingBlocks
-
-  test "Should expire want handle":
-    let
-      pendingBlocks = PendingBlocksManager.new()
-      blk = bt.Block.new("Hello".toBytes).tryGet
-      handle = pendingBlocks.getWantHandle(blk.cid, 1.millis)
-
-    check blk.cid in pendingBlocks
-
-    await sleepAsync(10.millis)
-    expect AsyncTimeoutError:
-      discard await handle
-
     check blk.cid notin pendingBlocks
 
   test "Should get wants list":
@@ -79,3 +68,19 @@ checksuite "Pending Blocks":
     check:
       (await allFinished(wantHandles)).mapIt($it.read.cid).sorted(cmp[string]) ==
         (await allFinished(handles)).mapIt($it.read.cid).sorted(cmp[string])
+
+  test "Should handle retry counters":
+    let
+      pendingBlocks = PendingBlocksManager.new(3)
+      blk = bt.Block.new("Hello".toBytes).tryGet
+      address = BlockAddress.init(blk.cid)
+      handle = pendingBlocks.getWantHandle(blk.cid)
+
+    check pendingBlocks.retries(address) == 3
+    pendingBlocks.decRetries(address)
+    check pendingBlocks.retries(address) == 2
+    pendingBlocks.decRetries(address)
+    check pendingBlocks.retries(address) == 1
+    pendingBlocks.decRetries(address)
+    check pendingBlocks.retries(address) == 0
+    check pendingBlocks.retriesExhausted(address)

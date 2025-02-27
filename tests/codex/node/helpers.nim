@@ -123,7 +123,7 @@ template setupAndTearDown*() {.dirty.} =
     )
 
   teardown:
-    close(file)
+    file.close()
     await node.stop()
     await metaTmp.destroyDb()
     await repoTmp.destroyDb()
