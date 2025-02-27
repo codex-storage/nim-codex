@@ -282,6 +282,7 @@ proc scheduleTasks(
             self.scheduleTask(p)
         except CatchableError as e:
           warn "Error checking local store for cid", cid = c, err = e.msg
+          raiseAssert "Unexpected error checking local store for cid"
 
         break # do next peer
 
