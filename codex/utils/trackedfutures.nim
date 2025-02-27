@@ -25,6 +25,9 @@ proc track*(self: TrackedFutures, fut: TrackedFuture) =
   if self.cancelling:
     return
 
+  if fut.finished:
+    return
+
   self.futures[fut.id] = fut
 
   proc cb(udata: pointer) =

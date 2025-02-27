@@ -25,14 +25,7 @@ asyncchecksuite "tracked futures":
     let fut = Future[void].Raising([]).init("test", {FutureFlag.OwnCancelSchedule})
     fut.complete()
     module.trackedFutures.track(fut)
-    check eventually module.trackedFutures.len == 0
-
-  # test "does not track failed futures":
-  #   let fut = Future[void].Raising([]).init("test", {FutureFlag.OwnCancelSchedule})
-  #   # fut.fail((ref CatchableError)(msg: "some error"))
-  #   fut.fail(some error)
-  #   module.trackedFutures.track(fut)
-  #   check eventually module.trackedFutures.len == 0
+    check module.trackedFutures.len == 0
 
   test "does not track cancelled futures":
     let fut = Future[void].Raising([]).init("test", {FutureFlag.OwnCancelSchedule})
@@ -46,6 +39,7 @@ asyncchecksuite "tracked futures":
   test "removes tracked future when finished":
     let fut = Future[void].Raising([]).init("test", {FutureFlag.OwnCancelSchedule})
     module.trackedFutures.track(fut)
+    check module.trackedFutures.len == 1
     fut.complete()
     check eventually module.trackedFutures.len == 0
 
@@ -55,6 +49,17 @@ asyncchecksuite "tracked futures":
       fut.cancelAndSchedule() # manually schedule the cancel
 
     module.trackedFutures.track(fut)
+    check module.trackedFutures.len == 1
+    await fut.cancelAndWait()
+    check eventually module.trackedFutures.len == 0
+
+  test "completed and removes future on cancel":
+    let fut = Future[void].Raising([]).init("test", {FutureFlag.OwnCancelSchedule})
+    fut.cancelCallback = proc(data: pointer) =
+      fut.complete()
+
+    module.trackedFutures.track(fut)
+    check module.trackedFutures.len == 1
     await fut.cancelAndWait()
     check eventually module.trackedFutures.len == 0
 
@@ -72,8 +77,11 @@ asyncchecksuite "tracked futures":
       fut3.cancelAndSchedule() # manually schedule the cancel
 
     module.trackedFutures.track(fut1)
+    check module.trackedFutures.len == 1
     module.trackedFutures.track(fut2)
+    check module.trackedFutures.len == 2
     module.trackedFutures.track(fut3)
+    check module.trackedFutures.len == 3
     await module.trackedFutures.cancelTracked()
     check eventually fut1.cancelled
     check eventually fut2.cancelled
