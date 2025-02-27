@@ -271,7 +271,7 @@ asyncchecksuite "NetworkStore engine handlers":
 
     peerContext.account = account.some
     peerContext.blocks = blocks.mapIt(
-      (it.address, Presence(address: it.address, price: rand(uint16).u256))
+      (it.address, Presence(address: it.address, price: rand(uint16).u256, have: true))
     ).toTable
 
     engine.network = BlockExcNetwork(
@@ -280,18 +280,12 @@ asyncchecksuite "NetworkStore engine handlers":
             receiver: PeerId, payment: SignedState
         ) {.async: (raises: [CancelledError]).} =
           let
-            amount = blocks
-              .mapIt(
-                (peerContext.blocks[it.address].catch.expect("address should exist")).price
-              )
-              .foldl(a + b)
-
+            amount =
+              blocks.mapIt(peerContext.blocks[it.address].catch.get.price).foldl(a + b)
             balances = !payment.state.outcome.balances(Asset)
 
           check receiver == peerId
-          check balances[account.address.toDestination].catch.expect(
-            "toDestination address should exist"
-          ) == amount
+          check balances[account.address.toDestination].catch.get == amount
           done.complete(),
 
         # Install NOP for want list cancellations so they don't cause a crash
@@ -299,10 +293,12 @@ asyncchecksuite "NetworkStore engine handlers":
       )
     )
 
+    let requestedBlocks = blocks.mapIt(engine.pendingBlocks.getWantHandle(it.address))
     await engine.blocksDeliveryHandler(
       peerId, blocks.mapIt(BlockDelivery(blk: it, address: it.address))
     )
     await done.wait(100.millis)
+    await allFuturesThrowing(requestedBlocks).wait(100.millis)
 
   test "Should handle block presence":
     var handles:

@@ -48,28 +48,35 @@ type Advertiser* = ref object of RootObj
   advertiseLocalStoreLoopSleep: Duration # Advertise loop sleep
   inFlightAdvReqs*: Table[Cid, Future[void]] # Inflight advertise requests
 
-proc addCidToQueue(b: Advertiser, cid: Cid) {.async.} =
+proc addCidToQueue(b: Advertiser, cid: Cid) {.async: (raises: [CancelledError]).} =
   if cid notin b.advertiseQueue:
     await b.advertiseQueue.put(cid)
+
     trace "Advertising", cid
 
-proc advertiseBlock(b: Advertiser, cid: Cid) {.async.} =
+proc advertiseBlock(b: Advertiser, cid: Cid) {.async: (raises: [CancelledError]).} =
   without isM =? cid.isManifest, err:
     warn "Unable to determine if cid is manifest"
     return
 
-  if isM:
-    without blk =? await b.localStore.getBlock(cid), err:
-      error "Error retrieving manifest block", cid, err = err.msg
-      return
+  try:
+    if isM:
+      without blk =? await b.localStore.getBlock(cid), err:
+        error "Error retrieving manifest block", cid, err = err.msg
+        return
 
-    without manifest =? Manifest.decode(blk), err:
-      error "Unable to decode as manifest", err = err.msg
-      return
+      without manifest =? Manifest.decode(blk), err:
+        error "Unable to decode as manifest", err = err.msg
+        return
 
-    # announce manifest cid and tree cid
-    await b.addCidToQueue(cid)
-    await b.addCidToQueue(manifest.treeCid)
+      # announce manifest cid and tree cid
+      await b.addCidToQueue(cid)
+      await b.addCidToQueue(manifest.treeCid)
+  except CancelledError as exc:
+    trace "Cancelled advertise block", cid
+    raise exc
+  except CatchableError as e:
+    error "failed to advertise block", cid, error = e.msgDetail
 
 proc advertiseLocalStoreLoop(b: Advertiser) {.async: (raises: []).} =
   while b.advertiserRunning:
@@ -106,13 +113,13 @@ proc processQueueLoop(b: Advertiser) {.async: (raises: []).} =
         codex_inflight_advertise.set(b.inFlightAdvReqs.len.int64)
     except CancelledError:
       trace "Advertise task cancelled"
-      return
+      break
     except CatchableError as exc:
       warn "Exception in advertise task runner", exc = exc.msg
 
   info "Exiting advertise task runner"
 
-proc start*(b: Advertiser) {.async.} =
+proc start*(b: Advertiser) {.async: (raises: []).} =
   ## Start the advertiser
   ##
 
@@ -136,7 +143,7 @@ proc start*(b: Advertiser) {.async.} =
   b.advertiseLocalStoreLoop = advertiseLocalStoreLoop(b)
   b.trackedFutures.track(b.advertiseLocalStoreLoop)
 
-proc stop*(b: Advertiser) {.async.} =
+proc stop*(b: Advertiser) {.async: (raises: []).} =
   ## Stop the advertiser
   ##
 
