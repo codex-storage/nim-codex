@@ -126,7 +126,7 @@ proc queueFindBlocksReq*(b: DiscoveryEngine, cids: seq[Cid]) {.inline.} =
       except CatchableError as exc:
         warn "Exception queueing discovery request", exc = exc.msg
 
-proc start*(b: DiscoveryEngine) {.async.} =
+proc start*(b: DiscoveryEngine) {.async: (raises: []).} =
   ## Start the discengine task
   ##
 
@@ -144,7 +144,7 @@ proc start*(b: DiscoveryEngine) {.async.} =
   b.discoveryLoop = b.discoveryQueueLoop()
   b.trackedFutures.track(b.discoveryLoop)
 
-proc stop*(b: DiscoveryEngine) {.async.} =
+proc stop*(b: DiscoveryEngine) {.async: (raises: []).} =
   ## Stop the discovery engine
   ##
 

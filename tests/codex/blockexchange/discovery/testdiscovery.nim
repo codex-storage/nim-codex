@@ -274,15 +274,13 @@ asyncchecksuite "E2E - Multiple Nodes Discovery":
       for m in mBlocks[0 .. 2]:
         blockexc[0].engine.requestBlock(m.cid)
 
-    await allFuturesThrowing(
-      switch.mapIt(it.start()) & blockexc.mapIt(it.engine.start())
-    )
-    .wait(10.seconds)
+    await allFuturesThrowing(switch.mapIt(it.start())).wait(10.seconds)
+    await allFuturesThrowing(blockexc.mapIt(it.engine.start())).wait(10.seconds)
 
     await allFutures(futs).wait(10.seconds)
 
-    await allFuturesThrowing(blockexc.mapIt(it.engine.stop()) & switch.mapIt(it.stop()))
-    .wait(10.seconds)
+    await allFuturesThrowing(blockexc.mapIt(it.engine.stop())).wait(10.seconds)
+    await allFuturesThrowing(switch.mapIt(it.stop())).wait(10.seconds)
 
   test "E2E - Should advertise and discover blocks with peers already connected":
     # Distribute the blocks amongst 1..3
@@ -343,12 +341,10 @@ asyncchecksuite "E2E - Multiple Nodes Discovery":
 
     let futs = mBlocks[0 .. 2].mapIt(blockexc[0].engine.requestBlock(it.cid))
 
-    await allFuturesThrowing(
-      switch.mapIt(it.start()) & blockexc.mapIt(it.engine.start())
-    )
-    .wait(10.seconds)
+    await allFuturesThrowing(switch.mapIt(it.start())).wait(10.seconds)
+    await allFuturesThrowing(blockexc.mapIt(it.engine.start())).wait(10.seconds)
 
     await allFutures(futs).wait(10.seconds)
 
-    await allFuturesThrowing(blockexc.mapIt(it.engine.stop()) & switch.mapIt(it.stop()))
-    .wait(10.seconds)
+    await allFuturesThrowing(blockexc.mapIt(it.engine.stop())).wait(10.seconds)
+    await allFuturesThrowing(switch.mapIt(it.stop())).wait(10.seconds)
