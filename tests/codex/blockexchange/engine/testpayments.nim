@@ -4,7 +4,7 @@ import pkg/codex/stores
 import ../../examples
 import ../../helpers
 
-suite "engine payments":
+suite "Engine payments":
   let address = EthAddress.example
   let amount = 42.u256
 
