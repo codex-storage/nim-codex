@@ -325,6 +325,7 @@ components:
             - unknown
         error:
           type: string
+          nullable: true
           description: If Request failed, then here is presented the error message
         request:
           $ref: "#/components/schemas/StorageRequest"
