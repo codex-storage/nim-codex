@@ -282,8 +282,11 @@ proc scheduleTasks(
             # TODO: the try/except should go away once blockstore tracks exceptions
             self.scheduleTask(p)
             break
-        except CatchableError as e:
-          warn "Error checking local store for cid", cid = c, err = e.msg
+        except CancelledError as exc:
+          warn "Error checking local store for cid", cid = c, err = exc.msg
+          return
+        except CatchableError as exc:
+          warn "Error checking local store for cid", cid = c, err = exc.msg
           raiseAssert "Unexpected error checking local store for cid"
 
 proc cancelBlocks(
