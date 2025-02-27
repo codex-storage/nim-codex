@@ -177,13 +177,19 @@ proc start*(s: CodexServer) {.async.} =
 proc stop*(s: CodexServer) {.async.} =
   notice "Stopping codex node"
 
-  await allFuturesThrowing(
-    s.restServer.stop(),
-    s.codexNode.switch.stop(),
-    s.codexNode.stop(),
-    s.repoStore.stop(),
-    s.maintenance.stop(),
+  let res = await noCancel allFinishedFailed(
+    @[
+      s.restServer.stop(),
+      s.codexNode.switch.stop(),
+      s.codexNode.stop(),
+      s.repoStore.stop(),
+      s.maintenance.stop(),
+    ]
   )
+
+  if res.failure.len > 0:
+    error "Failed to stop codex node", failures = res.failure.len
+    raiseAssert "Failed to stop codex node"
 
 proc new*(
     T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey

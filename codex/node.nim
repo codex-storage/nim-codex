@@ -153,7 +153,11 @@ proc updateExpiry*(
     let ensuringFutures = Iter[int].new(0 ..< manifest.blocksCount).mapIt(
         self.networkStore.localStore.ensureExpiry(manifest.treeCid, it, expiry)
       )
-    await allFuturesThrowing(ensuringFutures)
+
+    let res = await allFinishedFailed(ensuringFutures)
+    if res.failure.len > 0:
+      trace "Some blocks failed to update expiry", len = res.failure.len
+      return failure("Some blocks failed to update expiry (" & $res.failure.len & " )")
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
@@ -186,8 +190,10 @@ proc fetchBatched*(
           if not (await address in self.networkStore) or fetchLocal:
             self.networkStore.getBlock(address)
 
-    if blocksErr =? (await allFutureResult(blocks)).errorOption:
-      return failure(blocksErr)
+    let res = await allFinishedFailed(blocks)
+    if res.failure.len > 0:
+      trace "Some blocks failed to fetch", len = res.failure.len
+      return failure("Some blocks failed to fetch (" & $res.failure.len & " )")
 
     if not onBatch.isNil and
         batchErr =? (await onBatch(blocks.mapIt(it.read.get))).errorOption:
@@ -626,8 +632,11 @@ proc onStore(
 
     let ensureExpiryFutures =
       blocks.mapIt(self.networkStore.ensureExpiry(it.cid, expiry.toSecondsSince1970))
-    if updateExpiryErr =? (await allFutureResult(ensureExpiryFutures)).errorOption:
-      return failure(updateExpiryErr)
+
+    let res = await allFinishedFailed(ensureExpiryFutures)
+    if res.failure.len > 0:
+      trace "Some blocks failed to update expiry", len = res.failure.len
+      return failure("Some blocks failed to update expiry ()" & $res.failure.len & " )")
 
     if not blocksCb.isNil and err =? (await blocksCb(blocks)).errorOption:
       trace "Unable to process blocks", err = err.msg
