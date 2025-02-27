@@ -279,6 +279,7 @@ proc scheduleTasks(
       if c in p.peerWantsCids:
         try:
           if await (c in self.localStore):
+            # TODO: the try/except should go away once blockstore tracks exceptions
             self.scheduleTask(p)
         except CatchableError as e:
           warn "Error checking local store for cid", cid = c, err = e.msg
