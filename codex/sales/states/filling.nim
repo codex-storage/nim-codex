@@ -38,8 +38,10 @@ method run*(
     slotIndex = data.slotIndex
 
   try:
-    without collateral =? await market.slotCollateral(data.requestId, data.slotIndex):
-      error "Failure attempting to fill slot: unable to calculate collateral; configuration data may not be retrievable."
+    without collateral =? await market.slotCollateral(data.requestId, data.slotIndex),
+      err:
+      error "Failure attempting to fill slot: unable to calculate collateral",
+        error = err.msg
       return
 
     debug "Filling slot"

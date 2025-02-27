@@ -604,7 +604,7 @@ ethersuite "On-Chain Market":
     await market.fillSlot(request.id, 0.uint64, proof, request.ask.collateralPerSlot)
 
     let slotId = request.slotId(0.uint64)
-    without collateral =? await market.slotCollateral(request.id, 0.uint64):
+    without collateral =? await market.slotCollateral(request.id, 0.uint64), error:
       fail()
 
     check collateral == request.ask.collateralPerSlot
@@ -620,7 +620,7 @@ ethersuite "On-Chain Market":
 
     let slotId = request.slotId(0.uint64)
 
-    without collateral =? await market.slotCollateral(request.id, 0.uint64):
+    without collateral =? await market.slotCollateral(request.id, 0.uint64), error:
       fail()
 
     # slotCollateral

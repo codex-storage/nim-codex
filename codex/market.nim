@@ -64,7 +64,7 @@ type
 
 method loadConfig*(
     market: Market
-): Future[void] {.base, async: (raises: [CancelledError, MarketError]).} =
+): Future[?!void] {.base, async: (raises: [CancelledError]).} =
   raiseAssert("not implemented")
 
 method getZkeyHash*(
@@ -290,10 +290,10 @@ method queryPastStorageRequestedEvents*(
 
 method slotCollateral*(
     market: Market, requestId: RequestId, slotIndex: uint64
-): Future[?UInt256] {.base, async: (raises: [MarketError, CancelledError]).} =
+): Future[?!UInt256] {.base, async: (raises: [CancelledError]).} =
   raiseAssert("not implemented")
 
 method slotCollateral*(
     market: Market, collateralPerSlot: UInt256, slotState: SlotState
-): ?UInt256 {.base, gcsafe, raises: [].} =
+): ?!UInt256 {.base, gcsafe, raises: [].} =
   raiseAssert("not implemented")

@@ -159,8 +159,9 @@ proc cleanUp(
   if reprocessSlot and request =? data.request:
     try:
       without collateral =?
-        await sales.context.market.slotCollateral(data.requestId, data.slotIndex):
-        error "Failed to re-add item back to the slot queue: unable to calculate collateral; configuration data may not be retrievable."
+        await sales.context.market.slotCollateral(data.requestId, data.slotIndex), err:
+        error "Failed to re-add item back to the slot queue: unable to calculate collateral",
+          error = err.msg
         return
 
       let queue = sales.context.slotQueue
@@ -310,8 +311,9 @@ proc onStorageRequested(
 
   let market = sales.context.market
 
-  without collateral =? market.slotCollateral(ask.collateralPerSlot, SlotState.Free):
-    error "Unable to calculate collateral; configuration data may not be retrievable."
+  without collateral =? market.slotCollateral(ask.collateralPerSlot, SlotState.Free),
+    err:
+    error "Request failure, unable to calculate collateral", error = err.msg
     return
 
   without items =? SlotQueueItem.init(requestId, ask, expiry, collateral).catch, err:
@@ -354,8 +356,9 @@ proc onSlotFreed(sales: Sales, requestId: RequestId, slotIndex: uint64) =
     # Adding the repairing state directly in the queue priority calculation
     # would not allow this flexibility.
     without collateral =?
-      market.slotCollateral(request.ask.collateralPerSlot, SlotState.Repair):
-      error "Failed to add freed slot to queue: unable to calculate collateral; configuration data may not be retrievable."
+      market.slotCollateral(request.ask.collateralPerSlot, SlotState.Repair), err:
+      error "Failed to add freed slot to queue: unable to calculate collateral",
+        error = err.msg
       return
 
     if slotIndex > uint16.high.uint64:
@@ -376,9 +379,7 @@ proc onSlotFreed(sales: Sales, requestId: RequestId, slotIndex: uint64) =
           error = err.msgDetail
 
   # We could get rid of this by adding the storage ask in the SlotFreed event,
-  # so we would need to call getRequest to get the collateralPerSlot.
-  # Or when the request cache is merged, we could assume that the request will be
-  # in the cache.
+  # so we would not need to call getRequest to get the collateralPerSlot.
   let fut = addSlotToQueue()
   sales.trackedFutures.track(fut)
   asyncSpawn fut

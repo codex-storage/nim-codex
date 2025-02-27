@@ -59,7 +59,8 @@ proc config(
     market: OnChainMarket
 ): Future[MarketplaceConfig] {.async: (raises: [CancelledError, MarketError]).} =
   without resolvedConfig =? market.configuration:
-    await market.loadConfig()
+    if err =? (await market.loadConfig()).errorOption:
+      raiseMarketError(err.msg)
 
     without config =? market.configuration:
       raiseMarketError("Failed to access to config from the Marketplace contract")
@@ -77,17 +78,20 @@ proc approveFunds(market: OnChainMarket, amount: UInt256) {.async.} =
 
 method loadConfig*(
     market: OnChainMarket
-): Future[void] {.async: (raises: [CancelledError, MarketError]).} =
-  convertEthersError:
-    try:
-      without config =? market.configuration:
-        let fetchedConfig = await market.contract.configuration()
+): Future[?!void] {.async: (raises: [CancelledError]).} =
+  try:
+    without config =? market.configuration:
+      let fetchedConfig = await market.contract.configuration()
 
-        market.configuration = some fetchedConfig
-    except AsyncLockError as err:
-      raiseMarketError(
-        "Failed to fetch the config from the Marketplace contract: " & err.msg
-      )
+      market.configuration = some fetchedConfig
+
+    return success()
+  except AsyncLockError, EthersError:
+    let err = getCurrentException()
+    return failure newException(
+      MarketError,
+      "Failed to fetch the config from the Marketplace contract: " & err.msg,
+    )
 
 method getZkeyHash*(
     market: OnChainMarket
@@ -549,27 +553,37 @@ method queryPastStorageRequestedEvents*(
 
 method slotCollateral*(
     market: OnChainMarket, requestId: RequestId, slotIndex: uint64
-): Future[?UInt256] {.async: (raises: [MarketError, CancelledError]).} =
+): Future[?!UInt256] {.async: (raises: [CancelledError]).} =
   let slotid = slotId(requestId, slotIndex)
-  let slotState = await market.slotState(slotid)
 
-  without request =? await market.getRequest(requestId):
-    return UInt256.none
+  try:
+    let slotState = await market.slotState(slotid)
 
-  return market.slotCollateral(request.ask.collateralPerSlot, slotState)
+    without request =? await market.getRequest(requestId):
+      return failure newException(
+        MarketError, "Failure calculating the slotCollateral, cannot get the request"
+      )
+
+    return market.slotCollateral(request.ask.collateralPerSlot, slotState)
+  except MarketError as error:
+    error "Error when trying to calculate the slotCollateral", error = error.msg
+    return failure error
 
 method slotCollateral*(
     market: OnChainMarket, collateralPerSlot: UInt256, slotState: SlotState
-): ?UInt256 {.raises: [].} =
+): ?!UInt256 {.raises: [].} =
   if slotState == SlotState.Repair:
     without repairRewardPercentage =?
       market.configuration .? collateral .? repairRewardPercentage:
-      return UInt256.none
+      return failure newException(
+        MarketError,
+        "Failure calculating the slotCollateral, cannot get the reward percentage",
+      )
 
-    return (
+    return success (
       collateralPerSlot - (collateralPerSlot * repairRewardPercentage.u256).div(
         100.u256
       )
-    ).some
+    )
 
-  return collateralPerSlot.some
+  return success(collateralPerSlot)

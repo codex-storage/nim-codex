@@ -140,7 +140,7 @@ proc new*(_: type MockMarket, clock: ?Clock = Clock.none): MockMarket =
 
 method loadConfig*(
     market: MockMarket
-): Future[void] {.async: (raises: [CancelledError, MarketError]).} =
+): Future[?!void] {.async: (raises: [CancelledError]).} =
   discard
 
 method getSigner*(market: MockMarket): Future[Address] {.async.} =
@@ -556,23 +556,30 @@ method unsubscribe*(subscription: SlotReservationsFullSubscription) {.async.} =
 
 method slotCollateral*(
     market: MockMarket, requestId: RequestId, slotIndex: uint64
-): Future[?UInt256] {.async: (raises: [MarketError, CancelledError]).} =
+): Future[?!UInt256] {.async: (raises: [CancelledError]).} =
   let slotid = slotId(requestId, slotIndex)
-  let state = await slotState(market, slotid)
 
-  without request =? await market.getRequest(requestId):
-    return UInt256.none
+  try:
+    let state = await slotState(market, slotid)
 
-  return market.slotCollateral(request.ask.collateralPerSlot, state)
+    without request =? await market.getRequest(requestId):
+      return failure newException(
+        MarketError, "Failure calculating the slotCollateral, cannot get the request"
+      )
+
+    return market.slotCollateral(request.ask.collateralPerSlot, state)
+  except MarketError as error:
+    error "Error when trying to calculate the slotCollateral", error = error.msg
+    return failure error
 
 method slotCollateral*(
     market: MockMarket, collateralPerSlot: UInt256, slotState: SlotState
-): ?UInt256 {.raises: [].} =
+): ?!UInt256 {.raises: [].} =
   if slotState == SlotState.Repair:
     let repairRewardPercentage = market.config.collateral.repairRewardPercentage.u256
 
-    return (
+    return success (
       collateralPerSlot - (collateralPerSlot * repairRewardPercentage).div(100.u256)
-    ).some
+    )
 
-  return collateralPerSlot.some
+  return success collateralPerSlot
