@@ -411,8 +411,8 @@ proc blocksDeliveryHandler*(
         ).errorOption:
           warn "Unable to store proof and cid for a block"
           continue
-    except CatchableError as e:
-      warn "Error handling block delivery", error = e.msgDetail
+    except CatchableError as exc:
+      warn "Error handling block delivery", error = exc.msg
       continue
 
     validatedBlocksDelivery.add(bd)
@@ -512,8 +512,8 @@ proc wantListHandler*(
 
     if schedulePeer:
       self.scheduleTask(peerCtx)
-  except CancelledError as e: #TODO: remove replace with CancelledError
-    warn "Error processing want list", error = e.msgDetail
+  except CancelledError as exc: #TODO: replace with CancelledError
+    warn "Error processing want list", error = exc.msg
 
 proc accountHandler*(
     self: BlockExcEngine, peer: PeerId, account: Account
@@ -639,8 +639,8 @@ proc blockexcTaskRunner(self: BlockExcEngine) {.async: (raises: []).} =
       await self.taskHandler(peerCtx)
     except CancelledError:
       break # do not propagate as blockexcTaskRunner was asyncSpawned
-    except CatchableError as e:
-      error "error running block exchange task", error = e.msgDetail
+    except CatchableError as exc:
+      error "error running block exchange task", error = exc.msg
 
   info "Exiting blockexc task runner"
 
