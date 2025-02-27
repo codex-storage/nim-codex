@@ -79,43 +79,54 @@ proc advertiseBlock(b: Advertiser, cid: Cid) {.async: (raises: [CancelledError])
     error "failed to advertise block", cid, error = e.msgDetail
 
 proc advertiseLocalStoreLoop(b: Advertiser) {.async: (raises: []).} =
-  while b.advertiserRunning:
-    try:
-      if cids =? await b.localStore.listBlocks(blockType = BlockType.Manifest):
-        trace "Advertiser begins iterating blocks..."
-        for c in cids:
-          if cid =? await c:
-            await b.advertiseBlock(cid)
-        trace "Advertiser iterating blocks finished."
+  try:
+    while b.advertiserRunning:
+      try:
+        if cids =? await b.localStore.listBlocks(blockType = BlockType.Manifest):
+          trace "Advertiser begins iterating blocks..."
+          for c in cids:
+            if cid =? await c:
+              await b.advertiseBlock(cid)
+          trace "Advertiser iterating blocks finished."
 
-      await sleepAsync(b.advertiseLocalStoreLoopSleep)
-    except CatchableError as e:
-      error "failed to advertise blocks in local store", error = e.msgDetail
+        await sleepAsync(b.advertiseLocalStoreLoopSleep)
+      except CancelledError as exc:
+        trace "Cancelled advertise local store loop", exc = exc.msg
+        raise exc
+      except CatchableError as exc:
+        warn "Exception in advertise local store loop", exc = exc.msg
+        continue
+  except CancelledError:
+    warn "Cancelled advertise local store loop"
 
   info "Exiting advertise task loop"
 
 proc processQueueLoop(b: Advertiser) {.async: (raises: []).} =
-  while b.advertiserRunning:
-    try:
-      let cid = await b.advertiseQueue.get()
-
-      if cid in b.inFlightAdvReqs:
-        continue
-
+  try:
+    while b.advertiserRunning:
       try:
-        let request = b.discovery.provide(cid)
+        let cid = await b.advertiseQueue.get()
 
-        b.inFlightAdvReqs[cid] = request
-        codex_inflight_advertise.set(b.inFlightAdvReqs.len.int64)
-        await request
-      finally:
-        b.inFlightAdvReqs.del(cid)
-        codex_inflight_advertise.set(b.inFlightAdvReqs.len.int64)
-    except CancelledError:
-      trace "Advertise task cancelled"
-      break
-    except CatchableError as exc:
-      warn "Exception in advertise task runner", exc = exc.msg
+        if cid in b.inFlightAdvReqs:
+          continue
+
+        try:
+          let request = b.discovery.provide(cid)
+
+          b.inFlightAdvReqs[cid] = request
+          codex_inflight_advertise.set(b.inFlightAdvReqs.len.int64)
+          await request
+        finally:
+          b.inFlightAdvReqs.del(cid)
+          codex_inflight_advertise.set(b.inFlightAdvReqs.len.int64)
+      except CancelledError as exc:
+        trace "Advertise task cancelled"
+        raise exc
+      except CatchableError as exc:
+        warn "Exception in advertise task runner", exc = exc.msg
+        continue
+  except CancelledError:
+    warn "Cancelled advertise task runner"
 
   info "Exiting advertise task runner"
 

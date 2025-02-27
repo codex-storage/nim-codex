@@ -636,7 +636,7 @@ proc onStore(
     let res = await allFinishedFailed(ensureExpiryFutures)
     if res.failure.len > 0:
       trace "Some blocks failed to update expiry", len = res.failure.len
-      return failure("Some blocks failed to update expiry ()" & $res.failure.len & " )")
+      return failure("Some blocks failed to update expiry (" & $res.failure.len & " )")
 
     if not blocksCb.isNil and err =? (await blocksCb(blocks)).errorOption:
       trace "Unable to process blocks", err = err.msg
