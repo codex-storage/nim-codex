@@ -252,14 +252,14 @@ proc blockPresenceHandler*(
   if dontWantCids.len > 0:
     peerCtx.cleanPresence(dontWantCids)
 
-  let ourWantCids = ourWantList.filter do(address: BlockAddress) -> bool:
-    if address in peerHave and not self.pendingBlocks.retriesExhausted(address) and
-        not self.pendingBlocks.isInFlight(address):
-      self.pendingBlocks.setInFlight(address, true)
-      self.pendingBlocks.decRetries(address)
-      true
-    else:
-      false
+  let ourWantCids = ourWantList.filterIt(
+    it in peerHave and not self.pendingBlocks.retriesExhausted(it) and
+      not self.pendingBlocks.isInFlight(it)
+  )
+
+  for address in ourWantCids:
+    self.pendingBlocks.setInFlight(address, true)
+    self.pendingBlocks.decRetries(address)
 
   if ourWantCids.len > 0:
     trace "Peer has blocks in our wantList", peer, wants = ourWantCids
@@ -297,28 +297,29 @@ proc cancelBlocks(
   trace "Sending block request cancellations to peers",
     addrs, peers = self.peers.peerIds
 
-  proc mapPeers(
-      peerCtx: BlockExcPeerCtx
-  ): Future[BlockExcPeerCtx] {.async: (raises: [CancelledError]).} =
-    let blocks = addrs.filter do(a: BlockAddress) -> bool:
-      a in peerCtx.blocks
+  proc processPeer(peerCtx: BlockExcPeerCtx): Future[BlockExcPeerCtx] {.async.} =
+    await self.network.request.sendWantCancellations(
+      peer = peerCtx.id, addresses = addrs.filterIt(it in peerCtx)
+    )
 
-    if blocks.len > 0:
-      trace "Sending block request cancellations to peer", peer = peerCtx.id, blocks
-      await self.network.request.sendWantCancellations(
-        peer = peerCtx.id, addresses = blocks
-      )
+    return peerCtx
+
+  try:
+    let (succeededFuts, failedFuts) =
+      await allFinishedFailed(toSeq(self.peers.peers.values).map(processPeer))
+
+    (await allFinished(succeededFuts)).mapIt(it.read).apply do(peerCtx: BlockExcPeerCtx):
       peerCtx.cleanPresence(addrs)
-    peerCtx
 
-  let failed = (await allFinished(map(toSeq(self.peers.peers.values), mapPeers))).filterIt(
-    it.failed
-  )
-
-  if failed.len > 0:
-    warn "Failed to send block request cancellations to peers", peers = failed.len
-  else:
-    trace "Block request cancellations sent to peers", peers = self.peers.len
+    if failedFuts.len > 0:
+      warn "Failed to send block request cancellations to peers", peers = failedFuts.len
+    else:
+      trace "Block request cancellations sent to peers", peers = self.peers.len
+  except CancelledError as exc:
+    warn "Error sending block request cancellations", error = exc.msg
+    raise exc
+  except CatchableError as exc:
+    warn "Error sending block request cancellations", error = exc.msg
 
 proc resolveBlocks*(
     self: BlockExcEngine, blocksDelivery: seq[BlockDelivery]
@@ -455,7 +456,7 @@ proc wantListHandler*(
             try:
               await e.address in self.localStore
             except CatchableError as exc:
-              # TODO: should not be necessary once we have proper exception tracking on the store interface
+              # TODO: should not be necessary once we have proper exception tracking on the BlockStore interface
               false
           price = @(self.pricing.get(Pricing(price: 0.u256)).price.toBytesBE)
 
@@ -560,7 +561,7 @@ proc setupPeer*(
     trace "Sending account to peer", peer
     await self.network.request.sendAccount(peer, Account(address: address))
 
-proc dropPeer*(self: BlockExcEngine, peer: PeerId) =
+proc dropPeer*(self: BlockExcEngine, peer: PeerId) {.raises: [].} =
   ## Cleanup disconnected peer
   ##
 
