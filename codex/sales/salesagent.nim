@@ -103,7 +103,6 @@ proc subscribeCancellation(agent: SalesAgent) {.async.} =
       error "Error while waiting for expiry to lapse", error = e.msgDetail
 
   data.cancelled = onCancelled()
-  asyncSpawn data.cancelled
 
 method onFulfilled*(
     agent: SalesAgent, requestId: RequestId

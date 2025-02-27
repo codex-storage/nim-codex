@@ -142,7 +142,6 @@ proc start*(validation: Validation) {.async.} =
   await validation.subscribeSlotFilled()
   await validation.restoreHistoricalState()
   validation.running = validation.run()
-  asyncSpawn validation.running
 
 proc stop*(validation: Validation) {.async.} =
   if not validation.running.isNil and not validation.running.finished:

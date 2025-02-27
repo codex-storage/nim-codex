@@ -50,7 +50,6 @@ method start*(
   timer.callback = callback
   timer.interval = interval
   timer.loopFuture = timerLoop(timer)
-  asyncSpawn timer.loopFuture
 
 method stop*(timer: Timer) {.async, base.} =
   if timer.loopFuture != nil and not timer.loopFuture.finished:

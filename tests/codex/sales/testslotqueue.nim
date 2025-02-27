@@ -50,12 +50,19 @@ suite "Slot queue start/stop":
 suite "Slot queue workers":
   var queue: SlotQueue
 
-  proc onProcessSlot(item: SlotQueueItem, doneProcessing: Future[void]) {.async.} =
-    await sleepAsync(1000.millis)
+  proc onProcessSlot(
+      item: SlotQueueItem, doneProcessing: Future[void]
+  ) {.async: (raises: []).} =
     # this is not illustrative of the realistic scenario as the
     # `doneProcessing` future would be passed to another context before being
     # completed and therefore is not as simple as making the callback async
-    doneProcessing.complete()
+    try:
+      await sleepAsync(1000.millis)
+    except CatchableError as exc:
+      checkpoint(exc.msg)
+    finally:
+      if not doneProcessing.finished:
+        doneProcessing.complete()
 
   setup:
     let request = StorageRequest.example
@@ -89,9 +96,14 @@ suite "Slot queue workers":
     check eventually queue.activeWorkers == 3
 
   test "discards workers once processing completed":
-    proc processSlot(item: SlotQueueItem, done: Future[void]) {.async.} =
-      await sleepAsync(1.millis)
-      done.complete()
+    proc processSlot(item: SlotQueueItem, done: Future[void]) {.async: (raises: []).} =
+      try:
+        await sleepAsync(1.millis)
+      except CatchableError as exc:
+        checkpoint(exc.msg)
+      finally:
+        if not done.finished:
+          done.complete()
 
     queue.onProcessSlot = processSlot
 
@@ -114,11 +126,19 @@ suite "Slot queue":
 
   proc newSlotQueue(maxSize, maxWorkers: int, processSlotDelay = 1.millis) =
     queue = SlotQueue.new(maxWorkers, maxSize.uint16)
-    queue.onProcessSlot = proc(item: SlotQueueItem, done: Future[void]) {.async.} =
-      await sleepAsync(processSlotDelay)
-      onProcessSlotCalled = true
-      onProcessSlotCalledWith.add (item.requestId, item.slotIndex)
-      done.complete()
+    queue.onProcessSlot = proc(
+        item: SlotQueueItem, done: Future[void]
+    ) {.async: (raises: []).} =
+      try:
+        await sleepAsync(processSlotDelay)
+      except CatchableError as exc:
+        checkpoint(exc.msg)
+      finally:
+        onProcessSlotCalled = true
+        onProcessSlotCalledWith.add (item.requestId, item.slotIndex)
+        if not done.finished:
+          done.complete()
+
     queue.start()
 
   setup:

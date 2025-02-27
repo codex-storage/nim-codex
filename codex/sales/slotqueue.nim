@@ -3,7 +3,6 @@ import std/tables
 import pkg/chronos
 import pkg/questionable
 import pkg/questionable/results
-import pkg/upraises
 import ../errors
 import ../clock
 import ../logutils
@@ -17,8 +16,9 @@ logScope:
   topics = "marketplace slotqueue"
 
 type
-  OnProcessSlot* =
-    proc(item: SlotQueueItem, done: Future[void]): Future[void] {.gcsafe, upraises: [].}
+  OnProcessSlot* = proc(item: SlotQueueItem, done: Future[void]): Future[void] {.
+    gcsafe, async: (raises: [])
+  .}
 
   # Non-ref obj copies value when assigned, preventing accidental modification
   # of values which could cause an incorrect order (eg
@@ -26,7 +26,7 @@ type
   # but the heap invariant would no longer be honoured. When non-ref, the
   # compiler can ensure that statement will fail).
   SlotQueueWorker = object
-    doneProcessing*: Future[void]
+    doneProcessing*: Future[void].Raising([])
 
   SlotQueueItem* = object
     requestId: RequestId
@@ -126,7 +126,17 @@ proc new*(
   # `newAsyncQueue` procedure
 
 proc init(_: type SlotQueueWorker): SlotQueueWorker =
-  SlotQueueWorker(doneProcessing: newFuture[void]("slotqueue.worker.processing"))
+  let workerFut = Future[void].Raising([]).init(
+      "slotqueue.worker.processing", {FutureFlag.OwnCancelSchedule}
+    )
+
+  workerFut.cancelCallback = proc(data: pointer) {.raises: [].} =
+    # this is equivalent to try: ... except CatchableError: ...
+    if not workerFut.finished:
+      workerFut.complete()
+    trace "Cancelling `SlotQueue` worker processing future"
+
+  SlotQueueWorker(doneProcessing: workerFut)
 
 proc init*(
     _: type SlotQueueItem,
@@ -419,7 +429,6 @@ proc run(self: SlotQueue) {.async: (raises: []).} =
 
       let fut = self.dispatch(worker, item)
       self.trackedFutures.track(fut)
-      asyncSpawn fut
 
       await sleepAsync(1.millis) # poll
     except CancelledError:
@@ -447,7 +456,6 @@ proc start*(self: SlotQueue) =
 
   let fut = self.run()
   self.trackedFutures.track(fut)
-  asyncSpawn fut
 
 proc stop*(self: SlotQueue) {.async.} =
   if not self.running:

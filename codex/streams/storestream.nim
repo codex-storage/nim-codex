@@ -67,13 +67,9 @@ method atEof*(self: StoreStream): bool =
   self.offset >= self.size
 
 type LPStreamReadError* = object of LPStreamError
-  par*: ref CatchableError
 
 proc newLPStreamReadError*(p: ref CatchableError): ref LPStreamReadError =
-  var w = newException(LPStreamReadError, "Read stream failed")
-  w.msg = w.msg & ", originated from [" & $p.name & "] " & p.msg
-  w.par = p
-  result = w
+  newException(LPStreamReadError, "Read stream failed", p)
 
 method readOnce*(
     self: StoreStream, pbytes: pointer, nbytes: int

@@ -21,7 +21,7 @@ import ../examples
 
 import codex/stores/maintenance
 
-checksuite "BlockMaintainer":
+suite "BlockMaintainer":
   var mockRepoStore: MockRepoStore
   var interval: Duration
   var mockTimer: MockTimer
