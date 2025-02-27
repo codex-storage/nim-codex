@@ -451,7 +451,12 @@ proc wantListHandler*(
 
       if idx < 0: # Adding new entry to peer wants
         let
-          have = await e.address in self.localStore
+          have =
+            try:
+              await e.address in self.localStore
+            except CatchableError as exc:
+              # TODO: should not be necessary once we have proper exception tracking on the store interface
+              false
           price = @(self.pricing.get(Pricing(price: 0.u256)).price.toBytesBE)
 
         if e.cancel:
@@ -504,7 +509,7 @@ proc wantListHandler*(
 
     if schedulePeer:
       self.scheduleTask(peerCtx)
-  except CatchableError as e: #TODO: remove replace with CancelledError
+  except CancelledError as e: #TODO: remove replace with CancelledError
     warn "Error processing want list", error = e.msgDetail
 
 proc accountHandler*(
