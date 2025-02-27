@@ -281,11 +281,10 @@ proc scheduleTasks(
           if await (c in self.localStore):
             # TODO: the try/except should go away once blockstore tracks exceptions
             self.scheduleTask(p)
+            break
         except CatchableError as e:
           warn "Error checking local store for cid", cid = c, err = e.msg
           raiseAssert "Unexpected error checking local store for cid"
-
-        break # do next peer
 
 proc cancelBlocks(
     self: BlockExcEngine, addrs: seq[BlockAddress]
