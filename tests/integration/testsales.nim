@@ -84,8 +84,6 @@ multinodesuite "Sales":
       until = until.some,
     )
 
-    host.restart()
-
     let updatedAvailability = (host.getAvailabilities().get).findItem(availability).get
     check updatedAvailability.duration == 100.uint64
     check updatedAvailability.minPricePerBytePerSecond == 2
@@ -115,8 +113,6 @@ multinodesuite "Sales":
       totalCollateral = 300.u256,
     ).get
     host.patchAvailability(availability.id, totalSize = 100000.uint64.some)
-
-    host.restart()
 
     let updatedAvailability = (host.getAvailabilities().get).findItem(availability).get
     check updatedAvailability.totalSize == 100000
@@ -157,14 +153,10 @@ multinodesuite "Sales":
     let totalSizeResponse =
       host.patchAvailabilityRaw(availability.id, totalSize = (utilizedSize - 1).some)
 
-    host.restart()
-
     check totalSizeResponse.status == "400 Bad Request"
     check "totalSize must be larger then current totalSize" in totalSizeResponse.body
 
     host.patchAvailability(availability.id, totalSize = (originalSize + 20000).some)
-
-    host.restart()
 
     let newUpdatedAvailability =
       (host.getAvailabilities().get).findItem(availability).get

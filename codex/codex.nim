@@ -310,6 +310,7 @@ proc new*(
         initTAddress(config.apiBindAddress, config.apiPort),
         bufferSize = (1024 * 64),
         maxRequestBodySize = int.high,
+        serverFlags = {HttpServerFlags.Http11Pipeline},
       )
       .expect("Should start rest server!")
 

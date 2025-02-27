@@ -24,7 +24,10 @@ const HttpClientTimeoutMs = 60 * 1000
 
 proc new*(_: type CodexClient, baseurl: string): CodexClient =
   CodexClient(
-    http: newHttpClient(timeout = HttpClientTimeoutMs),
+    http: newHttpClient(
+      timeout = HttpClientTimeoutMs,
+      headers = newHttpHeaders({"Connection": "keep-alive"}),
+    ),
     baseurl: baseurl,
     session: HttpSessionRef.new({HttpClientFlag.Http11Pipeline}),
   )
