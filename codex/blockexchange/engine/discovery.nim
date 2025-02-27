@@ -57,30 +57,33 @@ type DiscoveryEngine* = ref object of RootObj
     # Inflight discovery requests
 
 proc discoveryQueueLoop(b: DiscoveryEngine) {.async: (raises: []).} =
-  while b.discEngineRunning:
-    for cid in toSeq(b.pendingBlocks.wantListBlockCids):
-      try:
-        await b.discoveryQueue.put(cid)
-      except CancelledError:
-        trace "Discovery loop cancelled"
-        return
-      except CatchableError as exc:
-        warn "Exception in discovery loop", exc = exc.msg
+  try:
+    while b.discEngineRunning:
+      for cid in toSeq(b.pendingBlocks.wantListBlockCids):
+        try:
+          await b.discoveryQueue.put(cid)
+        except CancelledError as exc:
+          trace "Discovery loop cancelled"
+          raise exc
+        except CatchableError as exc:
+          warn "Exception in discovery loop", exc = exc.msg
 
-    try:
-      logScope:
-        sleep = b.discoveryLoopSleep
-        wanted = b.pendingBlocks.len
-      await sleepAsync(b.discoveryLoopSleep)
-    except CancelledError:
-      discard # do not propagate as discoveryQueueLoop was asyncSpawned
+      try:
+        await sleepAsync(b.discoveryLoopSleep)
+      except CancelledError as exc:
+        raise exc
+      except CatchableError as exc:
+        trace "Exception in discovery loop sleep", exc = exc.msg
+        continue
+  except CancelledError:
+    trace "Discovery loop cancelled"
 
 proc discoveryTaskLoop(b: DiscoveryEngine) {.async: (raises: []).} =
   ## Run discovery tasks
   ##
 
-  while b.discEngineRunning:
-    try:
+  try:
+    while b.discEngineRunning:
       let cid = await b.discoveryQueue.get()
 
       if cid in b.inFlightDiscReqs:
@@ -95,30 +98,28 @@ proc discoveryTaskLoop(b: DiscoveryEngine) {.async: (raises: []).} =
 
           b.inFlightDiscReqs[cid] = request
           codex_inflight_discovery.set(b.inFlightDiscReqs.len.int64)
-          let peers = await request
-
-          let dialed = await allFinished(peers.mapIt(b.network.dialPeer(it.data)))
+          let
+            peers = await request
+            dialed = await allFinished(peers.mapIt(b.network.dialPeer(it.data)))
 
           for i, f in dialed:
             if f.failed:
               await b.discovery.removeProvider(peers[i].data.peerId)
+        except CancelledError as exc:
+          warn "Discovery request cancelled", cid = cid
+          raise exc
+        except CatchableError as exc:
+          warn "Exception in discovery task", exc = exc.msg
         finally:
           b.inFlightDiscReqs.del(cid)
           codex_inflight_discovery.set(b.inFlightDiscReqs.len.int64)
-    except CancelledError:
-      trace "Discovery task cancelled"
-      return
-    except CatchableError as exc:
-      warn "Exception in discovery task runner", exc = exc.msg
-    except Exception as e:
-      # Raised by b.discovery.removeProvider somehow...
-      # This should not be catchable, and we should never get here. Therefore,
-      # raise a Defect.
-      raiseAssert "Exception when removing provider"
+  except CancelledError:
+    trace "Discovery task cancelled"
+    return
 
   info "Exiting discovery task runner"
 
-proc queueFindBlocksReq*(b: DiscoveryEngine, cids: seq[Cid]) {.inline.} =
+proc queueFindBlocksReq*(b: DiscoveryEngine, cids: seq[Cid]) =
   for cid in cids:
     if cid notin b.discoveryQueue:
       try:
@@ -130,7 +131,7 @@ proc start*(b: DiscoveryEngine) {.async: (raises: []).} =
   ## Start the discengine task
   ##
 
-  trace "Discovery engine start"
+  trace "Discovery engine starting"
 
   if b.discEngineRunning:
     warn "Starting discovery engine twice"
@@ -143,6 +144,8 @@ proc start*(b: DiscoveryEngine) {.async: (raises: []).} =
 
   b.discoveryLoop = b.discoveryQueueLoop()
   b.trackedFutures.track(b.discoveryLoop)
+
+  trace "Discovery engine started"
 
 proc stop*(b: DiscoveryEngine) {.async: (raises: []).} =
   ## Stop the discovery engine
