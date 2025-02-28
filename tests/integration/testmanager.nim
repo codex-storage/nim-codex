@@ -641,7 +641,10 @@ proc start*(
     manager.trackedFutures.track fut
     asyncSpawn fut
 
-  await manager.runTests()
+  let futRunTests = manager.runTests()
+  manager.trackedFutures.track futRunTests
+
+  await futRunTests
 
   manager.printResult()
 
