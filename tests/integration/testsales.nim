@@ -171,7 +171,7 @@ multinodesuite "Sales":
       totalCollateral = 300.u256,
     ).get
     let response =
-      host.patchAvailabilityRaw(availability.id, totalSize = 14000000000.uint64.some)
+      host.patchAvailabilityRaw(availability.id, totalSize = 24000000000.uint64.some)
 
     check response.status == "422 Unprocessable Entity"
     check response.body == "Not enough storage quota"
