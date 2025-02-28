@@ -154,8 +154,8 @@ multinodesuite "Sales":
 
   test "creating availability above the node quota returns 422", salesConfig:
     let response = host.postAvailabilityRaw(
-      totalSize = 14000000000.u256,
-      duration = 200.u256,
+      totalSize = 14000000000.uint64,
+      duration = 200.uint64,
       minPricePerBytePerSecond = 3.u256,
       totalCollateral = 300.u256,
     )
@@ -165,13 +165,13 @@ multinodesuite "Sales":
 
   test "updating availability above the node quota returns 422", salesConfig:
     let availability = host.postAvailability(
-      totalSize = 140000.u256,
-      duration = 200.u256,
+      totalSize = 140000.uint64,
+      duration = 200.uint64,
       minPricePerBytePerSecond = 3.u256,
       totalCollateral = 300.u256,
     ).get
     let response =
-      host.patchAvailabilityRaw(availability.id, totalSize = 14000000000.u256.some)
+      host.patchAvailabilityRaw(availability.id, totalSize = 14000000000.uint64.some)
 
     check response.status == "422 Unprocessable Entity"
     check response.body == "Not enough storage quota"
