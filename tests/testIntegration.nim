@@ -39,7 +39,7 @@ const TestTimeout {.intdefine.} = 60
 
 const EnableParallelTests {.booldefine.} = true
 
-proc run() {.async.} =
+proc run(): Future[bool] {.async: (raises: []).} =
   let manager = TestManager.new(
     configs = TestConfigs,
     DebugTestHarness,
@@ -51,18 +51,27 @@ proc run() {.async.} =
   try:
     trace "starting test manager"
     await manager.start()
+  except TestManagerError as e:
+    error "Failed to run test manager", error = e.msg
+    return false
+  except CancelledError:
+    return
   finally:
     trace "stopping test manager"
-    await manager.stop()
+    await noCancel manager.stop()
+    trace "test manager stopped"
 
   without wasSuccessful =? manager.allTestsPassed, error:
     raiseAssert "Failed to get test status: " & error.msg
 
-  if not wasSuccessful:
-    quit(1) # indicate with a non-zero exit code that the tests failed
+  return wasSuccessful
 
 when EnableParallelTests:
-  waitFor run()
+  let wasSuccessful = waitFor run()
+  trace "[testIntegration] wasSuccessful", wasSuccessful
+  trace "[testIntegration] AFTER run"
+  if not wasSuccessful:
+    quit(QuitFailure) # indicate with a non-zero exit code that the tests failed
 else:
   # run tests serially
   import ./integration/testcli

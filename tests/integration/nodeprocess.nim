@@ -129,14 +129,14 @@ method stop*(
       let exitCode = await noCancel node.process.terminateAndWaitForExit(2.seconds)
       if exitCode > 0 and exitCode != 143 and # 143 = SIGTERM (initiated above)
       exitCode != expectedErrCode:
-        error "process exited with a non-zero exit code", exitCode
+        warn "process exited with a non-zero exit code", exitCode
       trace "node stopped", exitCode
     except CatchableError:
       try:
         let forcedExitCode = await noCancel node.process.killAndWaitForExit(3.seconds)
         trace "node process forcibly killed with exit code: ", exitCode = forcedExitCode
       except CatchableError as e:
-        error "failed to kill node process in time, it will be killed when the parent process exits",
+        warn "failed to kill node process in time, it will be killed when the parent process exits",
           error = e.msg
         writeStackTrace()
     finally:
