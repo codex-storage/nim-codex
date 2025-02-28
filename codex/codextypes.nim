@@ -36,6 +36,7 @@ const
   DefaultSamplesNum* = 5
 
   # hashes
+  Sha1HashCodec* = multiCodec("sha1")
   Sha256HashCodec* = multiCodec("sha2-256")
   Sha512HashCodec* = multiCodec("sha2-512")
   Pos2Bn128SpngCodec* = multiCodec("poseidon2-alt_bn_128-sponge-r2")
@@ -54,6 +55,9 @@ const
     ManifestCodec, DatasetRootCodec, BlockCodec, SlotRootCodec, SlotProvingRootCodec,
     CodexSlotCellCodec,
   ]
+
+  # BitTorrent
+  InfoHashV1Codec* = multiCodec("torrent-info-hash-v1")
 
 proc initEmptyCidTable(): ?!Table[(CidVersion, MultiCodec, MultiCodec), Cid] =
   ## Initialize padding blocks table
