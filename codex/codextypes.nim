@@ -57,7 +57,7 @@ const
   ]
 
   # BitTorrent
-  InfoHashV1Codec* = multiCodec("torrent-info-hash-v1")
+  InfoHashV1Codec* = multiCodec("torrent-info")
 
 proc initEmptyCidTable(): ?!Table[(CidVersion, MultiCodec, MultiCodec), Cid] =
   ## Initialize padding blocks table
