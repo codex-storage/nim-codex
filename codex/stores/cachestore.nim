@@ -166,8 +166,10 @@ method listBlocks*(
           return true
         of BlockType.Manifest:
           return isManifest
+        of BlockType.Torrent:
+          return isTorrent
         of BlockType.Block:
-          return not isManifest
+          return not (isManifest or isTorrent)
     )
   )
   success(iter)
