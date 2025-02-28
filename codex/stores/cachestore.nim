@@ -151,6 +151,9 @@ method listBlocks*(
   let iter = await (
     AsyncIter[Cid].new(genNext, isFinished).filter(
       proc(cid: Cid): Future[bool] {.async.} =
+        without isTorrent =? cid.isTorrentInfoHash, err:
+          trace "Error checking if cid is a torrent info hash", err = err.msg
+          return false
         without isManifest =? cid.isManifest, err:
           trace "Error checking if cid is a manifest", err = err.msg
           return false
@@ -160,8 +163,10 @@ method listBlocks*(
           return true
         of BlockType.Manifest:
           return isManifest
+        of BlockType.Torrent:
+          return isTorrent
         of BlockType.Block:
-          return not isManifest
+          return not (isManifest or isTorrent)
     )
   )
 
