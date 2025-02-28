@@ -290,6 +290,7 @@ method listBlocks*(
 
   let key =
     case blockType
+    of BlockType.Torrent: TorrentInfoHashKey
     of BlockType.Manifest: CodexManifestKey
     of BlockType.Block: CodexBlocksKey
     of BlockType.Both: CodexRepoKey
