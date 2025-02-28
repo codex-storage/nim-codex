@@ -53,7 +53,20 @@ proc addCidToQueue(b: Advertiser, cid: Cid) {.async.} =
     await b.advertiseQueue.put(cid)
     trace "Advertising", cid
 
+proc advertiseInfoHash(b: Advertiser, cid: Cid) {.async.} =
+  if (infoHashCid =? cid.isTorrentInfoHash):
+    # announce torrent info hash
+    await b.addCidToQueue(cid)
+    return
+  await b.addCidToQueue(cid)
+
 proc advertiseBlock(b: Advertiser, cid: Cid) {.async.} =
+  without isTorrent =? cid.isTorrentInfoHash, err:
+    warn "Unable to determine if cid is torrent info hash"
+    return
+  if isTorrent:
+    await b.addCidToQueue(cid)
+    return
   without isM =? cid.isManifest, err:
     warn "Unable to determine if cid is manifest"
     return
@@ -74,6 +87,12 @@ proc advertiseBlock(b: Advertiser, cid: Cid) {.async.} =
 proc advertiseLocalStoreLoop(b: Advertiser) {.async: (raises: []).} =
   while b.advertiserRunning:
     try:
+      if cids =? await b.localStore.listBlocks(blockType = BlockType.Torrent):
+        trace "Advertiser begins iterating torrent blocks..."
+        for c in cids:
+          if cid =? await c:
+            await b.advertiseBlock(cid)
+        trace "Advertiser iterating blocks finished."
       if cids =? await b.localStore.listBlocks(blockType = BlockType.Manifest):
         trace "Advertiser begins iterating blocks..."
         for c in cids:
