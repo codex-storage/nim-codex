@@ -68,6 +68,12 @@ const
   DefaultMaxPeersPerRequest* = 10
   DefaultTaskQueueSize = 100
   DefaultConcurrentTasks = 10
+    # DefaultMaxRetries = 3
+    # DefaultConcurrentDiscRequests = 10
+    # DefaultConcurrentAdvertRequests = 10
+    # DefaultDiscoveryTimeout = 1.minutes
+    # DefaultMaxQueriedBlocksCache = 1000
+    # DefaultMinPeersPerBlock = 3
 
 type
   TaskHandler* = proc(task: BlockExcPeerCtx): Future[void] {.gcsafe.}

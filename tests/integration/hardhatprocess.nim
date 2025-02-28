@@ -8,6 +8,7 @@ import pkg/stew/io2
 import std/os
 import std/sets
 import std/sequtils
+import std/strformat
 import std/strutils
 import pkg/codex/conf
 import pkg/codex/utils/trackedfutures
@@ -16,19 +17,27 @@ import ./nodeprocess
 
 export codexclient
 export chronicles
+export nodeprocess
+
+{.push raises: [].}
 
 logScope:
   topics = "integration testing hardhat process"
-  nodeName = "hardhat"
 
-type HardhatProcess* = ref object of NodeProcess
-  logFile: ?IoHandle
+type
+  OnOutputLineCaptured = proc(line: string) {.gcsafe, raises: [].}
+  HardhatProcess* = ref object of NodeProcess
+    logFile: ?IoHandle
+    onOutputLine: OnOutputLineCaptured
+
+  HardhatProcessError* = object of NodeProcessError
 
 method workingDir(node: HardhatProcess): string =
   return currentSourcePath() / ".." / ".." / ".." / "vendor" / "codex-contracts-eth"
 
 method executable(node: HardhatProcess): string =
-  return "node_modules" / ".bin" / "hardhat"
+  return
+    "node_modules" / ".bin" / (when defined(windows): "hardhat.cmd" else: "hardhat")
 
 method startedOutput(node: HardhatProcess): string =
   return "Started HTTP and WebSocket JSON-RPC server at"
@@ -36,7 +45,7 @@ method startedOutput(node: HardhatProcess): string =
 method processOptions(node: HardhatProcess): set[AsyncProcessOption] =
   return {}
 
-method outputLineEndings(node: HardhatProcess): string {.raises: [].} =
+method outputLineEndings(node: HardhatProcess): string =
   return "\n"
 
 proc openLogFile(node: HardhatProcess, logFilePath: string): IoHandle =
@@ -51,33 +60,51 @@ proc openLogFile(node: HardhatProcess, logFilePath: string): IoHandle =
 
   return fileHandle
 
-method start*(node: HardhatProcess) {.async.} =
+method start*(
+    node: HardhatProcess
+) {.async: (raises: [CancelledError, NodeProcessError]).} =
+  logScope:
+    nodeName = node.name
+
+  var executable = ""
+  try:
+    executable = absolutePath(node.workingDir / node.executable)
+    if not fileExists(executable):
+      raiseAssert "cannot start hardhat, executable doesn't exist (looking for " &
+        &"{executable}). Try running `npm install` in {node.workingDir}."
+  except CatchableError as parent:
+    raiseAssert "failed build path to hardhat executable: " & parent.msg
+
   let poptions = node.processOptions + {AsyncProcessOption.StdErrToStdOut}
+  let args = @["node", "--export", "deployment-localhost.json"].concat(node.arguments)
   trace "starting node",
-    args = node.arguments,
-    executable = node.executable,
-    workingDir = node.workingDir,
-    processOptions = poptions
+    args, executable, workingDir = node.workingDir, processOptions = poptions
 
   try:
     node.process = await startProcess(
-      node.executable,
+      executable,
       node.workingDir,
-      @["node", "--export", "deployment-localhost.json"].concat(node.arguments),
+      args,
       options = poptions,
       stdoutHandle = AsyncProcess.Pipe,
     )
   except CancelledError as error:
     raise error
-  except CatchableError as e:
-    error "failed to start hardhat process", error = e.msg
+  except CatchableError as parent:
+    raise newException(
+      HardhatProcessError, "failed to start hardhat process: " & parent.msg, parent
+    )
 
 proc startNode*(
     _: type HardhatProcess,
     args: seq[string],
     debug: string | bool = false,
     name: string,
-): Future[HardhatProcess] {.async.} =
+    onOutputLineCaptured: OnOutputLineCaptured = nil,
+): Future[HardhatProcess] {.async: (raises: [CancelledError, NodeProcessError]).} =
+  logScope:
+    nodeName = name
+
   var logFilePath = ""
 
   var arguments = newSeq[string]()
@@ -94,7 +121,8 @@ proc startNode*(
     arguments: arguments,
     debug: ($debug != "false"),
     trackedFutures: TrackedFutures.new(),
-    name: "hardhat",
+    name: name,
+    onOutputLine: onOutputLineCaptured,
   )
 
   await hardhat.start()
@@ -105,6 +133,12 @@ proc startNode*(
   return hardhat
 
 method onOutputLineCaptured(node: HardhatProcess, line: string) =
+  logScope:
+    nodeName = node.name
+
+  if not node.onOutputLine.isNil:
+    node.onOutputLine(line)
+
   without logFile =? node.logFile:
     return
 
@@ -113,7 +147,7 @@ method onOutputLineCaptured(node: HardhatProcess, line: string) =
     discard logFile.closeFile()
     node.logFile = none IoHandle
 
-method stop*(node: HardhatProcess) {.async.} =
+method stop*(node: HardhatProcess) {.async: (raises: []).} =
   # terminate the process
   await procCall NodeProcess(node).stop()
 
