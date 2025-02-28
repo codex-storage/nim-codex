@@ -56,7 +56,20 @@ proc addCidToQueue(b: Advertiser, cid: Cid) {.async: (raises: [CancelledError]).
 
     trace "Advertising", cid
 
+proc advertiseInfoHash(b: Advertiser, cid: Cid) {.async: (raises: [CancelledError]).} =
+  if (infoHashCid =? cid.isTorrentInfoHash):
+    # announce torrent info hash
+    await b.addCidToQueue(cid)
+    return
+  await b.addCidToQueue(cid)
+
 proc advertiseBlock(b: Advertiser, cid: Cid) {.async: (raises: [CancelledError]).} =
+  without isTorrent =? cid.isTorrentInfoHash, err:
+    warn "Unable to determine if cid is torrent info hash"
+    return
+  if isTorrent:
+    await b.addCidToQueue(cid)
+    return
   without isM =? cid.isManifest, err:
     warn "Unable to determine if cid is manifest"
     return
@@ -89,6 +102,22 @@ proc advertiseLocalStoreLoop(b: Advertiser) {.async: (raises: []).} =
           if cid =? await c:
             await b.advertiseBlock(cid)
         trace "Advertiser iterating blocks finished."
+      try:
+        if cids =? await b.localStore.listBlocks(blockType = BlockType.Torrent):
+          trace "Advertiser begins iterating torrent blocks..."
+          for c in cids:
+            if cid =? await c:
+              await b.advertiseBlock(cid)
+          trace "Advertiser iterating torrent blocks finished."
+        if cids =? await b.localStore.listBlocks(blockType = BlockType.Manifest):
+          trace "Advertiser begins iterating blocks..."
+          for c in cids:
+            if cid =? await c:
+              await b.advertiseBlock(cid)
+          trace "Advertiser iterating blocks finished."
+      except CatchableError as e:
+        error "Error in advertise local store loop", error = e.msgDetail
+        raiseAssert("Unexpected exception in advertiseLocalStoreLoop")
 
       await sleepAsync(b.advertiseLocalStoreLoopSleep)
   except CancelledError:
