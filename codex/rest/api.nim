@@ -544,7 +544,7 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
               $(availability.totalSize - availability.freeSize),
           )
 
-        if not reservations.hasAvailable(size.truncate(uint)):
+        if not reservations.hasAvailable(size):
           return RestApiResponse.error(Http422, "Not enough storage quota")
 
         availability.freeSize += size - availability.totalSize

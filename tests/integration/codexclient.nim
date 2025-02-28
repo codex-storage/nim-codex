@@ -189,7 +189,7 @@ proc postAvailabilityRaw*(
     client: CodexClient,
     totalSize, duration: uint64,
     minPricePerBytePerSecond, totalCollateral: UInt256,
-): ?!Availability =
+): Response =
   ## Post sales availability endpoint
   ##
   let url = client.baseurl & "/sales/availability"
@@ -204,7 +204,8 @@ proc postAvailabilityRaw*(
 
 proc postAvailability*(
     client: CodexClient,
-    totalSize, duration, minPricePerBytePerSecond, totalCollateral: UInt256,
+    totalSize, duration: uint64,
+    minPricePerBytePerSecond, totalCollateral: UInt256,
 ): ?!Availability =
   let response = client.postAvailabilityRaw(
     totalSize, duration, minPricePerBytePerSecond, totalCollateral
