@@ -9,6 +9,7 @@ import ./cancelled
 import ./failed
 import ./ignored
 import ./errored
+from ../../contracts/marketplace import Marketplace_SlotNotFree
 
 logScope:
   topics = "marketplace sales filling"
@@ -30,6 +31,7 @@ method run*(
 ): Future[?State] {.async: (raises: []).} =
   let data = SalesAgent(machine).data
   let market = SalesAgent(machine).context.market
+
   without (request =? data.request):
     raiseAssert "Request not set"
 
@@ -42,17 +44,16 @@ method run*(
       err:
       error "Failure attempting to fill slot: unable to calculate collateral",
         error = err.msg
-      return
+      return some State(SaleErrored(error: err))
 
     debug "Filling slot"
     try:
       await market.fillSlot(data.requestId, data.slotIndex, state.proof, collateral)
+    except Marketplace_SlotNotFree:
+      debug "Slot is already filled, ignoring slot"
+      return some State(SaleIgnored(reprocessSlot: false, returnBytes: true))
     except MarketError as e:
-      if e.msg.contains "Slot is not free":
-        debug "Slot is already filled, ignoring slot"
-        return some State(SaleIgnored(reprocessSlot: false, returnBytes: true))
-      else:
-        return some State(SaleErrored(error: e))
+      return some State(SaleErrored(error: e))
     # other CatchableErrors are handled "automatically" by the SaleState
 
     return some State(SaleFilled())

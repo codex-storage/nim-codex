@@ -11,6 +11,7 @@ import pkg/codex/sales/salesagent
 import pkg/codex/sales/salescontext
 import pkg/codex/sales/reservations
 import pkg/codex/stores/repostore
+from pkg/codex/contracts/marketplace import SlotReservations_ReservationNotAllowed
 import ../../../asynctest
 import ../../helpers
 import ../../examples
@@ -54,15 +55,15 @@ asyncchecksuite "sales state 'SlotReserving'":
 
   test "run switches to errored when slot reservation errors":
     let error = newException(MarketError, "some error")
-    market.setReserveSlotThrowError(some error)
+    market.setSlotThrowError(some cast[ref CatchableError](error))
     let next = !(await state.run(agent))
     check next of SaleErrored
     let errored = SaleErrored(next)
     check errored.error == error
 
-  test "catches reservation not allowed error":
-    let error = newException(MarketError, "SlotReservations_ReservationNotAllowed")
-    market.setReserveSlotThrowError(some error)
+  test "run switches to ignored when reservation is not allowed":
+    let error = newException(SlotReservations_ReservationNotAllowed, "")
+    market.setSlotThrowError(some cast[ref CatchableError](error))
     let next = !(await state.run(agent))
     check next of SaleIgnored
     check SaleIgnored(next).reprocessSlot == false
