@@ -104,7 +104,7 @@ proc generateCircomAndSamples*(args: CircuitArgs, env: CircuitEnv, name: string)
 
   if not "input.json".fileExists:
     echo "Generating Circom Files..."
-    runit fmt"{cliCmd} -v --circom={name}.circom --output=input.json"
+    runit fmt"{cliCmd} -v --field=bn254 --hash=poseidon2 --circom={name}.circom --output=input.json"
 
 proc createCircuit*(
     args: CircuitArgs,
