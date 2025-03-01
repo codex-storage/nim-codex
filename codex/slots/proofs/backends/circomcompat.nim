@@ -38,7 +38,8 @@ type
     zkeyPath: string # path to the zkey file
     backendCfg: ptr CircomBn254Cfg
     vkp*: ptr CircomKey
-    taskpool: Taskpool
+    taskpool*: Taskpool
+    withLock* Lock
 
   NormalizedProofInputs*[H] {.borrow: `.`.} = distinct ProofInputs[H]
 
@@ -97,7 +98,7 @@ proc release*(self: CircomCompat) =
   if not isNil(self.vkp):
     self.vkp.unsafeAddr.release_key()
 
-proc circomProveTask(task: ptr ProveTask) {.gcsafe.} =
+proc circomProveTask(tp:Taskpool,task: ptr ProveTask) {.gcsafe.} =
   defer:
     discard task[].signal.fireSync()
 
@@ -118,7 +119,7 @@ proc circomProveTask(task: ptr ProveTask) {.gcsafe.} =
 
 proc asyncProve*[H](
     self: CircomCompat, input: NormalizedProofInputs[H], proof: ptr Proof
-): Future[?!void] {.async.} =
+): ?!bool =
   doAssert input.samples.len == self.numSamples, "Number of samples does not match"
 
   doAssert input.slotProof.len <= self.datasetDepth,
@@ -182,11 +183,11 @@ proc asyncProve*[H](
 
   for s in input.samples:
     var
-      merklePaths = s.merklePaths.mapIt(@(it.toBytes)).concat
+      merklePaths = s.merklePaths.mapIt(it.toBytes)
       data = s.cellData.mapIt(@(it.toBytes)).concat
 
     if ctx.push_input_u256_array(
-      "merklePaths".cstring, merklePaths[0].addr, uint (merklePaths.len)
+      "merklePaths".cstring, merklePaths[0].addr,  uint (merklePaths[0].len * merklePaths.len)
     ) != ERR_OK:
       return failure("Failed to push merkle paths")
 
@@ -200,46 +201,59 @@ proc asyncProve*[H](
   defer:
     threadPtr.close().expect("closing once works")
 
-  var task = ProveTask(circom: addr self, ctx: ctx, proof: proof, signal: threadPtr)
+  # var task = ProveTask(circom: addr self, ctx: ctx, proof: proof, signal: threadPtr)
 
-  let taskPtr = addr task
+  # let taskPtr = addr task
 
-  doAssert task.circom.taskpool.numThreads > 1,
-    "Must have at least one separate thread or signal will never be fired"
-  task.circom.taskpool.spawn circomProveTask(taskPtr)
-  let threadFut = threadPtr.wait()
+  # doAssert task.circom.taskpool.numThreads > 1,
+  #   "Must have at least one separate thread or signal will never be fired"
+  # task.circom.taskpool.spawn circomProveTask(taskPtr)
+  # let threadFut = threadPtr.wait()
 
-  try:
-    await threadFut.join()
-  except CatchableError as exc:
+  # try:
+  #   await threadFut.join()
+  # except CatchableError as exc:
+  #   try:
+  #     await threadFut
+  #   except AsyncError as asyncExc:
+  #     return failure(asyncExc.msg)
+  #   finally:
+  #     if exc of CancelledError:
+  #       raise (ref CancelledError) exc
+  #     else:
+  #       return failure(exc.msg)
+
+  # if not task.success.load():
+  #   return failure("Failed to prove circuit")
+
+  var proofPtr: ptr Proof = nil
+
+  let proof1 =
     try:
-      await threadFut
-    except AsyncError as asyncExc:
-      return failure(asyncExc.msg)
+      if (let res = self.backendCfg.prove_circuit(ctx, proofPtr.addr); res != ERR_OK) or
+          proofPtr == nil:
+        return failure("Failed to prove - err code: " & $res)
+
+      proofPtr[]
     finally:
-      if exc of CancelledError:
-        raise (ref CancelledError) exc
-      else:
-        return failure(exc.msg)
+      if proofPtr != nil:
+        proofPtr.addr.release_proof()
+  
+  echo "Printing non copied proof"
+  echo proof1
 
-  if not task.success.load():
-    return failure("Failed to prove circuit")
+  echo 
 
-  success()
+  
+  copyProof(proof, proof1)
+
+  success(true)
 
 proc prove*[H](
-    self: CircomCompat, input: ProofInputs[H]
-): Future[?!CircomProof] {.async, raises: [CancelledError].} =
-  var proof = ProofPtr.new()
-  defer:
-    destroyProof(proof)
+    self: CircomCompat, input: ptr NormalizedProofInputs[H],proof: ProofPtr
+): ?!bool =
+  return self.asyncProve(input[], proof)
 
-  try:
-    if error =? (await self.asyncProve(self.normalizeInput(input), proof)).errorOption:
-      return failure(error)
-    return success(deepCopy(proof)[])
-  except CancelledError as exc:
-    raise exc
 
 proc circomVerifyTask(task: ptr VerifyTask) {.gcsafe.} =
   defer:

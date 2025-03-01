@@ -140,7 +140,7 @@ suite "Test Prover":
       destroyProof(cancelledProof)
 
     # call asyncProve and cancel the task
-    let proveFut = backend.asyncProve(backend.normalizeInput(inputs), cancelledProof)
+    let proveFut = prover.asyncProve(inputs, cancelledProof)
     proveFut.cancel()
 
     try:

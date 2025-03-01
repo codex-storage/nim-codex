@@ -217,6 +217,7 @@ template multinodesuite*(name: string, body: untyped) =
     proc startProviderNode(conf: CodexConfig): Future[NodeProcess] {.async.} =
       let providerIdx = providers().len
       var config = conf
+      config.debugEnabled = true
       config.addCliOption(StartUpCmd.persistence, "--eth-provider", jsonRpcProviderUrl)
       config.addCliOption(
         StartUpCmd.persistence, "--eth-account", $accounts[running.len]

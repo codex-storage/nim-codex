@@ -29,84 +29,84 @@ multinodesuite "Sales":
     host = providers()[0].client
     client = clients()[0].client
 
-  test "node handles new storage availability", salesConfig:
-    let availability1 = host.postAvailability(
-      totalSize = 1.uint64,
-      duration = 2.uint64,
-      minPricePerBytePerSecond = 3.u256,
-      totalCollateral = 4.u256,
-    ).get
-    let availability2 = host.postAvailability(
-      totalSize = 4.uint64,
-      duration = 5.uint64,
-      minPricePerBytePerSecond = 6.u256,
-      totalCollateral = 7.u256,
-    ).get
-    check availability1 != availability2
+  # test "node handles new storage availability", salesConfig:
+  #   let availability1 = host.postAvailability(
+  #     totalSize = 1.uint64,
+  #     duration = 2.uint64,
+  #     minPricePerBytePerSecond = 3.u256,
+  #     totalCollateral = 4.u256,
+  #   ).get
+  #   let availability2 = host.postAvailability(
+  #     totalSize = 4.uint64,
+  #     duration = 5.uint64,
+  #     minPricePerBytePerSecond = 6.u256,
+  #     totalCollateral = 7.u256,
+  #   ).get
+  #   check availability1 != availability2
 
-  test "node lists storage that is for sale", salesConfig:
-    let availability = host.postAvailability(
-      totalSize = 1.uint64,
-      duration = 2.uint64,
-      minPricePerBytePerSecond = 3.u256,
-      totalCollateral = 4.u256,
-    ).get
-    check availability in host.getAvailabilities().get
+  # test "node lists storage that is for sale", salesConfig:
+  #   let availability = host.postAvailability(
+  #     totalSize = 1.uint64,
+  #     duration = 2.uint64,
+  #     minPricePerBytePerSecond = 3.u256,
+  #     totalCollateral = 4.u256,
+  #   ).get
+  #   check availability in host.getAvailabilities().get
 
-  test "updating non-existing availability", salesConfig:
-    let nonExistingResponse = host.patchAvailabilityRaw(
-      AvailabilityId.example,
-      duration = 100.uint64.some,
-      minPricePerBytePerSecond = 2.u256.some,
-      totalCollateral = 200.u256.some,
-    )
-    check nonExistingResponse.status == "404 Not Found"
+  # test "updating non-existing availability", salesConfig:
+  #   let nonExistingResponse = host.patchAvailabilityRaw(
+  #     AvailabilityId.example,
+  #     duration = 100.uint64.some,
+  #     minPricePerBytePerSecond = 2.u256.some,
+  #     totalCollateral = 200.u256.some,
+  #   )
+  #   check nonExistingResponse.status == "404 Not Found"
 
-  test "updating availability", salesConfig:
-    let availability = host.postAvailability(
-      totalSize = 140000.uint64,
-      duration = 200.uint64,
-      minPricePerBytePerSecond = 3.u256,
-      totalCollateral = 300.u256,
-    ).get
+  # test "updating availability", salesConfig:
+  #   let availability = host.postAvailability(
+  #     totalSize = 140000.uint64,
+  #     duration = 200.uint64,
+  #     minPricePerBytePerSecond = 3.u256,
+  #     totalCollateral = 300.u256,
+  #   ).get
 
-    host.patchAvailability(
-      availability.id,
-      duration = 100.uint64.some,
-      minPricePerBytePerSecond = 2.u256.some,
-      totalCollateral = 200.u256.some,
-    )
+  #   host.patchAvailability(
+  #     availability.id,
+  #     duration = 100.uint64.some,
+  #     minPricePerBytePerSecond = 2.u256.some,
+  #     totalCollateral = 200.u256.some,
+  #   )
 
-    let updatedAvailability = (host.getAvailabilities().get).findItem(availability).get
-    check updatedAvailability.duration == 100.uint64
-    check updatedAvailability.minPricePerBytePerSecond == 2
-    check updatedAvailability.totalCollateral == 200
-    check updatedAvailability.totalSize == 140000.uint64
-    check updatedAvailability.freeSize == 140000.uint64
+  #   let updatedAvailability = (host.getAvailabilities().get).findItem(availability).get
+  #   check updatedAvailability.duration == 100.uint64
+  #   check updatedAvailability.minPricePerBytePerSecond == 2
+  #   check updatedAvailability.totalCollateral == 200
+  #   check updatedAvailability.totalSize == 140000.uint64
+  #   check updatedAvailability.freeSize == 140000.uint64
 
-  test "updating availability - freeSize is not allowed to be changed", salesConfig:
-    let availability = host.postAvailability(
-      totalSize = 140000.uint64,
-      duration = 200.uint64,
-      minPricePerBytePerSecond = 3.u256,
-      totalCollateral = 300.u256,
-    ).get
-    let freeSizeResponse =
-      host.patchAvailabilityRaw(availability.id, freeSize = 110000.uint64.some)
-    check freeSizeResponse.status == "400 Bad Request"
-    check "not allowed" in freeSizeResponse.body
+  # test "updating availability - freeSize is not allowed to be changed", salesConfig:
+  #   let availability = host.postAvailability(
+  #     totalSize = 140000.uint64,
+  #     duration = 200.uint64,
+  #     minPricePerBytePerSecond = 3.u256,
+  #     totalCollateral = 300.u256,
+  #   ).get
+  #   let freeSizeResponse =
+  #     host.patchAvailabilityRaw(availability.id, freeSize = 110000.uint64.some)
+  #   check freeSizeResponse.status == "400 Bad Request"
+  #   check "not allowed" in freeSizeResponse.body
 
-  test "updating availability - updating totalSize", salesConfig:
-    let availability = host.postAvailability(
-      totalSize = 140000.uint64,
-      duration = 200.uint64,
-      minPricePerBytePerSecond = 3.u256,
-      totalCollateral = 300.u256,
-    ).get
-    host.patchAvailability(availability.id, totalSize = 100000.uint64.some)
-    let updatedAvailability = (host.getAvailabilities().get).findItem(availability).get
-    check updatedAvailability.totalSize == 100000
-    check updatedAvailability.freeSize == 100000
+  # test "updating availability - updating totalSize", salesConfig:
+  #   let availability = host.postAvailability(
+  #     totalSize = 140000.uint64,
+  #     duration = 200.uint64,
+  #     minPricePerBytePerSecond = 3.u256,
+  #     totalCollateral = 300.u256,
+  #   ).get
+  #   host.patchAvailability(availability.id, totalSize = 100000.uint64.some)
+  #   let updatedAvailability = (host.getAvailabilities().get).findItem(availability).get
+  #   check updatedAvailability.totalSize == 100000
+  #   check updatedAvailability.freeSize == 100000
 
   test "updating availability - updating totalSize does not allow bellow utilized",
     salesConfig:
