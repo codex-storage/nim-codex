@@ -228,7 +228,7 @@ suite "Erasure encode/decode":
     discard (await erasure.decode(encoded)).tryGet()
 
   test "Should concurrently encode/decode multiple datasets":
-    const iterations = 2
+    const iterations = 5
 
     let
       datasetSize = 1.MiBs
@@ -335,18 +335,18 @@ suite "Erasure encode/decode":
     for i in 0 ..< parityLen:
       paritySeq[i] = cast[seq[byte]](parity[i])
 
-    # call encodeAsync to get the parity
+    # call asyncEncode to get the parity
     let encFut =
-      await erasure.encodeAsync(BlockSize.int, blocksLen, parityLen, data, parity)
+      await erasure.asyncEncode(BlockSize.int, blocksLen, parityLen, data, parity)
     check encFut.isOk
 
-    let decFut = await erasure.decodeAsync(
+    let decFut = await erasure.asyncDecode(
       BlockSize.int, blocksLen, parityLen, data, paritySeq, recovered
     )
     check decFut.isOk
 
-    # call encodeAsync and cancel the task
-    let encodeFut = erasure.encodeAsync(
+    # call asyncEncode and cancel the task
+    let encodeFut = erasure.asyncEncode(
       BlockSize.int, blocksLen, parityLen, data, cancelledTaskParity
     )
     encodeFut.cancel()
@@ -359,8 +359,8 @@ suite "Erasure encode/decode":
       for i in 0 ..< parityLen:
         check equalMem(parity[i], cancelledTaskParity[i], BlockSize.int)
 
-    # call decodeAsync and cancel the task
-    let decodeFut = erasure.decodeAsync(
+    # call asyncDecode and cancel the task
+    let decodeFut = erasure.asyncDecode(
       BlockSize.int, blocksLen, parityLen, data, paritySeq, cancelledTaskRecovered
     )
     decodeFut.cancel()
