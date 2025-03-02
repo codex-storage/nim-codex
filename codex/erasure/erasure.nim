@@ -345,18 +345,13 @@ proc asyncEncode*(
   self.taskPool.spawn leopardEncodeTask(self.taskPool, t)
   let threadFut = threadPtr.wait()
 
-  try:
-    await threadFut.join()
-  except CatchableError as exc:
-    try:
-      await threadFut
-    except AsyncError as asyncExc:
-      return failure(asyncExc.msg)
-    finally:
-      if exc of CancelledError:
-        raise (ref CancelledError) exc
-      else:
-        return failure(exc.msg)
+  if joinErr =? catch(await threadFut.join()).errorOption:
+    if err =? catch(await noCancel threadFut).errorOption:
+      return failure(err)
+    if joinErr of CancelledError:
+      raise (ref CancelledError) joinErr
+    else:
+      return failure(joinErr)
 
   if not t.success.load():
     return failure("Leopard encoding failed")
@@ -544,18 +539,13 @@ proc asyncDecode*(
   self.taskPool.spawn leopardDecodeTask(self.taskPool, t)
   let threadFut = threadPtr.wait()
 
-  try:
-    await threadFut.join()
-  except CatchableError as exc:
-    try:
-      await threadFut
-    except AsyncError as asyncExc:
-      return failure(asyncExc.msg)
-    finally:
-      if exc of CancelledError:
-        raise (ref CancelledError) exc
-      else:
-        return failure(exc.msg)
+  if joinErr =? catch(await threadFut.join()).errorOption:
+    if err =? catch(await noCancel threadFut).errorOption:
+      return failure(err)
+    if joinErr of CancelledError:
+      raise (ref CancelledError) joinErr
+    else:
+      return failure(joinErr)
 
   if not t.success.load():
     return failure("Leopard encoding failed")
