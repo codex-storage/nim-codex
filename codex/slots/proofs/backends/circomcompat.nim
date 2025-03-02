@@ -215,18 +215,13 @@ proc asyncProve*[H](
   task.circom.taskpool.spawn circomProveTask(taskPtr)
   let threadFut = threadPtr.wait()
 
-  try:
-    await threadFut.join()
-  except CatchableError as exc:
-    try:
-      await threadFut
-    except AsyncError as asyncExc:
-      return failure(asyncExc.msg)
-    finally:
-      if exc of CancelledError:
-        raise (ref CancelledError) exc
-      else:
-        return failure(exc.msg)
+  if joinErr =? catch(await threadFut.join()).errorOption:
+    if err=? catch(await noCancel threadFut).errorOption:
+      return failure(err)
+    if joinErr of CancelledError:
+      raise joinErr
+    else:
+      return failure(joinErr)
 
   if not task.success.load():
     return failure("Failed to prove circuit")
@@ -254,11 +249,11 @@ proc circomVerifyTask(task: ptr VerifyTask) {.gcsafe.} =
 
   let res = verify_circuit(task[].proof, task[].inputs, task[].vkp)
   if res == ERR_OK:
-    task[].success[].store(true)
+    task[].success[]=true
   elif res == ERR_FAILED_TO_VERIFY_PROOF:
-    task[].success[].store(false)
+    task[].success[]=false
   else:
-    task[].success[].store(false)
+    task[].success[]=false
     error "Failed to verify proof", errorCode = res
 
 proc asyncVerify*[H](
@@ -292,19 +287,15 @@ proc asyncVerify*[H](
   self.taskpool.spawn circomVerifyTask(taskPtr)
 
   let threadFut = threadPtr.wait()
+  
+  if joinErr =? catch(await threadFut.join()).errorOption:
+  if err=? catch(await noCancel threadFut).errorOption:
+    return failure(err)
+  if joinErr of CancelledError:
+    raise joinErr
+  else:
+    return failure(joinErr)
 
-  try:
-    await threadFut.join()
-  except CatchableError as exc:
-    try:
-      await threadFut
-    except AsyncError as asyncExc:
-      return failure(asyncExc.msg)
-    finally:
-      if exc of CancelledError:
-        raise (ref CancelledError) exc
-      else:
-        return failure(exc.msg)
   success()
 
 proc verify*[H](
@@ -318,7 +309,7 @@ proc verify*[H](
   try:
     if error =? (await self.asyncVerify(proof, inputs, res)).errorOption:
       return failure(error)
-    return success(res[].load())
+    return success(res[])
   except CancelledError as exc:
     raise exc
 

@@ -23,14 +23,14 @@ type
   CircomProof* = Proof
   CircomKey* = VerifyingKey
   CircomInputs* = Inputs
-  VerifyResult* = ptr Atomic[bool]
+  VerifyResult* = ptr bool
   ProofPtr* = ptr Proof
 
 proc new*(_: type ProofPtr): ProofPtr =
   cast[ptr Proof](allocShared0(sizeof(Proof)))
 
 proc new*(_: type VerifyResult): VerifyResult =
-  cast[ptr Atomic[bool]](allocShared0(sizeof(Atomic[bool])))
+  cast[ptr bool](allocShared0(sizeof(bool)))
 
 proc toCircomInputs*(inputs: ProofInputs[Poseidon2Hash]): CircomInputs =
   var

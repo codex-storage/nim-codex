@@ -166,4 +166,4 @@ suite "Test Prover":
       check exc of CancelledError
     finally:
       # validate the verifyResponse 
-      check verifyRes[].load() == true
+      check verifyRes[] == true
