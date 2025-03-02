@@ -216,7 +216,7 @@ proc asyncProve*[H](
   let threadFut = threadPtr.wait()
 
   if joinErr =? catch(await threadFut.join()).errorOption:
-    if err=? catch(await noCancel threadFut).errorOption:
+    if err =? catch(await noCancel threadFut).errorOption:
       return failure(err)
     if joinErr of CancelledError:
       raise joinErr
@@ -249,11 +249,11 @@ proc circomVerifyTask(task: ptr VerifyTask) {.gcsafe.} =
 
   let res = verify_circuit(task[].proof, task[].inputs, task[].vkp)
   if res == ERR_OK:
-    task[].success[]=true
+    task[].success[] = true
   elif res == ERR_FAILED_TO_VERIFY_PROOF:
-    task[].success[]=false
+    task[].success[] = false
   else:
-    task[].success[]=false
+    task[].success[] = false
     error "Failed to verify proof", errorCode = res
 
 proc asyncVerify*[H](
@@ -287,14 +287,14 @@ proc asyncVerify*[H](
   self.taskpool.spawn circomVerifyTask(taskPtr)
 
   let threadFut = threadPtr.wait()
-  
+
   if joinErr =? catch(await threadFut.join()).errorOption:
-  if err=? catch(await noCancel threadFut).errorOption:
-    return failure(err)
-  if joinErr of CancelledError:
-    raise joinErr
-  else:
-    return failure(joinErr)
+    if err =? catch(await noCancel threadFut).errorOption:
+      return failure(err)
+    if joinErr of CancelledError:
+      raise joinErr
+    else:
+      return failure(joinErr)
 
   success()
 

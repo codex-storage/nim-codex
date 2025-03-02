@@ -1,6 +1,5 @@
 import ../../asynctest
 
-import std/atomics
 import pkg/chronos
 import pkg/libp2p/cid
 
