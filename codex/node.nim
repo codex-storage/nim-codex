@@ -83,7 +83,8 @@ type
 
   OnManifest* = proc(cid: Cid, manifest: Manifest): void {.gcsafe, raises: [].}
   BatchProc* = proc(blocks: seq[bt.Block]): Future[?!void] {.gcsafe, raises: [].}
-  PieceProc* = proc(blocks: seq[bt.Block], pieceIndex: int): Future[?!void] {.gcsafe, raises: [].}
+  PieceProc* =
+    proc(blocks: seq[bt.Block], pieceIndex: int): Future[?!void] {.gcsafe, raises: [].}
 
 func switch*(self: CodexNodeRef): Switch =
   return self.switch
@@ -365,9 +366,8 @@ proc fetchPieces*(
     blockIter: Iter[int],
     pieceIter: Iter[int],
     numOfBlocksPerPiece: int,
-    onPiece: PieceProc
+    onPiece: PieceProc,
 ): Future[?!void] {.async, gcsafe.} =
-
   while not blockIter.finished:
     let blocks = collect:
       for i in 0 ..< numOfBlocksPerPiece:
@@ -378,7 +378,8 @@ proc fetchPieces*(
     if blocksErr =? (await allFutureResult(blocks)).errorOption:
       return failure(blocksErr)
 
-    if pieceErr =? (await onPiece(blocks.mapIt(it.read.get), pieceIter.next())).errorOption:
+    if pieceErr =?
+        (await onPiece(blocks.mapIt(it.read.get), pieceIter.next())).errorOption:
       return failure(pieceErr)
 
     await sleepAsync(1.millis)
@@ -389,15 +390,18 @@ proc fetchPieces*(
     self: CodexNodeRef,
     torrentManifest: BitTorrentManifest,
     codexManifest: Manifest,
-    onPiece: PieceProc
+    onPiece: PieceProc,
 ): Future[?!void] =
   trace "Fetching torrent pieces"
 
   let numOfPieces = torrentManifest.info.pieces.len
-  let numOfBlocksPerPiece = torrentManifest.info.pieceLength.int div codexManifest.blockSize.int
+  let numOfBlocksPerPiece =
+    torrentManifest.info.pieceLength.int div codexManifest.blockSize.int
   let blockIter = Iter[int].new(0 ..< codexManifest.blocksCount)
   let pieceIter = Iter[int].new(0 ..< numOfPieces)
-  self.fetchPieces(codexManifest.treeCid, blockIter, pieceIter, numOfBlocksPerPiece, onPiece)
+  self.fetchPieces(
+    codexManifest.treeCid, blockIter, pieceIter, numOfBlocksPerPiece, onPiece
+  )
 
 proc streamTorrent(
     self: CodexNodeRef, torrentManifest: BitTorrentManifest, codexManifest: Manifest
@@ -406,7 +410,9 @@ proc streamTorrent(
   let stream = LPStream(StoreStream.new(self.networkStore, codexManifest, pad = false))
   var jobs: seq[Future[void]]
 
-  proc onPieceReceived(blocks: seq[bt.Block], pieceIndex: int): Future[?!void] {.async.} =
+  proc onPieceReceived(
+      blocks: seq[bt.Block], pieceIndex: int
+  ): Future[?!void] {.async.} =
     trace "Fetched torrent piece - verifying..."
 
     var pieceHashCtx: sha1
@@ -414,7 +420,7 @@ proc streamTorrent(
 
     for blk in blocks:
       pieceHashCtx.update(blk.data)
-    
+
     let pieceHash = pieceHashCtx.finish()
 
     if (pieceHash != torrentManifest.info.pieces[pieceIndex]):
@@ -426,8 +432,9 @@ proc streamTorrent(
 
   proc prefetch(): Future[void] {.async.} =
     try:
-      if err =?
-          (await self.fetchPieces(torrentManifest, codexManifest, onPieceReceived)).errorOption:
+      if err =? (
+        await self.fetchPieces(torrentManifest, codexManifest, onPieceReceived)
+      ).errorOption:
         error "Unable to fetch blocks", err = err.msg
         await stream.close()
     except CancelledError:
@@ -621,7 +628,9 @@ proc storeBitTorrent*(
   info "Storing BitTorrent data"
 
   without codexManifestCid =?
-    await self.store(stream, filename = info.name, mimetype = mimetype, blockSize = NBytes 1024 * 16):
+    await self.store(
+      stream, filename = info.name, mimetype = mimetype, blockSize = NBytes 1024 * 16
+    ):
     return failure("Unable to store BitTorrent data")
 
   let bitTorrentManifest = newBitTorrentManifest(info, codexManifestCid)
