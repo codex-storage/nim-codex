@@ -47,6 +47,10 @@ import ./logutils
 import ./utils/asynciter
 import ./utils/trackedfutures
 
+# bittorrent
+from ./codextypes import InfoHashV1Codec
+import ./bittorrent/manifest
+
 export logutils
 
 logScope:
@@ -79,6 +83,8 @@ type
 
   OnManifest* = proc(cid: Cid, manifest: Manifest): void {.gcsafe, raises: [].}
   BatchProc* = proc(blocks: seq[bt.Block]): Future[?!void] {.gcsafe, raises: [].}
+  PieceProc* =
+    proc(blocks: seq[bt.Block], pieceIndex: int): Future[?!void] {.gcsafe, raises: [].}
 
 func switch*(self: CodexNodeRef): Switch =
   return self.switch
@@ -91,6 +97,26 @@ func engine*(self: CodexNodeRef): BlockExcEngine =
 
 func discovery*(self: CodexNodeRef): Discovery =
   return self.discovery
+
+proc storeBitTorrentManifest*(
+    self: CodexNodeRef, manifest: BitTorrentManifest, infoHash: BitTorrentInfoHash
+): Future[?!bt.Block] {.async.} =
+  let encodedManifest = manifest.encode()
+
+  without infoHashCid =? Cid.init(CIDv1, InfoHashV1Codec, infoHash).mapFailure, error:
+    trace "Unable to create CID for BitTorrent info hash"
+    return failure(error)
+
+  without blk =? bt.Block.new(data = encodedManifest, cid = infoHashCid, verify = false),
+    error:
+    trace "Unable to create block from manifest"
+    return failure(error)
+
+  if err =? (await self.networkStore.putBlock(blk)).errorOption:
+    trace "Unable to store BitTorrent manifest block", cid = blk.cid, err = err.msg
+    return failure(err)
+
+  success blk
 
 proc storeManifest*(
     self: CodexNodeRef, manifest: Manifest
@@ -130,7 +156,33 @@ proc fetchManifest*(self: CodexNodeRef, cid: Cid): Future[?!Manifest] {.async.} 
 
   trace "Decoded manifest", cid
 
-  return manifest.success
+  manifest.success
+
+proc fetchTorrentManifest*(
+    self: CodexNodeRef, cid: Cid
+): Future[?!BitTorrentManifest] {.async.} =
+  if err =? cid.isTorrentInfoHash.errorOption:
+    return failure "CID has invalid content type for torrent info hash {$cid}"
+
+  trace "Retrieving torrent manifest for cid", cid
+
+  without blk =? await self.networkStore.getBlock(BlockAddress.init(cid)), err:
+    trace "Error retrieve manifest block", cid, err = err.msg
+    return failure err
+
+  trace "Decoding torrent manifest for cid", cid
+
+  without torrentManifest =? BitTorrentManifest.decode(blk), err:
+    trace "Unable to decode torrent manifest", err = err.msg
+    return failure("Unable to decode torrent manifest")
+
+  trace "Decoded torrent manifest", cid
+
+  if err =? torrentManifest.validate(cid).errorOption:
+    trace "Torrent manifest does not match torrent info hash", cid
+    return failure "Torrent manifest does not match torrent info hash {$cid}"
+
+  return torrentManifest.success
 
 proc findPeer*(self: CodexNodeRef, peerId: PeerId): Future[?PeerRecord] {.async.} =
   ## Find peer using the discovery service from the given CodexNode
@@ -308,6 +360,124 @@ proc retrieve*(
 
   await self.streamEntireDataset(manifest, cid)
 
+proc fetchPieces*(
+    self: CodexNodeRef,
+    cid: Cid,
+    blockIter: Iter[int],
+    pieceIter: Iter[int],
+    numOfBlocksPerPiece: int,
+    onPiece: PieceProc,
+): Future[?!void] {.async, gcsafe.} =
+  while not blockIter.finished:
+    let blocks = collect:
+      for i in 0 ..< numOfBlocksPerPiece:
+        if not blockIter.finished:
+          let address = BlockAddress.init(cid, blockIter.next())
+          self.networkStore.getBlock(address)
+
+    if blocksErr =? (await allFutureResult(blocks)).errorOption:
+      return failure(blocksErr)
+
+    if pieceErr =?
+        (await onPiece(blocks.mapIt(it.read.get), pieceIter.next())).errorOption:
+      return failure(pieceErr)
+
+    await sleepAsync(1.millis)
+
+  success()
+
+proc fetchPieces*(
+    self: CodexNodeRef,
+    torrentManifest: BitTorrentManifest,
+    codexManifest: Manifest,
+    onPiece: PieceProc,
+): Future[?!void] =
+  trace "Fetching torrent pieces"
+
+  let numOfPieces = torrentManifest.info.pieces.len
+  let numOfBlocksPerPiece =
+    torrentManifest.info.pieceLength.int div codexManifest.blockSize.int
+  let blockIter = Iter[int].new(0 ..< codexManifest.blocksCount)
+  let pieceIter = Iter[int].new(0 ..< numOfPieces)
+  self.fetchPieces(
+    codexManifest.treeCid, blockIter, pieceIter, numOfBlocksPerPiece, onPiece
+  )
+
+proc streamTorrent(
+    self: CodexNodeRef, torrentManifest: BitTorrentManifest, codexManifest: Manifest
+): Future[?!LPStream] {.async.} =
+  trace "Retrieving pieces from torrent"
+  let stream = LPStream(StoreStream.new(self.networkStore, codexManifest, pad = false))
+  var jobs: seq[Future[void]]
+
+  proc onPieceReceived(
+      blocks: seq[bt.Block], pieceIndex: int
+  ): Future[?!void] {.async.} =
+    trace "Fetched torrent piece - verifying..."
+
+    var pieceHashCtx: sha1
+    pieceHashCtx.init()
+
+    for blk in blocks:
+      pieceHashCtx.update(blk.data)
+
+    let pieceHash = pieceHashCtx.finish()
+
+    if (pieceHash != torrentManifest.info.pieces[pieceIndex]):
+      error "Piece verification failed", pieceIndex = pieceIndex
+      return failure("Piece verification failed")
+
+    # great success
+    success()
+
+  proc prefetch(): Future[void] {.async.} =
+    try:
+      if err =? (
+        await self.fetchPieces(torrentManifest, codexManifest, onPieceReceived)
+      ).errorOption:
+        error "Unable to fetch blocks", err = err.msg
+        await stream.close()
+    except CancelledError:
+      trace "Prefetch job cancelled"
+    except CatchableError as exc:
+      error "Error fetching blocks", exc = exc.msg
+
+  jobs.add(prefetch())
+
+  # Monitor stream completion and cancel background jobs when done
+  proc monitorStream() {.async.} =
+    try:
+      await stream.join()
+    finally:
+      await allFutures(jobs.mapIt(it.cancelAndWait))
+
+  self.trackedFutures.track(monitorStream())
+
+  trace "Creating store stream for torrent manifest"
+  stream.success
+
+proc retrieveInfoHash*(
+    self: CodexNodeRef, infoHashString: string
+): Future[?!LPStream] {.async.} =
+  without infoHash =? MultiHash.init("sha1", infoHashString.hexToSeqByte).mapFailure,
+    err:
+    return failure(err)
+
+  without infoHashCid =? Cid.init(CIDv1, InfoHashV1Codec, infoHash).mapFailure, error:
+    trace "Unable to create CID for BitTorrent info hash"
+    return failure(error)
+
+  without torrentManifest =? (await self.fetchTorrentManifest(infoHashCid)), err:
+    trace "Unable to fetch Torrent Manifest"
+    return failure(err)
+
+  without codexManifest =? (await self.fetchManifest(torrentManifest.codexManifestCid)),
+    err:
+    trace "Unable to fetch Codex Manifest for torrent info hash"
+    return failure(err)
+
+  await self.streamTorrent(torrentManifest, codexManifest)
+
 proc deleteSingleBlock(self: CodexNodeRef, cid: Cid): Future[?!void] {.async.} =
   if err =? (await self.networkStore.delBlock(cid)).errorOption:
     error "Error deleting block", cid, err = err.msg
@@ -447,6 +617,34 @@ proc store*(
     mimetype = manifest.mimetype
 
   return manifestBlk.cid.success
+
+proc storeBitTorrent*(
+    self: CodexNodeRef,
+    stream: LPStream,
+    info: BitTorrentInfo,
+    infoHash: BitTorrentInfoHash,
+    mimetype: ?string = string.none,
+): Future[?!Cid] {.async.} =
+  info "Storing BitTorrent data"
+
+  without codexManifestCid =?
+    await self.store(
+      stream, filename = info.name, mimetype = mimetype, blockSize = NBytes 1024 * 16
+    ):
+    return failure("Unable to store BitTorrent data")
+
+  let bitTorrentManifest = newBitTorrentManifest(info, codexManifestCid)
+
+  without manifestBlk =? await self.storeBitTorrentManifest(
+    bitTorrentManifest, infoHash
+  ), err:
+    error "Unable to store manifest"
+    return failure(err)
+
+  info "Stored BitTorrent data",
+    manifestCid = manifestBlk.cid, codeManifestCid = codexManifestCid
+
+  success manifestBlk.cid
 
 proc iterateManifests*(self: CodexNodeRef, onManifest: OnManifest) {.async.} =
   without cids =? await self.networkStore.listBlocks(BlockType.Manifest):

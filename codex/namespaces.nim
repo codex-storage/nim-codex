@@ -15,6 +15,7 @@ const
     # number of blocks in the repo
   CodexBlocksNamespace* = CodexRepoNamespace & "/blocks" # blocks namespace
   CodexManifestNamespace* = CodexRepoNamespace & "/manifests" # manifest namespace
+  TorrentInfoHashNamespace* = CodexRepoNamespace & "/torrents" # info hashes namespace
   CodexBlocksTtlNamespace* = # Cid TTL
     CodexMetaNamespace & "/ttl"
   CodexBlockProofNamespace* = # Cid and Proof
