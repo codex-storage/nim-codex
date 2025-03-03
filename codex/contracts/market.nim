@@ -225,7 +225,7 @@ method getHost(
 
 method currentCollateral*(
     market: OnChainMarket, slotId: SlotId
-): Future[UInt256] {.async.} =
+): Future[UInt256] {.async: (raises: [MarketError, AsyncLockError, CancelledError]).} =
   convertEthersError:
     return await market.contract.currentCollateral(slotId)
 
