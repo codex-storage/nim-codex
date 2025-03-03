@@ -185,11 +185,11 @@ proc getSlots*(client: CodexClient): ?!seq[Slot] =
   let body = client.http.getContent(url)
   seq[Slot].fromJson(body)
 
-proc postAvailability*(
+proc postAvailabilityRaw*(
     client: CodexClient,
     totalSize, duration: uint64,
     minPricePerBytePerSecond, totalCollateral: UInt256,
-): ?!Availability =
+): Response =
   ## Post sales availability endpoint
   ##
   let url = client.baseurl & "/sales/availability"
@@ -200,7 +200,16 @@ proc postAvailability*(
       "minPricePerBytePerSecond": minPricePerBytePerSecond,
       "totalCollateral": totalCollateral,
     }
-  let response = client.http.post(url, $json)
+  return client.http.post(url, $json)
+
+proc postAvailability*(
+    client: CodexClient,
+    totalSize, duration: uint64,
+    minPricePerBytePerSecond, totalCollateral: UInt256,
+): ?!Availability =
+  let response = client.postAvailabilityRaw(
+    totalSize, duration, minPricePerBytePerSecond, totalCollateral
+  )
   doAssert response.status == "201 Created",
     "expected 201 Created, got " & response.status & ", body: " & response.body
   Availability.fromJson(response.body)
