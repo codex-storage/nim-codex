@@ -154,7 +154,7 @@ multinodesuite "Sales":
 
   test "creating availability above the node quota returns 422", salesConfig:
     let response = host.postAvailabilityRaw(
-      totalSize = 14000000000.uint64,
+      totalSize = 24000000000.uint64,
       duration = 200.uint64,
       minPricePerBytePerSecond = 3.u256,
       totalCollateral = 300.u256,
