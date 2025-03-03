@@ -3,6 +3,7 @@ import ../../utils/exceptions
 import ../salesagent
 import ../statemachine
 import ./errored
+from ../../contracts/marketplace import Marketplace_SlotIsFree
 
 logScope:
   topics = "marketplace sales cancelled"
@@ -27,7 +28,11 @@ method run*(
     debug "Collecting collateral and partial payout",
       requestId = data.requestId, slotIndex = data.slotIndex
     let currentCollateral = await market.currentCollateral(slot.id)
-    await market.freeSlot(slot.id)
+
+    try:
+      await market.freeSlot(slot.id)
+    except Marketplace_SlotIsFree as e:
+      info "The slot cannot be freed because it is already free."
 
     if onClear =? agent.context.onClear and request =? data.request:
       onClear(request, data.slotIndex)

@@ -240,7 +240,7 @@ method getHost*(
 
 method currentCollateral*(
     market: MockMarket, slotId: SlotId
-): Future[UInt256] {.async.} =
+): Future[UInt256] {.async: (raises: [MarketError, AsyncLockError, CancelledError]).} =
   for slot in market.filled:
     if slotId == slotId(slot.requestId, slot.slotIndex):
       return slot.collateral
@@ -321,6 +321,9 @@ method fillSlot*(
 method freeSlot*(
     market: MockMarket, slotId: SlotId
 ) {.async: (raises: [CancelledError, MarketError]).} =
+  if error =? market.slotThrowError:
+    raise error
+
   market.freed.add(slotId)
   for s in market.filled:
     if slotId(s.requestId, s.slotIndex) == slotId:
