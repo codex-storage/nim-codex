@@ -92,6 +92,7 @@ import std/sugar
 import std/typetraits
 
 import pkg/chronicles except toJson, `%`
+from pkg/chronos import TransportAddress
 from pkg/libp2p import Cid, MultiAddress, `$`
 import pkg/questionable
 import pkg/questionable/results
@@ -255,3 +256,5 @@ formatIt(LogFormat.textLines, array[32, byte]):
   it.short0xHexLog
 formatIt(LogFormat.json, array[32, byte]):
   it.to0xHex
+formatIt(TransportAddress):
+  $it
