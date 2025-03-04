@@ -347,21 +347,18 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
     await node.retrieveCid(cid.get(), local = false, resp = resp)
 
   router.api(MethodGet, "/api/codex/v1/data/{infoHash}/network/torrent") do(
-    infoHash: BitTorrentInfoHashV1, resp: HttpResponseRef
+    infoHash: MultiHash, resp: HttpResponseRef
   ) -> RestApiResponse:
     var headers = buildCorsHeaders("GET", allowedOrigin)
 
-    without infoHash =? infoHash.tryGet.catch, error:
-      return RestApiResponse.error(Http400, error.msg, headers = headers)
-
-    without infoMultiHash =? MultiHash.init($Sha1HashCodec, infoHash).mapFailure, error:
+    without infoHash =? infoHash.mapFailure, error:
       return RestApiResponse.error(Http400, error.msg, headers = headers)
 
     if corsOrigin =? allowedOrigin:
       resp.setCorsHeaders("GET", corsOrigin)
       resp.setHeader("Access-Control-Headers", "X-Requested-With")
 
-    trace "torrent requested: ", multihash = $infoMultiHash
+    trace "torrent requested: ", multihash = $infoHash
 
     return RestApiResponse.response(Http200)
 
