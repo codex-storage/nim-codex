@@ -334,7 +334,11 @@ template multinodesuite*(name: string, body: untyped) =
       try:
         tryBody
       except CancelledError as e:
-        raise e
+        await teardownImpl()
+        when declared(teardownAllIMPL):
+          teardownAllIMPL()
+        fail()
+        quit(1)
       except CatchableError as er:
         fatal message, error = er.msg
         echo "[FATAL] ", message, ": ", er.msg
@@ -372,10 +376,7 @@ template multinodesuite*(name: string, body: untyped) =
         try:
           let node = await noCancel startHardhatNode(conf)
           running.add RunningNode(role: Role.Hardhat, node: node)
-        except CancelledError as e:
-          # should not happen because of noCancel, but added for clarity
-          raise e
-        except CatchableError as e:
+        except CatchableError as e: # CancelledError not raised due to noCancel
           echo "failed to start hardhat node"
           fail()
           quit(1)

@@ -55,32 +55,33 @@ proc run(): Future[bool] {.async: (raises: []).} =
     error "Failed to run test manager", error = e.msg
     return false
   except CancelledError:
-    return
+    return false
   finally:
-    trace "stopping test manager"
-    await noCancel manager.stop()
-    trace "test manager stopped"
+    trace "Stopping test manager"
+    await manager.stop()
+    trace "Test manager stopped"
 
   without wasSuccessful =? manager.allTestsPassed, error:
     raiseAssert "Failed to get test status: " & error.msg
 
   return wasSuccessful
 
-when EnableParallelTests:
-  let wasSuccessful = waitFor run()
-  trace "[testIntegration] wasSuccessful", wasSuccessful
-  trace "[testIntegration] AFTER run"
-  if not wasSuccessful:
-    quit(QuitFailure) # indicate with a non-zero exit code that the tests failed
-else:
-  # run tests serially
-  import ./integration/testcli
-  import ./integration/testrestapi
-  import ./integration/testupdownload
-  import ./integration/testsales
-  import ./integration/testpurchasing
-  import ./integration/testblockexpiration
-  import ./integration/testmarketplace
-  import ./integration/testproofs
-  import ./integration/testvalidator
-  import ./integration/testecbug
+when isMainModule:
+  when EnableParallelTests:
+    let wasSuccessful = waitFor run()
+    if wasSuccessful:
+      quit(QuitSuccess)
+    else:
+      quit(QuitFailure) # indicate with a non-zero exit code that the tests failed
+  else:
+    # run tests serially
+    import ./integration/testcli
+    import ./integration/testrestapi
+    import ./integration/testupdownload
+    import ./integration/testsales
+    import ./integration/testpurchasing
+    import ./integration/testblockexpiration
+    import ./integration/testmarketplace
+    import ./integration/testproofs
+    import ./integration/testvalidator
+    import ./integration/testecbug
