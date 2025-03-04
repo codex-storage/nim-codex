@@ -1,3 +1,4 @@
+import ./codex/testbittorrent
 import ./codex/teststores
 import ./codex/testblockexchange
 import ./codex/testasyncheapqueue
