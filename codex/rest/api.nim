@@ -39,6 +39,7 @@ import ../manifest
 import ../streams/asyncstreamwrapper
 import ../stores
 import ../utils/options
+import ../bittorrent/manifest
 
 import ./coders
 import ./json
@@ -179,7 +180,7 @@ proc getFilenameFromContentDisposition(contentDisposition: string): ?string =
   return filename[0 ..^ 2].some
 
 proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRouter) =
-  let allowedOrigin = router.allowedOrigin # prevents capture inside of api defintion
+  let allowedOrigin = router.allowedOrigin # prevents capture inside of api definition
 
   router.api(MethodOptions, "/api/codex/v1/data") do(
     resp: HttpResponseRef
@@ -344,6 +345,25 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
 
     resp.setHeader("Access-Control-Expose-Headers", "Content-Disposition")
     await node.retrieveCid(cid.get(), local = false, resp = resp)
+
+  router.api(MethodGet, "/api/codex/v1/data/{infoHash}/network/torrent") do(
+    infoHash: BitTorrentInfoHashV1, resp: HttpResponseRef
+  ) -> RestApiResponse:
+    var headers = buildCorsHeaders("GET", allowedOrigin)
+
+    without infoHash =? infoHash.tryGet.catch, error:
+      return RestApiResponse.error(Http400, error.msg, headers = headers)
+
+    without infoMultiHash =? MultiHash.init($Sha1HashCodec, infoHash).mapFailure, error:
+      return RestApiResponse.error(Http400, error.msg, headers = headers)
+
+    if corsOrigin =? allowedOrigin:
+      resp.setCorsHeaders("GET", corsOrigin)
+      resp.setHeader("Access-Control-Headers", "X-Requested-With")
+
+    trace "torrent requested: ", multihash = $infoMultiHash
+
+    return RestApiResponse.response(Http200)
 
   router.api(MethodGet, "/api/codex/v1/data/{cid}/network/manifest") do(
     cid: Cid, resp: HttpResponseRef
