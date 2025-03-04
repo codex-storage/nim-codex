@@ -2,6 +2,10 @@ import pkg/libp2p
 import pkg/questionable
 import pkg/questionable/results
 
+import ../../errors
+import ../../codextypes
+import ../bencoding
+
 type
   BitTorrentPiece* = MultiHash
   BitTorrentInfo* = ref object
@@ -21,6 +25,19 @@ proc newBitTorrentManifest*(
 ): BitTorrentManifest =
   BitTorrentManifest(info: info, codexManifestCid: codexManifestCid)
 
+func bencode*(info: BitTorrentInfo): seq[byte] =
+  # flatten pieces
+  var pieces: seq[byte]
+  for mh in info.pieces:
+    pieces.add(mh.data.buffer.toOpenArray(mh.dpos, mh.dpos + mh.size - 1))
+  result = @['d'.byte]
+  result.add(bencode("length") & bencode(info.length))
+  if name =? info.name:
+    result.add(bencode("name") & bencode(name))
+  result.add(bencode("piece length") & bencode(info.pieceLength))
+  result.add(bencode("pieces") & bencode(pieces))
+  result.add('e'.byte)
+
 func validate*(self: BitTorrentManifest, cid: Cid): ?!bool =
   # First stage of validation:
   # (1) bencode the info dictionary from the torrent manifest
@@ -32,4 +49,9 @@ func validate*(self: BitTorrentManifest, cid: Cid): ?!bool =
   # points to genuine content. This validation will be done while fetching blocks
   # where we will be able to detect that the aggregated pieces do not match
   # the hashes in the info dictionary from the torrent manifest.
-  return success true
+  let infoBencoded = bencode(self.info)
+  without infoHash =? MultiHash.digest($Sha1HashCodec, infoBencoded).mapFailure, err:
+    return failure(err.msg)
+  without cidInfoHash =? cid.mhash.mapFailure, err:
+    return failure(err.msg)
+  return success(infoHash == cidInfoHash)
