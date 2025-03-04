@@ -21,6 +21,8 @@ import ../sales
 import ../purchasing
 import ../utils/stintutils
 
+from ../bittorrent/manifest import BitTorrentInfoHashV1
+
 proc encodeString*(cid: type Cid): Result[string, cstring] =
   ok($cid)
 
@@ -81,6 +83,19 @@ proc decodeString*(
     ok array[32, byte].fromHex(value)
   except ValueError as e:
     err e.msg.cstring
+
+proc decodeString*(
+    _: type array[20, byte], value: string
+): Result[array[20, byte], cstring] =
+  try:
+    ok array[20, byte].fromHex(value)
+  except ValueError as e:
+    err e.msg.cstring
+
+proc decodeString*[T: BitTorrentInfoHashV1](
+    _: type T, value: string
+): Result[T, cstring] =
+  array[20, byte].decodeString(value).map(id => T(id))
 
 proc decodeString*[T: PurchaseId | RequestId | Nonce | SlotId | AvailabilityId](
     _: type T, value: string
