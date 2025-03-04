@@ -40,7 +40,6 @@ jobs:
         with:
           matrix: |
             os {linux},   cpu {amd64}, builder {${{ env.builder_integration_linux }}},   tests {integration}, nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
-            os {macos},   cpu {amd64}, builder {${{ env.builder_integration_macos }}},   tests {integration}, nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
 
   build:
     needs: matrix
