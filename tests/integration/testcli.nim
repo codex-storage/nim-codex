@@ -40,7 +40,8 @@ asyncchecksuite "Command line interface":
             currentTestName,
             "Client",
             some nodeCount mod testCount,
-          )
+          ),
+        "--log-level=" & $LogLevel.TRACE,
       ]
     else:
       return args
