@@ -105,6 +105,13 @@ runs:
         key: ${{ matrix.os }}-${{ matrix.builder }}-${{ matrix.cpu }}-${{ matrix.tests }}-${{ matrix.nim_version }}
         evict-old-files: 7d
 
+    - name: Check ccache on Linux/Mac
+      if: inputs.os == 'linux' || inputs.os == 'macos'
+      shell: ${{ inputs.shell }} {0}
+      run: |
+        which gcc
+        ls -la /usr/local/bin
+
     - name: Install ccache on Windows
       if: inputs.os == 'windows'
       uses: hendrikmuhs/ccache-action@v1.2
