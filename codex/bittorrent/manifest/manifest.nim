@@ -15,7 +15,6 @@ type
     name*: ?string
 
   BitTorrentInfoHash* = MultiHash
-  BitTorrentInfoHashV1* = distinct array[20, byte]
 
   BitTorrentManifest* = ref object
     info*: BitTorrentInfo
@@ -25,11 +24,6 @@ proc newBitTorrentManifest*(
     info: BitTorrentInfo, codexManifestCid: Cid
 ): BitTorrentManifest =
   BitTorrentManifest(info: info, codexManifestCid: codexManifestCid)
-
-# needed to be able to create a MultiHash from BitTorrentInfoHashV1
-proc init*(
-  mhtype: typedesc[MultiHash], hashname: string, bdigest: BitTorrentInfoHashV1
-): MhResult[MultiHash] {.borrow.}
 
 func bencode*(info: BitTorrentInfo): seq[byte] =
   # flatten pieces
