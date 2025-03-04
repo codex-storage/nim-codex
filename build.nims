@@ -50,7 +50,7 @@ task testContracts, "Build & run Codex Contract tests":
 task testIntegration, "Run integration tests":
   buildBinary "codex",
     params =
-      "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE -d:codex_enable_proof_failures=true"
+      "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE -d:chronicles_disabled_topics=JSONRPC-HTTP-CLIENT,websock,libp2p,discv5 -d:codex_enable_proof_failures=true"
   var testParams = ""
   for i in 2 ..< paramCount():
     if "DebugTestHarness" in paramStr(i) and truthy paramStr(i).split('=')[1]:
@@ -59,7 +59,7 @@ task testIntegration, "Run integration tests":
   test "testIntegration", params = testParams
   # use params to enable logging from the integration test executable
   # test "testIntegration", params = "-d:chronicles_sinks=textlines[notimestamps,stdout],textlines[dynamic] " &
-  #   "-d:chronicles_enabled_topics:integration:TRACE"  
+  #   "-d:chronicles_enabled_topics:integration:TRACE"
 
 task build, "build codex binary":
   codexTask()

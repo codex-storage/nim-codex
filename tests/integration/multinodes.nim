@@ -187,6 +187,8 @@ template multinodesuite*(name: string, body: untyped) =
 
         if DebugCodexNodes:
           config.debugEnabled = true
+          config.addCliOption("--log-level", $LogLevel.TRACE)
+
         var apiPort, discPort: int
         withLock(codexPortLock):
           apiPort = await nextFreePort(lastUsedCodexApiPort + nodeIdx)
