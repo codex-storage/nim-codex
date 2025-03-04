@@ -274,14 +274,14 @@ proc printResult(
       test.printOutputMarker(MarkerPosition.Finish, "test harness errors")
   of IntegrationTestStatus.Failed:
     if output =? test.output:
-      if printStdErr: #manager.debugTestHarness
+      if printStdErr:
         test.printOutputMarker(MarkerPosition.Start, "test file errors (stderr)")
         echo output.stdErr
         test.printOutputMarker(MarkerPosition.Finish, "test file errors (stderr)")
-      # if printStdOut:
-      test.printOutputMarker(MarkerPosition.Start, "codex node output (stdout)")
-      echo output.stdOut.colorise
-      test.printOutputMarker(MarkerPosition.Finish, "codex node output (stdout)")
+      if printStdOut:
+        test.printOutputMarker(MarkerPosition.Start, "codex node output (stdout)")
+        echo output.stdOut.colorise
+        test.printOutputMarker(MarkerPosition.Finish, "codex node output (stdout)")
     test.printResult(fgRed)
   of IntegrationTestStatus.Timeout:
     if printStdOut and output =? test.output:
@@ -386,27 +386,65 @@ proc setup(
 
   return hardhat
 
-proc teardown(
-    test: IntegrationTest, hardhat: ?Hardhat
-) {.async: (raises: [CancelledError]).} =
-  if test.config.startHardhat and hardhat =? hardhat and not hardhat.process.isNil:
+proc teardownHardhat(test: IntegrationTest, hardhat: Hardhat) {.async: (raises: []).} =
+  try:
+    trace "Stopping hardhat", name = test.config.name
+    await noCancel hardhat.process.stop()
+    trace "Hardhat stopped", name = test.config.name
+  except CatchableError as e: # CancelledError not raised due to noCancel
+    warn "Failed to stop hardhat node, continuing",
+      error = e.msg, test = test.config.name
+
+  if test.manager.debugHardhat:
+    test.printOutputMarker(MarkerPosition.Start, "Hardhat stdout")
+    for line in hardhat.output:
+      echo line
+    test.printOutputMarker(MarkerPosition.Finish, "Hardhat stdout")
+
+  test.manager.hardhats.keepItIf(it != hardhat)
+
+proc teardownTest(
+    test: IntegrationTest,
+    stdOutStream, stdErrStream:
+      Future[seq[byte]].Raising([CancelledError, AsyncStreamError]),
+) {.async: (raises: []).} =
+  test.timeEnd = some Moment.now()
+  if test.status == IntegrationTestStatus.Ok:
+    info "Test completed", name = test.config.name, duration = test.duration
+
+  if not test.process.isNil:
+    var output = test.output.expect("should have output value")
+    if test.process.running |? false:
+      try:
+        output.exitCode =
+          some (await noCancel test.process.terminateAndWaitForExit(500.millis))
+        trace "Test process terminated", exitCode = output.exitCode
+      except AsyncProcessError, AsyncProcessTimeoutError:
+        warn "Test process failed to terminate, check for zombies"
+
     try:
-      trace "Stopping hardhat", name = test.config.name
-      await hardhat.process.stop()
-      trace "Hardhat stopped", name = test.config.name
-    except CancelledError as e:
-      raise e
-    except CatchableError as e:
-      warn "Failed to stop hardhat node, continuing",
-        error = e.msg, test = test.config.name
+      output.stdOut = string.fromBytes(await noCancel stdOutStream)
+      output.stdErr = string.fromBytes(await noCancel stdErrStream)
+      test.output = success output
+    except AsyncStreamError as e:
+      test.timeEnd = some Moment.now()
+      error "Failed to read test process output stream", error = e.msg
+      test.output = TestOutput.failure(e)
+      test.status = IntegrationTestStatus.Error
 
-    if test.manager.debugHardhat:
-      test.printOutputMarker(MarkerPosition.Start, "Hardhat stdout")
-      for line in hardhat.output:
-        echo line
-      test.printOutputMarker(MarkerPosition.Finish, "Hardhat stdout")
+    await test.process.closeWait()
+    trace "Test process output streams closed"
 
-    test.manager.hardhats.keepItIf(it != hardhat)
+proc teardown(
+    test: IntegrationTest,
+    hardhat: ?Hardhat,
+    stdOutStream, stdErrStream:
+      Future[seq[byte]].Raising([CancelledError, AsyncStreamError]),
+) {.async: (raises: []).} =
+  if test.config.startHardhat and hardhat =? hardhat and not hardhat.process.isNil:
+    await test.teardownHardhat(hardhat)
+
+  await test.teardownTest(stdOutStream, stdErrStream)
 
 proc untilTimeout(
     fut: InternalRaisesFuture, timeout: Duration
@@ -417,8 +455,9 @@ proc untilTimeout(
 
   let timer = sleepAsync(timeout)
   defer:
-    # called even when exception raised
-    # race does not cancel its futures when it's cancelled
+    # Called even when exception raised, including CancelledError. `race` does
+    # not cancel its futures when it's cancelled, so cancel here, which is ok
+    # even if they're already completed.
     await fut.cancelAndWait()
     await timer.cancelAndWait()
 
@@ -446,10 +485,12 @@ proc start(test: IntegrationTest) {.async: (raises: []).} =
     try:
       createDir(test.logsDir)
     except CatchableError as e:
+      test.timeStart = some Moment.now()
       test.timeEnd = some Moment.now()
       test.status = IntegrationTestStatus.Error
       test.output = TestOutput.failure(e)
       error "failed to create test log dir", logDir = test.logsDir, error = e.msg
+      return
 
   test.timeStart = some Moment.now()
   test.status = IntegrationTestStatus.Running
@@ -484,31 +525,18 @@ proc start(test: IntegrationTest) {.async: (raises: []).} =
       test.status = IntegrationTestStatus.Error
       return
 
-    defer:
-      trace "Tearing down test"
-      await noCancel test.teardown(hardhat)
-      test.timeEnd = some Moment.now()
-      if test.status == IntegrationTestStatus.Ok:
-        info "Test completed", name = test.config.name, duration = test.duration
-
-      if not test.process.isNil:
-        if test.process.running |? false:
-          var output = test.output.expect("should have output value")
-          trace "Terminating test process"
-          try:
-            output.exitCode =
-              some (await noCancel test.process.terminateAndWaitForExit(500.millis))
-            test.output = success output
-          except AsyncProcessError, AsyncProcessTimeoutError:
-            warn "Test process failed to terminate, check for zombies"
-
-        await test.process.closeWait()
-
+    var output = TestOutput.new()
+    test.output = success(output)
     let outputReader = test.process.stdoutStream.read()
     let errorReader = test.process.stderrStream.read()
 
-    var output = TestOutput.new()
-    test.output = success(output)
+    defer:
+      # called at the end of successful runs but also when `start` is cancelled
+      # (from `untilTimeout`) due to a timeout. This defer runs first before
+      # `untilTimeout` exceptions are handled in `run`
+      await test.teardown(hardhat, outputReader, errorReader)
+        # doesn't raise CancelledError, so noCancel not needed
+
     output.exitCode =
       try:
         some (await test.process.waitForExit(test.manager.testTimeout))
@@ -531,34 +559,6 @@ proc start(test: IntegrationTest) {.async: (raises: []).} =
       else:
         IntegrationTestStatus.Failed
 
-    try:
-      output.stdOut = string.fromBytes(await outputReader)
-      output.stdErr = string.fromBytes(await errorReader)
-    except AsyncStreamError as e:
-      test.timeEnd = some Moment.now()
-      error "Failed to read test process output stream", error = e.msg
-      test.output = TestOutput.failure(e)
-      test.status = IntegrationTestStatus.Error
-      return
-
-    # let processRunning = test.process.waitForExit(test.manager.testTimeout)
-    # trace "Running test until timeout", timeout = test.manager.testTimeout
-    # let completedBeforeTimeout =
-    #   await processRunning.withTimeout(test.manager.testTimeout)
-
-    # if completedBeforeTimeout:
-
-    # else: # timed out
-    #   test.timeEnd = some Moment.now()
-    #   test.status = IntegrationTestStatus.Timeout
-    #   error "Test timed out, terminating process"
-    # process will be terminated in defer
-
-    # try:
-    #   output.exitCode = some(await test.process.terminateAndWaitForExit(100.millis))
-    # except AsyncProcessError, AsyncProcessTimeoutError:
-    #   warn "Test process failed to terminate, check for zombies"
-
 proc continuallyShowUpdates(manager: TestManager) {.async: (raises: []).} =
   ignoreCancelled:
     while true:
@@ -570,7 +570,7 @@ proc continuallyShowUpdates(manager: TestManager) {.async: (raises: []).} =
           bgWhite, fgBlack, &"Integration tests status after {manager.duration}"
 
       for test in manager.tests:
-        test.printResult(false, false)
+        test.printSummary()
 
       if manager.tests.len > 0:
         echo ""
@@ -585,13 +585,16 @@ proc run(test: IntegrationTest) {.async: (raises: []).} =
     try:
       await futStart.untilTimeout(test.manager.testTimeout)
     except AsyncTimeoutError:
-      # if output =? test.output and output.exitCode.isNone: # timeout
       error "Test timed out"
       test.timeEnd = some Moment.now()
       test.status = IntegrationTestStatus.Timeout
-      # await futStart.cancelAndWait()
+      # futStart will be cancelled by untilTimeout and that will run the
+      # teardown procedure (in defer)
 
-    test.printResult()
+    test.printResult(
+      printStdOut = test.status != IntegrationTestStatus.Ok,
+      printStdErr = test.status == IntegrationTestStatus.Error,
+    )
 
 proc runTests(manager: TestManager) {.async: (raises: [CancelledError]).} =
   var testFutures: seq[Future[void]]
@@ -647,7 +650,7 @@ proc printResult(manager: TestManager) {.raises: [TestManagerError].} =
     # because debug output can really make things hard to read, show a nice
     # summary of test results
     if showSummary:
-      test.printResult(false, false)
+      test.printSummary()
 
   # estimated time saved as serial execution with a single hardhat instance
   # incurs less overhead
@@ -723,29 +726,26 @@ proc start*(
 
   manager.printResult()
 
-proc stop*(manager: TestManager) {.async: (raises: [CancelledError]).} =
-  trace "[stop] START canelling tracked"
+proc stop*(manager: TestManager) {.async: (raises: []).} =
   await manager.trackedFutures.cancelTracked()
-  trace "[stop] DONE cancelling tracked"
 
-  trace "[stop] stopping running processes"
   for test in manager.tests:
-    if not test.process.isNil and test.process.running |? false:
+    if not test.process.isNil:
       try:
-        trace "[stop] terminating process", name = test.config.name
-        discard await test.process.terminateAndWaitForExit(100.millis)
+        if test.process.running |? false:
+          discard await noCancel test.process.terminateAndWaitForExit(100.millis)
+          trace "Terminated running test process", name = test.config.name
       except AsyncProcessError, AsyncProcessTimeoutError:
         warn "Test process failed to terminate, ignoring...", name = test.config.name
       finally:
-        await test.process.closeWait()
+        trace "Closing test process' streams", name = test.config.name
+        await noCancel test.process.closeWait()
 
-  trace "[stop] stopping hardhats"
   for hardhat in manager.hardhats:
     try:
-      trace "[stop] stopping hardhat"
       if not hardhat.process.isNil:
         await noCancel hardhat.process.stop()
+        trace "Terminated running hardhat process"
     except CatchableError as e:
       trace "failed to stop hardhat node", error = e.msg
 
-  trace "[stop] done stopping hardhats"
