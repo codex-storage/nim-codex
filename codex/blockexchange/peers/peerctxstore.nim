@@ -73,14 +73,20 @@ func peersWant*(self: PeerCtxStore, address: BlockAddress): seq[BlockExcPeerCtx]
 func peersWant*(self: PeerCtxStore, cid: Cid): seq[BlockExcPeerCtx] =
   toSeq(self.peers.values).filterIt(it.peerWants.anyIt(it.address.cidOrTreeCid == cid))
 
-proc getPeersForBlock*(self: PeerCtxStore, address: BlockAddress): PeersForBlock =
+proc getPeersForBlocks*(
+    self: PeerCtxStore, addressess: openArray[BlockAddress]
+): PeersForBlock =
   var res: PeersForBlock = (@[], @[])
+  let addressess = @addressess
   for peer in self:
-    if peer.peerHave.anyIt(it == address):
+    if peer.peerHave.anyIt(it in addressess):
       res.with.add(peer)
     else:
       res.without.add(peer)
   res
+
+proc getPeersForBlock*(self: PeerCtxStore, address: BlockAddress): PeersForBlock =
+  self.getPeersForBlocks(@[address])
 
 proc new*(T: type PeerCtxStore): PeerCtxStore =
   ## create new instance of a peer context store
