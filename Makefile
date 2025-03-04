@@ -114,7 +114,7 @@ else
 NIM_PARAMS := $(NIM_PARAMS) -d:release
 endif
 
-deps: | deps-common nat-libs
+deps: | deps-common nat-libs build-nph
 ifneq ($(USE_LIBBACKTRACE), 0)
 deps: | libbacktrace
 endif

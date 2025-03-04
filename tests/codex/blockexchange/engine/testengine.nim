@@ -171,7 +171,7 @@ asyncchecksuite "NetworkStore engine handlers":
       # only `wantBlock` are stored in `peerWants`
 
     proc handler() {.async.} =
-      let ctx = await engine.taskQueue.pop()
+      let ctx = await engine.uploadQueue.pop()
       check ctx.id == peerId
       # only `wantBlock` scheduled
       check ctx.peerWants.mapIt(it.address.cidOrTreeCid) == blocks.mapIt(it.cid)
@@ -614,7 +614,7 @@ asyncchecksuite "Task Handler":
       )
     )
 
-    await engine.taskHandler(peersCtx[0])
+    await engine.uploadTaskHandler(peersCtx[0])
 
   test "Should set in-flight for outgoing blocks":
     proc sendBlocksDelivery(
@@ -636,7 +636,7 @@ asyncchecksuite "Task Handler":
         inFlight: false,
       )
     )
-    await engine.taskHandler(peersCtx[0])
+    await engine.uploadTaskHandler(peersCtx[0])
 
   test "Should clear in-flight when local lookup fails":
     peersCtx[0].peerWants.add(
@@ -649,7 +649,7 @@ asyncchecksuite "Task Handler":
         inFlight: false,
       )
     )
-    await engine.taskHandler(peersCtx[0])
+    await engine.uploadTaskHandler(peersCtx[0])
 
     check not peersCtx[0].peerWants[0].inFlight
 
@@ -705,4 +705,4 @@ asyncchecksuite "Task Handler":
       )
     )
 
-    await engine.taskHandler(peersCtx[0])
+    await engine.uploadTaskHandler(peersCtx[0])

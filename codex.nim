@@ -142,7 +142,7 @@ when isMainModule:
       chronos.poll()
     except Exception as exc:
       error "Unhandled exception in async proc, aborting", msg = exc.msg
-      quit QuitFailure
+      raise exc
 
   try:
     # signal handlers guarantee that the shutdown Future will

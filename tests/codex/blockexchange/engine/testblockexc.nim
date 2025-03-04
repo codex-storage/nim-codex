@@ -107,7 +107,7 @@ asyncchecksuite "NetworkStore engine - 2 nodes":
     )
 
     peerCtx1.peerWants.add(entry)
-    check nodeCmps2.engine.taskQueue.pushOrUpdateNoWait(peerCtx1).isOk
+    check nodeCmps2.engine.uploadQueue.pushOrUpdateNoWait(peerCtx1).isOk
 
     check eventually (await nodeCmps1.localStore.hasBlock(blk.cid)).tryGet()
     check eventually (await blkFut) == blk

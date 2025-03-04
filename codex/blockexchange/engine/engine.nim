@@ -67,19 +67,32 @@ declareCounter(
 const
   DefaultMaxPeersPerRequest* = 10
   DefaultTaskQueueSize = 100
-  DefaultConcurrentTasks = 10
+  DefaultConcurrentTasks = 5
+  DefaultMaxSendBatch = 5
+  DefaultBatchSendInterval = 10.millis
 
 type
   TaskHandler* = proc(task: BlockExcPeerCtx): Future[void] {.gcsafe.}
   TaskScheduler* = proc(task: BlockExcPeerCtx): bool {.gcsafe.}
 
+  Pricing* = object
+    address*: EthAddress
+    price*: UInt256
+
+  BlockCtx = object
+    address: BlockAddress
+    wantType: WantType
+    priority: int
+
   BlockExcEngine* = ref object of RootObj
     localStore*: BlockStore # Local block store for this instance
     network*: BlockExcNetwork # Petwork interface
     peers*: PeerCtxStore # Peers we're currently actively exchanging with
-    taskQueue*: AsyncHeapQueue[BlockExcPeerCtx]
+    uploadQueue*: AsyncHeapQueue[BlockExcPeerCtx]
+    downloadQueue*: AsyncHeapQueue[BlockAddress]
       # Peers we're currently processing tasks for
-    concurrentTasks: int # Number of concurrent peers we're serving at any given time
+    uploadWorkers: int = DefaultConcurrentTasks # Number of uploads
+    downloadWorkers: int = DefaultConcurrentTasks # Number of concurrent downloads
     trackedFutures: TrackedFutures # Tracks futures of blockexc tasks
     blockexcRunning: bool # Indicates if the blockexc task is running
     pendingBlocks*: PendingBlocksManager # Blocks we're awaiting to be resolved
@@ -87,19 +100,26 @@ type
     pricing*: ?Pricing # Optional bandwidth pricing
     discovery*: DiscoveryEngine
     advertiser*: Advertiser
-
-  Pricing* = object
-    address*: EthAddress
-    price*: UInt256
+    maxSendBatch*: int = DefaultMaxSendBatch
+    batchSendInterval*: Duration = DefaultBatchSendInterval
 
 # attach task scheduler to engine
-proc scheduleTask(self: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, raises: [].} =
-  if self.taskQueue.pushOrUpdateNoWait(task).isOk():
-    trace "Task scheduled for peer", peer = task.id
+proc scheduleUploadTask(
+    self: BlockExcEngine, task: BlockExcPeerCtx
+) {.gcsafe, raises: [].} =
+  if self.uploadQueue.pushOrUpdateNoWait(task).isOk():
+    trace "Upload task scheduled for peer", peer = task.id
   else:
-    warn "Unable to schedule task for peer", peer = task.id
+    warn "Unable to schedule upload task for peer", peer = task.id
 
-proc blockexcTaskRunner(self: BlockExcEngine) {.async: (raises: []).}
+proc scheduleDownloadTask(
+    self: BlockExcEngine, blk: BlockAddress
+) {.gcsafe, async: (raw: true).} =
+  trace "Scheduling download task for block", blk
+  self.downloadQueue.pushOrUpdate(blk)
+
+proc blockexcUploadTaskRunner(self: BlockExcEngine) {.async: (raises: []).}
+proc blockexcDownloadTaskRunner(self: BlockExcEngine) {.async: (raises: []).}
 
 proc start*(self: BlockExcEngine) {.async: (raises: []).} =
   ## Start the blockexc task
@@ -108,14 +128,19 @@ proc start*(self: BlockExcEngine) {.async: (raises: []).} =
   await self.discovery.start()
   await self.advertiser.start()
 
-  trace "Blockexc starting with concurrent tasks", tasks = self.concurrentTasks
+  trace "Blockexc starting with concurrent tasks",
+    uploadWorkers = self.uploadWorkers, downloadWorkers = self.downloadWorkers
   if self.blockexcRunning:
     warn "Starting blockexc twice"
     return
 
   self.blockexcRunning = true
-  for i in 0 ..< self.concurrentTasks:
-    let fut = self.blockexcTaskRunner()
+  for i in 0 ..< self.uploadWorkers:
+    let fut = self.blockexcUploadTaskRunner()
+    self.trackedFutures.track(fut)
+
+  for i in 0 ..< self.downloadWorkers:
+    let fut = self.blockexcDownloadTaskRunner()
     self.trackedFutures.track(fut)
 
 proc stop*(self: BlockExcEngine) {.async: (raises: []).} =
@@ -157,66 +182,13 @@ proc sendWantBlock(
 proc randomPeer(peers: seq[BlockExcPeerCtx]): BlockExcPeerCtx =
   Rng.instance.sample(peers)
 
-proc downloadInternal(
-    self: BlockExcEngine, address: BlockAddress
-) {.async: (raises: []).} =
-  logScope:
-    address = address
-
-  let handle = self.pendingBlocks.getWantHandle(address)
-  trace "Downloading block"
-  try:
-    while address in self.pendingBlocks:
-      logScope:
-        retries = self.pendingBlocks.retries(address)
-        interval = self.pendingBlocks.retryInterval
-
-      if self.pendingBlocks.retriesExhausted(address):
-        trace "Error retries exhausted"
-        handle.fail(newException(RetriesExhaustedError, "Error retries exhausted"))
-        break
-
-      trace "Running retry handle"
-      let peers = self.peers.getPeersForBlock(address)
-      logScope:
-        peersWith = peers.with.len
-        peersWithout = peers.without.len
-
-      trace "Peers for block"
-      if peers.with.len > 0:
-        self.pendingBlocks.setInFlight(address, true)
-        await self.sendWantBlock(@[address], peers.with.randomPeer)
-      else:
-        self.pendingBlocks.setInFlight(address, false)
-        if peers.without.len > 0:
-          await self.sendWantHave(@[address], peers.without)
-        self.discovery.queueFindBlocksReq(@[address.cidOrTreeCid])
-
-      await (handle or sleepAsync(self.pendingBlocks.retryInterval))
-      self.pendingBlocks.decRetries(address)
-
-      if handle.finished:
-        trace "Handle for block finished", failed = handle.failed
-        break
-  except CancelledError as exc:
-    trace "Block download cancelled"
-    if not handle.finished:
-      await handle.cancelAndWait()
-  except CatchableError as exc:
-    warn "Error downloadloading block", exc = exc.msg
-    if not handle.finished:
-      handle.fail(exc)
-  finally:
-    self.pendingBlocks.setInFlight(address, false)
-
 proc requestBlock*(
     self: BlockExcEngine, address: BlockAddress
 ): Future[?!Block] {.async: (raises: [CancelledError]).} =
-  if address notin self.pendingBlocks:
-    self.trackedFutures.track(self.downloadInternal(address))
-
+  trace "Requestion block", address
   try:
     let handle = self.pendingBlocks.getWantHandle(address)
+    await self.scheduleDownloadTask(address)
     success await handle
   except CancelledError as err:
     warn "Block request cancelled", address
@@ -266,7 +238,7 @@ proc blockPresenceHandler*(
     if err =? catch(await self.sendWantBlock(ourWantCids, peerCtx)).errorOption:
       warn "Failed to send wantBlock to peer", peer, err = err.msg
 
-proc scheduleTasks(
+proc scheduleUploadTasks(
     self: BlockExcEngine, blocksDelivery: seq[BlockDelivery]
 ) {.async: (raises: [CancelledError]).} =
   let cids = blocksDelivery.mapIt(it.blk.cid)
@@ -278,9 +250,9 @@ proc scheduleTasks(
       # and we have it in our local store
       if c in p.peerWantsCids:
         try:
+          # TODO: the try/except should go away once blockstore tracks exceptions
           if await (c in self.localStore):
-            # TODO: the try/except should go away once blockstore tracks exceptions
-            self.scheduleTask(p)
+            self.scheduleUploadTask(p)
             break
         except CancelledError as exc:
           warn "Checking local store canceled", cid = c, err = exc.msg
@@ -331,8 +303,12 @@ proc cancelBlocks(
 proc resolveBlocks*(
     self: BlockExcEngine, blocksDelivery: seq[BlockDelivery]
 ) {.async: (raises: [CancelledError]).} =
+  # drop blocks from the queue
+  blocksDelivery.mapIt(it.address).apply do(address: BlockAddress):
+    self.downloadQueue.delete(address)
+
   self.pendingBlocks.resolve(blocksDelivery)
-  await self.scheduleTasks(blocksDelivery)
+  await self.scheduleUploadTasks(blocksDelivery)
   await self.cancelBlocks(blocksDelivery.mapIt(it.address))
 
 proc resolveBlocks*(
@@ -422,17 +398,18 @@ proc blocksDeliveryHandler*(
 
     validatedBlocksDelivery.add(bd)
 
-  codex_block_exchange_blocks_received.inc(validatedBlocksDelivery.len.int64)
+  if validatedBlocksDelivery.len > 0:
+    codex_block_exchange_blocks_received.inc(validatedBlocksDelivery.len.int64)
 
-  let peerCtx = self.peers.get(peer)
-  if peerCtx != nil:
-    if err =? catch(await self.payForBlocks(peerCtx, blocksDelivery)).errorOption:
-      warn "Error paying for blocks", err = err.msg
+    let peerCtx = self.peers.get(peer)
+    if peerCtx != nil:
+      if err =? catch(await self.payForBlocks(peerCtx, blocksDelivery)).errorOption:
+        warn "Error paying for blocks", err = err.msg
+        return
+
+    if err =? catch(await self.resolveBlocks(validatedBlocksDelivery)).errorOption:
+      warn "Error resolving blocks", err = err.msg
       return
-
-  if err =? catch(await self.resolveBlocks(validatedBlocksDelivery)).errorOption:
-    warn "Error resolving blocks", err = err.msg
-    return
 
 proc wantListHandler*(
     self: BlockExcEngine, peer: PeerId, wantList: WantList
@@ -516,8 +493,8 @@ proc wantListHandler*(
       await self.network.request.sendPresence(peer, presence)
 
     if schedulePeer:
-      self.scheduleTask(peerCtx)
-  except CancelledError as exc: #TODO: replace with CancelledError
+      self.scheduleUploadTask(peerCtx)
+  except CancelledError as exc:
     warn "Error processing want list", error = exc.msg
 
 proc accountHandler*(
@@ -577,9 +554,7 @@ proc dropPeer*(self: BlockExcEngine, peer: PeerId) {.raises: [].} =
   # drop the peer from the peers table
   self.peers.remove(peer)
 
-proc taskHandler*(
-    self: BlockExcEngine, task: BlockExcPeerCtx
-) {.gcsafe, async: (raises: [CancelledError, RetriesExhaustedError]).} =
+proc uploadTaskHandler*(self: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
   # Send to the peer blocks he wants to get,
   # if they present in our local store
 
@@ -637,19 +612,124 @@ proc taskHandler*(
 
       task.peerWants.keepItIf(it.address notin successAddresses)
 
-proc blockexcTaskRunner(self: BlockExcEngine) {.async: (raises: []).} =
+proc blockexcUploadTaskRunner(self: BlockExcEngine) {.async: (raises: []).} =
   ## process tasks
   ##
 
-  trace "Starting blockexc task runner"
-  try:
-    while self.blockexcRunning:
-      let peerCtx = await self.taskQueue.pop()
-      await self.taskHandler(peerCtx)
-  except CatchableError as exc:
-    error "error running block exchange task", error = exc.msg
+  trace "Starting upload blockexc task runner"
+  while self.blockexcRunning:
+    try:
+      let peerCtx = await self.uploadQueue.pop()
 
-  info "Exiting blockexc task runner"
+      await self.uploadTaskHandler(peerCtx)
+    except CancelledError:
+      break
+    except CatchableError as exc:
+      error "Error running block exchange upload task", error = exc.msg
+
+  info "Exiting blockexc upload task runner"
+
+proc downloadBlocks(
+    self: BlockExcEngine, addresses: seq[BlockAddress]
+) {.async: (raises: [CancelledError]).} =
+  let
+    requestBlocks = addresses.filterIt(
+      it in self.pendingBlocks and not self.pendingBlocks.isInFlight(it)
+    )
+    peers = self.peers.getPeersForBlocks(requestBlocks)
+
+  if requestBlocks.len <= 0:
+    warn "All blocks inflight, no blocks to download"
+    return
+
+  logScope:
+    peersWith = peers.with.len
+    peersWithout = peers.without.len
+
+  trace "Peers for block"
+  if peers.with.len > 0:
+    # set inflight flag for all blocks
+    requestBlocks.apply do(address: BlockAddress):
+      self.pendingBlocks.setInFlight(address, true)
+
+    await self.sendWantBlock(requestBlocks, peers.with.randomPeer)
+  else:
+    # reset inflight flag for all blocks
+    requestBlocks.apply do(address: BlockAddress):
+      self.pendingBlocks.setInFlight(address, false)
+
+    if peers.without.len > 0:
+      await self.sendWantHave(requestBlocks, peers.without)
+
+      # requeue blocks onto the download queue
+      # await allFutures(
+      #   requestBlocks
+      #   .filterIt(it in self.pendingBlocks and not self.pendingBlocks.isInFlight(it))
+      #   .mapIt(self.scheduleDownloadTask(it))
+      # )
+
+    self.discovery.queueFindBlocksReq(requestBlocks.mapIt(it.cidOrTreeCid))
+
+proc blockexcDownloadTaskRunner(self: BlockExcEngine) {.async: (raises: []).} =
+  ## process tasks
+  ##
+
+  trace "Starting download blockexc task runner"
+  while self.blockexcRunning:
+    try:
+      var
+        batch: HashSet[BlockAddress]
+        batchSendDeadline =
+          # TODO: batchSendInterval * downloadWorkers, experimenting with deadline length
+          # the rationale is that the deadline is roughly per worker, so this gives each
+          # worker time to build a batch
+          # Moment.now() + (self.batchSendInterval * self.downloadWorkers)
+          Moment.now() + self.batchSendInterval
+
+      logScope:
+        batchSendDeadline = $batchSendDeadline
+        batchSendInterval = $self.batchSendInterval
+        batch = batch.len
+
+      while (batch.len < self.maxSendBatch) and (batchSendDeadline > Moment.now()):
+        let
+          addressFut = self.downloadQueue.pop()
+          address =
+            if self.downloadQueue.empty() and batch.len == 0:
+              trace "Queue is empty, waiting for block address"
+              # echo "Pending Futures: ", dumpPendingFutures()
+              let address = await addressFut
+              trace "Got block address from queue after empty", address
+              address
+            else:
+              trace "Waiting for block address or deadline"
+              let timeoutFut = sleepAsync(self.batchSendInterval)
+              await (addressFut or timeoutFut)
+              if addressFut.finished:
+                timeoutFut.cancelSoon()
+                let address = await addressFut
+                trace "Got block address from queue", address
+                if address in batch:
+                  trace "Skipping block download, already in batch or inflight", address
+                  continue
+                else:
+                  address
+              else:
+                addressFut.cancelSoon()
+                continue
+
+        batch.incl(address)
+
+      trace "Batching block download"
+      if batch.len > 0:
+        await self.downloadBlocks(toSeq(batch))
+    except CancelledError:
+      trace "Cancelled blockexc download task runner"
+      break
+    except CatchableError as exc:
+      error "Error running block exchange download task", error = exc.msg
+
+  info "Exiting blockexc download task runner"
 
 proc new*(
     T: type BlockExcEngine,
@@ -660,7 +740,10 @@ proc new*(
     advertiser: Advertiser,
     peerStore: PeerCtxStore,
     pendingBlocks: PendingBlocksManager,
-    concurrentTasks = DefaultConcurrentTasks,
+    uploadWorkers = DefaultConcurrentTasks,
+    downloadWorkers = DefaultConcurrentTasks,
+    uploadPendingTasks = DefaultTaskQueueSize,
+    downloadPendingTasks = DefaultTaskQueueSize,
 ): BlockExcEngine =
   ## Create new block exchange engine instance
   ##
@@ -671,9 +754,9 @@ proc new*(
     pendingBlocks: pendingBlocks,
     network: network,
     wallet: wallet,
-    concurrentTasks: concurrentTasks,
     trackedFutures: TrackedFutures(),
-    taskQueue: newAsyncHeapQueue[BlockExcPeerCtx](DefaultTaskQueueSize),
+    uploadQueue: newAsyncHeapQueue[BlockExcPeerCtx](uploadPendingTasks),
+    downloadQueue: newAsyncHeapQueue[BlockAddress](downloadPendingTasks),
     discovery: discovery,
     advertiser: advertiser,
   )

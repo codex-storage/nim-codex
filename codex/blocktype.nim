@@ -61,6 +61,13 @@ proc `==`*(a, b: BlockAddress): bool =
       a.cid == b.cid
   )
 
+proc `<`*(a, b: BlockAddress): bool =
+  if a.leaf and b.leaf:
+    if a.treeCid == b.treeCid:
+      return a.index < b.index
+    else:
+      return false
+
 proc `$`*(a: BlockAddress): string =
   if a.leaf:
     "treeCid: " & $a.treeCid & ", index: " & $a.index

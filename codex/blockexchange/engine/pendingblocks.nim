@@ -60,9 +60,15 @@ proc getWantHandle*(
   ## Add an event for a block
   ##
 
+  logScope:
+    address = address
+
+  trace "Getting want handle"
   self.blocks.withValue(address, blk):
+    trace "Want handle already exists"
     return blk[].handle
   do:
+    trace "Creating new want handle"
     let blk = BlockReq(
       handle: newFuture[Block]("pendingBlocks.getWantHandle"),
       inFlight: inFlight,
