@@ -178,7 +178,11 @@ proc fetchTorrentManifest*(
 
   trace "Decoded torrent manifest", cid
 
-  if err =? torrentManifest.validate(cid).errorOption:
+  without isValid =? torrentManifest.validate(cid), err:
+    trace "Error validating torrent manifest", cid, err = err.msg
+    return failure(err.msg)
+
+  if not isValid:
     trace "Torrent manifest does not match torrent info hash", cid
     return failure "Torrent manifest does not match torrent info hash {$cid}"
 
