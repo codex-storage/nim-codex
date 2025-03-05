@@ -1,5 +1,6 @@
 import std/httpclient
 import pkg/codex/contracts
+from pkg/codex/stores/repostore/types import DefaultQuotaBytes
 import ./twonodes
 import ../codex/examples
 import ../contracts/time
@@ -93,7 +94,7 @@ multinodesuite "Sales":
     ).get
     let freeSizeResponse =
       host.patchAvailabilityRaw(availability.id, freeSize = 110000.uint64.some)
-    check freeSizeResponse.status == "400 Bad Request"
+    check freeSizeResponse.status == "422 Unprocessable Entity"
     check "not allowed" in freeSizeResponse.body
 
   test "updating availability - updating totalSize", salesConfig:
@@ -142,7 +143,7 @@ multinodesuite "Sales":
     let utilizedSize = updatedAvailability.totalSize - updatedAvailability.freeSize
     let totalSizeResponse =
       host.patchAvailabilityRaw(availability.id, totalSize = (utilizedSize - 1).some)
-    check totalSizeResponse.status == "400 Bad Request"
+    check totalSizeResponse.status == "422 Unprocessable Entity"
     check "totalSize must be larger then current totalSize" in totalSizeResponse.body
 
     host.patchAvailability(availability.id, totalSize = (originalSize + 20000).some)
@@ -150,3 +151,27 @@ multinodesuite "Sales":
       (host.getAvailabilities().get).findItem(availability).get
     check newUpdatedAvailability.totalSize == originalSize + 20000
     check newUpdatedAvailability.freeSize - updatedAvailability.freeSize == 20000
+
+  test "creating availability above the node quota returns 422", salesConfig:
+    let response = host.postAvailabilityRaw(
+      totalSize = 24000000000.uint64,
+      duration = 200.uint64,
+      minPricePerBytePerSecond = 3.u256,
+      totalCollateral = 300.u256,
+    )
+
+    check response.status == "422 Unprocessable Entity"
+    check response.body == "Not enough storage quota"
+
+  test "updating availability above the node quota returns 422", salesConfig:
+    let availability = host.postAvailability(
+      totalSize = 140000.uint64,
+      duration = 200.uint64,
+      minPricePerBytePerSecond = 3.u256,
+      totalCollateral = 300.u256,
+    ).get
+    let response =
+      host.patchAvailabilityRaw(availability.id, totalSize = 24000000000.uint64.some)
+
+    check response.status == "422 Unprocessable Entity"
+    check response.body == "Not enough storage quota"
