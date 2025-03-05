@@ -56,7 +56,7 @@ in pkgs.gcc13Stdenv.mkDerivation rec {
       fakeCargo
   ];
 
-  # Disable CPU optmizations that make binary not portable.
+  # Disable CPU optimizations that make binary not portable.
   NIMFLAGS = "-d:disableMarchNative -d:git_revision_override=${revision}";
   # Avoid Nim cache permission errors.
   XDG_CACHE_HOME = "/tmp";
