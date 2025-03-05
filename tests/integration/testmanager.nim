@@ -6,6 +6,7 @@ from std/unicode import toUpper
 import std/unittest
 import pkg/chronos
 import pkg/chronos/asyncproc
+import pkg/codex/conf
 import pkg/codex/logutils
 import pkg/codex/utils/trackedfutures
 import pkg/questionable
@@ -66,9 +67,6 @@ type
   IntegrationTest = ref object
     manager: TestManager
     config: IntegrationTestConfig
-    # process: Future[CommandExResponse].Raising(
-    #   [AsyncProcessError, AsyncProcessTimeoutError, CancelledError]
-    # )
     process: AsyncProcessRef
     timeStart: ?Moment
     timeEnd: ?Moment
@@ -124,9 +122,19 @@ template ignoreCancelled(body) =
   except CancelledError:
     discard
 
+func logFile*(_: type TestManager, dir: string): string =
+  dir / "TestHarness.log"
+
+func logFile(manager: TestManager): string =
+  TestManager.logFile(manager.logsDir)
+
+func logFile(test: IntegrationTest, fileName: string): string =
+  test.logsDir / fileName
+
 proc new*(
     _: type TestManager,
     configs: seq[IntegrationTestConfig],
+    logsDir: string,
     debugTestHarness = false,
     debugHardhat = false,
     debugCodexNodes = false,
@@ -144,6 +152,7 @@ proc new*(
     showContinuousStatusUpdates: showContinuousStatusUpdates,
     testTimeout: testTimeout,
     trackedFutures: TrackedFutures.new(),
+    logsDir: logsDir,
   )
 
 func init*(
@@ -409,8 +418,6 @@ proc teardownTest(
       Future[seq[byte]].Raising([CancelledError, AsyncStreamError]),
 ) {.async: (raises: []).} =
   test.timeEnd = some Moment.now()
-  if test.status == IntegrationTestStatus.Ok:
-    info "Test completed", name = test.config.name, duration = test.duration
 
   if not test.process.isNil:
     var output = test.output.expect("should have output value")
@@ -426,6 +433,11 @@ proc teardownTest(
       output.stdOut = string.fromBytes(await noCancel stdOutStream)
       output.stdErr = string.fromBytes(await noCancel stdErrStream)
       test.output = success output
+      test.logFile("stdout.log").appendFile(output.stdOut.stripAnsi)
+      if test.status == IntegrationTestStatus.Error:
+        test.logFile("stderr.log").appendFile(output.stdErr.stripAnsi)
+    except IOError as e:
+      warn "Failed to write test stdout and stderr to file", error = e.msg
     except AsyncStreamError as e:
       test.timeEnd = some Moment.now()
       error "Failed to read test process output stream", error = e.msg
@@ -595,6 +607,25 @@ proc run(test: IntegrationTest) {.async: (raises: []).} =
       printStdOut = test.status != IntegrationTestStatus.Ok,
       printStdErr = test.status == IntegrationTestStatus.Error,
     )
+    logScope:
+      name = test.config.name
+      duration = test.duration
+
+    case test.status
+    of IntegrationTestStatus.New:
+      raiseAssert "Test has completed, but is in the New state"
+    of IntegrationTestStatus.Running:
+      raiseAssert "Test has completed, but is in the Running state"
+    of IntegrationTestStatus.Error:
+      error "Test errored",
+        error = test.output.errorOption .? msg,
+        stack = test.output.errorOption .? getStackTrace()
+    of IntegrationTestStatus.Failed:
+      error "Test failed"
+    of IntegrationTestStatus.Timeout:
+      error "Test timed out"
+    of IntegrationTestStatus.Ok:
+      notice "Test passed"
 
 proc runTests(manager: TestManager) {.async: (raises: [CancelledError]).} =
   var testFutures: seq[Future[void]]
@@ -603,6 +634,7 @@ proc runTests(manager: TestManager) {.async: (raises: [CancelledError]).} =
 
   echoStyled styleBright,
     bgWhite, fgBlack, "\n[Integration Test Manager] Starting parallel integration tests"
+  notice "[Integration Test Manager] Starting parallel integration tests"
 
   for config in manager.configs:
     var test =
@@ -685,35 +717,14 @@ proc printResult(manager: TestManager) {.raises: [TestManagerError].} =
     resetStyle,
     " |"
   echo "▢=====================================================================▢"
+  notice "INTEGRATION TEST SUMMARY",
+    totalTime = manager.duration,
+    timeSavedEst = &"{relativeTimeSaved}%",
+    passing = &"{successes} / {manager.tests.len}"
 
 proc start*(
     manager: TestManager
 ) {.async: (raises: [CancelledError, TestManagerError]).} =
-  try:
-    if manager.debugCodexNodes:
-      let startTime = now().format("yyyy-MM-dd'_'HH:mm:ss")
-      let logsDir =
-        currentSourcePath.parentDir() / "logs" /
-        sanitize(startTime & "__IntegrationTests")
-      createDir(logsDir)
-      manager.logsDir = logsDir
-      #!fmt: off
-      echoStyled bgWhite, fgBlack, styleBright,
-        "\n\n  ",
-        styleUnderscore,
-        "ℹ️  LOGS AVAILABLE ℹ️\n\n",
-        resetStyle, bgWhite, fgBlack, styleBright,
-        """  Logs for this run will be available at:""",
-        resetStyle, bgWhite, fgBlack,
-        &"\n\n  {logsDir}\n\n",
-        resetStyle, bgWhite, fgBlack, styleBright,
-        "  NOTE: For CI runs, logs will be attached as artefacts\n"
-      #!fmt: on
-  except IOError as e:
-    raiseTestManagerError "failed to create hardhat log directory: " & e.msg, e
-  except OSError as e:
-    raiseTestManagerError "failed to create hardhat log directory: " & e.msg, e
-
   if manager.showContinuousStatusUpdates:
     let fut = manager.continuallyShowUpdates()
     manager.trackedFutures.track fut
@@ -748,4 +759,3 @@ proc stop*(manager: TestManager) {.async: (raises: []).} =
         trace "Terminated running hardhat process"
     except CatchableError as e:
       trace "failed to stop hardhat node", error = e.msg
-

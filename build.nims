@@ -54,7 +54,8 @@ task testIntegration, "Run integration tests":
   var testParams = ""
   for i in 2 ..< paramCount():
     if "DebugTestHarness" in paramStr(i) and truthy paramStr(i).split('=')[1]:
-      testParams = "-d:chronicles_log_level=TRACE -d:chronicles_sinks=textlines[stdout]"
+      testParams =
+        "-d:chronicles_log_level=TRACE -d:chronicles_sinks=textlines[dynamic],json[dynamic],textlines[dynamic]"
       break
   test "testIntegration", params = testParams
   # use params to enable logging from the integration test executable
