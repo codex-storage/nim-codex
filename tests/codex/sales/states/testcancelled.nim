@@ -5,6 +5,7 @@ import pkg/codex/sales/states/cancelled
 import pkg/codex/sales/salesagent
 import pkg/codex/sales/salescontext
 import pkg/codex/market
+from pkg/codex/contracts/marketplace import Marketplace_SlotIsFree
 
 import ../../../asynctest
 import ../../examples
@@ -40,6 +41,11 @@ asyncchecksuite "sales state 'cancelled'":
     agent.onCleanUp = onCleanUp
     state = SaleCancelled.new()
 
+  teardown:
+    returnBytesWas = bool.none
+    reprocessSlotWas = bool.none
+    returnedCollateralValue = UInt256.none
+
   test "calls onCleanUp with returnBytes = false, reprocessSlot = true, and returnedCollateral = currentCollateral":
     market.fillSlot(
       requestId = request.id,
@@ -48,6 +54,23 @@ asyncchecksuite "sales state 'cancelled'":
       host = Address.example,
       collateral = currentCollateral,
     )
+    discard await state.run(agent)
+    check eventually returnBytesWas == some true
+    check eventually reprocessSlotWas == some false
+    check eventually returnedCollateralValue == some currentCollateral
+
+  test "calls onCleanUp and returns the collateral when free slot error is raised":
+    market.fillSlot(
+      requestId = request.id,
+      slotIndex = slotIndex,
+      proof = Groth16Proof.default,
+      host = Address.example,
+      collateral = currentCollateral,
+    )
+
+    let error = newException(Marketplace_SlotIsFree, "")
+    market.setSlotThrowError(some cast[ref CatchableError](error))
+
     discard await state.run(agent)
     check eventually returnBytesWas == some true
     check eventually reprocessSlotWas == some false
