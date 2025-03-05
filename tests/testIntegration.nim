@@ -34,14 +34,72 @@ const DebugCodexNodes {.booldefine.} = false
 # Shows test status updates at time intervals. Useful for running locally with
 # active terminal interaction. Set to false for unattended runs, eg CI.
 const ShowContinuousStatusUpdates {.booldefine.} = false
-# Timeout duration (in mimutes) for EACH integration test file.
+# Timeout duration (in minutes) for EACH integration test file.
 const TestTimeout {.intdefine.} = 60
 
 const EnableParallelTests {.booldefine.} = true
 
+proc setupLogging(logFile: string, debugTestHarness: bool) =
+  when defaultChroniclesStream.outputs.type.arity != 3:
+    raiseAssert "Logging configuration options not enabled in the current build"
+  else:
+    proc writeAndFlush(f: File, msg: LogOutputStr) =
+      try:
+        f.write(msg)
+        f.flushFile()
+      except IOError as err:
+        logLoggingFailure(cstring(msg), err)
+
+    proc noOutput(logLevel: LogLevel, msg: LogOutputStr) =
+      discard
+
+    proc stdoutFlush(logLevel: LogLevel, msg: LogOutputStr) =
+      writeAndFlush(stdout, msg)
+
+    proc fileFlush(logLevel: LogLevel, msg: LogOutputStr) =
+      try:
+        logFile.appendFile(stripAnsi(msg))
+      except IOError as error:
+        fatal "Failed to write to log file", error = error.msg # error = error.ioErrorMsg
+        raiseAssert "Could not write to test manager log file: " & error.msg
+
+    defaultChroniclesStream.outputs[0].writer = stdoutFlush
+    defaultChroniclesStream.outputs[1].writer = noOutput
+    if debugTestHarness:
+      defaultChroniclesStream.outputs[2].writer = fileFlush
+    else:
+      defaultChroniclesStream.outputs[2].writer = noOutput
+
 proc run(): Future[bool] {.async: (raises: []).} =
+  let startTime = now().format("yyyy-MM-dd'_'HH:mm:ss")
+  let logsDir =
+    currentSourcePath.parentDir() / "integration" / "logs" /
+    sanitize(startTime & "__IntegrationTests")
+  try:
+    if DebugTestHarness or DebugHardhat or DebugCodexNodes:
+      createDir(logsDir)
+      #!fmt: off
+      styledEcho bgWhite, fgBlack, styleBright,
+        "\n\n  ",
+        styleUnderscore,
+        "ℹ️  LOGS AVAILABLE ℹ️\n\n",
+        resetStyle, bgWhite, fgBlack, styleBright,
+        """  Logs for this run will be available at:""",
+        resetStyle, bgWhite, fgBlack,
+        &"\n\n  {logsDir}\n\n",
+        resetStyle, bgWhite, fgBlack, styleBright,
+        "  NOTE: For CI runs, logs will be attached as artefacts\n"
+      #!fmt: on
+  except IOError as e:
+    raiseAssert "Failed to create log directory and echo log message: " & e.msg
+  except OSError as e:
+    raiseAssert "Failed to create log directory and echo log message: " & e.msg
+
+  setupLogging(TestManager.logFile(logsDir), DebugTestHarness)
+
   let manager = TestManager.new(
     configs = TestConfigs,
+    logsDir,
     DebugTestHarness,
     DebugHardhat,
     DebugCodexNodes,
