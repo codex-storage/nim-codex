@@ -69,6 +69,7 @@ suite "Test Prover":
 
     let (inputs, proof) = (await prover.prove(1, verifiable, challenge)).tryGet
 
+    echo "Proof: ", proof
     check:
       (await prover.verify(proof, inputs)).tryGet == true
 
@@ -111,7 +112,6 @@ suite "Test Prover":
       proveTasks.add(prover.prove(1, verifiable, challenge))
 
     let proveResults = await allFinished(proveTasks)
-    # 
     for i in 0 ..< proveResults.len:
       var (inputs, proofs) = proveTasks[i].read().tryGet()
       verifyTasks.add(prover.verify(proofs, inputs))
@@ -134,35 +134,29 @@ suite "Test Prover":
 
     let (inputs, proof) = (await prover.prove(1, verifiable, challenge)).tryGet
 
-    var cancelledProof = ProofPtr.new()
-    defer:
-      destroyProof(cancelledProof)
-
     # call asyncProve and cancel the task
-    let proveFut = backend.asyncProve(backend.normalizeInput(inputs), cancelledProof)
+    let proveFut = backend.asyncProve(backend.normalizeInput(inputs))
     proveFut.cancel()
 
+    var cancelledProof: Proof
     try:
-      discard await proveFut
+       cancelledProof = (await proveFut).tryGet
     except CatchableError as exc:
       check exc of CancelledError
     finally:
       # validate the cancelledProof
       check:
-        (await prover.verify(cancelledProof[], inputs)).tryGet == true
-
-    var verifyRes = VerifyResult.new()
-    defer:
-      destroyVerifyResult(verifyRes)
+        (await prover.verify(cancelledProof, inputs)).tryGet == true
 
     # call asyncVerify and cancel the task
-    let verifyFut = backend.asyncVerify(proof, inputs, verifyRes)
+    let verifyFut = backend.asyncVerify(proof, inputs)
     verifyFut.cancel()
 
+    var verifyRes: int32
     try:
-      discard await verifyFut
+       verifyRes = (await verifyFut).tryGet
     except CatchableError as exc:
       check exc of CancelledError
     finally:
-      # validate the verifyResponse 
-      check verifyRes[] == true
+      # validate the verifyResponse
+      check verifyRes == ERR_OK

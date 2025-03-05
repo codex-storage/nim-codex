@@ -39,22 +39,21 @@ type
     backendCfg: ptr CircomBn254Cfg
     vkp*: ptr CircomKey
     taskpool: Taskpool
-    lock: ptr Lock
 
   NormalizedProofInputs*[H] {.borrow: `.`.} = distinct ProofInputs[H]
 
   ProveTask = object
     circom: ptr CircomCompat
     ctx: ptr CircomCompatCtx
-    proof: ptr Proof
-    success: Atomic[bool]
+    proofPtr: ProofPtr
+    res: Atomic[int32]
     signal: ThreadSignalPtr
 
   VerifyTask = object
     proof: ptr CircomProof
     vkp: ptr CircomKey
     inputs: ptr CircomInputs
-    success: VerifyResult
+    res: Atomic[int32]
     signal: ThreadSignalPtr
 
 func normalizeInput*[H](
@@ -98,33 +97,16 @@ proc release*(self: CircomCompat) =
   if not isNil(self.vkp):
     self.vkp.unsafeAddr.release_key()
 
-  if not isNil(self.lock):
-    deinitLock(self.lock[]) # Cleanup the lock
-    dealloc(self.lock) # Free the memory
-
 proc circomProveTask(task: ptr ProveTask) {.gcsafe.} =
-  withLock task[].circom.lock[]:
-    defer:
-      discard task[].signal.fireSync()
+  defer:
+    discard task[].signal.fireSync()
 
-    var proofPtr: ptr Proof = nil
-    try:
-      if (
-        let res = task.circom.backendCfg.prove_circuit(task.ctx, proofPtr.addr)
-        res != ERR_OK
-      ) or proofPtr == nil:
-        task.success.store(false)
-        return
-
-      copyProof(task.proof, proofPtr[])
-      task.success.store(true)
-    finally:
-      if proofPtr != nil:
-        proofPtr.addr.release_proof()
+  let res = task.circom.backendCfg.prove_circuit(task[].ctx, task[].proofPtr.addr)
+  task.res.store(res)
 
 proc asyncProve*[H](
-    self: CircomCompat, input: NormalizedProofInputs[H], proof: ptr Proof
-): Future[?!void] {.async.} =
+    self: CircomCompat, input: NormalizedProofInputs[H]
+): Future[?!Proof] {.async.} =
   doAssert input.samples.len == self.numSamples, "Number of samples does not match"
 
   doAssert input.slotProof.len <= self.datasetDepth,
@@ -200,45 +182,45 @@ proc asyncProve*[H](
         ERR_OK:
       return failure("Failed to push cell data")
 
-  without threadPtr =? ThreadSignalPtr.new():
+  without threadPtr =? ThreadSignalPtr.new().mapFailure, err:
+    trace "Failed to create thread signal", err = err.msg
     return failure("Unable to create thread signal")
+
+  var task = ProveTask(circom: addr self, ctx: ctx, signal: threadPtr)
 
   defer:
     threadPtr.close().expect("closing once works")
-
-  var task = ProveTask(circom: addr self, ctx: ctx, proof: proof, signal: threadPtr)
-
-  let taskPtr = addr task
+    if task.proofPtr != nil:
+      task.proofPtr.addr.release_proof()
 
   doAssert task.circom.taskpool.numThreads > 1,
     "Must have at least one separate thread or signal will never be fired"
-  task.circom.taskpool.spawn circomProveTask(taskPtr)
+  task.circom.taskpool.spawn circomProveTask(addr task)
   let threadFut = threadPtr.wait()
 
   if joinErr =? catch(await threadFut.join()).errorOption:
     if err =? catch(await noCancel threadFut).errorOption:
+      trace "Failed to prove circuit", err = err.msg
       return failure(err)
     if joinErr of CancelledError:
+      trace "Cancellation requested for proving circuit, re-raising"
       raise joinErr
     else:
       return failure(joinErr)
 
-  if not task.success.load():
+  if task.res.load() != ERR_OK:
     return failure("Failed to prove circuit")
 
-  success()
+  success(task.proofPtr[])
 
 proc prove*[H](
     self: CircomCompat, input: ProofInputs[H]
 ): Future[?!CircomProof] {.async, raises: [CancelledError].} =
-  var proof = ProofPtr.new()
-  defer:
-    destroyProof(proof)
-
   try:
-    if error =? (await self.asyncProve(self.normalizeInput(input), proof)).errorOption:
-      return failure(error)
-    return success(deepCopy(proof)[])
+    without proof =? (await self.asyncProve(self.normalizeInput(input))), err:
+      trace "Failed to prove circuit", err = err.msg
+      return failure(err)
+    return success(proof)
   except CancelledError as exc:
     raise exc
 
@@ -248,68 +230,62 @@ proc circomVerifyTask(task: ptr VerifyTask) {.gcsafe.} =
     discard task[].signal.fireSync()
 
   let res = verify_circuit(task[].proof, task[].inputs, task[].vkp)
-  if res == ERR_OK:
-    task[].success[] = true
-  elif res == ERR_FAILED_TO_VERIFY_PROOF:
-    task[].success[] = false
-  else:
-    task[].success[] = false
-    error "Failed to verify proof", errorCode = res
+  task.res.store(res)
 
 proc asyncVerify*[H](
-    self: CircomCompat,
-    proof: CircomProof,
-    inputs: ProofInputs[H],
-    success: VerifyResult,
-): Future[?!void] {.async.} =
-  var proofPtr = unsafeAddr proof
-  var inputs = inputs.toCircomInputs()
+    self: CircomCompat, proof: CircomProof, inputs: ProofInputs[H]
+): Future[?!int32] {.async.} =
+  var
+    proofPtr = unsafeAddr proof
+    inputs = inputs.toCircomInputs()
 
-  without threadPtr =? ThreadSignalPtr.new():
+  without threadPtr =? ThreadSignalPtr.new().mapFailure, err:
+    trace "Failed to create thread signal", err = err.msg
     return failure("Unable to create thread signal")
 
   defer:
     threadPtr.close().expect("closing once works")
+    inputs.releaseCircomInputs()
 
-  var task = VerifyTask(
-    proof: proofPtr,
-    vkp: self.vkp,
-    inputs: addr inputs,
-    success: success,
-    signal: threadPtr,
-  )
-
-  let taskPtr = addr task
+  var task =
+    VerifyTask(proof: proofPtr, vkp: self.vkp, inputs: addr inputs, signal: threadPtr)
 
   doAssert self.taskpool.numThreads > 1,
     "Must have at least one separate thread or signal will never be fired"
 
-  self.taskpool.spawn circomVerifyTask(taskPtr)
+  self.taskpool.spawn circomVerifyTask(addr task)
 
   let threadFut = threadPtr.wait()
 
   if joinErr =? catch(await threadFut.join()).errorOption:
     if err =? catch(await noCancel threadFut).errorOption:
+      trace "Failed to verify proof", err = err.msg
       return failure(err)
     if joinErr of CancelledError:
+      trace "Cancellation requested for verifying proof, re-raising"
       raise joinErr
     else:
       return failure(joinErr)
 
-  success()
+  success(task.res.load())
 
 proc verify*[H](
     self: CircomCompat, proof: CircomProof, inputs: ProofInputs[H]
 ): Future[?!bool] {.async, raises: [CancelledError].} =
   ## Verify a proof using a ctx
   ##
-  var res = VerifyResult.new()
-  defer:
-    destroyVerifyResult(res)
   try:
-    if error =? (await self.asyncVerify(proof, inputs, res)).errorOption:
-      return failure(error)
-    return success(res[])
+    without res =? (await self.asyncVerify(proof, inputs)), err:
+      trace "Failed to verify proof", err = err.msg
+      return failure(err)
+
+    case res
+    of ERR_FAILED_TO_VERIFY_PROOF:
+      return failure("Failed to verify proof")
+    of ERR_OK:
+      return success(true)
+    else:
+      return failure("Unknown error")
   except CancelledError as exc:
     raise exc
 
@@ -325,11 +301,9 @@ proc init*(
     numSamples = DefaultSamplesNum,
     taskpool: Taskpool,
 ): CircomCompat =
-  # Allocate and initialize the lock
-  var lockPtr = create(Lock) # Allocate memory for the lock
-  initLock(lockPtr[]) # Initialize the lock
-
   ## Create a new ctx
+  ##
+
   var cfg: ptr CircomBn254Cfg
   var zkey = if zkeyPath.len > 0: zkeyPath.cstring else: nil
 
@@ -358,5 +332,4 @@ proc init*(
     backendCfg: cfg,
     vkp: vkpPtr,
     taskpool: taskpool,
-    lock: lockPtr,
   )
