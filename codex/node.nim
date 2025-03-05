@@ -776,7 +776,8 @@ proc storeTorrent*(
     error "Unable to store manifest"
     return failure(err)
 
-  info "Stored BitTorrent data", infoHash = $infoHash, codexManifestCid
+  info "Stored BitTorrent data",
+    infoHash = $infoHash, codexManifestCid = bitTorrentManifest.codexManifestCid
 
   success infoHash
 
