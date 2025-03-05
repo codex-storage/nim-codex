@@ -53,10 +53,7 @@ method start*(node: NodeProcess) {.base, async: (raises: [CancelledError]).} =
 
   let poptions = node.processOptions + {AsyncProcessOption.StdErrToStdOut}
   trace "starting node",
-    args = node.arguments,
-    executable = node.executable,
-    workingDir = node.workingDir,
-    processOptions = poptions
+    args = node.arguments, executable = node.executable, workingDir = node.workingDir
 
   try:
     if node.debug:

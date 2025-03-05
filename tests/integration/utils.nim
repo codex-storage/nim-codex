@@ -51,3 +51,16 @@ proc getLogFile*(
 
   let fileName = logsDir / fn
   return fileName
+
+proc appendFile*(filename: string, content: string) {.raises: [IOError].} =
+  ## Opens a file named `filename` for writing. Then writes the
+  ## `content` completely to the file and closes the file afterwards.
+  ## Raises an IO exception in case of an error.
+  var f: File
+  try:
+    f = open(filename, fmAppend)
+    f.write(content)
+  except IOError as e:
+    raise newException(IOError, "cannot open and write " & filename & ": " & e.msg)
+  finally:
+    close(f)
