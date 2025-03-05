@@ -1,6 +1,9 @@
 import pkg/libp2p
+import pkg/stew/byteutils
 import pkg/questionable
 import pkg/questionable/results
+
+import ../../merkletree/codex/codex
 
 import ../../errors
 import ../../codextypes
@@ -13,8 +16,6 @@ type
     pieceLength*: uint32
     pieces*: seq[BitTorrentPiece]
     name*: ?string
-
-  BitTorrentInfoHash* = MultiHash
 
   BitTorrentManifest* = ref object
     info*: BitTorrentInfo
@@ -55,3 +56,22 @@ func validate*(self: BitTorrentManifest, cid: Cid): ?!bool =
   without cidInfoHash =? cid.mhash.mapFailure, err:
     return failure(err.msg)
   return success(infoHash == cidInfoHash)
+
+func buildMultiHash*(_: type BitTorrentInfo, input: string): ?!MultiHash =
+  without bytes =? input.hexToSeqByte.catch, err:
+    return failure err.msg
+  without hash =? MultiHash.init(bytes):
+    without mhashMetaSha1 =? Sha1HashCodec.mhash, err:
+      return failure err.msg
+    if bytes.len == mhashMetaSha1.size:
+      without hash =? MultiHash.init($Sha1HashCodec, bytes).mapFailure, err:
+        return failure err.msg
+      return success hash
+    without mhashMetaSha256 =? Sha256HashCodec.mhash, err:
+      return failure err.msg
+    if bytes.len == mhashMetaSha256.size:
+      without hash =? MultiHash.init($Sha256HashCodec, bytes).mapFailure, err:
+        return failure err.msg
+      return success hash
+    return failure "given bytes is not a correct multihash"
+  return success hash
