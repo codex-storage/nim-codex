@@ -47,3 +47,4 @@ nim.cfg
 tests/integration/logs
 
 data/
+data40k.bin
