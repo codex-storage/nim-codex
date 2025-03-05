@@ -1,11 +1,13 @@
 import std/unittest
+import std/strformat
 
 import pkg/libp2p/[cid, multicodec, multihash]
 import pkg/stew/byteutils
 import pkg/questionable
 
 import ../../examples
-import ../../../codex/bittorrent/manifest
+
+import pkg/codex/bittorrent/manifest
 
 suite "BitTorrent manifest":
   # In the tests below, we use an example info dictionary
@@ -49,3 +51,26 @@ suite "BitTorrent manifest":
     )
 
     check bitTorrentManifest.validate(cid = infoHashCid).tryGet == true
+
+  for testData in [
+    (
+      "1902d602db8c350f4f6d809ed01eff32f030da95",
+      "11141902D602DB8C350F4F6D809ED01EFF32F030DA95",
+    ),
+    (
+      "499B3A24C2C653C9600D0C22B33EC504ECCA1999AAF56E559505F342A2062497",
+      "1220499B3A24C2C653C9600D0C22B33EC504ECCA1999AAF56E559505F342A2062497",
+    ),
+    (
+      "1220499B3A24C2C653C9600D0C22B33EC504ECCA1999AAF56E559505F342A2062497",
+      "1220499B3A24C2C653C9600D0C22B33EC504ECCA1999AAF56E559505F342A2062497",
+    ),
+    (
+      "11141902D602DB8C350F4F6D809ED01EFF32F030DA95",
+      "11141902D602DB8C350F4F6D809ED01EFF32F030DA95",
+    ),
+  ]:
+    let (input, expectedOutput) = testData
+    test fmt"Build MultiHash from '{input}'":
+      let hash = BitTorrentInfo.buildMultiHash(input).tryGet
+      check hash.hex == expectedOutput
