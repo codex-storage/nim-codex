@@ -99,7 +99,7 @@ func discovery*(self: CodexNodeRef): Discovery =
   return self.discovery
 
 proc storeBitTorrentManifest*(
-    self: CodexNodeRef, manifest: BitTorrentManifest, infoHash: BitTorrentInfoHash
+    self: CodexNodeRef, manifest: BitTorrentManifest, infoHash: MultiHash
 ): Future[?!bt.Block] {.async.} =
   let encodedManifest = manifest.encode()
 
@@ -481,13 +481,9 @@ proc streamTorrent(
   trace "Creating store stream for torrent manifest"
   stream.success
 
-proc retrieveInfoHash*(
-    self: CodexNodeRef, infoHashString: string
+proc retrieveTorrent*(
+    self: CodexNodeRef, infoHash: MultiHash
 ): Future[?!LPStream] {.async.} =
-  without infoHash =? MultiHash.init("sha1", infoHashString.hexToSeqByte).mapFailure,
-    err:
-    return failure(err)
-
   without infoHashCid =? Cid.init(CIDv1, InfoHashV1Codec, infoHash).mapFailure, error:
     trace "Unable to create CID for BitTorrent info hash"
     return failure(error)
@@ -643,11 +639,11 @@ proc store*(
 
   return manifestBlk.cid.success
 
-proc storeBitTorrent*(
+proc storeTorrent*(
     self: CodexNodeRef,
     stream: LPStream,
     info: BitTorrentInfo,
-    infoHash: BitTorrentInfoHash,
+    infoHash: MultiHash,
     mimetype: ?string = string.none,
 ): Future[?!Cid] {.async.} =
   info "Storing BitTorrent data"
