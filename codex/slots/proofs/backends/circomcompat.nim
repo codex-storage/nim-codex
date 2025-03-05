@@ -104,9 +104,13 @@ proc circomProveTask(task: ptr ProveTask) {.gcsafe.} =
   let res = task.circom.backendCfg.prove_circuit(task[].ctx, task[].proofPtr.addr)
   task.res.store(res)
 
-proc asyncProve*[H](
-    self: CircomCompat, input: NormalizedProofInputs[H]
-): Future[?!Proof] {.async.} =
+proc prove*[H](
+    self: CircomCompat, input: ProofInputs[H]
+): Future[?!CircomProof] {.async, raises: [CancelledError].} =
+  ## Prove a circuit using a ctx
+  ##
+
+  var input = self.normalizeInput(input)
   doAssert input.samples.len == self.numSamples, "Number of samples does not match"
 
   doAssert input.slotProof.len <= self.datasetDepth,
@@ -213,17 +217,6 @@ proc asyncProve*[H](
 
   success(task.proofPtr[])
 
-proc prove*[H](
-    self: CircomCompat, input: ProofInputs[H]
-): Future[?!CircomProof] {.async, raises: [CancelledError].} =
-  try:
-    without proof =? (await self.asyncProve(self.normalizeInput(input))), err:
-      trace "Failed to prove circuit", err = err.msg
-      return failure(err)
-    return success(proof)
-  except CancelledError as exc:
-    raise exc
-
 proc circomVerifyTask(task: ptr VerifyTask) {.gcsafe.} =
   defer:
     task[].inputs[].releaseCircomInputs()
@@ -232,59 +225,53 @@ proc circomVerifyTask(task: ptr VerifyTask) {.gcsafe.} =
   let res = verify_circuit(task[].proof, task[].inputs, task[].vkp)
   task.res.store(res)
 
-proc asyncVerify*[H](
-    self: CircomCompat, proof: CircomProof, inputs: ProofInputs[H]
-): Future[?!int32] {.async.} =
-  var
-    proofPtr = unsafeAddr proof
-    inputs = inputs.toCircomInputs()
-
-  without threadPtr =? ThreadSignalPtr.new().mapFailure, err:
-    trace "Failed to create thread signal", err = err.msg
-    return failure("Unable to create thread signal")
-
-  defer:
-    threadPtr.close().expect("closing once works")
-    inputs.releaseCircomInputs()
-
-  var task =
-    VerifyTask(proof: proofPtr, vkp: self.vkp, inputs: addr inputs, signal: threadPtr)
-
-  doAssert self.taskpool.numThreads > 1,
-    "Must have at least one separate thread or signal will never be fired"
-
-  self.taskpool.spawn circomVerifyTask(addr task)
-
-  let threadFut = threadPtr.wait()
-
-  if joinErr =? catch(await threadFut.join()).errorOption:
-    if err =? catch(await noCancel threadFut).errorOption:
-      trace "Failed to verify proof", err = err.msg
-      return failure(err)
-    if joinErr of CancelledError:
-      trace "Cancellation requested for verifying proof, re-raising"
-      raise joinErr
-    else:
-      return failure(joinErr)
-
-  success(task.res.load())
-
 proc verify*[H](
     self: CircomCompat, proof: CircomProof, inputs: ProofInputs[H]
 ): Future[?!bool] {.async, raises: [CancelledError].} =
   ## Verify a proof using a ctx
   ##
   try:
-    without res =? (await self.asyncVerify(proof, inputs)), err:
-      trace "Failed to verify proof", err = err.msg
-      return failure(err)
+    var
+      proofPtr = unsafeAddr proof
+      inputs = inputs.toCircomInputs()
 
+    without threadPtr =? ThreadSignalPtr.new().mapFailure, err:
+      trace "Failed to create thread signal", err = err.msg
+      return failure("Unable to create thread signal")
+
+    defer:
+      threadPtr.close().expect("closing once works")
+      inputs.releaseCircomInputs()
+
+    var task =
+      VerifyTask(proof: proofPtr, vkp: self.vkp, inputs: addr inputs, signal: threadPtr)
+
+    doAssert self.taskpool.numThreads > 1,
+      "Must have at least one separate thread or signal will never be fired"
+
+    self.taskpool.spawn circomVerifyTask(addr task)
+
+    let threadFut = threadPtr.wait()
+
+    if joinErr =? catch(await threadFut.join()).errorOption:
+      if err =? catch(await noCancel threadFut).errorOption:
+        trace "Error verifying proof", err = err.msg
+        return failure(err)
+      if joinErr of CancelledError:
+        trace "Cancellation requested for verifying proof, re-raising"
+        raise joinErr
+      else:
+        return failure(joinErr)
+
+    let res = task.res.load()
     case res
     of ERR_FAILED_TO_VERIFY_PROOF:
-      return failure("Failed to verify proof")
+      trace "Failed to verify proof", res
+      return success(false)
     of ERR_OK:
       return success(true)
     else:
+      trace "Unknown error verifying proof", res
       return failure("Unknown error")
   except CancelledError as exc:
     raise exc

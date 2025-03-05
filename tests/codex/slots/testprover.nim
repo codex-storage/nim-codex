@@ -69,7 +69,6 @@ suite "Test Prover":
 
     let (inputs, proof) = (await prover.prove(1, verifiable, challenge)).tryGet
 
-    echo "Proof: ", proof
     check:
       (await prover.verify(proof, inputs)).tryGet == true
 
@@ -134,13 +133,13 @@ suite "Test Prover":
 
     let (inputs, proof) = (await prover.prove(1, verifiable, challenge)).tryGet
 
-    # call asyncProve and cancel the task
-    let proveFut = backend.asyncProve(backend.normalizeInput(inputs))
+    # call prover and cancel the task
+    let proveFut = backend.prove(inputs)
     proveFut.cancel()
 
     var cancelledProof: Proof
     try:
-       cancelledProof = (await proveFut).tryGet
+      cancelledProof = (await proveFut).tryGet
     except CatchableError as exc:
       check exc of CancelledError
     finally:
@@ -148,15 +147,15 @@ suite "Test Prover":
       check:
         (await prover.verify(cancelledProof, inputs)).tryGet == true
 
-    # call asyncVerify and cancel the task
-    let verifyFut = backend.asyncVerify(proof, inputs)
+    # call verify and cancel the task
+    let verifyFut = backend.verify(proof, inputs)
     verifyFut.cancel()
 
-    var verifyRes: int32
+    var verifyRes = false
     try:
-       verifyRes = (await verifyFut).tryGet
+      verifyRes = (await verifyFut).tryGet
     except CatchableError as exc:
       check exc of CancelledError
     finally:
       # validate the verifyResponse
-      check verifyRes == ERR_OK
+      check verifyRes

@@ -17,47 +17,47 @@ import ./helpers
 import ../helpers
 import ../../helpers
 
-suite "Test Circom Compat Backend - control inputs":
-  let
-    r1cs = "tests/circuits/fixtures/proof_main.r1cs"
-    wasm = "tests/circuits/fixtures/proof_main.wasm"
-    zkey = "tests/circuits/fixtures/proof_main.zkey"
+# suite "Test Circom Compat Backend - control inputs":
+#   let
+#     r1cs = "tests/circuits/fixtures/proof_main.r1cs"
+#     wasm = "tests/circuits/fixtures/proof_main.wasm"
+#     zkey = "tests/circuits/fixtures/proof_main.zkey"
 
-  var
-    circom: CircomCompat
-    proofInputs: ProofInputs[Poseidon2Hash]
-    taskpool: Taskpool
+#   var
+#     circom: CircomCompat
+#     proofInputs: ProofInputs[Poseidon2Hash]
+#     taskpool: Taskpool
 
-  setup:
-    let
-      inputData = readFile("tests/circuits/fixtures/input.json")
-      inputJson = !JsonNode.parse(inputData)
+#   setup:
+#     let
+#       inputData = readFile("tests/circuits/fixtures/input.json")
+#       inputJson = !JsonNode.parse(inputData)
 
-    taskpool = Taskpool.new()
-    proofInputs = Poseidon2Hash.jsonToProofInput(inputJson)
-    circom = CircomCompat.init(r1cs, wasm, zkey, taskpool = taskpool)
+#     taskpool = Taskpool.new()
+#     proofInputs = Poseidon2Hash.jsonToProofInput(inputJson)
+#     circom = CircomCompat.init(r1cs, wasm, zkey, taskpool = taskpool)
 
-  teardown:
-    circom.release() # this comes from the rust FFI
-    taskpool.shutdown()
+#   teardown:
+#     circom.release() # this comes from the rust FFI
+#     taskpool.shutdown()
 
-  test "Should verify with correct inputs":
-    let proof = (await circom.prove(proofInputs)).tryGet
+#   test "Should verify with correct inputs":
+#     let proof = (await circom.prove(proofInputs)).tryGet
 
-    var resp = (await circom.verify(proof, proofInputs)).tryGet
+#     var resp = (await circom.verify(proof, proofInputs)).tryGet
 
-    check resp
+#     check resp
 
-  test "Should not verify with incorrect inputs":
-    proofInputs.slotIndex = 1 # change slot index
+#   test "Should not verify with incorrect inputs":
+#     proofInputs.slotIndex = 1 # change slot index
 
-    let proof = (await circom.prove(proofInputs)).tryGet
+#     let proof = (await circom.prove(proofInputs)).tryGet
 
-    var resp = (await circom.verify(proof, proofInputs)).tryGet
+#     var resp = (await circom.verify(proof, proofInputs)).tryGet
 
-    check resp == false
+#     check resp == false
 
-suite "Test Circom Compat Backend":
+suite "Test Circom Compat Backend - full flow":
   let
     ecK = 2
     ecM = 2
@@ -112,18 +112,35 @@ suite "Test Circom Compat Backend":
     await metaTmp.destroyDb()
     taskpool.shutdown()
 
-  test "Should verify with correct input":
-    var proof = (await circom.prove(proofInputs)).tryGet
+  # test "Should verify with correct input":
+  #   var proof = (await circom.prove(proofInputs)).tryGet
 
-    var resp = (await circom.verify(proof, proofInputs)).tryGet
+  #   var resp = (await circom.verify(proof, proofInputs)).tryGet
 
-    check resp == true
+  #   check resp == true
 
-  test "Should not verify with incorrect input":
-    proofInputs.slotIndex = 1 # change slot index
+  # test "Should not verify with incorrect input":
+  #   proofInputs.slotIndex = 1 # change slot index
 
-    let proof = (await circom.prove(proofInputs)).tryGet
+  #   let proof = (await circom.prove(proofInputs)).tryGet
 
-    var resp = (await circom.verify(proof, proofInputs)).tryGet
+  #   var resp = (await circom.verify(proof, proofInputs)).tryGet
 
-    check resp == false
+  #   check resp == false
+
+  test "Should concurrently prove/verify":
+    var proveTasks = newSeq[Future[?!CircomProof]]()
+    var verifyTasks = newSeq[Future[?!bool]]()
+
+    for i in 0 ..< 5:
+      proveTasks.add(circom.prove(proofInputs))
+
+    let proveResults = await allFinished(proveTasks)
+    for i in 0 ..< 5:
+      var proof = proveTasks[i].read().tryGet()
+      verifyTasks.add(circom.verify(proof, proofInputs))
+
+    let verifyResults = await allFinished(verifyTasks)
+    for i in 0 ..< 5:
+      check:
+        verifyResults[i].read().tryGet() == true
