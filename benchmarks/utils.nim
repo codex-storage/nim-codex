@@ -1,4 +1,5 @@
 import std/tables
+import std/times
 
 template withDir*(dir: string, blk: untyped) =
   ## set working dir for duration of blk
@@ -41,18 +42,49 @@ template benchmark*(name: untyped, count: int, blk: untyped) =
   )
   benchRuns[benchmarkName] = (runs.avg(), count)
 
-template printBenchMarkSummaries*(printRegular=true, printTsv=true) =
+const BenchmarkFile = "benchmarks.csv"
+
+template printBenchMarkSummaries*(
+    printRegular = true, printTsv = true, exportExcel = true
+) =
   if printRegular:
     echo ""
     for k, v in benchRuns:
       echo "Benchmark average run ", v.avgTimeSec, " for ", v.count, " runs ", "for ", k
-    
+
   if printTsv:
     echo ""
     echo "name", "\t", "avgTimeSec", "\t", "count"
     for k, v in benchRuns:
       echo k, "\t", v.avgTimeSec, "\t", v.count
 
+  if exportExcel:
+    let timestamp = now().format("yyyy-MM-dd HH:mm:ss")
+    var f: File
+    var isNewFile = not fileExists("repo-benchmars.csv")
+
+    if f.open("repo-benchmars.csv", fmAppend):
+      try:
+        # Write header if new file
+        if isNewFile:
+          f.writeLine("Timestamp,Benchmark,Average Time (s),Run Count")
+
+        # Write benchmark data
+        for name, data in benchRuns:
+          f.writeLine(
+            [
+              timestamp,
+              name,
+              data.avgTimeSec.formatFloat(format = ffDecimal, precision = 3),
+              $data.count,
+            ].join(",")
+          )
+
+        echo "Benchmark results appended to: ", BenchmarkFile
+      finally:
+        f.close()
+    else:
+      echo "Error: Could not open ", BenchmarkFile, " for writing"
 
 import std/math
 
