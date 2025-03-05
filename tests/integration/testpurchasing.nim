@@ -89,7 +89,6 @@ twonodessuite "Purchasing":
     check eventually(client1.purchaseStateIs(id, "submitted"), timeout = 3 * 60 * 1000)
 
     await node1.restart()
-    client1.restart()
 
     check eventually(client1.purchaseStateIs(id, "submitted"), timeout = 3 * 60 * 1000)
     let request = client1.getPurchase(id).get.request.get
