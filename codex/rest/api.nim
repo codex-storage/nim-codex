@@ -256,6 +256,80 @@ proc getFilenameFromContentDisposition(contentDisposition: string): ?string =
 proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRouter) =
   let allowedOrigin = router.allowedOrigin # prevents capture inside of api definition
 
+  router.api(MethodOptions, "/api/codex/v1/torrent") do(
+    resp: HttpResponseRef
+  ) -> RestApiResponse:
+    if corsOrigin =? allowedOrigin:
+      resp.setCorsHeaders("POST", corsOrigin)
+      resp.setHeader(
+        "Access-Control-Allow-Headers", "content-type, content-disposition"
+      )
+
+    resp.status = Http204
+    await resp.sendBody("")
+
+  router.rawApi(MethodPost, "/api/codex/v1/torrent") do() -> RestApiResponse:
+    ## Upload a file in a streaming manner
+    ##
+
+    trace "Handling file upload"
+    var bodyReader = request.getBodyReader()
+    if bodyReader.isErr():
+      return RestApiResponse.error(Http500, msg = bodyReader.error())
+
+    # Attempt to handle `Expect` header
+    # some clients (curl), wait 1000ms
+    # before giving up
+    #
+    await request.handleExpect()
+
+    var mimetype = request.headers.getString(ContentTypeHeader).some
+
+    if mimetype.get() != "":
+      let mimetypeVal = mimetype.get()
+      var m = newMimetypes()
+      let extension = m.getExt(mimetypeVal, "")
+      if extension == "":
+        return RestApiResponse.error(
+          Http422, "The MIME type '" & mimetypeVal & "' is not valid."
+        )
+    else:
+      mimetype = string.none
+
+    const ContentDispositionHeader = "Content-Disposition"
+    let contentDisposition = request.headers.getString(ContentDispositionHeader)
+    let filename = getFilenameFromContentDisposition(contentDisposition)
+
+    if filename.isSome and not isValidFilename(filename.get()):
+      return RestApiResponse.error(Http422, "The filename is not valid.")
+
+    # Here we could check if the extension matches the filename if needed
+
+    let reader = bodyReader.get()
+
+    try:
+      without infoHash =? (
+        await node.storeTorrent(
+          AsyncStreamWrapper.new(reader = AsyncStreamReader(reader)),
+          filename = filename,
+          mimetype = mimetype,
+        )
+      ), error:
+        error "Error uploading file", exc = error.msg
+        return RestApiResponse.error(Http500, error.msg)
+
+      codex_api_uploads.inc()
+      trace "Uploaded torrent", infoHash = $infoHash
+      return RestApiResponse.response(infoHash.hex)
+    except CancelledError:
+      trace "Upload cancelled error"
+      return RestApiResponse.error(Http500)
+    except AsyncStreamError:
+      trace "Async stream error"
+      return RestApiResponse.error(Http500)
+    finally:
+      await reader.closeWait()
+
   router.api(MethodOptions, "/api/codex/v1/data") do(
     resp: HttpResponseRef
   ) -> RestApiResponse:
