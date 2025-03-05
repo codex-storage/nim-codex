@@ -77,8 +77,7 @@ method start*(
 
   let poptions = node.processOptions + {AsyncProcessOption.StdErrToStdOut}
   let args = @["node", "--export", "deployment-localhost.json"].concat(node.arguments)
-  trace "starting node",
-    args, executable, workingDir = node.workingDir, processOptions = poptions
+  trace "starting node", args, executable, workingDir = node.workingDir
 
   try:
     node.process = await startProcess(
