@@ -51,12 +51,13 @@ task testIntegration, "Run integration tests":
   buildBinary "codex",
     params =
       "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE -d:chronicles_disabled_topics=JSONRPC-HTTP-CLIENT,websock,libp2p,discv5 -d:codex_enable_proof_failures=true"
-  var testParams = ""
+  var sinks = @["textlines[nocolors,file]"]
   for i in 2 ..< paramCount():
     if "DebugTestHarness" in paramStr(i) and truthy paramStr(i).split('=')[1]:
-      testParams =
-        "-d:chronicles_log_level=TRACE -d:chronicles_sinks=textlines[dynamic],json[dynamic],textlines[dynamic]"
+      sinks.add "textlines[stdout]"
       break
+  var testParams =
+    "-d:chronicles_log_level=TRACE -d:chronicles_sinks=\"" & sinks.join(",") & "\""
   test "testIntegration", params = testParams
   # use params to enable logging from the integration test executable
   # test "testIntegration", params = "-d:chronicles_sinks=textlines[notimestamps,stdout],textlines[dynamic] " &
