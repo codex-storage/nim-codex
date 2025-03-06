@@ -800,6 +800,8 @@ paths:
                 type: string
         "400":
           description: Invalid or missing Request ID
+        "422":
+          description: The storage request parameters are not valid
         "404":
           description: Request ID not found
         "503":
