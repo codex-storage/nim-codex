@@ -22,6 +22,11 @@ func avg(vals: openArray[float]): float =
   for v in vals:
     result += v / vals.len().toFloat()
 
+func avg(vals: openArray[int]): int =
+  for v in vals:
+    result += v
+  result = result div vals.len()
+
 template benchmark*(name: untyped, count: int, blk: untyped) =
   let benchmarkName: string = name
   ## simple benchmarking of a block of code
