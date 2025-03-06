@@ -42,7 +42,6 @@ const TestTimeout {.intdefine.} = 60
 const EnableParallelTests {.booldefine.} = true
 
 proc setupLogging(logFile: string) =
-
   try:
     let success = defaultChroniclesStream.outputs[0].open(logFile, fmAppend)
     doAssert success, "Failed to open log file: " & logFile
@@ -57,18 +56,18 @@ proc run(): Future[bool] {.async: (raises: []).} =
     currentSourcePath.parentDir() / "integration" / "logs" /
     sanitize(startTime & "-IntegrationTests")
   try:
-      createDir(logsDir)
-      #!fmt: off
-      styledEcho bgWhite, fgBlack, styleBright,
-        "\n\n  ",
-        styleUnderscore,
-        "ℹ️  LOGS AVAILABLE ℹ️\n\n",
-        resetStyle, bgWhite, fgBlack, styleBright,
-        """  Logs for this run will be available at:""",
-        resetStyle, bgWhite, fgBlack,
-        &"\n\n  {logsDir}\n\n",
-        resetStyle, bgWhite, fgBlack, styleBright,
-        "  NOTE: For CI runs, logs will be attached as artefacts\n"
+    createDir(logsDir)
+    #!fmt: off
+    styledEcho bgWhite, fgBlack, styleBright,
+      "\n\n  ",
+      styleUnderscore,
+      "ℹ️  LOGS AVAILABLE ℹ️\n\n",
+      resetStyle, bgWhite, fgBlack, styleBright,
+      """  Logs for this run will be available at:""",
+      resetStyle, bgWhite, fgBlack,
+      &"\n\n  {logsDir}\n\n",
+      resetStyle, bgWhite, fgBlack, styleBright,
+      "  NOTE: For CI runs, logs will be attached as artefacts\n"
       #!fmt: on
   except IOError as e:
     raiseAssert "Failed to create log directory and echo log message: " & e.msg
