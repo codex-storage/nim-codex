@@ -124,6 +124,6 @@ twonodessuite "Purchasing":
       collateralPerByte = 1.u256,
       expiry = 10.uint64,
     )
-    check responseBefore.status == "400 Bad Request"
+    check responseBefore.status == "422 Unprocessable Entity"
     check "Expiry needs value bigger then zero and smaller then the request's duration" in
       responseBefore.body
