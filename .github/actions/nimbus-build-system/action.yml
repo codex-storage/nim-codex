@@ -125,11 +125,11 @@ runs:
       shell: ${{ inputs.shell }} {0}
       run: |
         CCACHE_DIR=$(dirname $(which ccache))/ccached
-        mkdir ${CCACHE_DIR}
-        ln -s $(which ccache) ${CCACHE_DIR}/gcc.exe
-        ln -s $(which ccache) ${CCACHE_DIR}/g++.exe
-        ln -s $(which ccache) ${CCACHE_DIR}/cc.exe
-        ln -s $(which ccache) ${CCACHE_DIR}/c++.exe
+        mkdir -p ${CCACHE_DIR}
+        ln -sf $(which ccache) ${CCACHE_DIR}/gcc.exe
+        ln -sf $(which ccache) ${CCACHE_DIR}/g++.exe
+        ln -sf $(which ccache) ${CCACHE_DIR}/cc.exe
+        ln -sf $(which ccache) ${CCACHE_DIR}/c++.exe
         echo "export PATH=${CCACHE_DIR}:\$PATH" >> $HOME/.bash_profile # prefix path in MSYS2
 
     - name: Derive environment variables
