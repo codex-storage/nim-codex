@@ -16,7 +16,7 @@ template runit*(cmd: string) =
   echo "STATUS: ", cmdRes
   assert cmdRes == 0
 
-var benchRuns* = newTable[string, tuple[avgTimeSec: float, count: int]]()
+var benchRuns* = newTable[string, tuple[avgTimeSec: float, avgMem: int, count: int]]()
 
 func avg(vals: openArray[float]): float =
   for v in vals:
@@ -25,33 +25,40 @@ func avg(vals: openArray[float]): float =
 template benchmark*(name: untyped, count: int, blk: untyped) =
   let benchmarkName: string = name
   ## simple benchmarking of a block of code
-  var runs = newSeqOfCap[float](count)
+  var times = newSeqOfCap[float](count)
+  var mems = newSeqOfCap[int](count)
   for i in 1 .. count:
     block:
+      let m0 = getOccupiedMem()
       let t0 = epochTime()
       `blk`
       let elapsed = epochTime() - t0
-      runs.add elapsed
+      let mem = getOccupiedMem() - m0
+      times.add elapsed
+      mems.add mem
 
   var elapsedStr = ""
-  for v in runs:
+  var memStr = ""
+  for v in times:
     elapsedStr &= ", " & v.formatFloat(format = ffDecimal, precision = 3)
+  for m in mems:
+    memStr &= ", " & $m & " bytes"
   stdout.styledWriteLine(
-    fgGreen, "CPU Time [", benchmarkName, "] ", "avg(", $count, "): ", elapsedStr, " s"
+    fgGreen, "CPU Time [", benchmarkName, "] ", "avg(", $count, "): ", elapsedStr, " s ", memStr
   )
-  benchRuns[benchmarkName] = (runs.avg(), count)
+  benchRuns[benchmarkName] = (times.avg(), mems.avg(), count)
 
 template printBenchMarkSummaries*(printRegular=true, printTsv=true) =
   if printRegular:
     echo ""
     for k, v in benchRuns:
-      echo "Benchmark average run ", v.avgTimeSec, " for ", v.count, " runs ", "for ", k
+      echo "Benchmark average run ", v.avgTimeSec, "s ", v.avgMem, "b for ", v.count, " runs ", "for ", k
     
   if printTsv:
     echo ""
-    echo "name", "\t", "avgTimeSec", "\t", "count"
+    echo "name", "\t", "avgTimeSec", "\t", "avgMem", "\t", "count"
     for k, v in benchRuns:
-      echo k, "\t", v.avgTimeSec, "\t", v.count
+      echo k, "\t", v.avgTimeSec, "\t", v.avgMem, "\t", v.count
 
 
 import std/math
