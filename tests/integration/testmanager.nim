@@ -21,32 +21,31 @@ type
     output: seq[string]
     port: int
 
+  TestManagerConfig* = object # Echoes stdout from Hardhat process
+    debugHardhat*: bool
+    # Echoes stdout from the integration test file process. Codex process logs
+    # can also be output if a test uses a multinodesuite, requires
+    # CodexConfig.debug to be enabled
+    debugCodexNodes*: bool
+    # Shows test status updates at regular time intervals. Useful for running
+    # locally while attended. Set to false for unattended runs, eg CI.
+    showContinuousStatusUpdates*: bool
+    logsDir*: string
+    testTimeout*: Duration # individual test timeout
+
   TestManager* = ref object
-    configs: seq[IntegrationTestConfig]
+    config: TestManagerConfig
+    testConfigs: seq[IntegrationTestConfig]
     tests: seq[IntegrationTest]
     hardhats: seq[Hardhat]
     lastHardhatPort: int
     lastCodexApiPort: int
     lastCodexDiscPort: int
-    # Echoes stderr if there's a test failure (eg test failed, compilation
-    # error) or error (eg test manager error)
-    debugTestHarness: bool
-    # Echoes stdout from Hardhat process
-    debugHardhat: bool
-    # Echoes stdout from the integration test file process. Codex process logs
-    # can also be output if a test uses a multinodesuite, requires
-    # CodexConfig.debug to be enabled
-    debugCodexNodes: bool
-    # Shows test status updates at regular time intervals. Useful for running
-    # locally while attended. Set to false for unattended runs, eg CI.
-    showContinuousStatusUpdates: bool
-    logsDir: string
     timeStart: ?Moment
     timeEnd: ?Moment
     codexPortLock: AsyncLock
     hardhatPortLock: AsyncLock
     hardhatProcessLock: AsyncLock
-    testTimeout: Duration # individual test timeout
     trackedFutures: TrackedFutures
 
   IntegrationTestConfig* = object
@@ -123,36 +122,34 @@ template ignoreCancelled(body) =
     discard
 
 func logFile*(_: type TestManager, dir: string): string =
-  dir / "TestHarness.log"
+  dir / "testmanager.chronicles.log"
 
 func logFile(manager: TestManager): string =
-  TestManager.logFile(manager.logsDir)
+  TestManager.logFile(manager.config.logsDir)
 
 func logFile(test: IntegrationTest, fileName: string): string =
-  test.logsDir / fileName
+  let testName = sanitize(test.config.name)
+  test.logsDir / &"{testName}.{fileName}"
+
+func isErrorLike(output: ?!TestOutput): bool =
+  # Three lines is an arbitrary number, however it takes into account the
+  # "LevelDB already build" line and blank line that is output to stdout. This
+  # typically means that the exitCode == 1 (test failed) and if stdout is short,
+  # we're dealing with an error
+  o =? output and o.stdOut.countLines() < 3
 
 proc new*(
     _: type TestManager,
-    configs: seq[IntegrationTestConfig],
-    logsDir: string,
-    debugTestHarness = false,
-    debugHardhat = false,
-    debugCodexNodes = false,
-    showContinuousStatusUpdates = false,
-    testTimeout = 60.minutes,
+    config: TestManagerConfig,
+    testConfigs: seq[IntegrationTestConfig],
 ): TestManager =
   TestManager(
-    configs: configs,
+    config: config,
+    testConfigs: testConfigs,
     lastHardhatPort: 8545,
     lastCodexApiPort: 8000,
-    lastCodexDiscPort: 9000,
-    debugTestHarness: debugTestHarness,
-    debugHardhat: debugHardhat,
-    debugCodexNodes: debugCodexNodes,
-    showContinuousStatusUpdates: showContinuousStatusUpdates,
-    testTimeout: testTimeout,
+    lastCodexDiscPort: 18000, # keep separated by 10000 to minimise overlap
     trackedFutures: TrackedFutures.new(),
-    logsDir: logsDir,
   )
 
 func init*(
@@ -212,7 +209,7 @@ proc startHardhat(
 
   args.add("--port")
   args.add($port)
-  if test.manager.debugHardhat:
+  if test.manager.config.debugHardhat:
     args.add("--log-file=" & test.logsDir / "hardhat.log")
 
   trace "starting hardhat process on port ", port
@@ -264,11 +261,7 @@ proc colorise(output: string): string =
   for (text, colour) in replacements:
     result = result.replace(text, text.setColour(colour))
 
-proc printResult(
-    test: IntegrationTest,
-    printStdOut = test.manager.debugCodexNodes,
-    printStdErr = test.manager.debugTestHarness,
-) =
+proc printResult(test: IntegrationTest, printStdOut, printStdErr: bool) =
   case test.status
   of IntegrationTestStatus.New:
     test.printResult(fgBlue)
@@ -281,9 +274,14 @@ proc printResult(
       echo "Error during test execution: ", error.msg
       echo "Stacktrace: ", error.getStackTrace()
       test.printOutputMarker(MarkerPosition.Finish, "test harness errors")
-  of IntegrationTestStatus.Failed:
     if output =? test.output:
       if printStdErr:
+        test.printOutputMarker(MarkerPosition.Start, "test file errors (stderr)")
+        echo output.stdErr
+        test.printOutputMarker(MarkerPosition.Finish, "test file errors (stderr)")
+  of IntegrationTestStatus.Failed:
+    if output =? test.output:
+      if printStdErr or test.output.isErrorLike:
         test.printOutputMarker(MarkerPosition.Start, "test file errors (stderr)")
         echo output.stdErr
         test.printOutputMarker(MarkerPosition.Finish, "test file errors (stderr)")
@@ -315,25 +313,11 @@ proc printStart(test: IntegrationTest) =
 proc buildCommand(
     test: IntegrationTest, hardhatPort: ?int
 ): Future[string] {.async: (raises: [CancelledError, TestManagerError]).} =
-  var logging = string.none
-  if test.manager.debugTestHarness:
-    #!fmt: off
-    logging = some(
-      "-d:chronicles_log_level=TRACE " &
-      "-d:chronicles_disabled_topics=websock,JSONRPC-HTTP-CLIENT,JSONRPC-WS-CLIENT " &
-      "-d:chronicles_default_output_device=stdout " &
-      "-d:chronicles_sinks=textlines")
-    #!fmt: on
-
   var hhPort = string.none
   if test.config.startHardhat:
     without port =? hardhatPort:
       raiseTestManagerError "hardhatPort required when 'config.startHardhat' is true"
     hhPort = some "-d:HardhatPort=" & $port
-
-  var logDir = string.none
-  if test.manager.debugCodexNodes:
-    logDir = some "-d:LogsDir=" & test.logsDir
 
   var testFile: string
   try:
@@ -362,12 +346,16 @@ proc buildCommand(
           "nim c " &
             &"-d:CodexApiPort={apiPort} " &
             &"-d:CodexDiscPort={discPort} " &
-            &"-d:DebugCodexNodes={test.manager.debugCodexNodes} " &
-            &"-d:DebugHardhat={test.manager.debugHardhat} " &
-            (logDir |? "") & " " &
+            &"-d:DebugCodexNodes={test.manager.config.debugCodexNodes} " &
+            &"-d:DebugHardhat={test.manager.config.debugHardhat} " &
+            &"-d:LogsDir={test.logsDir} " &
             (hhPort |? "") & " " &
             &"-d:TestId={test.testId} " &
-            (logging |? "") & " " &
+            # Log multinodes chronicles logs to file. If DebugCodexNodes is also
+            # enabled, the chronicles output will also get logged to stdout.
+            "-d:chronicles_log_level=TRACE " &
+            "-d:chronicles_disabled_topics=websock,JSONRPC-HTTP-CLIENT,JSONRPC-WS-CLIENT " &
+            "-d:chronicles_sinks=textlines[nocolors,file] " &
             "--verbosity:0 " &
             "--hints:off " &
             "-d:release " &
@@ -376,8 +364,8 @@ proc buildCommand(
           #!fmt: on
       except ValueError as parent:
         raiseTestManagerError "bad command --\n" & ", apiPort: " & $apiPort &
-          ", discPort: " & $discPort & ", logging: " & logging |? "" & ", testFile: " &
-          testFile & ", error: " & parent.msg, parent
+          ", discPort: " & $discPort & ", testFile: " & testFile & ", error: " &
+          parent.msg, parent
 
 proc setup(
     test: IntegrationTest
@@ -404,7 +392,7 @@ proc teardownHardhat(test: IntegrationTest, hardhat: Hardhat) {.async: (raises: 
     warn "Failed to stop hardhat node, continuing",
       error = e.msg, test = test.config.name
 
-  if test.manager.debugHardhat:
+  if test.manager.config.debugHardhat:
     test.printOutputMarker(MarkerPosition.Start, "Hardhat stdout")
     for line in hardhat.output:
       echo line
@@ -434,7 +422,7 @@ proc teardownTest(
       output.stdErr = string.fromBytes(await noCancel stdErrStream)
       test.output = success output
       test.logFile("stdout.log").appendFile(output.stdOut.stripAnsi)
-      if test.status == IntegrationTestStatus.Error:
+      if test.status == IntegrationTestStatus.Error or test.output.isErrorLike:
         test.logFile("stderr.log").appendFile(output.stdErr.stripAnsi)
     except IOError as e:
       warn "Failed to write test stdout and stderr to file", error = e.msg
@@ -492,17 +480,17 @@ proc start(test: IntegrationTest) {.async: (raises: []).} =
 
   trace "Running test"
 
-  if test.manager.debugCodexNodes:
-    test.logsDir = test.manager.logsDir / sanitize(test.config.name)
-    try:
-      createDir(test.logsDir)
-    except CatchableError as e:
-      test.timeStart = some Moment.now()
-      test.timeEnd = some Moment.now()
-      test.status = IntegrationTestStatus.Error
-      test.output = TestOutput.failure(e)
-      error "failed to create test log dir", logDir = test.logsDir, error = e.msg
-      return
+  # if test.manager.config.debugCodexNodes:
+  test.logsDir = test.manager.config.logsDir / sanitize(test.config.name)
+  try:
+    createDir(test.logsDir)
+  except CatchableError as e:
+    test.timeStart = some Moment.now()
+    test.timeEnd = some Moment.now()
+    test.status = IntegrationTestStatus.Error
+    test.output = TestOutput.failure(e)
+    error "failed to create test log dir", logDir = test.logsDir, error = e.msg
+    return
 
   test.timeStart = some Moment.now()
   test.status = IntegrationTestStatus.Running
@@ -520,7 +508,7 @@ proc start(test: IntegrationTest) {.async: (raises: []).} =
       return
 
     trace "Starting parallel integration test",
-      command = test.command, timeout = test.manager.testTimeout
+      command = test.command, timeout = test.manager.config.testTimeout
     test.printStart()
     try:
       test.process = await startProcess(
@@ -551,12 +539,12 @@ proc start(test: IntegrationTest) {.async: (raises: []).} =
 
     output.exitCode =
       try:
-        some (await test.process.waitForExit(test.manager.testTimeout))
+        some (await test.process.waitForExit(test.manager.config.testTimeout))
       except AsyncProcessTimeoutError as e:
         test.timeEnd = some Moment.now()
         test.status = IntegrationTestStatus.Timeout
         error "Test process failed to exit before timeout",
-          timeout = test.manager.testTimeout
+          timeout = test.manager.config.testTimeout
         return
       except AsyncProcessError as e:
         test.timeEnd = some Moment.now()
@@ -568,8 +556,10 @@ proc start(test: IntegrationTest) {.async: (raises: []).} =
     test.status =
       if output.exitCode == some QuitSuccess:
         IntegrationTestStatus.Ok
-      else:
+      elif output.exitCode == some QuitFailure:
         IntegrationTestStatus.Failed
+      else:
+        IntegrationTestStatus.Error
 
 proc continuallyShowUpdates(manager: TestManager) {.async: (raises: []).} =
   ignoreCancelled:
@@ -595,7 +585,7 @@ proc run(test: IntegrationTest) {.async: (raises: []).} =
     # await futStart
 
     try:
-      await futStart.untilTimeout(test.manager.testTimeout)
+      await futStart.untilTimeout(test.manager.config.testTimeout)
     except AsyncTimeoutError:
       error "Test timed out"
       test.timeEnd = some Moment.now()
@@ -618,10 +608,11 @@ proc run(test: IntegrationTest) {.async: (raises: []).} =
       raiseAssert "Test has completed, but is in the Running state"
     of IntegrationTestStatus.Error:
       error "Test errored",
+        exitCode = test.output.option .? exitCode,
         error = test.output.errorOption .? msg,
         stack = test.output.errorOption .? getStackTrace()
     of IntegrationTestStatus.Failed:
-      error "Test failed"
+      error "Test failed", exitCode = test.output.option .? exitCode
     of IntegrationTestStatus.Timeout:
       error "Test timed out"
     of IntegrationTestStatus.Ok:
@@ -634,9 +625,10 @@ proc runTests(manager: TestManager) {.async: (raises: [CancelledError]).} =
 
   echoStyled styleBright,
     bgWhite, fgBlack, "\n[Integration Test Manager] Starting parallel integration tests"
-  notice "[Integration Test Manager] Starting parallel integration tests"
+  notice "[Integration Test Manager] Starting parallel integration tests",
+    config = manager.config
 
-  for config in manager.configs:
+  for config in manager.testConfigs:
     var test =
       IntegrationTest(manager: manager, config: config, testId: $uint16.example)
     manager.tests.add test
@@ -667,13 +659,8 @@ proc withBorder(
 proc printResult(manager: TestManager) {.raises: [TestManagerError].} =
   var successes = 0
   var totalDurationSerial: Duration
-  let showSummary =
-    manager.debugCodexNodes or manager.debugHardhat or manager.debugTestHarness
-
-  if showSummary:
-    echo ""
-    echoStyled styleBright,
-      styleUnderscore, bgWhite, fgBlack, &"INTEGRATION TESTS RESULT"
+  echo ""
+  echoStyled styleBright, styleUnderscore, bgWhite, fgBlack, &"INTEGRATION TESTS RESULT"
 
   for test in manager.tests:
     totalDurationSerial += test.duration
@@ -681,8 +668,7 @@ proc printResult(manager: TestManager) {.raises: [TestManagerError].} =
       inc successes
     # because debug output can really make things hard to read, show a nice
     # summary of test results
-    if showSummary:
-      test.printSummary()
+    test.printSummary()
 
   # estimated time saved as serial execution with a single hardhat instance
   # incurs less overhead
@@ -725,7 +711,7 @@ proc printResult(manager: TestManager) {.raises: [TestManagerError].} =
 proc start*(
     manager: TestManager
 ) {.async: (raises: [CancelledError, TestManagerError]).} =
-  if manager.showContinuousStatusUpdates:
+  if manager.config.showContinuousStatusUpdates:
     let fut = manager.continuallyShowUpdates()
     manager.trackedFutures.track fut
     asyncSpawn fut
