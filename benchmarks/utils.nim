@@ -36,7 +36,7 @@ template benchmark*(name: untyped, count: int, blk: untyped) =
 
   var elapsedStr = ""
   for v in runs:
-    elapsedStr &= ", " & v.formatFloat(format = ffDecimal, precision = 3)
+    elapsedStr &= ", " & v.formatFloat(format = ffDecimal, precision = 5)
   stdout.styledWriteLine(
     fgGreen, "CPU Time [", benchmarkName, "] ", "avg(", $count, "): ", elapsedStr, " s"
   )
@@ -61,9 +61,9 @@ template printBenchMarkSummaries*(
   if exportExcel:
     let timestamp = now().format("yyyy-MM-dd HH:mm:ss")
     var f: File
-    var isNewFile = not fileExists("repo-benchmars.csv")
+    var isNewFile = not fileExists(BenchmarkFile)
 
-    if f.open("repo-benchmars.csv", fmAppend):
+    if f.open(BenchmarkFile, fmAppend):
       try:
         # Write header if new file
         if isNewFile:
@@ -75,7 +75,7 @@ template printBenchMarkSummaries*(
             [
               timestamp,
               name,
-              data.avgTimeSec.formatFloat(format = ffDecimal, precision = 3),
+              data.avgTimeSec.formatFloat(format = ffDecimal, precision = 5),
               $data.count,
             ].join(",")
           )
