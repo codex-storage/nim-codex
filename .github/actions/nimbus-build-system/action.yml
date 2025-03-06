@@ -106,12 +106,10 @@ runs:
         key: ${{ matrix.os }}-${{ matrix.builder }}-${{ matrix.cpu }}-${{ matrix.tests }}-${{ matrix.nim_version }}
         evict-old-files: 7d
 
-    - name: Check gcc on Linux/Mac
+    - name: Add ccache to path on Linux/Mac
       if: inputs.os == 'linux' || inputs.os == 'macos'
       shell: ${{ inputs.shell }} {0}
       run: |
-        which gcc
-        ls -la /usr/local/bin
         echo "/usr/lib/ccache:/usr/local/opt/ccache/libexec" >> "$GITHUB_PATH"
         echo "/usr/local/opt/ccache/libexec" >> "$GITHUB_PATH"
 
