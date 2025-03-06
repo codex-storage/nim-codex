@@ -137,13 +137,10 @@ method stop*(
           error = e.msg
         writeStackTrace()
     finally:
-      proc closeProcessStreams() {.async: (raises: []).} =
-        trace "closing node process' streams"
-        await node.process.closeWait()
-        node.process = nil
-        trace "node process' streams closed"
-
-      asyncSpawn closeProcessStreams()
+      trace "closing node process' streams"
+      await node.process.closeWait()
+      node.process = nil
+      trace "node process' streams closed"
 
 proc waitUntilOutput*(
     node: NodeProcess, output: string
@@ -184,7 +181,7 @@ proc waitUntilStarted*(
     raise
       newException(NodeProcessError, "node did not output '" & node.startedOutput & "'")
 
-proc restart*(node: NodeProcess) {.async.} =
+method restart*(node: NodeProcess) {.base, async.} =
   await node.stop()
   await node.start()
   await node.waitUntilStarted()
