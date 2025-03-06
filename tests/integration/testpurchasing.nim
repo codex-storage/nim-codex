@@ -112,8 +112,9 @@ twonodessuite "Purchasing":
       proofProbability = 3.u256,
       collateralPerByte = 1.u256,
     )
-    check responseMissing.status == "400 Bad Request"
-    check responseMissing.body == "Expiry required"
+    check responseMissing.status == "422 Unprocessable Entity"
+    check responseMissing.body ==
+      "Expiry needs value bigger then zero and smaller then the request's duration"
 
     let responseBefore = client1.requestStorageRaw(
       cid,

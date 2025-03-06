@@ -185,7 +185,8 @@ twonodessuite "REST API":
     )
 
     check responseBefore.status == "422 Unprocessable Entity"
-    check responseBefore.body == "Expiry needs to be bigger than zero"
+    check responseBefore.body ==
+      "Expiry needs value bigger then zero and smaller then the request's duration"
 
   test "request storage fails if proof probability is zero", twoNodesConfig:
     let data = await RandomChunker.example(blocks = 2)
