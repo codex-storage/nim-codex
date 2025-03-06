@@ -7,6 +7,7 @@ import pkg/ethers
 import pkg/libp2p
 import std/os
 import std/strutils
+import std/times
 import codex/conf
 import ./codexclient
 import ./nodeprocess
@@ -78,12 +79,34 @@ proc apiUrl*(node: CodexProcess): string {.raises: [CodexProcessError].} =
   let config = node.config
   return "http://" & config.apiBindAddress & ":" & $config.apiPort & "/api/codex/v1"
 
+proc logFile*(node: CodexProcess): ?string {.raises: [CodexProcessError].} =
+  node.config.logFile
+
 proc client*(node: CodexProcess): CodexClient {.raises: [CodexProcessError].} =
   if client =? node.client:
     return client
   let client = CodexClient.new(node.apiUrl)
   node.client = some client
   return client
+
+proc updateLogFile(node: CodexProcess, newLogFile: string) =
+  for arg in node.arguments.mitems:
+    if arg.startsWith("--log-file="):
+      arg = "--log-file=" & newLogFile
+      break
+
+method restart*(node: CodexProcess) {.async.} =
+  trace "restarting codex"
+  await node.stop()
+  if logFile =? node.logFile:
+    # chronicles truncates the existing log file on start, so changed the log
+    # file cli param to create a new one
+    node.updateLogFile(
+      logFile & "_restartedAt_" & now().format("yyyy-MM-dd'_'HH-mm-ss") & ".log"
+    )
+  await node.start()
+  await node.waitUntilStarted()
+  trace "codex process restarted"
 
 method stop*(node: CodexProcess) {.async: (raises: []).} =
   logScope:
