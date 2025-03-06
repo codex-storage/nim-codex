@@ -29,6 +29,7 @@ runs:
       shell: ${{ inputs.shell }} {0}
       run: |
         curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs/ | sh -s -- --default-toolchain=${{ inputs.rust_version }} -y
+        echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
 
     - name: APT (Linux amd64/arm64)
       if: inputs.os == 'linux' && (inputs.cpu == 'amd64' || inputs.cpu == 'arm64')
@@ -89,7 +90,7 @@ runs:
 
     - name: Install gcc 14 on Linux
       # We don't want to install gcc 14 for coverage (Ubuntu 20.04)
-      if : ${{ inputs.os == 'linux' && inputs.coverage != 'true' }}
+      if : ${{ inputs.os == 'linux' && !inputs.coverage }}
       shell: ${{ inputs.shell }} {0}
       run: |
         # Add GCC-14 to alternatives
@@ -101,9 +102,16 @@ runs:
       if: inputs.os == 'linux' || inputs.os == 'macos'
       uses: hendrikmuhs/ccache-action@v1.2
       with:
-        create-symlink: true
+        create-symlink: false
         key: ${{ matrix.os }}-${{ matrix.builder }}-${{ matrix.cpu }}-${{ matrix.tests }}-${{ matrix.nim_version }}
         evict-old-files: 7d
+
+    - name: Add ccache to path on Linux/Mac
+      if: inputs.os == 'linux' || inputs.os == 'macos'
+      shell: ${{ inputs.shell }} {0}
+      run: |
+        echo "/usr/lib/ccache:/usr/local/opt/ccache/libexec" >> "$GITHUB_PATH"
+        echo "/usr/local/opt/ccache/libexec" >> "$GITHUB_PATH"
 
     - name: Install ccache on Windows
       if: inputs.os == 'windows'
@@ -117,11 +125,11 @@ runs:
       shell: ${{ inputs.shell }} {0}
       run: |
         CCACHE_DIR=$(dirname $(which ccache))/ccached
-        mkdir ${CCACHE_DIR}
-        ln -s $(which ccache) ${CCACHE_DIR}/gcc.exe
-        ln -s $(which ccache) ${CCACHE_DIR}/g++.exe
-        ln -s $(which ccache) ${CCACHE_DIR}/cc.exe
-        ln -s $(which ccache) ${CCACHE_DIR}/c++.exe
+        mkdir -p ${CCACHE_DIR}
+        ln -sf $(which ccache) ${CCACHE_DIR}/gcc.exe
+        ln -sf $(which ccache) ${CCACHE_DIR}/g++.exe
+        ln -sf $(which ccache) ${CCACHE_DIR}/cc.exe
+        ln -sf $(which ccache) ${CCACHE_DIR}/c++.exe
         echo "export PATH=${CCACHE_DIR}:\$PATH" >> $HOME/.bash_profile # prefix path in MSYS2
 
     - name: Derive environment variables
@@ -202,7 +210,7 @@ runs:
     - name: Restore Nim toolchain binaries from cache
       id: nim-cache
       uses: actions/cache@v4
-      if : ${{ inputs.coverage != 'true'  }}
+      if : ${{ !inputs.coverage  }}
       with:
         path: NimBinaries
         key: ${{ inputs.os }}-${{ inputs.cpu }}-nim-${{ inputs.nim_version }}-cache-${{ env.cache_nonce }}-${{ github.run_id }}
