@@ -61,13 +61,12 @@ marketplacesuite "Validation":
     NodeConfigs(
       # Uncomment to start Hardhat automatically, typically so logs can be inspected locally
       hardhat: HardhatConfig.none,
-      clients: CodexConfigs
-        .init(nodes = 1)
-        # .debug() # uncomment to enable console log output
-        # .withLogFile()
-        # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        # .withLogTopics("purchases", "onchain")
-        .some,
+      clients: CodexConfigs.init(nodes = 1)
+      # .debug() # uncomment to enable console log output
+      # .withLogFile()
+      # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+      # .withLogTopics("purchases", "onchain")
+      .some,
       providers: CodexConfigs
         .init(nodes = 1)
         .withSimulateProofFailures(idx = 0, failEveryNProofs = 1)
@@ -143,13 +142,12 @@ marketplacesuite "Validation":
     NodeConfigs(
       # Uncomment to start Hardhat automatically, typically so logs can be inspected locally
       hardhat: HardhatConfig.none,
-      clients: CodexConfigs
-        .init(nodes = 1)
-        # .debug() # uncomment to enable console log output
-        # .withLogFile()
-        # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        # .withLogTopics("purchases", "onchain")
-        .some,
+      clients: CodexConfigs.init(nodes = 1)
+      # .debug() # uncomment to enable console log output
+      # .withLogFile()
+      # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+      # .withLogTopics("purchases", "onchain")
+      .some,
       providers: CodexConfigs
         .init(nodes = 1)
         .withSimulateProofFailures(idx = 0, failEveryNProofs = 1)
