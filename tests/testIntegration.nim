@@ -1,9 +1,17 @@
+import std/os
+import std/strformat
 import std/terminal
+from std/times import format, now
+import std/terminal
+import std/typetraits
 import pkg/chronos
+import pkg/codex/conf
 import pkg/codex/logutils
 import ./integration/testmanager
+import ./integration/utils
 
 {.warning[UnusedImport]: off.}
+{.push raises: [].}
 
 const TestConfigs =
   @[
@@ -22,9 +30,6 @@ const TestConfigs =
     ),
   ]
 
-# Echoes stderr if there's a test failure (eg test failed, compilation error)
-# or error (eg test manager error)
-const DebugTestHarness {.booldefine.} = false
 # Echoes stdout from Hardhat process
 const DebugHardhat {.booldefine.} = false
 # Echoes stdout from the integration test file process. Codex process logs can
@@ -39,44 +44,22 @@ const TestTimeout {.intdefine.} = 60
 
 const EnableParallelTests {.booldefine.} = true
 
-proc setupLogging(logFile: string, debugTestHarness: bool) =
-  when defaultChroniclesStream.outputs.type.arity != 3:
-    raiseAssert "Logging configuration options not enabled in the current build"
-  else:
-    proc writeAndFlush(f: File, msg: LogOutputStr) =
-      try:
-        f.write(msg)
-        f.flushFile()
-      except IOError as err:
-        logLoggingFailure(cstring(msg), err)
+proc setupLogging(logFile: string) =
 
-    proc noOutput(logLevel: LogLevel, msg: LogOutputStr) =
-      discard
-
-    proc stdoutFlush(logLevel: LogLevel, msg: LogOutputStr) =
-      writeAndFlush(stdout, msg)
-
-    proc fileFlush(logLevel: LogLevel, msg: LogOutputStr) =
-      try:
-        logFile.appendFile(stripAnsi(msg))
-      except IOError as error:
-        fatal "Failed to write to log file", error = error.msg # error = error.ioErrorMsg
-        raiseAssert "Could not write to test manager log file: " & error.msg
-
-    defaultChroniclesStream.outputs[0].writer = stdoutFlush
-    defaultChroniclesStream.outputs[1].writer = noOutput
-    if debugTestHarness:
-      defaultChroniclesStream.outputs[2].writer = fileFlush
-    else:
-      defaultChroniclesStream.outputs[2].writer = noOutput
+  try:
+    let success = defaultChroniclesStream.outputs[0].open(logFile, fmAppend)
+    doAssert success, "Failed to open log file: " & logFile
+  except IOError, OSError:
+    let error = getCurrentException()
+    fatal "Failed to open log file", error = error.msg
+    raiseAssert "Could not open test manager log file: " & error.msg
 
 proc run(): Future[bool] {.async: (raises: []).} =
-  let startTime = now().format("yyyy-MM-dd'_'HH:mm:ss")
+  let startTime = now().format("yyyy-MM-dd'_'HH-mm-ss")
   let logsDir =
     currentSourcePath.parentDir() / "integration" / "logs" /
-    sanitize(startTime & "__IntegrationTests")
+    sanitize(startTime & "-IntegrationTests")
   try:
-    if DebugTestHarness or DebugHardhat or DebugCodexNodes:
       createDir(logsDir)
       #!fmt: off
       styledEcho bgWhite, fgBlack, styleBright,
@@ -95,16 +78,17 @@ proc run(): Future[bool] {.async: (raises: []).} =
   except OSError as e:
     raiseAssert "Failed to create log directory and echo log message: " & e.msg
 
-  setupLogging(TestManager.logFile(logsDir), DebugTestHarness)
+  setupLogging(TestManager.logFile(logsDir))
 
   let manager = TestManager.new(
-    configs = TestConfigs,
-    logsDir,
-    DebugTestHarness,
-    DebugHardhat,
-    DebugCodexNodes,
-    ShowContinuousStatusUpdates,
-    TestTimeout.minutes,
+    config = TestManagerConfig(
+      debugHardhat: DebugHardhat,
+      debugCodexNodes: DebugCodexNodes,
+      showContinuousStatusUpdates: ShowContinuousStatusUpdates,
+      logsDir: logsDir,
+      testTimeout: TestTimeout.minutes,
+    ),
+    testConfigs = TestConfigs,
   )
   try:
     trace "starting test manager"

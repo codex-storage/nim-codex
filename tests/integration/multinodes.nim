@@ -104,7 +104,6 @@ template multinodesuite*(name: string, body: untyped) =
     var lastUsedCodexApiPort = CodexApiPort
     var lastUsedCodexDiscPort = CodexDiscPort
     var codexPortLock: AsyncLock
-    var futTimeout: Future[void]
 
     template test(tname, startNodeConfigs, tbody) =
       currentTestName = tname
@@ -186,7 +185,6 @@ template multinodesuite*(name: string, body: untyped) =
             )
 
         if DebugCodexNodes:
-          config.debugEnabled = true
           config.addCliOption("--log-level", $LogLevel.TRACE)
 
         var apiPort, discPort: int
@@ -361,15 +359,14 @@ template multinodesuite*(name: string, body: untyped) =
         raiseMultiNodeSuiteError "Failed to get node info: " & e.msg, e
 
     setupAll:
-      proc raiseOnTimeout() {.async: (raises: [CancelledError, SuiteTimeoutError]).} =
-        await sleepAsync(chronos.seconds(10))
-        raise newException(SuiteTimeoutError, "suite timed out")
-
-      failAndTeardownOnError "suite timed out":
-        futTimeout = raiseOnTimeout()
-
-    teardownAll:
-      await futTimeout.cancelAndWait()
+      # When this file is run with `-d:chronicles_sinks=textlines[file]`, we
+      # need to set the log file path at runtime, otherwise chronicles didn't seem to
+      # create a log file even when using an absolute path
+      when defaultChroniclesStream.outputs is (FileOutput,) and LogsDir.len > 0:
+        let logFile =
+          LogsDir / sanitize(getAppFilename().extractFilename & ".chronicles.log")
+        let success = defaultChroniclesStream.outputs[0].open(logFile, fmAppend)
+        doAssert success, "Failed to open log file: " & logFile
 
     setup:
       if var conf =? nodeConfigs.hardhat:
