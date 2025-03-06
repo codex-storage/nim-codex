@@ -652,10 +652,7 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
       without params =? StorageRequestParams.fromJson(body), error:
         return RestApiResponse.error(Http400, error.msg, headers = headers)
 
-      without expiry =? params.expiry:
-        return RestApiResponse.error(
-          Http422, "Expiry needs to be bigger than zero", headers = headers
-        )
+      let expiry = params.expiry
 
       if expiry <= 0 or expiry >= params.duration:
         return RestApiResponse.error(

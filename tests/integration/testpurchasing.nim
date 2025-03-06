@@ -123,8 +123,9 @@ twonodessuite "Purchasing":
       proofProbability = 3.u256,
       collateralPerByte = 1.u256,
     )
-    check responseMissing.status == 400
-    check (await responseMissing.body) == "Expiry required"
+    check responseMissing.status == 422
+    check (await responseMissing.body) ==
+      "Expiry needs value bigger then zero and smaller then the request's duration"
 
     let responseBefore = await client1.requestStorageRaw(
       cid,
@@ -134,6 +135,6 @@ twonodessuite "Purchasing":
       collateralPerByte = 1.u256,
       expiry = 10.uint64,
     )
-    check responseBefore.status == 400
+    check responseBefore.status == 422
     check "Expiry needs value bigger then zero and smaller then the request's duration" in
       (await responseBefore.body)

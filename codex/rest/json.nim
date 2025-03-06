@@ -17,7 +17,7 @@ type
     proofProbability* {.serialize.}: UInt256
     pricePerBytePerSecond* {.serialize.}: UInt256
     collateralPerByte* {.serialize.}: UInt256
-    expiry* {.serialize.}: ?uint64
+    expiry* {.serialize.}: uint64
     nodes* {.serialize.}: ?uint
     tolerance* {.serialize.}: ?uint
 
