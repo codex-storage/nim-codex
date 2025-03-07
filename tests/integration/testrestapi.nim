@@ -1,4 +1,6 @@
 import std/httpclient
+import std/importutils
+import std/net
 import std/sequtils
 import std/strformat
 from pkg/libp2p import `==`, `$`, Cid
@@ -305,3 +307,30 @@ twonodessuite "REST API":
     let cid = Manifest.example().makeManifestBlock().get.cid
     let response = client1.deleteRaw($cid)
     check response.status == "204 No Content"
+
+  test "should not crash if the download stream is closed before download completes",
+    twoNodesConfig:
+    privateAccess(client1.type)
+    privateAccess(client1.http.type)
+
+    let cid = client1.upload(repeat("some file contents", 1000)).get
+
+    try:
+      # Sadly, there's no high level API for preventing the client from
+      # consuming the whole response, and we need to close the socket
+      # before that happens if we want to trigger the bug.
+      client1.http.getBody = false
+      let response = client1.downloadRaw($cid)
+
+      # Read 4 bytes from the stream just to make sure we actually
+      # receive some data.
+      let data = client1.http.socket.recv(4)
+      check data.len == 4
+
+      # Prematurely closes the connection.
+      client1.http.close()
+    finally:
+      client1.http.getBody = true
+
+    let response = client1.downloadRaw($cid)
+    check response.body == repeat("some file contents", 1000)

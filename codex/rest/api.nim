@@ -65,9 +65,15 @@ proc formatManifestBlocks(node: CodexNodeRef): Future[JsonNode] {.async.} =
 
   return %RestContentList.init(content)
 
+proc isPending(resp: HttpResponseRef): bool =
+  ## Checks that an HttpResponseRef object is still pending; i.e.,
+  ## that no body has yet been sent. This helps us guard against calling
+  ## sendBody(resp: HttpResponseRef, ...) twice, which is illegal.
+  return resp.getResponseState() == HttpResponseState.Empty
+
 proc retrieveCid(
     node: CodexNodeRef, cid: Cid, local: bool = true, resp: HttpResponseRef
-): Future[RestApiResponse] {.async.} =
+): Future[void] {.async: (raises: [CancelledError, HttpWriteError]).} =
   ## Download a file from the node in a streaming
   ## manner
   ##
@@ -79,16 +85,19 @@ proc retrieveCid(
     without stream =? (await node.retrieve(cid, local)), error:
       if error of BlockNotFoundError:
         resp.status = Http404
-        return await resp.sendBody("")
+        await resp.sendBody("")
+        return
       else:
         resp.status = Http500
-        return await resp.sendBody(error.msg)
+        await resp.sendBody(error.msg)
+        return
 
     # It is ok to fetch again the manifest because it will hit the cache
     without manifest =? (await node.fetchManifest(cid)), err:
       error "Failed to fetch manifest", err = err.msg
       resp.status = Http404
-      return await resp.sendBody(err.msg)
+      await resp.sendBody(err.msg)
+      return
 
     if manifest.mimetype.isSome:
       resp.setHeader("Content-Type", manifest.mimetype.get())
@@ -119,10 +128,13 @@ proc retrieveCid(
       await resp.sendChunk(addr buff[0], buff.len)
     await resp.finish()
     codex_api_downloads.inc()
+  except CancelledError as exc:
+    raise exc
   except CatchableError as exc:
     warn "Error streaming blocks", exc = exc.msg
     resp.status = Http500
-    return await resp.sendBody("")
+    if resp.isPending():
+      await resp.sendBody("")
   finally:
     info "Sent bytes", cid = cid, bytes
     if not stream.isNil:
