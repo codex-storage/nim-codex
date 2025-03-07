@@ -300,7 +300,9 @@ proc updateAvailability(
 
   let res = await self.updateImpl(obj)
 
-  if oldAvailability.freeSize < obj.freeSize: # availability added
+  if oldAvailability.freeSize < obj.freeSize or oldAvailability.duration < obj.duration or
+      oldAvailability.minPricePerBytePerSecond < obj.minPricePerBytePerSecond or
+      oldAvailability.totalCollateral < obj.totalCollateral: # availability updated
     # inform subscribers that Availability has been modified (with increased
     # size)
     if onAvailabilityAdded =? self.onAvailabilityAdded:
