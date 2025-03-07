@@ -137,10 +137,19 @@ method stop*(
           error = e.msg
         writeStackTrace()
     finally:
-      trace "closing node process' streams"
-      await node.process.closeWait()
-      node.process = nil
-      trace "node process' streams closed"
+      proc closeProcessStreams() {.async: (raises: []).} =
+        trace "closing node process' streams"
+        await node.process.closeWait()
+        node.process = nil
+        trace "node process' streams closed"
+
+      # windows will hang waiting to close process streams, so we can asyncspawn
+      # in the hopes that it will eventually close them without hanging the
+      # process
+      when defined(windows):
+        asyncSpawn closeProcessStreams()
+      else:
+        await closeProcessStreams()
 
 proc waitUntilOutput*(
     node: NodeProcess, output: string
