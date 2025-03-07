@@ -14,7 +14,7 @@ import ../../helpers/mockmarket
 import ../../examples
 import ../../helpers
 
-checksuite "sales state 'filled'":
+suite "sales state 'filled'":
   let request = StorageRequest.example
   let slotIndex = request.ask.slots div 2
 

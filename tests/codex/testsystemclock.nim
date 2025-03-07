@@ -1,10 +1,10 @@
 import std/times
-import std/unittest
 
-import codex/systemclock
+import pkg/unittest2
+import pkg/codex/systemclock
 import ./helpers
 
-checksuite "SystemClock":
+suite "SystemClock":
   test "Should get now":
     let clock = SystemClock.new()
 

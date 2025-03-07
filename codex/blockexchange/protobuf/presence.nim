@@ -1,8 +1,9 @@
+{.push raises: [].}
+
 import libp2p
 import pkg/stint
 import pkg/questionable
 import pkg/questionable/results
-import pkg/upraises
 import ./blockexc
 
 import ../../blocktype
@@ -10,9 +11,6 @@ import ../../blocktype
 export questionable
 export stint
 export BlockPresenceType
-
-upraises.push:
-  {.upraises: [].}
 
 type
   PresenceMessage* = blockexc.BlockPresence

@@ -1,4 +1,4 @@
-import std/unittest
+import pkg/unittest2
 import pkg/questionable
 import pkg/codex/contracts/requests
 import pkg/codex/sales/states/filling
@@ -7,7 +7,7 @@ import pkg/codex/sales/states/failed
 import ../../examples
 import ../../helpers
 
-checksuite "sales state 'filling'":
+suite "sales state 'filling'":
   let request = StorageRequest.example
   let slotIndex = request.ask.slots div 2
   var state: SaleFilling

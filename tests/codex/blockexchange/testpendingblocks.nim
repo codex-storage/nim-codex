@@ -10,7 +10,7 @@ import pkg/codex/blockexchange
 import ../helpers
 import ../../asynctest
 
-checksuite "Pending Blocks":
+suite "Pending Blocks":
   test "Should add want handle":
     let
       pendingBlocks = PendingBlocksManager.new()

@@ -7,6 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+{.push raises: [].}
+
 import std/math
 import pkg/nitro
 import pkg/questionable/results
@@ -14,9 +16,6 @@ import ../peers
 
 export nitro
 export results
-
-push:
-  {.upraises: [].}
 
 const ChainId* = 0.u256 # invalid chain id for now
 const Asset* = EthAddress.zero # invalid ERC20 asset address for now
