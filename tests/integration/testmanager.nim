@@ -281,7 +281,7 @@ proc printResult(test: IntegrationTest, printStdOut, printStdErr: bool) =
         test.printOutputMarker(MarkerPosition.Finish, "test file errors (stderr)")
   of IntegrationTestStatus.Failed:
     if output =? test.output:
-      if printStdErr or test.output.isErrorLike:
+      if printStdErr:
         test.printOutputMarker(MarkerPosition.Start, "test file errors (stderr)")
         echo output.stdErr
         test.printOutputMarker(MarkerPosition.Finish, "test file errors (stderr)")
@@ -405,6 +405,11 @@ proc teardownTest(
     stdOutStream, stdErrStream:
       Future[seq[byte]].Raising([CancelledError, AsyncStreamError]),
 ) {.async: (raises: []).} =
+  logScope:
+    test = test.config.name
+
+  trace "Tearing down test"
+
   test.timeEnd = some Moment.now()
 
   if not test.process.isNil:
@@ -415,19 +420,27 @@ proc teardownTest(
           some (await noCancel test.process.terminateAndWaitForExit(500.millis))
         trace "Test process terminated", exitCode = output.exitCode
       except AsyncProcessError, AsyncProcessTimeoutError:
-        warn "Test process failed to terminate, check for zombies"
+        let e = getCurrentException()
+        warn "Test process failed to terminate, check for zombies", error = e.msg
 
     try:
+      trace "Reading stdout and stderr streams"
       output.stdOut = string.fromBytes(await noCancel stdOutStream)
       output.stdErr = string.fromBytes(await noCancel stdErrStream)
       test.output = success output
+
+      trace "Writing stdout and/or stderr streams to file",
+        stdoutFile = test.logFile("stdout.log"),
+        stdoutBytes = output.stdOut.len,
+        stderrFile = test.logFile("stderr.log"),
+        stderrBytes = output.stdErr.len
       test.logFile("stdout.log").appendFile(output.stdOut.stripAnsi)
-      if test.status == IntegrationTestStatus.Error or test.output.isErrorLike:
+      if test.status == IntegrationTestStatus.Error or
+          (test.status == IntegrationTestStatus.Failed and test.output.isErrorLike):
         test.logFile("stderr.log").appendFile(output.stdErr.stripAnsi)
     except IOError as e:
-      warn "Failed to write test stdout and stderr to file", error = e.msg
+      warn "Failed to write test stdout and/or stderr to file", error = e.msg
     except AsyncStreamError as e:
-      test.timeEnd = some Moment.now()
       error "Failed to read test process output stream", error = e.msg
       test.output = TestOutput.failure(e)
       test.status = IntegrationTestStatus.Error
@@ -480,7 +493,6 @@ proc start(test: IntegrationTest) {.async: (raises: []).} =
 
   trace "Running test"
 
-  # if test.manager.config.debugCodexNodes:
   test.logsDir = test.manager.config.logsDir / sanitize(test.config.name)
   try:
     createDir(test.logsDir)
@@ -513,7 +525,6 @@ proc start(test: IntegrationTest) {.async: (raises: []).} =
     try:
       test.process = await startProcess(
         command = test.command,
-        # arguments = test.command.split(" "),
         options = {AsyncProcessOption.EvalCommand},
         stdoutHandle = AsyncProcess.Pipe,
         stderrHandle = AsyncProcess.Pipe,
@@ -536,6 +547,12 @@ proc start(test: IntegrationTest) {.async: (raises: []).} =
       # `untilTimeout` exceptions are handled in `run`
       await test.teardown(hardhat, outputReader, errorReader)
         # doesn't raise CancelledError, so noCancel not needed
+      doAssert test.status != IntegrationTestStatus.New and
+        test.status != IntegrationTestStatus.Running,
+        "Integration test is in the wrong state!"
+      doAssert test.timeEnd.isSome, "Integration test end time not set!"
+      doAssert (test.output.isOk and output =? test.output and output != nil) or
+        test.output.isErr, "Integration test output not set!"
 
     output.exitCode =
       try:
@@ -587,7 +604,6 @@ proc run(test: IntegrationTest) {.async: (raises: []).} =
     try:
       await futStart.untilTimeout(test.manager.config.testTimeout)
     except AsyncTimeoutError:
-      error "Test timed out"
       test.timeEnd = some Moment.now()
       test.status = IntegrationTestStatus.Timeout
       # futStart will be cancelled by untilTimeout and that will run the
@@ -595,7 +611,9 @@ proc run(test: IntegrationTest) {.async: (raises: []).} =
 
     test.printResult(
       printStdOut = test.status != IntegrationTestStatus.Ok,
-      printStdErr = test.status == IntegrationTestStatus.Error,
+      printStdErr =
+        test.status == IntegrationTestStatus.Error or
+        (test.status == IntegrationTestStatus.Failed and test.output.isErrorLike),
     )
     logScope:
       name = test.config.name
