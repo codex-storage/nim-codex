@@ -86,8 +86,7 @@ method loadConfig*(
       market.configuration = some fetchedConfig
 
     return success()
-  except AsyncLockError, EthersError:
-    let err = getCurrentException()
+  except EthersError as err:
     return failure newException(
       MarketError,
       "Failed to fetch the config from the Marketplace contract: " & err.msg,
@@ -174,8 +173,8 @@ method getRequest*(
   except Marketplace_UnknownRequest, KeyError:
     warn "Cannot retrieve the request", error = getCurrentExceptionMsg()
     return none StorageRequest
-  except EthersError, AsyncLockError:
-    error "Cannot retrieve the request", error = getCurrentExceptionMsg()
+  except EthersError as e:
+    error "Cannot retrieve the request", error = e.msg
     return none StorageRequest
 
 method requestState*(
@@ -195,7 +194,7 @@ method slotState*(
     try:
       let overrides = CallOverrides(blockTag: some BlockTag.pending)
       return await market.contract.slotState(slotId, overrides)
-    except AsyncLockError as err:
+    except EthersError as err:
       raiseMarketError(
         "Failed to fetch the slot state from the Marketplace contract: " & err.msg
       )
