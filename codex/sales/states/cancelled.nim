@@ -32,7 +32,7 @@ method run*(
     try:
       await market.freeSlot(slot.id)
     except Marketplace_SlotIsFree as e:
-      info "The slot cannot be freed because it is already free."
+      debug "The slot cannot be freed because it is already free."
 
     if onClear =? agent.context.onClear and request =? data.request:
       onClear(request, data.slotIndex)
