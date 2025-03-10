@@ -318,7 +318,8 @@ twonodessuite "REST API":
     try:
       # Sadly, there's no high level API for preventing the client from
       # consuming the whole response, and we need to close the socket
-      # before that happens if we want to trigger the bug.
+      # before that happens if we want to trigger the bug, so we need to
+      # resort to this.
       client1.http.getBody = false
       let response = client1.downloadRaw($cid)
 

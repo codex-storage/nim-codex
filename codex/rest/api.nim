@@ -85,7 +85,9 @@ proc retrieveCid(
     without stream =? (await node.retrieve(cid, local)), error:
       if error of BlockNotFoundError:
         resp.status = Http404
-        await resp.sendBody("")
+        await resp.sendBody(
+          "The requested CID could not be retrieved (" & error.msg & ")."
+        )
         return
       else:
         resp.status = Http500
@@ -134,7 +136,7 @@ proc retrieveCid(
     warn "Error streaming blocks", exc = exc.msg
     resp.status = Http500
     if resp.isPending():
-      await resp.sendBody("")
+      await resp.sendBody(exc.msg)
   finally:
     info "Sent bytes", cid = cid, bytes
     if not stream.isNil:
