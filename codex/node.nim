@@ -159,32 +159,34 @@ proc fetchManifest*(self: CodexNodeRef, cid: Cid): Future[?!Manifest] {.async.} 
   manifest.success
 
 proc fetchTorrentManifest*(
-    self: CodexNodeRef, cid: Cid
+    self: CodexNodeRef, infoHashCid: Cid
 ): Future[?!BitTorrentManifest] {.async.} =
-  if err =? cid.isTorrentInfoHash.errorOption:
+  if err =? infoHashCid.isTorrentInfoHash.errorOption:
     return failure "CID has invalid content type for torrent info hash {$cid}"
 
-  trace "Retrieving torrent manifest for cid", cid
+  trace "Retrieving torrent manifest for infoHashCid", infoHashCid
 
-  without blk =? await self.networkStore.getBlock(BlockAddress.init(cid)), err:
-    trace "Error retrieve manifest block", cid, err = err.msg
+  without blk =? await self.networkStore.getBlock(BlockAddress.init(infoHashCid)), err:
+    trace "Error retrieve manifest block", infoHashCid, err = err.msg
     return failure err
 
-  trace "Decoding torrent manifest for cid", cid
+  trace "Successfully retrieved torrent manifest with given block cid",
+    cid = blk.cid, infoHashCid
+  trace "Decoding torrent manifest"
 
   without torrentManifest =? BitTorrentManifest.decode(blk), err:
     trace "Unable to decode torrent manifest", err = err.msg
     return failure("Unable to decode torrent manifest")
 
-  trace "Decoded torrent manifest", cid
+  trace "Decoded torrent manifest", infoHashCid, torrentManifest = $torrentManifest
 
-  without isValid =? torrentManifest.validate(cid), err:
-    trace "Error validating torrent manifest", cid, err = err.msg
+  without isValid =? torrentManifest.validate(infoHashCid), err:
+    trace "Error validating torrent manifest", infoHashCid, err = err.msg
     return failure(err.msg)
 
   if not isValid:
-    trace "Torrent manifest does not match torrent info hash", cid
-    return failure "Torrent manifest does not match torrent info hash {$cid}"
+    trace "Torrent manifest does not match torrent info hash", infoHashCid
+    return failure "Torrent manifest does not match torrent info hash {$infoHashCid}"
 
   return torrentManifest.success
 
@@ -452,6 +454,7 @@ proc streamTorrent(
       error "Piece verification failed", pieceIndex = pieceIndex
       return failure("Piece verification failed")
 
+    trace "Piece verified", pieceIndex, pieceHash
     # great success
     success()
 
@@ -650,12 +653,12 @@ proc storePieces*(
   ## Save stream contents as dataset with given blockSize
   ## to nodes's BlockStore, and return Cid of its manifest
   ##
-  info "Storing data"
+  info "Storing pieces"
 
   let
     hcodec = Sha256HashCodec
     dataCodec = BlockCodec
-    chunker = LPStreamChunker.new(stream, chunkSize = blockSize)
+    chunker = LPStreamChunker.new(stream, chunkSize = blockSize, pad = false)
     numOfBlocksPerPiece = pieceLength.int div blockSize.int
 
   var
@@ -666,13 +669,18 @@ proc storePieces*(
 
   pieceHashCtx.init()
 
+  trace "number of blocks per piece: ", numOfBlocksPerPiece
+
   try:
     while (let chunk = await chunker.getBytes(); chunk.len > 0):
+      trace "storing block...", chunkLength = chunk.len
       if pieceIter.finished:
+        trace "finishing piece..."
         without mh =? MultiHash.init($Sha1HashCodec, pieceHashCtx.finish()).mapFailure,
           err:
           return failure(err)
         pieces.add(mh)
+        trace "successfully computed piece multihash", pieces = $pieces
         pieceIter = Iter[int].new(0 ..< numOfBlocksPerPiece)
         pieceHashCtx.init()
       without mhash =? MultiHash.digest($hcodec, chunk).mapFailure, err:
@@ -690,7 +698,11 @@ proc storePieces*(
         error "Unable to store block", cid = blk.cid, err = err.msg
         return failure(&"Unable to store block {blk.cid}")
       pieceHashCtx.update(chunk)
-      discard pieceIter.next()
+      let idx = pieceIter.next()
+      trace "stored block in piece with index=", idx
+      if chunk.len < blockSize.int:
+        trace "no more block to read"
+        break
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
@@ -701,6 +713,8 @@ proc storePieces*(
   without mh =? MultiHash.init($Sha1HashCodec, pieceHashCtx.finish()).mapFailure, err:
     return failure(err)
   pieces.add(mh)
+
+  trace "finished processing blocks", pieces = $pieces
 
   without tree =? CodexTree.init(cids), err:
     return failure(err)
@@ -765,10 +779,16 @@ proc storeTorrent*(
     ):
     return failure("Unable to store BitTorrent data")
 
+  trace "Created BitTorrent manifest", bitTorrentManifest = $bitTorrentManifest
+
   let infoBencoded = bencode(bitTorrentManifest.info)
+
+  trace "BitTorrent Info successfully bencoded"
 
   without infoHash =? MultiHash.digest($Sha1HashCodec, infoBencoded).mapFailure, err:
     return failure(err)
+
+  trace "computed info hash", infoHash = $infoHash
 
   without manifestBlk =? await self.storeBitTorrentManifest(
     bitTorrentManifest, infoHash

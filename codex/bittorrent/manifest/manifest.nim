@@ -21,6 +21,14 @@ type
     info*: BitTorrentInfo
     codexManifestCid*: Cid
 
+proc `$`*(self: BitTorrentInfo): string =
+  "BitTorrentInfo(length: " & $self.length & ", pieceLength: " & $self.pieceLength &
+    ", pieces: " & $self.pieces & ", name: " & $self.name & ")"
+
+proc `$`*(self: BitTorrentManifest): string =
+  "BitTorrentManifest(info: " & $self.info & ", codexManifestCid: " &
+    $self.codexManifestCid & ")"
+
 proc newBitTorrentManifest*(
     info: BitTorrentInfo, codexManifestCid: Cid
 ): BitTorrentManifest =
