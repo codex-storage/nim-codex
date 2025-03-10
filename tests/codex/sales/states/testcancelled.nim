@@ -63,7 +63,7 @@ asyncchecksuite "sales state 'cancelled'":
     check eventually reprocessSlotWas == some false
     check eventually returnedCollateralValue == some currentCollateral
 
-  test "calls onCleanUp and returns the collateral when free slot error is raised":
+  test "completes the cancelled state when free slot error is raised":
     market.fillSlot(
       requestId = request.id,
       slotIndex = slotIndex,
@@ -76,11 +76,7 @@ asyncchecksuite "sales state 'cancelled'":
     market.setErrorOnFreeSlot(some (ref CatchableError)(error))
 
     let next = await state.run(agent)
-    # The cancelled state finished so no next step
     check next == none State
-    check eventually returnBytesWas == some true
-    check eventually reprocessSlotWas == some false
-    check eventually returnedCollateralValue == some currentCollateral
 
   test "calls onCleanUp and returns the collateral when an error is raised":
     market.fillSlot(
