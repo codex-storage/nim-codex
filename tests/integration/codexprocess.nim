@@ -35,6 +35,8 @@ proc raiseCodexProcessError(
 template convertError(msg, body: typed) =
   try:
     body
+  except CancelledError as e:
+    raise e
   except CatchableError as parent:
     raiseCodexProcessError(msg, parent)
 
