@@ -215,3 +215,50 @@ multinodesuite "Sales":
 
     check response.status == 422
     check (await response.body) == "Not enough storage quota"
+
+  test "creating availability when total size is zero returns 422", salesConfig:
+    let response = host.postAvailabilityRaw(
+      totalSize = 0.uint64,
+      duration = 200.uint64,
+      minPricePerBytePerSecond = 3.u256,
+      totalCollateral = 300.u256,
+    )
+
+    check response.status == 422
+    check (await response.body) == "Total size must be larger then zero"
+
+  test "updating availability when total size is zero returns 422", salesConfig:
+    let availability = host.postAvailability(
+      totalSize = 140000.uint64,
+      duration = 200.uint64,
+      minPricePerBytePerSecond = 3.u256,
+      totalCollateral = 300.u256,
+    ).get
+    let response = host.patchAvailabilityRaw(availability.id, totalSize = 0.uint64.some)
+
+    check response.status == 422
+    check (await response.body) == "Total size must be larger then zero"
+
+  test "creating availability when total size is negative returns 422", salesConfig:
+    let response = host.postAvailabilityRaw(
+      totalSize = -1.uint64,
+      duration = 200.uint64,
+      minPricePerBytePerSecond = 3.u256,
+      totalCollateral = 300.u256,
+    )
+
+    check response.status == 422
+    check (await response.body) == "The values provided are out of range"
+
+  test "updating availability when total size is negative returns 422", salesConfig:
+    let availability = host.postAvailability(
+      totalSize = 140000.uint64,
+      duration = 200.uint64,
+      minPricePerBytePerSecond = 3.u256,
+      totalCollateral = 300.u256,
+    ).get
+    let response =
+      host.patchAvailabilityRaw(availability.id, totalSize = -1.uint64.some)
+
+    check response.status == 422
+    check (await response.body) == "The values provided are out of range"
