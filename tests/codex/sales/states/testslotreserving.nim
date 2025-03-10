@@ -55,7 +55,7 @@ asyncchecksuite "sales state 'SlotReserving'":
 
   test "run switches to errored when slot reservation errors":
     let error = newException(MarketError, "some error")
-    market.setSlotThrowError(some cast[ref CatchableError](error))
+    market.setErrorOnReserveSlot(some (ref CatchableError)(error))
     let next = !(await state.run(agent))
     check next of SaleErrored
     let errored = SaleErrored(next)
@@ -63,7 +63,7 @@ asyncchecksuite "sales state 'SlotReserving'":
 
   test "run switches to ignored when reservation is not allowed":
     let error = newException(SlotReservations_ReservationNotAllowed, "")
-    market.setSlotThrowError(some cast[ref CatchableError](error))
+    market.setErrorOnReserveSlot(some (ref CatchableError)(error))
     let next = !(await state.run(agent))
     check next of SaleIgnored
     check SaleIgnored(next).reprocessSlot == false
