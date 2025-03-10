@@ -48,6 +48,7 @@ type
     canReserveSlot*: bool
     errorOnReserveSlot*: ?(ref MarketError)
     errorOnFillSlot*: ?(ref MarketError)
+    errorOnFreeSlot*: ?(ref CatchableError)
     clock: ?Clock
 
   Fulfillment* = object
@@ -321,7 +322,7 @@ method fillSlot*(
 method freeSlot*(
     market: MockMarket, slotId: SlotId
 ) {.async: (raises: [CancelledError, MarketError]).} =
-  if error =? market.slotThrowError:
+  if error =? market.errorOnReserveSlot:
     raise error
 
   market.freed.add(slotId)
@@ -414,6 +415,9 @@ func setErrorOnFillSlot*(market: MockMarket, error: ref MarketError) =
     else:
       some error
 
+func setErrorOnFreeSlot*(market: MockMarket, error: ?(ref CatchableError)) =
+  market.errorOnFreeSlot = error
+  
 method subscribeRequests*(
     market: MockMarket, callback: OnRequest
 ): Future[Subscription] {.async.} =

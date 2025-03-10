@@ -65,7 +65,7 @@ asyncchecksuite "sales state 'cancelled'":
     )
 
     let error = newException(Marketplace_SlotIsFree, "")
-    market.setSlotThrowError(some cast[ref CatchableError](error))
+    market.setErrorOnFreeSlot(some (ref CatchableError)(error))
 
     discard await state.run(agent)
     check eventually reprocessSlotWas == some false
