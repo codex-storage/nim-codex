@@ -23,8 +23,8 @@ asyncchecksuite "sales state 'cancelled'":
   var market: MockMarket
   var state: SaleCancelled
   var agent: SalesAgent
-  var reprocessSlotWas = bool.none
-  var returnedCollateralValue = UInt256.none
+  var reprocessSlotWas
+  var returnedCollateralValue
 
   setup:
     market = MockMarket.new()
@@ -38,7 +38,9 @@ asyncchecksuite "sales state 'cancelled'":
     agent = newSalesAgent(context, request.id, slotIndex, request.some)
     agent.onCleanUp = onCleanUp
     state = SaleCancelled.new()
-
+    reprocessSlotWas = bool.none
+    reprocessSlotWas = bool.none
+    returnedCollateralValue = UInt256.none
   teardown:
     reprocessSlotWas = bool.none
     returnedCollateralValue = UInt256.none
