@@ -8,6 +8,7 @@ import pkg/codex/market
 import pkg/codex/contracts/requests
 import pkg/codex/contracts/proofs
 import pkg/codex/contracts/config
+import pkg/questionable/results
 
 from pkg/ethers import BlockTag
 import codex/clock
@@ -322,7 +323,7 @@ method fillSlot*(
 method freeSlot*(
     market: MockMarket, slotId: SlotId
 ) {.async: (raises: [CancelledError, MarketError]).} =
-  if error =? market.errorOnReserveSlot:
+  if error =? market.errorOnFreeSlot:
     raise error
 
   market.freed.add(slotId)

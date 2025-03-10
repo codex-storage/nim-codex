@@ -2,9 +2,11 @@ import pkg/questionable
 import pkg/chronos
 import pkg/codex/contracts/requests
 import pkg/codex/sales/states/cancelled
+import pkg/codex/sales/states/errored
 import pkg/codex/sales/salesagent
 import pkg/codex/sales/salescontext
 import pkg/codex/market
+from pkg/codex/utils/asyncstatemachine import State
 from pkg/codex/contracts/marketplace import Marketplace_SlotIsFree
 
 import ../../../asynctest
@@ -23,8 +25,8 @@ asyncchecksuite "sales state 'cancelled'":
   var market: MockMarket
   var state: SaleCancelled
   var agent: SalesAgent
-  var reprocessSlotWas
-  var returnedCollateralValue
+  var reprocessSlotWas: ?bool
+  var returnedCollateralValue: ?UInt256
 
   setup:
     market = MockMarket.new()
@@ -69,6 +71,26 @@ asyncchecksuite "sales state 'cancelled'":
     let error = newException(Marketplace_SlotIsFree, "")
     market.setErrorOnFreeSlot(some (ref CatchableError)(error))
 
-    discard await state.run(agent)
+    let next = await state.run(agent)
+    # The cancelled state finished so no next step
+    check next == none State
     check eventually reprocessSlotWas == some false
     check eventually returnedCollateralValue == some currentCollateral
+
+  test "calls onCleanUp and returns the collateral when an error is raised":
+    market.fillSlot(
+      requestId = request.id,
+      slotIndex = slotIndex,
+      proof = Groth16Proof.default,
+      host = Address.example,
+      collateral = currentCollateral,
+    )
+
+    let error = newException(MarketError, "")
+    market.setErrorOnFreeSlot(some (ref CatchableError)(error))
+
+    let next = !(await state.run(agent))
+
+    check next of SaleErrored
+    let errored = SaleErrored(next)
+    check errored.error == error
