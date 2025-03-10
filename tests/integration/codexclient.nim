@@ -78,8 +78,8 @@ proc downloadBytes*(
 ): Future[?!seq[byte]] {.async.} =
   let uri = client.baseurl & "/data/" & $cid & (if local: "" else: "/network/stream")
 
-  let client = newHttpClient()
-  let response = client.get(uri)
+  let httpClient = newHttpClient()
+  let response = httpClient.get(uri)
 
   if response.status != "200 OK":
     return failure("fetch failed with status " & $response.status)
