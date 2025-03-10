@@ -125,7 +125,7 @@ twonodessuite "Purchasing":
     )
     check responseMissing.status == 422
     check (await responseMissing.body) ==
-      "Expiry needs value bigger then zero and smaller then the request's duration"
+      "Expiry must be greater than zero and less than the request's duration"
 
     let responseBefore = await client1.requestStorageRaw(
       cid,
@@ -136,5 +136,5 @@ twonodessuite "Purchasing":
       expiry = 10.uint64,
     )
     check responseBefore.status == 422
-    check "Expiry needs value bigger then zero and smaller then the request's duration" in
+    check "Expiry must be greater than zero and less than the request's duration" in
       (await responseBefore.body)
