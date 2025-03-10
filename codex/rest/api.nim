@@ -103,7 +103,7 @@ proc retrieveCid(
     else:
       resp.setHeader("Content-Disposition", "attachment")
 
-    resp.setHeader("Content-Length", $manifest.datasetSize.uint64)
+    resp.setHeader("Content-Length", $manifest.datasetSize.int)
 
     await resp.prepareChunked()
 
