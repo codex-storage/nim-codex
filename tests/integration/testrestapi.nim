@@ -201,7 +201,7 @@ twonodessuite "REST API":
 
     check responseBefore.status == 422
     check (await responseBefore.body) ==
-      "Expiry needs value bigger then zero and smaller then the request's duration"
+      "Expiry must be greater than zero and less than the request's duration"
 
   test "request storage fails if proof probability is zero", twoNodesConfig:
     let data = await RandomChunker.example(blocks = 2)
@@ -220,7 +220,7 @@ twonodessuite "REST API":
     )
 
     check responseBefore.status == 422
-    check (await responseBefore.body) == "Proof probability needs to be bigger than zero"
+    check (await responseBefore.body) == "Proof probability must be greater than zero"
 
   test "request storage fails if collareral per byte is zero", twoNodesConfig:
     let data = await RandomChunker.example(blocks = 2)
@@ -239,8 +239,7 @@ twonodessuite "REST API":
     )
 
     check responseBefore.status == 422
-    check (await responseBefore.body) ==
-      "Collateral per byte needs to be bigger than zero"
+    check (await responseBefore.body) == "Collateral per byte must be greater than zero"
 
   test "request storage fails if price per byte per second is zero", twoNodesConfig:
     let data = await RandomChunker.example(blocks = 2)
@@ -260,7 +259,7 @@ twonodessuite "REST API":
 
     check responseBefore.status == 422
     check (await responseBefore.body) ==
-      "Price per byte per second needs to be bigger than zero"
+      "Price per byte per second must be greater than zero"
 
   for ecParams in @[
     (minBlocks: 2, nodes: 3, tolerance: 1), (minBlocks: 3, nodes: 5, tolerance: 2)

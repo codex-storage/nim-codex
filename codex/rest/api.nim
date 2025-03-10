@@ -657,24 +657,24 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
       if expiry <= 0 or expiry >= params.duration:
         return RestApiResponse.error(
           Http422,
-          "Expiry needs value bigger then zero and smaller then the request's duration",
+          "Expiry must be greater than zero and less than the request's duration",
           headers = headers,
         )
 
       if params.proofProbability <= 0:
         return RestApiResponse.error(
-          Http422, "Proof probability needs to be bigger than zero", headers = headers
+          Http422, "Proof probability must be greater than zero", headers = headers
         )
 
       if params.collateralPerByte <= 0:
         return RestApiResponse.error(
-          Http422, "Collateral per byte needs to be bigger than zero", headers = headers
+          Http422, "Collateral per byte must be greater than zero", headers = headers
         )
 
       if params.pricePerBytePerSecond <= 0:
         return RestApiResponse.error(
           Http422,
-          "Price per byte per second needs to be bigger than zero",
+          "Price per byte per second must be greater than zero",
           headers = headers,
         )
 
