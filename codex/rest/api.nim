@@ -114,6 +114,8 @@ proc retrieveCid(
     else:
       resp.setHeader("Content-Disposition", "attachment")
 
+    resp.setHeader("Content-Length", $manifest.datasetSize.int)
+
     await resp.prepareChunked()
 
     while not stream.atEof:
@@ -342,6 +344,7 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
       resp.setCorsHeaders("GET", corsOrigin)
       resp.setHeader("Access-Control-Headers", "X-Requested-With")
 
+    resp.setHeader("Access-Control-Expose-Headers", "Content-Disposition")
     await node.retrieveCid(cid.get(), local = false, resp = resp)
 
   router.api(MethodGet, "/api/codex/v1/data/{cid}/network/manifest") do(
