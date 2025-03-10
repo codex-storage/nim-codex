@@ -6,7 +6,7 @@ import pkg/questionable/results
 import ../../blocktype
 import ./manifest
 
-proc decode(_: type BitTorrentManifest, data: openArray[byte]): ?!BitTorrentManifest =
+func decode(_: type BitTorrentManifest, data: openArray[byte]): ?!BitTorrentManifest =
   # ```protobuf
   #   Message BitTorrentManifest {
   #     Message Piece {
@@ -25,7 +25,7 @@ proc decode(_: type BitTorrentManifest, data: openArray[byte]): ?!BitTorrentMani
   # ```
 
   var
-    pbNode = initProtoBuffer()
+    pbNode = initProtoBuffer(data)
     pbInfo: ProtoBuffer
     length: uint64
     pieceLength: uint32
@@ -50,7 +50,7 @@ proc decode(_: type BitTorrentManifest, data: openArray[byte]): ?!BitTorrentMani
       var dataBuf = newSeq[byte]()
       if pbPiece.getField(1, dataBuf).isErr:
         return failure("Unable to decode `data` from BitTorrentPiece")
-      without mhash =? MultiHash.init("sha1", dataBuf).mapFailure, err:
+      without mhash =? MultiHash.init(dataBuf).mapFailure, err:
         return failure(err.msg)
       pieces.add(mhash)
   discard ?pbInfo.getField(4, name).mapFailure
