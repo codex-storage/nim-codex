@@ -37,7 +37,7 @@ method run*(
   except CancelledError as e:
     trace "SaleFailed.run was cancelled", error = e.msgDetail
   except Marketplace_SlotIsFree as e:
-    info "The slot cannot be freed because it is already free.", error = e.msg
+    debug "The slot cannot be freed because it is already free.", error = e.msg
     let error = newException(SaleFailedError, "Sale failed")
     return some State(SaleErrored(error: error))
   except CatchableError as e:
