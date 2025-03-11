@@ -416,9 +416,13 @@ func setErrorOnFillSlot*(market: MockMarket, error: ref MarketError) =
     else:
       some error
 
-func setErrorOnFreeSlot*(market: MockMarket, error: ?(ref CatchableError)) =
-  market.errorOnFreeSlot = error
-  
+func setErrorOnFreeSlot*(market: MockMarket, error: ref CatchableError) =
+  market.errorOnFreeSlot =
+    if error.isNil:
+      none (ref CatchableError)
+    else:
+      some error
+
 method subscribeRequests*(
     market: MockMarket, callback: OnRequest
 ): Future[Subscription] {.async.} =
