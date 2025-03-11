@@ -125,7 +125,7 @@ proc updateAnnounceRecord*(d: Discovery, addrs: openArray[MultiAddress]) =
 
   d.announceAddrs = @addrs
 
-  trace "Updating announce record", addrs = d.announceAddrs
+  info "Updating announce record", addrs = d.announceAddrs
   d.providerRecord = SignedPeerRecord
     .init(d.key, PeerRecord.init(d.peerId, d.announceAddrs))
     .expect("Should construct signed record").some
@@ -137,7 +137,7 @@ proc updateDhtRecord*(d: Discovery, addrs: openArray[MultiAddress]) =
   ## Update providers record
   ##
 
-  trace "Updating Dht record", addrs = addrs
+  info "Updating Dht record", addrs = addrs
   d.dhtRecord = SignedPeerRecord
     .init(d.key, PeerRecord.init(d.peerId, @addrs))
     .expect("Should construct signed record").some
