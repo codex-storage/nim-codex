@@ -283,89 +283,89 @@ asyncchecksuite "Reservations module":
     check updated.isErr
     check updated.error of NotExistsError
 
-  test "OnAvailabilitySaved called when availability is created":
+  test "OnAvailabilityUpserted called when availability is created":
     var added: Availability
-    reservations.OnAvailabilitySaved = proc(a: Availability) {.async.} =
+    reservations.OnAvailabilityUpserted = proc(a: Availability) {.async.} =
       added = a
 
     let availability = createAvailability()
 
     check added == availability
 
-  test "OnAvailabilitySaved called when availability size is increased":
+  test "OnAvailabilityUpserted called when availability size is increased":
     var availability = createAvailability()
     var added: Availability
-    reservations.OnAvailabilitySaved = proc(a: Availability) {.async.} =
+    reservations.OnAvailabilityUpserted = proc(a: Availability) {.async.} =
       added = a
     availability.freeSize += 1
     discard await reservations.update(availability)
 
     check added == availability
 
-  test "OnAvailabilitySaved is not called when availability size is decreased":
+  test "OnAvailabilityUpserted is not called when availability size is decreased":
     var availability = createAvailability()
     var called = false
-    reservations.OnAvailabilitySaved = proc(a: Availability) {.async.} =
+    reservations.OnAvailabilityUpserted = proc(a: Availability) {.async.} =
       called = true
     availability.freeSize -= 1
     discard await reservations.update(availability)
 
     check not called
 
-  test "OnAvailabilitySaved called when availability duration is increased":
+  test "OnAvailabilityUpserted called when availability duration is increased":
     var availability = createAvailability()
     var added: Availability
-    reservations.OnAvailabilitySaved = proc(a: Availability) {.async.} =
+    reservations.OnAvailabilityUpserted = proc(a: Availability) {.async.} =
       added = a
     availability.duration += 1
     discard await reservations.update(availability)
 
     check added == availability
 
-  test "OnAvailabilitySaved is not called when availability duration is decreased":
+  test "OnAvailabilityUpserted is not called when availability duration is decreased":
     var availability = createAvailability()
     var called = false
-    reservations.OnAvailabilitySaved = proc(a: Availability) {.async.} =
+    reservations.OnAvailabilityUpserted = proc(a: Availability) {.async.} =
       called = true
     availability.duration -= 1
     discard await reservations.update(availability)
 
     check not called
 
-  test "OnAvailabilitySaved called when availability minPricePerBytePerSecond is increased":
+  test "OnAvailabilityUpserted called when availability minPricePerBytePerSecond is increased":
     var availability = createAvailability()
     var added: Availability
-    reservations.OnAvailabilitySaved = proc(a: Availability) {.async.} =
+    reservations.OnAvailabilityUpserted = proc(a: Availability) {.async.} =
       added = a
     availability.minPricePerBytePerSecond += 1.u256
     discard await reservations.update(availability)
 
     check added == availability
 
-  test "OnAvailabilitySaved is not called when availability minPricePerBytePerSecond is decreased":
+  test "OnAvailabilityUpserted is not called when availability minPricePerBytePerSecond is decreased":
     var availability = createAvailability()
     var called = false
-    reservations.OnAvailabilitySaved = proc(a: Availability) {.async.} =
+    reservations.OnAvailabilityUpserted = proc(a: Availability) {.async.} =
       called = true
     availability.minPricePerBytePerSecond -= 1.u256
     discard await reservations.update(availability)
 
     check not called
 
-  test "OnAvailabilitySaved called when availability totalCollateral is increased":
+  test "OnAvailabilityUpserted called when availability totalCollateral is increased":
     var availability = createAvailability()
     var added: Availability
-    reservations.OnAvailabilitySaved = proc(a: Availability) {.async.} =
+    reservations.OnAvailabilityUpserted = proc(a: Availability) {.async.} =
       added = a
     availability.totalCollateral = availability.totalCollateral + 1.u256
     discard await reservations.update(availability)
 
     check added == availability
 
-  test "OnAvailabilitySaved is not called when availability totalCollateral is decreased":
+  test "OnAvailabilityUpserted is not called when availability totalCollateral is decreased":
     var availability = createAvailability()
     var called = false
-    reservations.OnAvailabilitySaved = proc(a: Availability) {.async.} =
+    reservations.OnAvailabilityUpserted = proc(a: Availability) {.async.} =
       called = true
     availability.totalCollateral = availability.totalCollateral - 1.u256
     discard await reservations.update(availability)
