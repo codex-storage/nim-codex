@@ -73,7 +73,7 @@ asyncchecksuite "sales state 'cancelled'":
     )
 
     let error = newException(Marketplace_SlotIsFree, "")
-    market.setErrorOnFreeSlot(some (ref CatchableError)(error))
+    market.setErrorOnFreeSlot(error)
 
     let next = await state.run(agent)
     check next == none State
@@ -88,7 +88,7 @@ asyncchecksuite "sales state 'cancelled'":
     )
 
     let error = newException(MarketError, "")
-    market.setErrorOnFreeSlot(some (ref CatchableError)(error))
+    market.setErrorOnFreeSlot(error)
 
     let next = !(await state.run(agent))
 
