@@ -56,8 +56,8 @@ export units, net, codextypes, logutils, completeCmdArg, parseCmdArg, NatConfig
 export ValidationGroups, MaxSlots
 
 export
-  DefaultQuotaBytes, DefaultBlockTtl, DefaultBlockMaintenanceInterval,
-  DefaultNumberOfBlocksToMaintainPerInterval, DefaultRequestCacheSize
+  DefaultQuotaBytes, DefaultBlockTtl, DefaultBlockInterval, DefaultNumBlocksPerInterval,
+  DefaultRequestCacheSize
 
 type ThreadCount* = distinct Natural
 
@@ -262,15 +262,15 @@ type
       desc:
         "Time interval in seconds - determines frequency of block " &
         "maintenance cycle: how often blocks are checked " & "for expiration and cleanup",
-      defaultValue: DefaultBlockMaintenanceInterval,
-      defaultValueDesc: $DefaultBlockMaintenanceInterval,
+      defaultValue: DefaultBlockInterval,
+      defaultValueDesc: $DefaultBlockInterval,
       name: "block-mi"
     .}: Duration
 
     blockMaintenanceNumberOfBlocks* {.
       desc: "Number of blocks to check every maintenance cycle",
-      defaultValue: DefaultNumberOfBlocksToMaintainPerInterval,
-      defaultValueDesc: $DefaultNumberOfBlocksToMaintainPerInterval,
+      defaultValue: DefaultNumBlocksPerInterval,
+      defaultValueDesc: $DefaultNumBlocksPerInterval,
       name: "block-mn"
     .}: int
 
