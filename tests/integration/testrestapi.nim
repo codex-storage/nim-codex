@@ -314,24 +314,25 @@ twonodessuite "REST API":
     privateAccess(client1.http.type)
 
     let cid = client1.upload(repeat("some file contents", 1000)).get
+    let httpClient = client1.http()
 
     try:
       # Sadly, there's no high level API for preventing the client from
       # consuming the whole response, and we need to close the socket
       # before that happens if we want to trigger the bug, so we need to
       # resort to this.
-      client1.http.getBody = false
-      let response = client1.downloadRaw($cid)
+      httpClient.getBody = false
+      let response = client1.downloadRaw($cid, httpClient = httpClient)
 
       # Read 4 bytes from the stream just to make sure we actually
       # receive some data.
-      let data = client1.http.socket.recv(4)
+      let data = httpClient.socket.recv(4)
       check data.len == 4
 
       # Prematurely closes the connection.
-      client1.http.close()
+      httpClient.close()
     finally:
-      client1.http.getBody = true
+      httpClient.getBody = true
 
-    let response = client1.downloadRaw($cid)
+    let response = client1.downloadRaw($cid, httpClient = httpClient)
     check response.body == repeat("some file contents", 1000)

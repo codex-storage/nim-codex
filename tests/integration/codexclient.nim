@@ -15,16 +15,23 @@ export purchasing
 
 type CodexClient* = ref object
   baseurl: string
+  httpClients: seq[HttpClient]
 
 type CodexClientError* = object of CatchableError
 
 const HttpClientTimeoutMs = 60 * 1000
 
 proc new*(_: type CodexClient, baseurl: string): CodexClient =
-  CodexClient(baseurl: baseurl)
+  CodexClient(baseurl: baseurl, httpClients: newSeq[HttpClient]())
 
-proc http*(_: CodexClient): HttpClient =
-  return newHttpClient(timeout = HttpClientTimeoutMs)
+proc http*(client: CodexClient): HttpClient =
+  let httpClient = newHttpClient(timeout = HttpClientTimeoutMs)
+  client.httpClients.insert(httpClient)
+  return httpClient
+
+proc close*(client: CodexClient): void =
+  for httpClient in client.httpClients:
+    httpClient.close()
 
 proc info*(client: CodexClient): ?!JsonNode =
   let url = client.baseurl & "/debug/info"
@@ -76,8 +83,7 @@ proc downloadBytes*(
 ): Future[?!seq[byte]] {.async.} =
   let uri = client.baseurl & "/data/" & $cid & (if local: "" else: "/network/stream")
 
-  let httpClient = newHttpClient()
-  let response = httpClient.get(uri)
+  let response = client.http().get(uri)
 
   if response.status != "200 OK":
     return failure("fetch failed with status " & $response.status)
@@ -284,11 +290,13 @@ proc uploadRaw*(
 proc listRaw*(client: CodexClient): Response =
   return client.http().request(client.baseurl & "/data", httpMethod = HttpGet)
 
-proc downloadRaw*(client: CodexClient, cid: string, local = false): Response =
-  return client.http().request(
-      client.baseurl & "/data/" & cid & (if local: "" else: "/network/stream"),
-      httpMethod = HttpGet,
-    )
+proc downloadRaw*(
+    client: CodexClient, cid: string, local = false, httpClient = client.http()
+): Response =
+  return httpClient.request(
+    client.baseurl & "/data/" & cid & (if local: "" else: "/network/stream"),
+    httpMethod = HttpGet,
+  )
 
 proc deleteRaw*(client: CodexClient, cid: string): Response =
   return client.http().request(client.baseurl & "/data/" & cid, httpMethod = HttpDelete)
