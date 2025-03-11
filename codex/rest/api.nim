@@ -152,7 +152,7 @@ proc retrieveCid(
 
 proc retrieveInfoHash(
     node: CodexNodeRef, infoHash: MultiHash, resp: HttpResponseRef
-): Future[RestApiResponse] {.async.} =
+): Future[void] {.async.} =
   ## Download torrent from the node in a streaming
   ## manner
   ##
@@ -163,28 +163,33 @@ proc retrieveInfoHash(
     without stream =? (await node.retrieveTorrent(infoHash)), error:
       if error of BlockNotFoundError:
         resp.status = Http404
-        return await resp.sendBody("")
+        await resp.sendBody("")
+        return
       else:
         resp.status = Http500
-        return await resp.sendBody(error.msg)
+        await resp.sendBody(error.msg)
+        return
 
     # It is ok to fetch again the manifest because it will hit the cache
     without infoHashCid =? Cid.init(CIDv1, InfoHashV1Codec, infoHash).mapFailure, err:
       error "Unable to create CID for BitTorrent info hash", err = err.msg
       resp.status = Http404
-      return await resp.sendBody(err.msg)
+      await resp.sendBody(err.msg)
+      return
 
     without torrentManifest =? (await node.fetchTorrentManifest(infoHashCid)), err:
       error "Unable to fetch Torrent Manifest", err = err.msg
       resp.status = Http404
-      return await resp.sendBody(err.msg)
+      await resp.sendBody(err.msg)
+      return
 
     without codexManifest =? (
       await node.fetchManifest(torrentManifest.codexManifestCid)
     ), err:
       error "Unable to fetch Codex Manifest for torrent info hash", err = err.msg
       resp.status = Http404
-      return await resp.sendBody(err.msg)
+      await resp.sendBody(err.msg)
+      return
 
     if codexManifest.mimetype.isSome:
       resp.setHeader("Content-Type", codexManifest.mimetype.get())
@@ -215,10 +220,13 @@ proc retrieveInfoHash(
       await resp.sendChunk(addr buff[0], buff.len)
     await resp.finish()
     codex_api_downloads.inc()
+  except CancelledError as exc:
+    raise exc
   except CatchableError as exc:
     warn "Error streaming blocks", exc = exc.msg
     resp.status = Http500
-    return await resp.sendBody("")
+    if resp.isPending():
+      await resp.sendBody(exc.msg)
   finally:
     info "Sent bytes for torrent", infoHash = $infoHash, bytes
     if not stream.isNil:
@@ -494,7 +502,7 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
     resp.setHeader("Access-Control-Expose-Headers", "Content-Disposition")
     await node.retrieveCid(cid.get(), local = false, resp = resp)
 
-  router.api(MethodGet, "/api/codex/v1/data/{infoHash}/network/torrent") do(
+  router.api(MethodGet, "/api/codex/v1/torrent/{infoHash}/network/stream") do(
     infoHash: MultiHash, resp: HttpResponseRef
   ) -> RestApiResponse:
     var headers = buildCorsHeaders("GET", allowedOrigin)
