@@ -75,6 +75,15 @@ method run*(
       return some State(SaleErrored(error: err, reprocessSlot: false))
 
     trace "Download complete"
+    without keyId =? reservation.key, error:
+      error "Couldn't get reservation key", id = $reservation.id, error = error.msg
+
+    if updatedReservation =? await reservations.get(keyId, Reservation):
+      if updatedReservation.size != 0:
+        error "After downloading the data there is unused capacity in Reservation"
+    else:
+      error "Couldn't get updated reservation"
+
     return some State(SaleInitialProving())
   except CancelledError as e:
     trace "SaleDownloading.run was cancelled", error = e.msgDetail
