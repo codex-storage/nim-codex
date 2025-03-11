@@ -39,7 +39,7 @@ suite "sales state 'filling'":
 
   test "run switches to ignored when slot is not free":
     let error = newException(Marketplace_SlotNotFree, "")
-    market.setErrorOnFillSlot(some (ref CatchableError)(error))
+    market.setErrorOnFillSlot(error)
     market.requested.add(request)
     market.slotState[request.slotId(slotIndex)] = SlotState.Filled
 
@@ -50,7 +50,7 @@ suite "sales state 'filling'":
 
   test "run switches to errored with other error ":
     let error = newException(MarketError, "some error")
-    market.setErrorOnFillSlot(some (ref CatchableError)(error))
+    market.setErrorOnFillSlot(error)
     market.requested.add(request)
     market.slotState[request.slotId(slotIndex)] = SlotState.Filled
 

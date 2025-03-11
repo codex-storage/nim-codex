@@ -385,11 +385,19 @@ method canReserveSlot*(
 func setCanReserveSlot*(market: MockMarket, canReserveSlot: bool) =
   market.canReserveSlot = canReserveSlot
 
-func setErrorOnReserveSlot*(market: MockMarket, error: ?(ref CatchableError)) =
-  market.errorOnReserveSlot = error
+func setErrorOnReserveSlot*(market: MockMarket, error: ref CatchableError) =
+  market.errorOnReserveSlot =
+    if error.isNil:
+      none (ref CatchableError)
+    else:
+      some error
 
-func setErrorOnFillSlot*(market: MockMarket, error: ?(ref CatchableError)) =
-  market.errorOnFillSlot = error
+func setErrorOnFillSlot*(market: MockMarket, error: ref CatchableError) =
+  market.errorOnFillSlot =
+    if error.isNil:
+      none (ref CatchableError)
+    else:
+      some error
 
 method subscribeRequests*(
     market: MockMarket, callback: OnRequest
