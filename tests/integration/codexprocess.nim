@@ -33,10 +33,9 @@ proc raiseCodexProcessError(
   raise newException(CodexProcessError, msg & ": " & parent.msg, parent)
 
 template convertError(msg, body: typed) =
+  # Don't use this in an async proc, unless body does not raise CancelledError
   try:
     body
-  except CancelledError as e:
-    raise e
   except CatchableError as parent:
     raiseCodexProcessError(msg, parent)
 
