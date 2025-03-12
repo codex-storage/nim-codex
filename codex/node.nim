@@ -81,6 +81,8 @@ type
 
   CodexNodeRef* = ref CodexNode
 
+  Torrent* = tuple[torrentManifest: BitTorrentManifest, codexManifest: Manifest]
+
   OnManifest* = proc(cid: Cid, manifest: Manifest): void {.gcsafe, raises: [].}
   BatchProc* = proc(blocks: seq[bt.Block]): Future[?!void] {.gcsafe, raises: [].}
   PieceProc* =
@@ -430,7 +432,7 @@ proc fetchPieces*(
     codexManifest.treeCid, blockIter, pieceIter, numOfBlocksPerPiece, onPiece
   )
 
-proc streamTorrent(
+proc streamTorrent*(
     self: CodexNodeRef, torrentManifest: BitTorrentManifest, codexManifest: Manifest
 ): Future[?!LPStream] {.async.} =
   trace "Retrieving pieces from torrent"
@@ -486,7 +488,7 @@ proc streamTorrent(
 
 proc retrieveTorrent*(
     self: CodexNodeRef, infoHash: MultiHash
-): Future[?!LPStream] {.async.} =
+): Future[?!Torrent] {.async.} =
   without infoHashCid =? Cid.init(CIDv1, InfoHashV1Codec, infoHash).mapFailure, error:
     trace "Unable to create CID for BitTorrent info hash"
     return failure(error)
@@ -500,7 +502,7 @@ proc retrieveTorrent*(
     trace "Unable to fetch Codex Manifest for torrent info hash"
     return failure(err)
 
-  await self.streamTorrent(torrentManifest, codexManifest)
+  success (torrentManifest: torrentManifest, codexManifest: codexManifest)
 
 proc deleteSingleBlock(self: CodexNodeRef, cid: Cid): Future[?!void] {.async.} =
   if err =? (await self.networkStore.delBlock(cid)).errorOption:

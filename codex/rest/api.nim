@@ -165,36 +165,22 @@ proc retrieveInfoHash(
 
   var bytes = 0
   try:
-    without stream =? (await node.retrieveTorrent(infoHash)), error:
-      if error of BlockNotFoundError:
+    without torrent =? (await node.retrieveTorrent(infoHash)), err:
+      error "Unable to fetch Torrent Metadata", err = err.msg
+      resp.status = Http404
+      await resp.sendBody(err.msg)
+      return
+    let (torrentManifest, codexManifest) = torrent
+
+    without stream =? (await node.streamTorrent(torrentManifest, codexManifest)), err:
+      if err of BlockNotFoundError:
         resp.status = Http404
         await resp.sendBody("")
         return
       else:
         resp.status = Http500
-        await resp.sendBody(error.msg)
+        await resp.sendBody(err.msg)
         return
-
-    # It is ok to fetch again the manifest because it will hit the cache
-    without infoHashCid =? Cid.init(CIDv1, InfoHashV1Codec, infoHash).mapFailure, err:
-      error "Unable to create CID for BitTorrent info hash", err = err.msg
-      resp.status = Http404
-      await resp.sendBody(err.msg)
-      return
-
-    without torrentManifest =? (await node.fetchTorrentManifest(infoHashCid)), err:
-      error "Unable to fetch Torrent Manifest", err = err.msg
-      resp.status = Http404
-      await resp.sendBody(err.msg)
-      return
-
-    without codexManifest =? (
-      await node.fetchManifest(torrentManifest.codexManifestCid)
-    ), err:
-      error "Unable to fetch Codex Manifest for torrent info hash", err = err.msg
-      resp.status = Http404
-      await resp.sendBody(err.msg)
-      return
 
     if codexManifest.mimetype.isSome:
       resp.setHeader("Content-Type", codexManifest.mimetype.get())
