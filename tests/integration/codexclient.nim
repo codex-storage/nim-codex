@@ -1,7 +1,5 @@
 import std/httpclient
-import std/strutils
-
-from pkg/libp2p import Cid, `$`, init
+from pkg/libp2p import Cid, MultiHash, `$`, init, hex
 import pkg/stint
 import pkg/questionable/results
 import pkg/chronos/apps/http/[httpserver, shttpserver, httpclient, httptable]
@@ -121,8 +119,31 @@ proc upload*(
 
 proc upload*(
     client: CodexClient, bytes: seq[byte]
-): Future[?!Cid] {.async: (raw: true).} =
+): Future[?!Cid] {.async: (raw: true), raises: [CancelledError, HttpError].} =
   return client.upload(string.fromBytes(bytes))
+
+proc uploadTorrent*(
+    client: CodexClient,
+    contents: string,
+    filename = string.none,
+    contentType = "application/octet-stream",
+): Future[?!MultiHash] {.async: (raises: [CancelledError, HttpError]).} =
+  var headers = newSeq[HttpHeaderTuple]()
+  if name =? filename:
+    headers =
+      @[
+        ("Content-Disposition", "filename=\"" & name & "\""),
+        ("Content-Type", contentType),
+      ]
+  let response =
+    await client.post(client.baseurl & "/torrent", body = contents, headers = headers)
+  assert response.status == 200
+  MultiHash.init((await response.body).hexToSeqByte).mapFailure
+
+proc uploadTorrent*(
+    client: CodexClient, bytes: seq[byte], filename = string.none
+): Future[?!MultiHash] {.async: (raw: true), raises: [CancelledError, HttpError].} =
+  client.uploadTorrent(string.fromBytes(bytes), filename)
 
 proc downloadRaw*(
     client: CodexClient, cid: string, local = false
@@ -169,6 +190,17 @@ proc downloadManifestOnly*(
     return failure($response.status)
 
   success await response.body
+
+proc downloadTorrentManifestOnly*(
+    client: CodexClient, infoHash: MultiHash
+): Future[?!RestTorrentContent] =
+  let response =
+    await client.get(client.baseurl & "/torrent/" & infoHash.hex & "/network/manifest")
+
+  if response.status != 200:
+    return failure($response.status)
+
+  RestTorrentContent.fromJson(await response.body)
 
 proc deleteRaw*(
     client: CodexClient, cid: string
