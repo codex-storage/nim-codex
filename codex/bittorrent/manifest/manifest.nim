@@ -4,6 +4,7 @@ import pkg/questionable
 import pkg/questionable/results
 
 import ../../merkletree/codex/codex
+import ../../utils/json
 
 import ../../errors
 import ../../codextypes
@@ -12,14 +13,14 @@ import ../bencoding
 type
   BitTorrentPiece* = MultiHash
   BitTorrentInfo* = ref object
-    length*: uint64
-    pieceLength*: uint32
-    pieces*: seq[BitTorrentPiece]
-    name*: ?string
+    length* {.serialize.}: uint64
+    pieceLength* {.serialize.}: uint32
+    pieces* {.serialize.}: seq[BitTorrentPiece]
+    name* {.serialize.}: ?string
 
   BitTorrentManifest* = ref object
-    info*: BitTorrentInfo
-    codexManifestCid*: Cid
+    info* {.serialize.}: BitTorrentInfo
+    codexManifestCid* {.serialize.}: Cid
 
 proc `$`*(self: BitTorrentInfo): string =
   "BitTorrentInfo(length: " & $self.length & ", pieceLength: " & $self.pieceLength &
@@ -28,6 +29,10 @@ proc `$`*(self: BitTorrentInfo): string =
 proc `$`*(self: BitTorrentManifest): string =
   "BitTorrentManifest(info: " & $self.info & ", codexManifestCid: " &
     $self.codexManifestCid & ")"
+
+func `==`*(a: BitTorrentInfo, b: BitTorrentInfo): bool =
+  a.length == b.length and a.pieceLength == b.pieceLength and a.pieces == b.pieces and
+    a.name == b.name
 
 proc newBitTorrentManifest*(
     info: BitTorrentInfo, codexManifestCid: Cid
