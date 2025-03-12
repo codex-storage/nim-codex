@@ -648,7 +648,7 @@ proc storePieces*(
     filename: ?string = string.none,
     mimetype: ?string = string.none,
     blockSize: NBytes,
-    pieceLength = NBytes 1024 * 64,
+    pieceLength = DefaultPieceLength,
 ): Future[?!BitTorrentManifest] {.async.} =
   ## Save stream contents as dataset with given blockSize
   ## to nodes's BlockStore, and return Cid of its manifest
@@ -699,7 +699,7 @@ proc storePieces*(
         return failure(&"Unable to store block {blk.cid}")
       pieceHashCtx.update(chunk)
       let idx = pieceIter.next()
-      trace "stored block in piece with index=", idx
+      trace "stored block in piece with index", idx
       if chunk.len < blockSize.int:
         trace "no more block to read"
         break
@@ -775,7 +775,7 @@ proc storeTorrent*(
 
   without bitTorrentManifest =?
     await self.storePieces(
-      stream, filename = filename, mimetype = mimetype, blockSize = NBytes 1024 * 16
+      stream, filename = filename, mimetype = mimetype, blockSize = BitTorrentBlockSize
     ):
     return failure("Unable to store BitTorrent data")
 
