@@ -24,6 +24,10 @@ import ./errors
 export tables
 
 const
+  # BitTorrent specific
+  DefaultPieceLength* = NBytes 1024 * 64
+  BitTorrentBlockSize* = NBytes 1024 * 16
+
   # Size of blocks for storage / network exchange,
   DefaultBlockSize* = NBytes 1024 * 64
   DefaultCellSize* = NBytes 2048
