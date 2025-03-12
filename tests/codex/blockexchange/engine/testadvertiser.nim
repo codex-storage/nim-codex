@@ -34,7 +34,7 @@ asyncchecksuite "Advertiser":
     advertised = newSeq[Cid]()
     blockDiscovery.publishBlockProvideHandler = proc(
         d: MockDiscovery, cid: Cid
-    ) {.async, gcsafe.} =
+    ) {.async: (raises: [CancelledError]), gcsafe.} =
       advertised.add(cid)
 
     advertiser = Advertiser.new(localStore, blockDiscovery)
