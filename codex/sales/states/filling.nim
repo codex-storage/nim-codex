@@ -38,13 +38,8 @@ method run*(
     requestId = data.requestId
     slotIndex = data.slotIndex
 
+  let collateral = request.ask.collateralPerSlot()
   try:
-    without collateral =? await market.slotCollateral(data.requestId, data.slotIndex),
-      err:
-      error "Failure attempting to fill slot: unable to calculate collateral",
-        error = err.msg
-      return some State(SaleErrored(error: err))
-
     debug "Filling slot"
     try:
       await market.fillSlot(data.requestId, data.slotIndex, state.proof, collateral)
@@ -53,7 +48,6 @@ method run*(
       return some State(SaleIgnored(reprocessSlot: false))
     except MarketError as e:
       return some State(SaleErrored(error: e))
-    # other CatchableErrors are handled "automatically" by the SaleState
 
     return some State(SaleFilled())
   except CancelledError as e:

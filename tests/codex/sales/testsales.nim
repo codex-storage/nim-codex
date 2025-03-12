@@ -325,10 +325,6 @@ asyncchecksuite "Sales":
 
     market.emitSlotFreed(request.id, 2.uint64)
 
-    without collateralPerSlot =? await market.slotCollateral(request.id, 2.uint64),
-      error:
-      fail()
-
     let expected =
       SlotQueueItem.init(request, 2.uint16, collateral = request.ask.collateralPerSlot)
 
