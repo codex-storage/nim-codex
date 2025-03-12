@@ -283,10 +283,10 @@ proc scheduleTasks(
             self.scheduleTask(p)
             break
         except CancelledError as exc:
-          warn "Error checking local store for cid", cid = c, err = exc.msg
+          warn "Checking local store canceled", cid = c, err = exc.msg
           return
         except CatchableError as exc:
-          warn "Error checking local store for cid", cid = c, err = exc.msg
+          error "Error checking local store for cid", cid = c, err = exc.msg
           raiseAssert "Unexpected error checking local store for cid"
 
 proc cancelBlocks(
@@ -574,7 +574,9 @@ proc dropPeer*(self: BlockExcEngine, peer: PeerId) {.raises: [].} =
   # drop the peer from the peers table
   self.peers.remove(peer)
 
-proc taskHandler*(self: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.} =
+proc taskHandler*(
+    self: BlockExcEngine, task: BlockExcPeerCtx
+) {.gcsafe, async: (raises: [CancelledError, RetriesExhaustedError]).} =
   # Send to the peer blocks he wants to get,
   # if they present in our local store
 
@@ -611,8 +613,11 @@ proc taskHandler*(self: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, async.}
 
     let
       blocksDeliveryFut = await allFinished(wantsBlocks.map(localLookup))
-      blocksDelivery =
-        blocksDeliveryFut.filterIt(it.completed and it.read.isOk).mapIt(it.read.get)
+      blocksDelivery = blocksDeliveryFut.filterIt(it.completed and it.value.isOk).mapIt:
+        if bd =? it.value:
+          bd
+        else:
+          raiseAssert "Unexpected error in local lookup"
 
     # All the wants that failed local lookup must be set to not-in-flight again.
     let
@@ -634,15 +639,12 @@ proc blockexcTaskRunner(self: BlockExcEngine) {.async: (raises: []).} =
   ##
 
   trace "Starting blockexc task runner"
-  while self.blockexcRunning:
-    try:
+  try:
+    while self.blockexcRunning:
       let peerCtx = await self.taskQueue.pop()
-
       await self.taskHandler(peerCtx)
-    except CancelledError:
-      break # do not propagate as blockexcTaskRunner was asyncSpawned
-    except CatchableError as exc:
-      error "error running block exchange task", error = exc.msg
+  except CatchableError as exc:
+    error "error running block exchange task", error = exc.msg
 
   info "Exiting blockexc task runner"
 
