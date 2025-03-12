@@ -249,10 +249,13 @@ method fillSlot(
       requestId
       slotIndex
 
-    await market.approveFunds(collateral)
-    trace "calling fillSlot on contract"
-    discard await market.contract.fillSlot(requestId, slotIndex, proof).confirm(1)
-    trace "fillSlot transaction completed"
+    try:
+      await market.approveFunds(collateral)
+      trace "calling fillSlot on contract"
+      discard await market.contract.fillSlot(requestId, slotIndex, proof).confirm(1)
+      trace "fillSlot transaction completed"
+    except Marketplace_SlotNotFree:
+      raiseMarketError("Slot not free")
 
 method freeSlot*(market: OnChainMarket, slotId: SlotId) {.async.} =
   convertEthersError("Failed to free slot"):
@@ -327,14 +330,17 @@ method reserveSlot*(
     market: OnChainMarket, requestId: RequestId, slotIndex: uint64
 ) {.async.} =
   convertEthersError("Failed to reserve slot"):
-    discard await market.contract
-    .reserveSlot(
-      requestId,
-      slotIndex,
-      # reserveSlot runs out of gas for unknown reason, but 100k gas covers it
-      TransactionOverrides(gasLimit: some 100000.u256),
-    )
-    .confirm(1)
+    try:
+      discard await market.contract
+      .reserveSlot(
+        requestId,
+        slotIndex,
+        # reserveSlot runs out of gas for unknown reason, but 100k gas covers it
+        TransactionOverrides(gasLimit: some 100000.u256),
+      )
+      .confirm(1)
+    except SlotReservations_ReservationNotAllowed:
+      raiseMarketError("Reservation not allowed")
 
 method canReserveSlot*(
     market: OnChainMarket, requestId: RequestId, slotIndex: uint64

@@ -46,7 +46,7 @@ type
     subscriptions: Subscriptions
     config*: MarketplaceConfig
     canReserveSlot*: bool
-    errorOnReserveSlot*: ?(ref CatchableError)
+    errorOnReserveSlot*: ?(ref MarketError)
     errorOnFillSlot*: ?(ref CatchableError)
     clock: ?Clock
 
@@ -373,7 +373,7 @@ method canProofBeMarkedAsMissing*(
 
 method reserveSlot*(
     market: MockMarket, requestId: RequestId, slotIndex: uint64
-) {.async.} =
+) {.async: (raises: [CancelledError, MarketError]).} =
   if error =? market.errorOnReserveSlot:
     raise error
 
@@ -385,10 +385,10 @@ method canReserveSlot*(
 func setCanReserveSlot*(market: MockMarket, canReserveSlot: bool) =
   market.canReserveSlot = canReserveSlot
 
-func setErrorOnReserveSlot*(market: MockMarket, error: ref CatchableError) =
+func setErrorOnReserveSlot*(market: MockMarket, error: ref MarketError) =
   market.errorOnReserveSlot =
     if error.isNil:
-      none (ref CatchableError)
+      none (ref MarketError)
     else:
       some error
 

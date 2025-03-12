@@ -12,7 +12,6 @@ import ../../examples
 import ../../helpers
 import ../../helpers/mockmarket
 import ../../helpers/mockclock
-from pkg/codex/contracts/marketplace import Marketplace_SlotNotFree
 
 suite "sales state 'filling'":
   let request = StorageRequest.example
@@ -38,7 +37,7 @@ suite "sales state 'filling'":
     check !next of SaleFailed
 
   test "run switches to ignored when slot is not free":
-    let error = newException(Marketplace_SlotNotFree, "")
+    let error = newException(MarketError, "Slot not free")
     market.setErrorOnFillSlot(error)
     market.requested.add(request)
     market.slotState[request.slotId(slotIndex)] = SlotState.Filled

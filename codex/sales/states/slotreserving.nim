@@ -11,7 +11,6 @@ import ./failed
 import ./ignored
 import ./downloading
 import ./errored
-from ../../contracts/marketplace import SlotReservations_ReservationNotAllowed
 
 type SaleSlotReserving* = ref object of SaleState
 
@@ -45,10 +44,10 @@ method run*(
       try:
         trace "Reserving slot"
         await market.reserveSlot(data.requestId, data.slotIndex)
-      except SlotReservations_ReservationNotAllowed as e:
-        debug "Slot cannot be reserved, ignoring", error = e.msg
-        return some State(SaleIgnored(reprocessSlot: false, returnBytes: true))
       except MarketError as e:
+        if e.msg.contains "Reservation not allowed":
+          debug "Slot cannot be reserved, ignoring", error = e.msg
+          return some State(SaleIgnored(reprocessSlot: false, returnBytes: true))
         return some State(SaleErrored(error: e))
       # other CatchableErrors are handled "automatically" by the SaleState
 

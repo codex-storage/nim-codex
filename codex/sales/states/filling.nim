@@ -9,7 +9,6 @@ import ./cancelled
 import ./failed
 import ./ignored
 import ./errored
-from ../../contracts/marketplace import Marketplace_SlotNotFree
 
 logScope:
   topics = "marketplace sales filling"
@@ -49,10 +48,10 @@ method run*(
     debug "Filling slot"
     try:
       await market.fillSlot(data.requestId, data.slotIndex, state.proof, collateral)
-    except Marketplace_SlotNotFree:
-      debug "Slot is already filled, ignoring slot"
-      return some State(SaleIgnored(reprocessSlot: false, returnBytes: true))
     except MarketError as e:
+      if e.msg.contains "Slot not free":
+        debug "Slot is already filled, ignoring slot"
+        return some State(SaleIgnored(reprocessSlot: false, returnBytes: true))
       return some State(SaleErrored(error: e))
     # other CatchableErrors are handled "automatically" by the SaleState
 
