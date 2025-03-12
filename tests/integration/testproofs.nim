@@ -53,8 +53,8 @@ marketplacesuite "Hosts submit regular proofs":
 
     let purchaseId = await client0.requestStorage(
       cid,
-      expiry = expiry,
-      duration = duration,
+      expiry = expiry.stuint(40),
+      duration = duration.stuint(40),
       nodes = ecNodes,
       tolerance = ecTolerance,
     )
@@ -131,8 +131,8 @@ marketplacesuite "Simulate invalid proofs":
     let purchaseId = (
       await client0.requestStorage(
         cid,
-        expiry = expiry,
-        duration = duration,
+        expiry = expiry.stuint(40),
+        duration = duration.stuint(40),
         nodes = ecNodes,
         tolerance = ecTolerance,
         proofProbability = 1.u256,
@@ -195,8 +195,8 @@ marketplacesuite "Simulate invalid proofs":
 
     let purchaseId = await client0.requestStorage(
       cid,
-      expiry = expiry,
-      duration = duration,
+      expiry = expiry.stuint(40),
+      duration = duration.stuint(40),
       nodes = ecNodes,
       tolerance = ecTolerance,
       proofProbability = 1.u256,
