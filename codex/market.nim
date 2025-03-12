@@ -153,9 +153,7 @@ method getHost*(
 
 method currentCollateral*(
     market: Market, slotId: SlotId
-): Future[UInt256] {.
-    base, async: (raises: [MarketError, AsyncLockError, CancelledError])
-.} =
+): Future[UInt256] {.base, async: (raises: [MarketError, CancelledError]).} =
   raiseAssert("not implemented")
 
 method getActiveSlot*(market: Market, slotId: SlotId): Future[?Slot] {.base, async.} =
