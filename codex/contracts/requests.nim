@@ -9,6 +9,7 @@ import pkg/stew/byteutils
 import pkg/libp2p/[cid, multicodec]
 import ../logutils
 import ../utils/json
+import ../clock
 from ../errors import mapFailure
 
 export contractabi
@@ -18,16 +19,16 @@ type
     client* {.serialize.}: Address
     ask* {.serialize.}: StorageAsk
     content* {.serialize.}: StorageContent
-    expiry* {.serialize.}: UInt256
+    expiry* {.serialize.}: uint64
     nonce*: Nonce
 
   StorageAsk* = object
-    slots* {.serialize.}: uint64
-    slotSize* {.serialize.}: UInt256
-    duration* {.serialize.}: UInt256
     proofProbability* {.serialize.}: UInt256
     pricePerBytePerSecond* {.serialize.}: UInt256
     collateralPerByte* {.serialize.}: UInt256
+    slots* {.serialize.}: uint64
+    slotSize* {.serialize.}: uint64
+    duration* {.serialize.}: uint64
     maxSlotLoss* {.serialize.}: uint64
 
   StorageContent* = object
@@ -36,7 +37,7 @@ type
 
   Slot* = object
     request* {.serialize.}: StorageRequest
-    slotIndex* {.serialize.}: UInt256
+    slotIndex* {.serialize.}: uint64
 
   SlotId* = distinct array[32, byte]
   RequestId* = distinct array[32, byte]
@@ -110,12 +111,12 @@ func fromTuple(_: type Slot, tupl: tuple): Slot =
 
 func fromTuple(_: type StorageAsk, tupl: tuple): StorageAsk =
   StorageAsk(
-    slots: tupl[0],
-    slotSize: tupl[1],
-    duration: tupl[2],
-    proofProbability: tupl[3],
-    pricePerBytePerSecond: tupl[4],
-    collateralPerByte: tupl[5],
+    proofProbability: tupl[0],
+    pricePerBytePerSecond: tupl[1],
+    collateralPerByte: tupl[2],
+    slots: tupl[3],
+    slotSize: tupl[4],
+    duration: tupl[5],
     maxSlotLoss: tupl[6],
   )
 
@@ -177,21 +178,21 @@ func id*(request: StorageRequest): RequestId =
   let encoding = AbiEncoder.encode((request,))
   RequestId(keccak256.digest(encoding).data)
 
-func slotId*(requestId: RequestId, slotIndex: UInt256): SlotId =
+func slotId*(requestId: RequestId, slotIndex: uint64): SlotId =
   let encoding = AbiEncoder.encode((requestId, slotIndex))
   SlotId(keccak256.digest(encoding).data)
 
-func slotId*(request: StorageRequest, slotIndex: UInt256): SlotId =
+func slotId*(request: StorageRequest, slotIndex: uint64): SlotId =
   slotId(request.id, slotIndex)
 
 func id*(slot: Slot): SlotId =
   slotId(slot.request, slot.slotIndex)
 
 func pricePerSlotPerSecond*(ask: StorageAsk): UInt256 =
-  ask.pricePerBytePerSecond * ask.slotSize
+  ask.pricePerBytePerSecond * ask.slotSize.u256
 
 func pricePerSlot*(ask: StorageAsk): UInt256 =
-  ask.duration * ask.pricePerSlotPerSecond
+  ask.duration.u256 * ask.pricePerSlotPerSecond
 
 func totalPrice*(ask: StorageAsk): UInt256 =
   ask.slots.u256 * ask.pricePerSlot
@@ -200,7 +201,7 @@ func totalPrice*(request: StorageRequest): UInt256 =
   request.ask.totalPrice
 
 func collateralPerSlot*(ask: StorageAsk): UInt256 =
-  ask.collateralPerByte * ask.slotSize
+  ask.collateralPerByte * ask.slotSize.u256
 
-func size*(ask: StorageAsk): UInt256 =
-  ask.slots.u256 * ask.slotSize
+func size*(ask: StorageAsk): uint64 =
+  ask.slots * ask.slotSize

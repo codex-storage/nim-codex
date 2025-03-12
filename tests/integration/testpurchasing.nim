@@ -11,18 +11,18 @@ twonodessuite "Purchasing":
     let cid = client1.upload(data).get
     let id1 = client1.requestStorage(
       cid,
-      duration = 100.u256,
+      duration = 100.uint64,
       pricePerBytePerSecond = 1.u256,
       proofProbability = 3.u256,
-      expiry = 10,
+      expiry = 10.uint64,
       collateralPerByte = 1.u256,
     ).get
     let id2 = client1.requestStorage(
       cid,
-      duration = 400.u256,
+      duration = 400.uint64,
       pricePerBytePerSecond = 2.u256,
       proofProbability = 6.u256,
-      expiry = 10,
+      expiry = 10.uint64,
       collateralPerByte = 2.u256,
     ).get
     check id1 != id2
@@ -37,10 +37,10 @@ twonodessuite "Purchasing":
     let cid = client1.upload(byteutils.toHex(data)).get
     let id = client1.requestStorage(
       cid,
-      duration = 100.u256,
+      duration = 100.uint64,
       pricePerBytePerSecond = 1.u256,
       proofProbability = 3.u256,
-      expiry = 30,
+      expiry = 30.uint64,
       collateralPerByte = 1.u256,
       nodes = 3,
       tolerance = 1,
@@ -49,10 +49,10 @@ twonodessuite "Purchasing":
     let request = client1.getPurchase(id).get.request.get
 
     check request.content.cid.data.buffer.len > 0
-    check request.ask.duration == 100.u256
+    check request.ask.duration == 100.uint64
     check request.ask.pricePerBytePerSecond == 1.u256
     check request.ask.proofProbability == 3.u256
-    check request.expiry == 30
+    check request.expiry == 30.uint64
     check request.ask.collateralPerByte == 1.u256
     check request.ask.slots == 3'u64
     check request.ask.maxSlotLoss == 1'u64
@@ -78,10 +78,10 @@ twonodessuite "Purchasing":
     let cid = client1.upload(data).get
     let id = client1.requestStorage(
       cid,
-      duration = 10 * 60.u256,
+      duration = 10 * 60.uint64,
       pricePerBytePerSecond = 1.u256,
       proofProbability = 3.u256,
-      expiry = 5 * 60,
+      expiry = 5 * 60.uint64,
       collateralPerByte = 1.u256,
       nodes = 3.uint,
       tolerance = 1.uint,
@@ -89,14 +89,13 @@ twonodessuite "Purchasing":
     check eventually(client1.purchaseStateIs(id, "submitted"), timeout = 3 * 60 * 1000)
 
     await node1.restart()
-    client1.restart()
 
     check eventually(client1.purchaseStateIs(id, "submitted"), timeout = 3 * 60 * 1000)
     let request = client1.getPurchase(id).get.request.get
-    check request.ask.duration == (10 * 60).u256
+    check request.ask.duration == (10 * 60).uint64
     check request.ask.pricePerBytePerSecond == 1.u256
     check request.ask.proofProbability == 3.u256
-    check request.expiry == (5 * 60).u256
+    check request.expiry == (5 * 60).uint64
     check request.ask.collateralPerByte == 1.u256
     check request.ask.slots == 3'u64
     check request.ask.maxSlotLoss == 1'u64
@@ -107,7 +106,7 @@ twonodessuite "Purchasing":
 
     let responseMissing = client1.requestStorageRaw(
       cid,
-      duration = 1.u256,
+      duration = 1.uint64,
       pricePerBytePerSecond = 1.u256,
       proofProbability = 3.u256,
       collateralPerByte = 1.u256,
@@ -117,11 +116,11 @@ twonodessuite "Purchasing":
 
     let responseBefore = client1.requestStorageRaw(
       cid,
-      duration = 10.u256,
+      duration = 10.uint64,
       pricePerBytePerSecond = 1.u256,
       proofProbability = 3.u256,
       collateralPerByte = 1.u256,
-      expiry = 10,
+      expiry = 10.uint64,
     )
     check responseBefore.status == "400 Bad Request"
     check "Expiry needs value bigger then zero and smaller then the request's duration" in

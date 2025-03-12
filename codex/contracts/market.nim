@@ -55,11 +55,17 @@ template convertEthersError(body) =
   except EthersError as error:
     raiseMarketError(error.msgDetail)
 
-proc config(market: OnChainMarket): Future[MarketplaceConfig] {.async.} =
+proc config(
+    market: OnChainMarket
+): Future[MarketplaceConfig] {.async: (raises: [CancelledError, MarketError]).} =
   without resolvedConfig =? market.configuration:
-    let fetchedConfig = await market.contract.configuration()
-    market.configuration = some fetchedConfig
-    return fetchedConfig
+    if err =? (await market.loadConfig()).errorOption:
+      raiseMarketError(err.msg)
+
+    without config =? market.configuration:
+      raiseMarketError("Failed to access to config from the Marketplace contract")
+
+    return config
 
   return resolvedConfig
 
@@ -70,7 +76,26 @@ proc approveFunds(market: OnChainMarket, amount: UInt256) {.async.} =
     let token = Erc20Token.new(tokenAddress, market.signer)
     discard await token.increaseAllowance(market.contract.address(), amount).confirm(1)
 
-method getZkeyHash*(market: OnChainMarket): Future[?string] {.async.} =
+method loadConfig*(
+    market: OnChainMarket
+): Future[?!void] {.async: (raises: [CancelledError]).} =
+  try:
+    without config =? market.configuration:
+      let fetchedConfig = await market.contract.configuration()
+
+      market.configuration = some fetchedConfig
+
+    return success()
+  except AsyncLockError, EthersError:
+    let err = getCurrentException()
+    return failure newException(
+      MarketError,
+      "Failed to fetch the config from the Marketplace contract: " & err.msg,
+    )
+
+method getZkeyHash*(
+    market: OnChainMarket
+): Future[?string] {.async: (raises: [CancelledError, MarketError]).} =
   let config = await market.config()
   return some config.proofs.zkeyHash
 
@@ -78,28 +103,36 @@ method getSigner*(market: OnChainMarket): Future[Address] {.async.} =
   convertEthersError:
     return await market.signer.getAddress()
 
-method periodicity*(market: OnChainMarket): Future[Periodicity] {.async.} =
+method periodicity*(
+    market: OnChainMarket
+): Future[Periodicity] {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError:
     let config = await market.config()
     let period = config.proofs.period
     return Periodicity(seconds: period)
 
-method proofTimeout*(market: OnChainMarket): Future[UInt256] {.async.} =
+method proofTimeout*(
+    market: OnChainMarket
+): Future[uint64] {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError:
     let config = await market.config()
     return config.proofs.timeout
 
-method repairRewardPercentage*(market: OnChainMarket): Future[uint8] {.async.} =
+method repairRewardPercentage*(
+    market: OnChainMarket
+): Future[uint8] {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError:
     let config = await market.config()
     return config.collateral.repairRewardPercentage
 
-method requestDurationLimit*(market: OnChainMarket): Future[UInt256] {.async.} =
+method requestDurationLimit*(market: OnChainMarket): Future[uint64] {.async.} =
   convertEthersError:
     let config = await market.config()
     return config.requestDurationLimit
 
-method proofDowntime*(market: OnChainMarket): Future[uint8] {.async.} =
+method proofDowntime*(
+    market: OnChainMarket
+): Future[uint8] {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError:
     let config = await market.config()
     return config.proofs.downtime
@@ -128,19 +161,22 @@ method requestStorage(market: OnChainMarket, request: StorageRequest) {.async.} 
 
 method getRequest*(
     market: OnChainMarket, id: RequestId
-): Future[?StorageRequest] {.async.} =
-  let key = $id
+): Future[?StorageRequest] {.async: (raises: [CancelledError]).} =
+  try:
+    let key = $id
 
-  if market.requestCache.contains(key):
-    return some market.requestCache[key]
+    if key in market.requestCache:
+      return some market.requestCache[key]
 
-  convertEthersError:
-    try:
-      let request = await market.contract.getRequest(id)
-      market.requestCache[key] = request
-      return some request
-    except Marketplace_UnknownRequest:
-      return none StorageRequest
+    let request = await market.contract.getRequest(id)
+    market.requestCache[key] = request
+    return some request
+  except Marketplace_UnknownRequest, KeyError:
+    warn "Cannot retrieve the request", error = getCurrentExceptionMsg()
+    return none StorageRequest
+  except EthersError, AsyncLockError:
+    error "Cannot retrieve the request", error = getCurrentExceptionMsg()
+    return none StorageRequest
 
 method requestState*(
     market: OnChainMarket, requestId: RequestId
@@ -152,10 +188,17 @@ method requestState*(
     except Marketplace_UnknownRequest:
       return none RequestState
 
-method slotState*(market: OnChainMarket, slotId: SlotId): Future[SlotState] {.async.} =
+method slotState*(
+    market: OnChainMarket, slotId: SlotId
+): Future[SlotState] {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError:
-    let overrides = CallOverrides(blockTag: some BlockTag.pending)
-    return await market.contract.slotState(slotId, overrides)
+    try:
+      let overrides = CallOverrides(blockTag: some BlockTag.pending)
+      return await market.contract.slotState(slotId, overrides)
+    except AsyncLockError as err:
+      raiseMarketError(
+        "Failed to fetch the slot state from the Marketplace contract: " & err.msg
+      )
 
 method getRequestEnd*(
     market: OnChainMarket, id: RequestId
@@ -170,7 +213,7 @@ method requestExpiresAt*(
     return await market.contract.requestExpiry(id)
 
 method getHost(
-    market: OnChainMarket, requestId: RequestId, slotIndex: UInt256
+    market: OnChainMarket, requestId: RequestId, slotIndex: uint64
 ): Future[?Address] {.async.} =
   convertEthersError:
     let slotId = slotId(requestId, slotIndex)
@@ -196,7 +239,7 @@ method getActiveSlot*(market: OnChainMarket, slotId: SlotId): Future[?Slot] {.as
 method fillSlot(
     market: OnChainMarket,
     requestId: RequestId,
-    slotIndex: UInt256,
+    slotIndex: uint64,
     proof: Groth16Proof,
     collateral: UInt256,
 ) {.async.} =
@@ -280,7 +323,7 @@ method canProofBeMarkedAsMissing*(
     return false
 
 method reserveSlot*(
-    market: OnChainMarket, requestId: RequestId, slotIndex: UInt256
+    market: OnChainMarket, requestId: RequestId, slotIndex: uint64
 ) {.async.} =
   convertEthersError:
     discard await market.contract
@@ -293,7 +336,7 @@ method reserveSlot*(
     .confirm(1)
 
 method canReserveSlot*(
-    market: OnChainMarket, requestId: RequestId, slotIndex: UInt256
+    market: OnChainMarket, requestId: RequestId, slotIndex: uint64
 ): Future[bool] {.async.} =
   convertEthersError:
     return await market.contract.canReserveSlot(requestId, slotIndex)
@@ -329,10 +372,10 @@ method subscribeSlotFilled*(
 method subscribeSlotFilled*(
     market: OnChainMarket,
     requestId: RequestId,
-    slotIndex: UInt256,
+    slotIndex: uint64,
     callback: OnSlotFilled,
 ): Future[MarketSubscription] {.async.} =
-  proc onSlotFilled(eventRequestId: RequestId, eventSlotIndex: UInt256) =
+  proc onSlotFilled(eventRequestId: RequestId, eventSlotIndex: uint64) =
     if eventRequestId == requestId and eventSlotIndex == slotIndex:
       callback(requestId, slotIndex)
 
@@ -507,3 +550,40 @@ method queryPastStorageRequestedEvents*(
     let fromBlock = await market.contract.provider.pastBlockTag(blocksAgo)
 
     return await market.queryPastStorageRequestedEvents(fromBlock)
+
+method slotCollateral*(
+    market: OnChainMarket, requestId: RequestId, slotIndex: uint64
+): Future[?!UInt256] {.async: (raises: [CancelledError]).} =
+  let slotid = slotId(requestId, slotIndex)
+
+  try:
+    let slotState = await market.slotState(slotid)
+
+    without request =? await market.getRequest(requestId):
+      return failure newException(
+        MarketError, "Failure calculating the slotCollateral, cannot get the request"
+      )
+
+    return market.slotCollateral(request.ask.collateralPerSlot, slotState)
+  except MarketError as error:
+    error "Error when trying to calculate the slotCollateral", error = error.msg
+    return failure error
+
+method slotCollateral*(
+    market: OnChainMarket, collateralPerSlot: UInt256, slotState: SlotState
+): ?!UInt256 {.raises: [].} =
+  if slotState == SlotState.Repair:
+    without repairRewardPercentage =?
+      market.configuration .? collateral .? repairRewardPercentage:
+      return failure newException(
+        MarketError,
+        "Failure calculating the slotCollateral, cannot get the reward percentage",
+      )
+
+    return success (
+      collateralPerSlot - (collateralPerSlot * repairRewardPercentage.u256).div(
+        100.u256
+      )
+    )
+
+  return success(collateralPerSlot)

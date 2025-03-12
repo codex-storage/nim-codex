@@ -134,6 +134,10 @@ proc bootstrapInteractions(s: CodexServer): Future[void] {.async.} =
       if config.simulateProofFailures > 0:
         warn "Proof failure simulation is not enabled for this build! Configuration ignored"
 
+    if error =? (await market.loadConfig()).errorOption:
+      fatal "Cannot load market configuration", error = error.msg
+      quit QuitFailure
+
     let purchasing = Purchasing.new(market, clock)
     let sales = Sales.new(market, clock, repo, proofFailures)
     client = some ClientInteractions.new(clock, purchasing)
@@ -311,7 +315,7 @@ proc new*(
         bufferSize = (1024 * 64),
         maxRequestBodySize = int.high,
       )
-      .expect("Should start rest server!")
+      .expect("Should create rest server!")
 
   switch.mount(network)
 

@@ -28,7 +28,7 @@ method onFailed*(state: SaleDownloading, request: StorageRequest): ?State =
   return some State(SaleFailed())
 
 method onSlotFilled*(
-    state: SaleDownloading, requestId: RequestId, slotIndex: UInt256
+    state: SaleDownloading, requestId: RequestId, slotIndex: uint64
 ): ?State =
   return some State(SaleFilled())
 
@@ -67,8 +67,11 @@ method run*(
     return await reservations.release(reservation.id, reservation.availabilityId, bytes)
 
   try:
+    let slotId = slotId(request.id, data.slotIndex)
+    let isRepairing = (await context.market.slotState(slotId)) == SlotState.Repair
+
     trace "Starting download"
-    if err =? (await onStore(request, data.slotIndex, onBlocks)).errorOption:
+    if err =? (await onStore(request, data.slotIndex, onBlocks, isRepairing)).errorOption:
       return some State(SaleErrored(error: err, reprocessSlot: false))
 
     trace "Download complete"

@@ -1,4 +1,6 @@
 import std/httpclient
+import std/importutils
+import std/net
 import std/sequtils
 import std/strformat
 from pkg/libp2p import `==`, `$`, Cid
@@ -25,19 +27,19 @@ twonodessuite "REST API":
 
   test "node shows used and available space", twoNodesConfig:
     discard client1.upload("some file contents").get
-    let totalSize = 12.u256
+    let totalSize = 12.uint64
     let minPricePerBytePerSecond = 1.u256
-    let totalCollateral = totalSize * minPricePerBytePerSecond
+    let totalCollateral = totalSize.u256 * minPricePerBytePerSecond
     discard client1.postAvailability(
       totalSize = totalSize,
-      duration = 2.u256,
+      duration = 2.uint64,
       minPricePerBytePerSecond = minPricePerBytePerSecond,
       totalCollateral = totalCollateral,
     ).get
     let space = client1.space().tryGet()
     check:
       space.totalBlocks == 2
-      space.quotaMaxBytes == 8589934592.NBytes
+      space.quotaMaxBytes == 21474836480.NBytes
       space.quotaUsedBytes == 65592.NBytes
       space.quotaReservedBytes == 12.NBytes
 
@@ -56,11 +58,11 @@ twonodessuite "REST API":
     let cid = client1.upload("some file contents").get
     let response = client1.requestStorageRaw(
       cid,
-      duration = 10.u256,
+      duration = 10.uint64,
       pricePerBytePerSecond = 1.u256,
       proofProbability = 3.u256,
       collateralPerByte = 1.u256,
-      expiry = 9,
+      expiry = 9.uint64,
     )
 
     check:
@@ -74,11 +76,11 @@ twonodessuite "REST API":
     let cid = client1.upload(data).get
     let response = client1.requestStorageRaw(
       cid,
-      duration = 10.u256,
+      duration = 10.uint64,
       pricePerBytePerSecond = 1.u256,
       proofProbability = 3.u256,
       collateralPerByte = 1.u256,
-      expiry = 9,
+      expiry = 9.uint64,
     )
 
     check:
@@ -87,10 +89,10 @@ twonodessuite "REST API":
   test "request storage fails if tolerance is zero", twoNodesConfig:
     let data = await RandomChunker.example(blocks = 2)
     let cid = client1.upload(data).get
-    let duration = 100.u256
+    let duration = 100.uint64
     let pricePerBytePerSecond = 1.u256
     let proofProbability = 3.u256
-    let expiry = 30.uint
+    let expiry = 30.uint64
     let collateralPerByte = 1.u256
     let nodes = 3
     let tolerance = 0
@@ -106,7 +108,7 @@ twonodessuite "REST API":
   test "request storage fails if duration exceeds limit", twoNodesConfig:
     let data = await RandomChunker.example(blocks = 2)
     let cid = client1.upload(data).get
-    let duration = (31 * 24 * 60 * 60).u256
+    let duration = (31 * 24 * 60 * 60).uint64
       # 31 days TODO: this should not be hardcoded, but waits for https://github.com/codex-storage/nim-codex/issues/1056
     let proofProbability = 3.u256
     let expiry = 30.uint
@@ -126,10 +128,10 @@ twonodessuite "REST API":
   test "request storage fails if nodes and tolerance aren't correct", twoNodesConfig:
     let data = await RandomChunker.example(blocks = 2)
     let cid = client1.upload(data).get
-    let duration = 100.u256
+    let duration = 100.uint64
     let pricePerBytePerSecond = 1.u256
     let proofProbability = 3.u256
-    let expiry = 30.uint
+    let expiry = 30.uint64
     let collateralPerByte = 1.u256
     let ecParams = @[(1, 1), (2, 1), (3, 2), (3, 3)]
 
@@ -149,10 +151,10 @@ twonodessuite "REST API":
     twoNodesConfig:
     let data = await RandomChunker.example(blocks = 2)
     let cid = client1.upload(data).get
-    let duration = 100.u256
+    let duration = 100.uint64
     let pricePerBytePerSecond = 1.u256
     let proofProbability = 3.u256
-    let expiry = 30.uint
+    let expiry = 30.uint64
     let collateralPerByte = 1.u256
     let ecParams = @[(0, 1), (1, 2), (2, 3)]
 
@@ -176,10 +178,10 @@ twonodessuite "REST API":
       fmt"({minBlocks=}, {nodes=}, {tolerance=})", twoNodesConfig:
       let data = await RandomChunker.example(blocks = minBlocks)
       let cid = client1.upload(data).get
-      let duration = 100.u256
+      let duration = 100.uint64
       let pricePerBytePerSecond = 1.u256
       let proofProbability = 3.u256
-      let expiry = 30.uint
+      let expiry = 30.uint64
       let collateralPerByte = 1.u256
 
       var responseBefore = client1.requestStorageRaw(
@@ -305,3 +307,32 @@ twonodessuite "REST API":
     let cid = Manifest.example().makeManifestBlock().get.cid
     let response = client1.deleteRaw($cid)
     check response.status == "204 No Content"
+
+  test "should not crash if the download stream is closed before download completes",
+    twoNodesConfig:
+    privateAccess(client1.type)
+    privateAccess(client1.http.type)
+
+    let cid = client1.upload(repeat("some file contents", 1000)).get
+    let httpClient = client1.http()
+
+    try:
+      # Sadly, there's no high level API for preventing the client from
+      # consuming the whole response, and we need to close the socket
+      # before that happens if we want to trigger the bug, so we need to
+      # resort to this.
+      httpClient.getBody = false
+      let response = client1.downloadRaw($cid, httpClient = httpClient)
+
+      # Read 4 bytes from the stream just to make sure we actually
+      # receive some data.
+      let data = httpClient.socket.recv(4)
+      check data.len == 4
+
+      # Prematurely closes the connection.
+      httpClient.close()
+    finally:
+      httpClient.getBody = true
+
+    let response = client1.downloadRaw($cid, httpClient = httpClient)
+    check response.body == repeat("some file contents", 1000)

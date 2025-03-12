@@ -45,13 +45,14 @@ import ./utils
 import ./errors
 import ./logutils
 import ./utils/asynciter
+import ./utils/trackedfutures
 
 export logutils
 
 logScope:
   topics = "codex node"
 
-const FetchBatch = 200
+const DefaultFetchBatch = 10
 
 type
   Contracts* =
@@ -72,6 +73,7 @@ type
     clock*: Clock
     storage*: Contracts
     taskpool: Taskpool
+    trackedFutures: TrackedFutures
 
   CodexNodeRef* = ref CodexNode
 
@@ -163,8 +165,9 @@ proc fetchBatched*(
     self: CodexNodeRef,
     cid: Cid,
     iter: Iter[int],
-    batchSize = FetchBatch,
+    batchSize = DefaultFetchBatch,
     onBatch: BatchProc = nil,
+    fetchLocal = true,
 ): Future[?!void] {.async, gcsafe.} =
   ## Fetch blocks in batches of `batchSize`
   ##
@@ -179,7 +182,9 @@ proc fetchBatched*(
     let blocks = collect:
       for i in 0 ..< batchSize:
         if not iter.finished:
-          self.networkStore.getBlock(BlockAddress.init(cid, iter.next()))
+          let address = BlockAddress.init(cid, iter.next())
+          if not (await address in self.networkStore) or fetchLocal:
+            self.networkStore.getBlock(address)
 
     if blocksErr =? (await allFutureResult(blocks)).errorOption:
       return failure(blocksErr)
@@ -188,21 +193,25 @@ proc fetchBatched*(
         batchErr =? (await onBatch(blocks.mapIt(it.read.get))).errorOption:
       return failure(batchErr)
 
+    await sleepAsync(1.millis)
+
   success()
 
 proc fetchBatched*(
     self: CodexNodeRef,
     manifest: Manifest,
-    batchSize = FetchBatch,
+    batchSize = DefaultFetchBatch,
     onBatch: BatchProc = nil,
+    fetchLocal = true,
 ): Future[?!void] =
   ## Fetch manifest in batches of `batchSize`
   ##
 
-  trace "Fetching blocks in batches of", size = batchSize
+  trace "Fetching blocks in batches of",
+    size = batchSize, blocksCount = manifest.blocksCount
 
   let iter = Iter[int].new(0 ..< manifest.blocksCount)
-  self.fetchBatched(manifest.treeCid, iter, batchSize, onBatch)
+  self.fetchBatched(manifest.treeCid, iter, batchSize, onBatch, fetchLocal)
 
 proc streamSingleBlock(self: CodexNodeRef, cid: Cid): Future[?!LPStream] {.async.} =
   ## Streams the contents of a single block.
@@ -223,35 +232,64 @@ proc streamSingleBlock(self: CodexNodeRef, cid: Cid): Future[?!LPStream] {.async
     finally:
       await stream.pushEof()
 
-  asyncSpawn streamOneBlock()
+  self.trackedFutures.track(streamOneBlock())
   LPStream(stream).success
 
 proc streamEntireDataset(
-    self: CodexNodeRef, manifest: Manifest, manifestCid: Cid
+    self: CodexNodeRef,
+    manifest: Manifest,
+    manifestCid: Cid,
+    prefetchBatch = DefaultFetchBatch,
 ): Future[?!LPStream] {.async.} =
   ## Streams the contents of the entire dataset described by the manifest.
+  ## Background jobs (erasure decoding and prefetching) will be cancelled when
+  ## the stream is closed.
   ##
   trace "Retrieving blocks from manifest", manifestCid
 
+  let stream = LPStream(StoreStream.new(self.networkStore, manifest, pad = false))
+  var jobs: seq[Future[void]]
+
   if manifest.protected:
     # Retrieve, decode and save to the local store all EС groups
-    proc erasureJob(): Future[?!void] {.async.} =
-      # Spawn an erasure decoding job
-      let erasure = Erasure.new(
-        self.networkStore, leoEncoderProvider, leoDecoderProvider, self.taskpool
-      )
-      without _ =? (await erasure.decode(manifest)), error:
-        error "Unable to erasure decode manifest", manifestCid, exc = error.msg
-        return failure(error)
+    proc erasureJob(): Future[void] {.async.} =
+      try:
+        # Spawn an erasure decoding job
+        let erasure = Erasure.new(
+          self.networkStore, leoEncoderProvider, leoDecoderProvider, self.taskpool
+        )
+        without _ =? (await erasure.decode(manifest)), error:
+          error "Unable to erasure decode manifest", manifestCid, exc = error.msg
+      except CancelledError:
+        trace "Erasure job cancelled", manifestCid
+      except CatchableError as exc:
+        trace "Error erasure decoding manifest", manifestCid, exc = exc.msg
 
-      return success()
+    jobs.add(erasureJob())
 
-    if err =? (await erasureJob()).errorOption:
-      return failure(err)
+  proc prefetch(): Future[void] {.async.} =
+    try:
+      if err =?
+          (await self.fetchBatched(manifest, prefetchBatch, fetchLocal = false)).errorOption:
+        error "Unable to fetch blocks", err = err.msg
+    except CancelledError:
+      trace "Prefetch job cancelled"
+    except CatchableError as exc:
+      error "Error fetching blocks", exc = exc.msg
 
-  # Retrieve all blocks of the dataset sequentially from the local store or network
+  jobs.add(prefetch())
+
+  # Monitor stream completion and cancel background jobs when done
+  proc monitorStream() {.async.} =
+    try:
+      await stream.join()
+    finally:
+      await allFutures(jobs.mapIt(it.cancelAndWait))
+
+  self.trackedFutures.track(monitorStream())
+
   trace "Creating store stream for manifest", manifestCid
-  LPStream(StoreStream.new(self.networkStore, manifest, pad = false)).success
+  stream.success
 
 proc retrieve*(
     self: CodexNodeRef, cid: Cid, local: bool = true
@@ -430,13 +468,13 @@ proc iterateManifests*(self: CodexNodeRef, onManifest: OnManifest) {.async.} =
 proc setupRequest(
     self: CodexNodeRef,
     cid: Cid,
-    duration: UInt256,
+    duration: uint64,
     proofProbability: UInt256,
     nodes: uint,
     tolerance: uint,
     pricePerBytePerSecond: UInt256,
     collateralPerByte: UInt256,
-    expiry: UInt256,
+    expiry: uint64,
 ): Future[?!StorageRequest] {.async.} =
   ## Setup slots for a given dataset
   ##
@@ -494,7 +532,7 @@ proc setupRequest(
     request = StorageRequest(
       ask: StorageAsk(
         slots: verifiable.numSlots.uint64,
-        slotSize: builder.slotBytes.uint.u256,
+        slotSize: builder.slotBytes.uint64,
         duration: duration,
         proofProbability: proofProbability,
         pricePerBytePerSecond: pricePerBytePerSecond,
@@ -511,13 +549,13 @@ proc setupRequest(
 proc requestStorage*(
     self: CodexNodeRef,
     cid: Cid,
-    duration: UInt256,
+    duration: uint64,
     proofProbability: UInt256,
     nodes: uint,
     tolerance: uint,
     pricePerBytePerSecond: UInt256,
     collateralPerByte: UInt256,
-    expiry: UInt256,
+    expiry: uint64,
 ): Future[?!PurchaseId] {.async.} =
   ## Initiate a request for storage sequence, this might
   ## be a multistep procedure.
@@ -531,7 +569,7 @@ proc requestStorage*(
     pricePerBytePerSecond = pricePerBytePerSecond
     proofProbability = proofProbability
     collateralPerByte = collateralPerByte
-    expiry = expiry.truncate(int64)
+    expiry = expiry
     now = self.clock.now
 
   trace "Received a request for storage!"
@@ -553,7 +591,11 @@ proc requestStorage*(
   success purchase.id
 
 proc onStore(
-    self: CodexNodeRef, request: StorageRequest, slotIdx: UInt256, blocksCb: BlocksCb
+    self: CodexNodeRef,
+    request: StorageRequest,
+    slotIdx: uint64,
+    blocksCb: BlocksCb,
+    isRepairing: bool = false,
 ): Future[?!void] {.async.} =
   ## store data in local storage
   ##
@@ -566,6 +608,10 @@ proc onStore(
 
   trace "Received a request to store a slot"
 
+  # TODO: Use the isRepairing to manage the slot download.
+  # If isRepairing is true, the slot has to be repaired before
+  # being downloaded.
+
   without manifest =? (await self.fetchManifest(cid)), err:
     trace "Unable to fetch manifest for cid", cid, err = err.msg
     return failure(err)
@@ -575,11 +621,9 @@ proc onStore(
     trace "Unable to create slots builder", err = err.msg
     return failure(err)
 
-  let
-    slotIdx = slotIdx.truncate(int)
-    expiry = request.expiry.toSecondsSince1970
+  let expiry = request.expiry
 
-  if slotIdx > manifest.slotRoots.high:
+  if slotIdx > manifest.slotRoots.high.uint64:
     trace "Slot index not in manifest", slotIdx
     return failure(newException(CodexError, "Slot index not in manifest"))
 
@@ -587,7 +631,7 @@ proc onStore(
     trace "Updating expiry for blocks", blocks = blocks.len
 
     let ensureExpiryFutures =
-      blocks.mapIt(self.networkStore.ensureExpiry(it.cid, expiry))
+      blocks.mapIt(self.networkStore.ensureExpiry(it.cid, expiry.toSecondsSince1970))
     if updateExpiryErr =? (await allFutureResult(ensureExpiryFutures)).errorOption:
       return failure(updateExpiryErr)
 
@@ -603,7 +647,11 @@ proc onStore(
     trace "Unable to create indexing strategy from protected manifest", err = err.msg
     return failure(err)
 
-  without blksIter =? indexer.getIndicies(slotIdx).catch, err:
+  if slotIdx > int.high.uint64:
+    error "Cannot cast slot index to int", slotIndex = slotIdx
+    return
+
+  without blksIter =? indexer.getIndicies(slotIdx.int).catch, err:
     trace "Unable to get indicies from strategy", err = err.msg
     return failure(err)
 
@@ -613,13 +661,13 @@ proc onStore(
     trace "Unable to fetch blocks", err = err.msg
     return failure(err)
 
-  without slotRoot =? (await builder.buildSlot(slotIdx.Natural)), err:
+  without slotRoot =? (await builder.buildSlot(slotIdx.int)), err:
     trace "Unable to build slot", err = err.msg
     return failure(err)
 
   trace "Slot successfully retrieved and reconstructed"
 
-  if cid =? slotRoot.toSlotCid() and cid != manifest.slotRoots[slotIdx.int]:
+  if cid =? slotRoot.toSlotCid() and cid != manifest.slotRoots[slotIdx]:
     trace "Slot root mismatch",
       manifest = manifest.slotRoots[slotIdx.int], recovered = slotRoot.toSlotCid()
     return failure(newException(CodexError, "Slot root mismatch"))
@@ -636,7 +684,7 @@ proc onProve(
 
   let
     cidStr = $slot.request.content.cid
-    slotIdx = slot.slotIndex.truncate(Natural)
+    slotIdx = slot.slotIndex
 
   logScope:
     cid = cidStr
@@ -657,7 +705,8 @@ proc onProve(
       return failure(err)
 
     when defined(verify_circuit):
-      without (inputs, proof) =? await prover.prove(slotIdx, manifest, challenge), err:
+      without (inputs, proof) =? await prover.prove(slotIdx.int, manifest, challenge),
+        err:
         error "Unable to generate proof", err = err.msg
         return failure(err)
 
@@ -671,7 +720,7 @@ proc onProve(
 
       trace "Proof verified successfully"
     else:
-      without (_, proof) =? await prover.prove(slotIdx, manifest, challenge), err:
+      without (_, proof) =? await prover.prove(slotIdx.int, manifest, challenge), err:
         error "Unable to generate proof", err = err.msg
         return failure(err)
 
@@ -688,7 +737,7 @@ proc onExpiryUpdate(
 ): Future[?!void] {.async.} =
   return await self.updateExpiry(rootCid, expiry)
 
-proc onClear(self: CodexNodeRef, request: StorageRequest, slotIndex: UInt256) =
+proc onClear(self: CodexNodeRef, request: StorageRequest, slotIndex: uint64) =
   # TODO: remove data from local storage
   discard
 
@@ -704,16 +753,19 @@ proc start*(self: CodexNodeRef) {.async.} =
 
   if hostContracts =? self.contracts.host:
     hostContracts.sales.onStore = proc(
-        request: StorageRequest, slot: UInt256, onBatch: BatchProc
+        request: StorageRequest,
+        slot: uint64,
+        onBatch: BatchProc,
+        isRepairing: bool = false,
     ): Future[?!void] =
-      self.onStore(request, slot, onBatch)
+      self.onStore(request, slot, onBatch, isRepairing)
 
     hostContracts.sales.onExpiryUpdate = proc(
         rootCid: Cid, expiry: SecondsSince1970
     ): Future[?!void] =
       self.onExpiryUpdate(rootCid, expiry)
 
-    hostContracts.sales.onClear = proc(request: StorageRequest, slotIndex: UInt256) =
+    hostContracts.sales.onClear = proc(request: StorageRequest, slotIndex: uint64) =
       # TODO: remove data from local storage
       self.onClear(request, slotIndex)
 
@@ -755,6 +807,11 @@ proc start*(self: CodexNodeRef) {.async.} =
 proc stop*(self: CodexNodeRef) {.async.} =
   trace "Stopping node"
 
+  if not self.taskpool.isNil:
+    self.taskpool.shutdown()
+
+  await self.trackedFutures.cancelTracked()
+
   if not self.engine.isNil:
     await self.engine.stop()
 
@@ -775,9 +832,6 @@ proc stop*(self: CodexNodeRef) {.async.} =
 
   if not self.networkStore.isNil:
     await self.networkStore.close
-
-  if not self.taskpool.isNil:
-    self.taskpool.shutdown()
 
 proc new*(
     T: type CodexNodeRef,
@@ -800,4 +854,5 @@ proc new*(
     discovery: discovery,
     taskPool: taskpool,
     contracts: contracts,
+    trackedFutures: TrackedFutures(),
   )
