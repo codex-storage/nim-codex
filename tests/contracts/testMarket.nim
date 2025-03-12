@@ -598,37 +598,6 @@ ethersuite "On-Chain Market":
     check endBalanceHost == (startBalanceHost + request.ask.collateralPerSlot)
     check endBalanceReward == (startBalanceReward + expectedPayout)
 
-  test "returns the collateral when the slot is not being repaired":
-    await market.requestStorage(request)
-    await market.reserveSlot(request.id, 0.uint64)
-    await market.fillSlot(request.id, 0.uint64, proof, request.ask.collateralPerSlot)
-
-    let slotId = request.slotId(0.uint64)
-    without collateral =? await market.slotCollateral(request.id, 0.uint64), error:
-      fail()
-
-    check collateral == request.ask.collateralPerSlot
-
-  test "calculates correctly the collateral when the slot is being repaired":
-    # Ensure that the config is loaded and repairRewardPercentage is available
-    discard await market.repairRewardPercentage()
-
-    await market.requestStorage(request)
-    await market.reserveSlot(request.id, 0.uint64)
-    await market.fillSlot(request.id, 0.uint64, proof, request.ask.collateralPerSlot)
-    await market.freeSlot(slotId(request.id, 0.uint64))
-
-    let slotId = request.slotId(0.uint64)
-
-    without collateral =? await market.slotCollateral(request.id, 0.uint64), error:
-      fail()
-
-    # slotCollateral
-    # repairRewardPercentage = 10
-    # expected collateral = slotCollateral - slotCollateral * 0.1
-    check collateral ==
-      request.ask.collateralPerSlot - (request.ask.collateralPerSlot * 10).div(100.u256)
-
   test "the request is added in cache after the fist access":
     await market.requestStorage(request)
 
