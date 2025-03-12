@@ -715,7 +715,7 @@ paths:
         "400":
           description: Invalid data input
         "422":
-          description: Not enough node's storage quota available
+          description: Not enough node's storage quota available or the provided parameters did not pass validation
         "500":
           description: Error reserving availability
         "503":
