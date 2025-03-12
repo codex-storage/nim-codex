@@ -72,7 +72,9 @@ method getZkeyHash*(
 ): Future[?string] {.base, async: (raises: [CancelledError, MarketError]).} =
   raiseAssert("not implemented")
 
-method getSigner*(market: Market): Future[Address] {.base, async.} =
+method getSigner*(
+    market: Market
+): Future[Address] {.base, async: (raises: [CancelledError, MarketError]).} =
   raiseAssert("not implemented")
 
 method periodicity*(
@@ -142,7 +144,7 @@ method requestExpiresAt*(
 
 method getHost*(
     market: Market, requestId: RequestId, slotIndex: uint64
-): Future[?Address] {.base, async.} =
+): Future[?Address] {.base, async: (raises: [CancelledError, MarketError]).} =
   raiseAssert("not implemented")
 
 method currentCollateral*(

@@ -49,6 +49,7 @@ type
     canReserveSlot*: bool
     errorOnReserveSlot*: ?(ref CatchableError)
     errorOnFreeSlot*: ?(ref CatchableError)
+    errorOnGetHost*: ?(ref MarketError)
     clock: ?Clock
 
   Fulfillment* = object
@@ -145,7 +146,9 @@ method loadConfig*(
 ): Future[?!void] {.async: (raises: [CancelledError]).} =
   discard
 
-method getSigner*(market: MockMarket): Future[Address] {.async.} =
+method getSigner*(
+    market: MockMarket
+): Future[Address] {.async: (raises: [CancelledError, MarketError]).} =
   return market.signer
 
 method periodicity*(
@@ -229,7 +232,10 @@ method requestExpiresAt*(
 
 method getHost*(
     market: MockMarket, requestId: RequestId, slotIndex: uint64
-): Future[?Address] {.async.} =
+): Future[?Address] {.async: (raises: [CancelledError, MarketError]).} =
+  if error =? market.errorOnGetHost:
+    raise error
+
   for slot in market.filled:
     if slot.requestId == requestId and slot.slotIndex == slotIndex:
       return some slot.host
@@ -397,6 +403,13 @@ func setErrorOnFreeSlot*(market: MockMarket, error: ref CatchableError) =
   market.errorOnFreeSlot =
     if error.isNil:
       none (ref CatchableError)
+    else:
+      some error
+
+func setErrorOnGetHost*(market: MockMarket, error: ref MarketError) =
+  market.errorOnGetHost =
+    if error.isNil:
+      none (ref MarketError)
     else:
       some error
 

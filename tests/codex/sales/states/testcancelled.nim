@@ -7,7 +7,6 @@ import pkg/codex/sales/salesagent
 import pkg/codex/sales/salescontext
 import pkg/codex/market
 from pkg/codex/utils/asyncstatemachine import State
-from pkg/codex/contracts/marketplace import Marketplace_SlotIsFree
 
 import ../../../asynctest
 import ../../examples
@@ -55,7 +54,7 @@ asyncchecksuite "sales state 'cancelled'":
       requestId = request.id,
       slotIndex = slotIndex,
       proof = Groth16Proof.default,
-      host = Address.example,
+      host = await market.getSigner(),
       collateral = currentCollateral,
     )
     discard await state.run(agent)
@@ -63,7 +62,25 @@ asyncchecksuite "sales state 'cancelled'":
     check eventually reprocessSlotWas == some false
     check eventually returnedCollateralValue == some currentCollateral
 
-  test "completes the cancelled state when free slot error is raised":
+  test "completes the cancelled state when free slot error is raised and the collateral is returned when a host is hosting a slot":
+    market.fillSlot(
+      requestId = request.id,
+      slotIndex = slotIndex,
+      proof = Groth16Proof.default,
+      host = await market.getSigner(),
+      collateral = currentCollateral,
+    )
+
+    let error = newException(MarketError, "Slot is free")
+    market.setErrorOnFreeSlot(error)
+
+    let next = await state.run(agent)
+    check next == none State
+    check eventually returnBytesWas == some true
+    check eventually reprocessSlotWas == some false
+    check eventually returnedCollateralValue == some currentCollateral
+
+  test "completes the cancelled state when free slot error is raised and the collateral is hot returned when a host is not hosting a slot":
     market.fillSlot(
       requestId = request.id,
       slotIndex = slotIndex,
@@ -72,11 +89,14 @@ asyncchecksuite "sales state 'cancelled'":
       collateral = currentCollateral,
     )
 
-    let error = newException(Marketplace_SlotIsFree, "")
+    let error = newException(MarketError, "Slot is free")
     market.setErrorOnFreeSlot(error)
 
     let next = await state.run(agent)
     check next == none State
+    check eventually returnBytesWas == some true
+    check eventually reprocessSlotWas == some false
+    check eventually returnedCollateralValue == UInt256.none
 
   test "calls onCleanUp and returns the collateral when an error is raised":
     market.fillSlot(
@@ -88,7 +108,7 @@ asyncchecksuite "sales state 'cancelled'":
     )
 
     let error = newException(MarketError, "")
-    market.setErrorOnFreeSlot(error)
+    market.setErrorOnGetHost(error)
 
     let next = !(await state.run(agent))
 
