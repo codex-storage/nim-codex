@@ -24,16 +24,11 @@ proc createInfoDictionaryForContent(
     pieceHashCtx: sha1
     pieceIter = Iter[int].new(0 ..< numOfBlocksPerPiece)
 
-  echo "numOfBlocksPerPiece: ", numOfBlocksPerPiece
-  echo "numOfPieces: ", numOfPieces
   pieceHashCtx.init()
 
   let chunks = content.distribute(num = numOfPieces, spread = false)
 
-  echo "chunks: ", chunks.len
-
   for chunk in chunks:
-    echo "chunk: ", chunk.len
     if chunk.len == 0:
       break
     if pieceIter.finished:
@@ -114,7 +109,6 @@ twonodessuite "BitTorrent API":
     let response =
       client1.downloadManifestOnly(cid = torrentManifest.codexManifestCid).tryGet
 
-    echo "response: ", response
     let restContent = RestContent.fromJson(response).tryGet
 
     check restContent.cid == torrentManifest.codexManifestCid
