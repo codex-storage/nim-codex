@@ -77,10 +77,10 @@ template marketplacesuite*(name: string, body: untyped) =
         client: CodexClient,
         cid: Cid,
         proofProbability = 1.u256,
-        duration: uint64 = 12.periods,
-        pricePerBytePerSecond = 1.u256,
-        collateralPerByte = 1.u256,
-        expiry: uint64 = 4.periods,
+        duration = 12.periods.stuint(40),
+        pricePerBytePerSecond = 1.stuint(96),
+        collateralPerByte = 1.u128,
+        expiry = 4.periods.stuint(40),
         nodes = providers().len,
         tolerance = 0,
     ): Future[PurchaseId] {.async: (raises: [CancelledError, HttpError]).} =
@@ -104,7 +104,7 @@ template marketplacesuite*(name: string, body: untyped) =
       let tokenAddress = await marketplace.token()
       token = Erc20Token.new(tokenAddress, ethProvider.getSigner())
       let config = await marketplace.configuration()
-      period = config.proofs.period
+      period = config.proofs.period.u64
       periodicity = Periodicity(seconds: period)
 
     body

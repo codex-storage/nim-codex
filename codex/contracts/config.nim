@@ -11,7 +11,7 @@ type
     collateral*: CollateralConfig
     proofs*: ProofConfig
     reservations*: SlotReservationsConfig
-    requestDurationLimit*: uint64
+    requestDurationLimit*: StUint[40]
 
   CollateralConfig* = object
     repairRewardPercentage*: uint8
@@ -22,8 +22,8 @@ type
       # percentage of the slashed amount going to the validators
 
   ProofConfig* = object
-    period*: uint64 # proofs requirements are calculated per period (in seconds)
-    timeout*: uint64 # mark proofs as missing before the timeout (in seconds)
+    period*: StUint[40] # proofs requirements are calculated per period (in seconds)
+    timeout*: StUint[40] # mark proofs as missing before the timeout (in seconds)
     downtime*: uint8 # ignore this much recent blocks for proof requirements
     downtimeProduct*: uint8
     zkeyHash*: string # hash of the zkey file which is linked to the verifier
@@ -61,6 +61,9 @@ func fromTuple(_: type MarketplaceConfig, tupl: tuple): MarketplaceConfig =
     reservations: tupl[2],
     requestDurationLimit: tupl[3],
   )
+
+func solidityType(_: type StUint[40]): string =
+  "uint40"
 
 func solidityType*(_: type SlotReservationsConfig): string =
   solidityType(SlotReservationsConfig.fieldTypes)

@@ -13,11 +13,11 @@ export json
 
 type
   StorageRequestParams* = object
-    duration* {.serialize.}: uint64
+    duration* {.serialize.}: StorageDuration
     proofProbability* {.serialize.}: UInt256
-    pricePerBytePerSecond* {.serialize.}: UInt256
-    collateralPerByte* {.serialize.}: UInt256
-    expiry* {.serialize.}: uint64
+    pricePerBytePerSecond* {.serialize.}: TokensPerSecond
+    collateralPerByte* {.serialize.}: UInt128
+    expiry* {.serialize.}: StorageDuration
     nodes* {.serialize.}: ?uint
     tolerance* {.serialize.}: ?uint
 

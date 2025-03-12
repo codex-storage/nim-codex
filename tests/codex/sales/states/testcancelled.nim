@@ -50,4 +50,4 @@ asyncchecksuite "sales state 'cancelled'":
     discard await state.run(agent)
     check eventually returnBytesWas == some true
     check eventually reprocessSlotWas == some false
-    check eventually returnedCollateralValue == some collateral
+    check eventually returnedCollateralValue == some collateral.stuint(256)

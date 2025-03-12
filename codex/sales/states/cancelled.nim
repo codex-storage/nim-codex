@@ -35,7 +35,7 @@ method run*(
       await onCleanUp(
         returnBytes = true,
         reprocessSlot = false,
-        returnedCollateral = some request.ask.collateralPerSlot,
+        returnedCollateral = some request.ask.collateralPerSlot.stuint(256),
       )
 
     warn "Sale cancelled due to timeout",

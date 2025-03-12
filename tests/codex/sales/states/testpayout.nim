@@ -40,4 +40,4 @@ asyncchecksuite "sales state 'payout'":
     )
     let next = await state.run(agent)
     check !next of SaleFinished
-    check SaleFinished(!next).returnedCollateral == some collateral
+    check SaleFinished(!next).returnedCollateral == some collateral.stuint(256)
