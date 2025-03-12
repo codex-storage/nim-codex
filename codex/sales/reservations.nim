@@ -469,7 +469,7 @@ method createReservation*(
     requestId: RequestId,
     slotIndex: uint64,
     collateralPerByte: UInt256,
-    duration: uint64,
+    validUntil: SecondsSince1970,
 ): Future[?!Reservation] {.async, base.} =
   withLock(self.availabilityLock):
     without availabilityKey =? availabilityId.key, error:
@@ -485,13 +485,6 @@ method createReservation*(
         "trying to reserve an amount of bytes that is greater than the free size of the Availability",
       )
       return failure(error)
-
-    if duration > SecondsSince1970.high.uint64:
-      error "Cannot cast duration to int64", duration = duration
-      let error = newException(ReservationsError, "Cannot cast duration to int64")
-      return failure(error)
-
-    let validUntil = getTime().toUnix() + duration.SecondsSince1970
 
     trace "Creating reservation",
       availabilityId, slotSize, requestId, slotIndex, validUntil = validUntil
@@ -704,19 +697,19 @@ proc findAvailability*(
     self: Reservations,
     size, duration: uint64,
     pricePerBytePerSecond, collateralPerByte: UInt256,
+    validUntil: SecondsSince1970,
 ): Future[?Availability] {.async.} =
   without storables =? (await self.storables(Availability)), e:
     error "failed to get all storables", error = e.msg
     return none Availability
 
-  let endTime = getTime().toUnix() + cast[int64](duration)
   for item in storables.items:
     if bytes =? (await item) and availability =? Availability.fromJson(bytes):
       if availability.enabled and size <= availability.freeSize and
           duration <= availability.duration and
           collateralPerByte <= availability.maxCollateralPerByte and
           pricePerBytePerSecond >= availability.minPricePerBytePerSecond and
-          (availability.until == 0 or availability.until >= endTime):
+          (availability.until == 0 or availability.until >= validUntil):
         trace "availability matched",
           id = availability.id,
           enabled = availability.enabled,

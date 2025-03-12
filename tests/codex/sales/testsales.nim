@@ -443,7 +443,8 @@ asyncchecksuite "Sales":
     check wasIgnored()
 
   test "retrieves request when availability until terminates after the duration":
-    let until = getTime().toUnix() + cast[int64](request.ask.duration)
+    let requestEnd = getTime().toUnix() + cast[int64](request.ask.duration)
+    let until = requestEnd + 1
     createAvailability(until = until)
 
     var storingRequest: StorageRequest
@@ -453,6 +454,7 @@ asyncchecksuite "Sales":
       storingRequest = request
       return success()
 
+    market.requestEnds[request.id] = requestEnd
     await market.requestStorage(request)
     check eventually storingRequest == request
 
@@ -580,6 +582,8 @@ asyncchecksuite "Sales":
     # by other slots
     request.ask.slots = 1
     market.requestExpiry[request.id] = expiry
+    market.requestEnds[request.id] =
+      getTime().toUnix() + cast[int64](request.ask.duration)
 
     let origSize = availability.freeSize
     sales.onStore = proc(
@@ -638,9 +642,10 @@ asyncchecksuite "Sales":
 
   test "deletes inactive reservations on load":
     createAvailability()
+    let validUntil = getTime().toUnix() + 30.SecondsSince1970
     discard await reservations.createReservation(
       availability.id, 100.uint64, RequestId.example, 0.uint64, UInt256.example,
-      30.uint64,
+      validUntil,
     )
     check (await reservations.all(Reservation)).get.len == 1
     await sales.load()
@@ -650,6 +655,10 @@ asyncchecksuite "Sales":
   test "update an availability fails when trying change the until date before an existing reservation":
     let until = getTime().toUnix() + 300.SecondsSince1970
     createAvailability(until = until)
+
+    market.requestEnds[request.id] =
+      getTime().toUnix() + cast[int64](request.ask.duration)
+
     await market.requestStorage(request)
     await allowRequestToStart()
 

@@ -13,6 +13,7 @@ import pkg/codex/sales/salesagent
 import pkg/codex/sales/salescontext
 import pkg/codex/sales/reservations
 import pkg/codex/stores/repostore
+import times
 import ../../../asynctest
 import ../../helpers
 import ../../examples
@@ -53,6 +54,9 @@ asyncchecksuite "sales state 'preparing'":
     reservations = MockReservations.new(repo)
     context.reservations = reservations
     agent = newSalesAgent(context, request.id, slotIndex, request.some)
+
+    market.requestEnds[request.id] =
+      getTime().toUnix() + cast[int64](request.ask.duration)
 
   teardown:
     await repo.stop()

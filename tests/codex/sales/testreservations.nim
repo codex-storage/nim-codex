@@ -52,8 +52,10 @@ asyncchecksuite "Reservations module":
 
   proc createReservation(availability: Availability): Reservation =
     let size = rand(1 ..< availability.freeSize.int)
+    let validUntil = getTime().toUnix() + 30.SecondsSince1970
     let reservation = waitFor reservations.createReservation(
-      availability.id, size.uint64, RequestId.example, uint64.example, 1.u256, 30.uint64
+      availability.id, size.uint64, RequestId.example, uint64.example, 1.u256,
+      validUntil,
     )
     return reservation.get
 
@@ -134,22 +136,24 @@ asyncchecksuite "Reservations module":
 
   test "cannot create reservation with non-existant availability":
     let availability = Availability.example
+    let validUntil = getTime().toUnix() + 30.SecondsSince1970
     let created = await reservations.createReservation(
       availability.id, uint64.example, RequestId.example, uint64.example, 1.u256,
-      30.uint64,
+      validUntil,
     )
     check created.isErr
     check created.error of NotExistsError
 
   test "cannot create reservation larger than availability size":
     let availability = createAvailability()
+    let validUntil = getTime().toUnix() + 30.SecondsSince1970
     let created = await reservations.createReservation(
       availability.id,
       availability.totalSize + 1,
       RequestId.example,
       uint64.example,
       UInt256.example,
-      30.uint64,
+      validUntil,
     )
     check created.isErr
     check created.error of BytesOutOfBoundsError
@@ -157,18 +161,19 @@ asyncchecksuite "Reservations module":
   test "cannot create reservation larger than availability size - concurrency test":
     proc concurrencyTest(): Future[void] {.async.} =
       let availability = createAvailability()
+      let validUntil = getTime().toUnix() + 30.SecondsSince1970
       let one = reservations.createReservation(
         availability.id,
         availability.totalSize - 1,
         RequestId.example,
         uint64.example,
         UInt256.example,
-        30.uint64,
+        validUntil,
       )
 
       let two = reservations.createReservation(
         availability.id, availability.totalSize, RequestId.example, uint64.example,
-        UInt256.example, uint64.example,
+        UInt256.example, validUntil,
       )
 
       let oneResult = await one
@@ -444,10 +449,10 @@ asyncchecksuite "Reservations module":
 
   test "availabilities can be found":
     let availability = createAvailability()
-
+    let validUntil = getTime().toUnix() + 30.SecondsSince1970
     let found = await reservations.findAvailability(
       availability.freeSize, availability.duration,
-      availability.minPricePerBytePerSecond, collateralPerByte,
+      availability.minPricePerBytePerSecond, collateralPerByte, validUntil,
     )
 
     check found.isSome
@@ -455,10 +460,10 @@ asyncchecksuite "Reservations module":
 
   test "does not find an availability when is it disabled":
     let availability = createAvailability(enabled = false)
-
+    let validUntil = getTime().toUnix() + 30.SecondsSince1970
     let found = await reservations.findAvailability(
       availability.freeSize, availability.duration,
-      availability.minPricePerBytePerSecond, collateralPerByte,
+      availability.minPricePerBytePerSecond, collateralPerByte, validUntil,
     )
 
     check found.isNone
@@ -467,10 +472,10 @@ asyncchecksuite "Reservations module":
     let example = Availability.example(collateralPerByte)
     let until = getTime().toUnix() + example.duration.SecondsSince1970
     let availability = createAvailability(until = until)
-
+    let validUntil = getTime().toUnix() + 30.SecondsSince1970
     let found = await reservations.findAvailability(
       availability.freeSize, availability.duration,
-      availability.minPricePerBytePerSecond, collateralPerByte,
+      availability.minPricePerBytePerSecond, collateralPerByte, validUntil,
     )
 
     check found.isSome
@@ -480,31 +485,33 @@ asyncchecksuite "Reservations module":
     let example = Availability.example(collateralPerByte)
     let until = getTime().toUnix() + 1.SecondsSince1970
     let availability = createAvailability(until = until)
-
+    let validUntil = getTime().toUnix() + 30.SecondsSince1970
     let found = await reservations.findAvailability(
       availability.freeSize, availability.duration,
-      availability.minPricePerBytePerSecond, collateralPerByte,
+      availability.minPricePerBytePerSecond, collateralPerByte, validUntil,
     )
 
     check found.isNone
 
   test "non-matching availabilities are not found":
     let availability = createAvailability()
-
+    let validUntil = getTime().toUnix() + 30.SecondsSince1970
     let found = await reservations.findAvailability(
       availability.freeSize + 1,
       availability.duration,
       availability.minPricePerBytePerSecond,
       collateralPerByte,
+      validUntil,
     )
 
     check found.isNone
 
   test "non-existent availability cannot be found":
     let availability = Availability.example
+    let validUntil = getTime().toUnix() + 30.SecondsSince1970
     let found = await reservations.findAvailability(
       availability.freeSize, availability.duration,
-      availability.minPricePerBytePerSecond, collateralPerByte,
+      availability.minPricePerBytePerSecond, collateralPerByte, validUntil,
     )
 
     check found.isNone

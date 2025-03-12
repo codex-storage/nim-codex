@@ -68,10 +68,12 @@ method run*(
       pricePerBytePerSecond = request.ask.pricePerBytePerSecond
       collateralPerByte = request.ask.collateralPerByte
 
+    let requestEnd = await market.getRequestEnd(data.requestId)
+
     without availability =?
       await reservations.findAvailability(
         request.ask.slotSize, request.ask.duration, request.ask.pricePerBytePerSecond,
-        request.ask.collateralPerByte,
+        request.ask.collateralPerByte, requestEnd,
       ):
       debug "No availability found for request, ignoring"
 
@@ -82,7 +84,7 @@ method run*(
     without reservation =?
       await reservations.createReservation(
         availability.id, request.ask.slotSize, request.id, data.slotIndex,
-        request.ask.collateralPerByte, request.ask.duration,
+        request.ask.collateralPerByte, requestEnd,
       ), error:
       trace "Creation of reservation failed"
       # Race condition:
