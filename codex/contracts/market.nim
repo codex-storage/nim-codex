@@ -112,16 +112,16 @@ method zkeyHash*(market: OnChainMarket): string =
 
 method periodicity*(market: OnChainMarket): Periodicity =
   let period = market.configuration.proofs.period
-  return Periodicity(seconds: period)
+  return Periodicity(seconds: period.u64)
 
 method proofTimeout*(market: OnChainMarket): uint64  =
-  return market.configuration.proofs.timeout
+  return market.configuration.proofs.timeout.u64
 
 method repairRewardPercentage*(market: OnChainMarket): uint8 =
   return market.configuration.collateral.repairRewardPercentage
 
 method requestDurationLimit*(market: OnChainMarket): uint64 =
-  return market.configuration.requestDurationLimit
+  return market.configuration.requestDurationLimit.u64
 
 method proofDowntime*(market: OnChainMarket): uint8 =
   return market.configuration.proofs.downtime
@@ -147,7 +147,7 @@ method requestStorage(
 ) {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError("Failed to request storage"):
     debug "Requesting storage"
-    await market.approveFunds(request.totalPrice())
+    await market.approveFunds(request.totalPrice().stuint(256))
     discard await market.contract.requestStorage(request).confirm(1)
 
 method getRequest*(
@@ -221,7 +221,7 @@ method fillSlot(
     requestId: RequestId,
     slotIndex: uint64,
     proof: Groth16Proof,
-    collateral: UInt256,
+    collateral: UInt128,
 ) {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError("Failed to fill slot"):
     logScope:
@@ -229,7 +229,7 @@ method fillSlot(
       slotIndex
 
     try:
-      await market.approveFunds(collateral)
+      await market.approveFunds(collateral.stuint(256))
       trace "calling fillSlot on contract"
       discard await market.contract.fillSlot(requestId, slotIndex, proof).confirm(1)
       trace "fillSlot transaction completed"
@@ -284,7 +284,7 @@ method markProofAsMissing*(
     market: OnChainMarket, id: SlotId, period: Period
 ) {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError("Failed to mark proof as missing"):
-    discard await market.contract.markProofAsMissing(id, period).confirm(1)
+    discard await market.contract.markProofAsMissing(id, period.stuint(40)).confirm(1)
 
 method canProofBeMarkedAsMissing*(
     market: OnChainMarket, id: SlotId, period: Period
@@ -293,7 +293,7 @@ method canProofBeMarkedAsMissing*(
   let contractWithoutSigner = market.contract.connect(provider)
   let overrides = CallOverrides(blockTag: some BlockTag.pending)
   try:
-    discard await contractWithoutSigner.markProofAsMissing(id, period, overrides)
+    discard await contractWithoutSigner.markProofAsMissing(id, period.stuint(40), overrides)
     return true
   except EthersError as e:
     trace "Proof cannot be marked as missing", msg = e.msg
@@ -332,7 +332,7 @@ method subscribeRequests*(
       error "There was an error in Request subscription", msg = eventErr.msg
       return
 
-    callback(event.requestId, event.ask, event.expiry)
+    callback(event.requestId, event.ask, event.expiry.truncate(uint64))
 
   convertEthersError("Failed to subscribe to StorageRequested events"):
     let subscription = await market.contract.subscribe(StorageRequested, onEvent)

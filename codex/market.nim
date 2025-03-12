@@ -37,7 +37,7 @@ type
   StorageRequested* = object of MarketplaceEvent
     requestId*: RequestId
     ask*: StorageAsk
-    expiry*: uint64
+    expiry*: StorageDuration
 
   SlotFilled* = object of MarketplaceEvent
     requestId* {.indexed.}: RequestId
@@ -136,7 +136,7 @@ method fillSlot*(
     requestId: RequestId,
     slotIndex: uint64,
     proof: Groth16Proof,
-    collateral: UInt256,
+    collateral: UInt128,
 ) {.base, async: (raises: [CancelledError, MarketError]).} =
   raiseAssert("not implemented")
 

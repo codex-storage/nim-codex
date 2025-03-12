@@ -61,7 +61,7 @@ type
     slotIndex*: uint64
     proof*: Groth16Proof
     timestamp: ?SecondsSince1970
-    collateral*: UInt256
+    collateral*: UInt128
 
   Subscriptions = object
     onRequest: seq[RequestSubscription]
@@ -121,13 +121,13 @@ proc new*(_: type MockMarket, clock: ?Clock = Clock.none): MockMarket =
       validatorRewardPercentage: 20,
     ),
     proofs: ProofConfig(
-      period: 10.Period,
-      timeout: 5.uint64,
+      period: 10.stuint(40),
+      timeout: 5.stuint(40),
       downtime: 64.uint8,
       downtimeProduct: 67.uint8,
     ),
     reservations: SlotReservationsConfig(maxReservations: 3),
-    requestDurationLimit: (60 * 60 * 24 * 30).uint64,
+    requestDurationLimit: (60 * 60 * 24 * 30).stuint(40),
   )
   MockMarket(
     signer: Address.example, config: config, canReserveSlot: true, clock: clock
@@ -139,13 +139,13 @@ method getSigner*(
   return market.signer
 
 method periodicity*(mock: MockMarket): Periodicity =
-  return Periodicity(seconds: mock.config.proofs.period)
+  return Periodicity(seconds: mock.config.proofs.period.u64)
 
 method proofTimeout*(market: MockMarket): uint64 =
-  return market.config.proofs.timeout
+  return market.config.proofs.timeout.u64
 
 method requestDurationLimit*(market: MockMarket): uint64 =
-  return market.config.requestDurationLimit
+  return market.config.requestDurationLimit.u64
 
 method proofDowntime*(market: MockMarket): uint8 =
   return market.config.proofs.downtime
@@ -162,7 +162,7 @@ method requestStorage*(
   market.requested.add(request)
   var subscriptions = market.subscriptions.onRequest
   for subscription in subscriptions:
-    subscription.callback(request.id, request.ask, request.expiry)
+    subscription.callback(request.id, request.ask, request.expiry.u64)
 
 method myRequests*(market: MockMarket): Future[seq[RequestId]] {.async.} =
   return market.activeRequests[market.signer]
@@ -259,7 +259,7 @@ proc fillSlot*(
     slotIndex: uint64,
     proof: Groth16Proof,
     host: Address,
-    collateral = 0.u256,
+    collateral = 0.u128,
 ) =
   if error =? market.errorOnFillSlot:
     raise error
@@ -281,7 +281,7 @@ method fillSlot*(
     requestId: RequestId,
     slotIndex: uint64,
     proof: Groth16Proof,
-    collateral: UInt256,
+    collateral: UInt128,
 ) {.async: (raises: [CancelledError, MarketError]).} =
   market.fillSlot(requestId, slotIndex, proof, market.signer, collateral)
 

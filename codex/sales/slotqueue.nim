@@ -73,8 +73,8 @@ const DefaultMaxSize = 128'u16
 proc profitability(item: SlotQueueItem): UInt256 =
   let price =
     StorageAsk(
-      duration: item.duration,
-      pricePerBytePerSecond: item.pricePerBytePerSecond,
+      duration: item.duration.stuint(40),
+      pricePerBytePerSecond: item.pricePerBytePerSecond.stuint(96),
       slotSize: item.slotSize,
     ).pricePerSlot
   return price.stuint(256) + item.repairReward
@@ -155,8 +155,8 @@ proc init*(
     requestId: requestId,
     slotIndex: slotIndex,
     slotSize: ask.slotSize,
-    duration: ask.duration,
-    pricePerBytePerSecond: ask.pricePerBytePerSecond,
+    duration: ask.duration.u64,
+    pricePerBytePerSecond: ask.pricePerBytePerSecond.stuint(256),
     collateral: collateral,
     expiry: expiry,
     seen: seen,
@@ -201,7 +201,7 @@ proc init*(
     repairReward = 0.u256,
 ): seq[SlotQueueItem] =
   return SlotQueueItem.init(
-    request.id, request.ask, request.expiry, collateral, repairReward
+    request.id, request.ask, request.expiry.u64, collateral, repairReward
   )
 
 proc inRange*(val: SomeUnsignedInt): bool =

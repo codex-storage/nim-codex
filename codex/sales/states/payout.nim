@@ -37,7 +37,8 @@ method run*(
       requestId = data.requestId, slotIndex = data.slotIndex
     await market.freeSlot(slot.id)
 
-    return some State(SaleFinished(returnedCollateral: some request.ask.collateralPerSlot))
+    let collateral = request.ask.collateralPerSlot.stuint(256)
+    return some State(SaleFinished(returnedCollateral: some collateral))
   except CancelledError as e:
     trace "SalePayout.run onCleanUp was cancelled", error = e.msgDetail
   except CatchableError as e:

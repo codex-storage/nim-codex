@@ -109,8 +109,8 @@ marketplacesuite "Validation":
     let cid = (await client0.upload(data)).get
     let purchaseId = await client0.requestStorage(
       cid,
-      expiry = expiry,
-      duration = duration,
+      expiry = expiry.stuint(40),
+      duration = duration.stuint(40),
       nodes = ecNodes,
       tolerance = ecTolerance,
       proofProbability = proofProbability,
@@ -179,8 +179,8 @@ marketplacesuite "Validation":
     let cid = (await client0.upload(data)).get
     let purchaseId = await client0.requestStorage(
       cid,
-      expiry = expiry,
-      duration = duration,
+      expiry = expiry.stuint(40),
+      duration = duration.stuint(40),
       nodes = ecNodes,
       tolerance = ecTolerance,
       proofProbability = proofProbability,

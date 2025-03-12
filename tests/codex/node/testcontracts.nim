@@ -117,7 +117,7 @@ asyncchecksuite "Test Node - Host contracts":
     var request = StorageRequest.example
     request.content.cid = verifiableBlock.cid
     request.expiry =
-      (getTime() + DefaultBlockTtl.toTimesDuration + 1.hours).toUnix.uint64
+      (getTime() + DefaultBlockTtl.toTimesDuration + 1.hours).toUnix.stuint(40)
     var fetchedBytes: uint = 0
 
     let onBlocks = proc(blocks: seq[bt.Block]): Future[?!void] {.async.} =
