@@ -58,7 +58,7 @@ twonodessuite "BitTorrent API":
   test "uploading and downloading the content", twoNodesConfig:
     let exampleContent = exampleString(100)
     let infoHash = client1.uploadTorrent(exampleContent).tryGet
-    let downloadedContent = client1.downloadTorrent(infoHash).tryGet
+    let downloadedContent = client2.downloadTorrent(infoHash).tryGet
     check downloadedContent == exampleContent
 
   test "uploading and downloading the content (exactly one piece long)", twoNodesConfig:
@@ -68,7 +68,7 @@ twonodessuite "BitTorrent API":
     )
 
     let infoHash = client1.uploadTorrent(bytes).tryGet
-    let downloadedContent = client1.downloadTorrent(infoHash).tryGet
+    let downloadedContent = client2.downloadTorrent(infoHash).tryGet
     check downloadedContent.toBytes == bytes
 
   test "uploading and downloading the content (exactly two pieces long)", twoNodesConfig:
@@ -78,7 +78,7 @@ twonodessuite "BitTorrent API":
     )
 
     let infoHash = client1.uploadTorrent(bytes).tryGet
-    let downloadedContent = client1.downloadTorrent(infoHash).tryGet
+    let downloadedContent = client2.downloadTorrent(infoHash).tryGet
     check downloadedContent.toBytes == bytes
 
     # use with debugging to see the content
@@ -100,14 +100,14 @@ twonodessuite "BitTorrent API":
       content = exampleContent.toBytes, name = some exampleFileName
     ).tryGet
 
-    let restTorrentContent = client1.downloadTorrentManifestOnly(infoHash).tryGet
+    let restTorrentContent = client2.downloadTorrentManifestOnly(infoHash).tryGet
     let torrentManifest = restTorrentContent.torrentManifest
     let info = torrentManifest.info
 
     check info == expectedInfo
 
     let response =
-      client1.downloadManifestOnly(cid = torrentManifest.codexManifestCid).tryGet
+      client2.downloadManifestOnly(cid = torrentManifest.codexManifestCid).tryGet
 
     let restContent = RestContent.fromJson(response).tryGet
 
