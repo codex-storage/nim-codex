@@ -60,21 +60,9 @@ proc discoveryQueueLoop(b: DiscoveryEngine) {.async: (raises: []).} =
   try:
     while b.discEngineRunning:
       for cid in toSeq(b.pendingBlocks.wantListBlockCids):
-        try:
-          await b.discoveryQueue.put(cid)
-        except CancelledError as exc:
-          trace "Discovery loop cancelled"
-          raise exc
-        except CatchableError as exc:
-          warn "Exception in discovery loop", exc = exc.msg
+        await b.discoveryQueue.put(cid)
 
-      try:
-        await sleepAsync(b.discoveryLoopSleep)
-      except CancelledError as exc:
-        raise exc
-      except CatchableError as exc:
-        trace "Exception in discovery loop sleep", exc = exc.msg
-        continue
+      await sleepAsync(b.discoveryLoopSleep)
   except CancelledError:
     trace "Discovery loop cancelled"
 
@@ -93,26 +81,21 @@ proc discoveryTaskLoop(b: DiscoveryEngine) {.async: (raises: []).} =
       let haves = b.peers.peersHave(cid)
 
       if haves.len < b.minPeersPerBlock:
-        try:
-          let request = b.discovery.find(cid).wait(DefaultDiscoveryTimeout)
+        let request = b.discovery.find(cid)
+        b.inFlightDiscReqs[cid] = request
+        codex_inflight_discovery.set(b.inFlightDiscReqs.len.int64)
 
-          b.inFlightDiscReqs[cid] = request
+        defer:
+          b.inFlightDiscReqs.del(cid)
           codex_inflight_discovery.set(b.inFlightDiscReqs.len.int64)
-          let
-            peers = await request
-            dialed = await allFinished(peers.mapIt(b.network.dialPeer(it.data)))
+
+        if (await request.withTimeout(DefaultDiscoveryTimeout)) and
+            peers =? (await request).catch:
+          let dialed = await allFinished(peers.mapIt(b.network.dialPeer(it.data)))
 
           for i, f in dialed:
             if f.failed:
               await b.discovery.removeProvider(peers[i].data.peerId)
-        except CancelledError as exc:
-          warn "Discovery request cancelled", cid = cid
-          raise exc
-        except CatchableError as exc:
-          warn "Exception in discovery task", exc = exc.msg
-        finally:
-          b.inFlightDiscReqs.del(cid)
-          codex_inflight_discovery.set(b.inFlightDiscReqs.len.int64)
   except CancelledError:
     trace "Discovery task cancelled"
     return
