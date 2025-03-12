@@ -258,3 +258,8 @@ func decode*(_: type Manifest, blk: Block): ?!Manifest =
     return failure "Cid not a manifest codec"
 
   Manifest.decode(blk.data)
+
+func new*(T: type Manifest, data: openArray[byte]): ?!Manifest =
+  ## Create a manifest instance from given data
+  ##
+  Manifest.decode(data)
