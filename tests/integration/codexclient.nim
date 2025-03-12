@@ -76,15 +76,15 @@ proc downloadNoStream*(client: CodexClient, cid: Cid): ?!string =
 proc downloadBytes*(
     client: CodexClient, cid: Cid, local = false
 ): Future[?!seq[byte]] {.async.} =
-  let uri =
-    parseUri(client.baseurl & "/data/" & $cid & (if local: "" else: "/network/stream"))
+  let uri = client.baseurl & "/data/" & $cid & (if local: "" else: "/network/stream")
 
-  let (status, bytes) = await client.session.fetch(uri)
+  let httpClient = newHttpClient()
+  let response = httpClient.get(uri)
 
-  if status != 200:
-    return failure("fetch failed with status " & $status)
+  if response.status != "200 OK":
+    return failure("fetch failed with status " & $response.status)
 
-  success bytes
+  success response.body.toBytes
 
 proc delete*(client: CodexClient, cid: Cid): ?!void =
   let

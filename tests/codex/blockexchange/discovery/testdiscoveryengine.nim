@@ -76,7 +76,7 @@ asyncchecksuite "Test Discovery Engine":
       )
 
     await discoveryEngine.start()
-    await allFuturesThrowing(allFinished(wants)).wait(1.seconds)
+    await allFuturesThrowing(allFinished(wants)).wait(100.millis)
     await discoveryEngine.stop()
 
   test "Should queue discovery request":
@@ -101,7 +101,7 @@ asyncchecksuite "Test Discovery Engine":
 
     await discoveryEngine.start()
     discoveryEngine.queueFindBlocksReq(@[blocks[0].cid])
-    await want.wait(1.seconds)
+    await want.wait(100.millis)
     await discoveryEngine.stop()
 
   test "Should not request more than minPeersPerBlock":

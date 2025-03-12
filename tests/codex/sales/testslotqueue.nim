@@ -159,8 +159,10 @@ suite "Slot queue":
     requestB.ask.collateralPerByte = 1.u256
     requestB.expiry = 1000.uint64
 
-    let itemA = SlotQueueItem.init(requestA, 0)
-    let itemB = SlotQueueItem.init(requestB, 0)
+    let itemA =
+      SlotQueueItem.init(requestA, 0, collateral = requestA.ask.collateralPerSlot)
+    let itemB =
+      SlotQueueItem.init(requestB, 0, collateral = requestB.ask.collateralPerSlot)
     check itemB < itemA # B higher priority than A
     check itemA > itemB
 
@@ -172,7 +174,7 @@ suite "Slot queue":
       slotSize: 1.uint64,
       duration: 1.uint64,
       pricePerBytePerSecond: 2.u256, # profitability is higher (good)
-      collateralPerByte: 1.u256,
+      collateral: 1.u256,
       expiry: 1.uint64,
       seen: true, # seen (bad), more weight than profitability
     )
@@ -182,7 +184,7 @@ suite "Slot queue":
       slotSize: 1.uint64,
       duration: 1.uint64,
       pricePerBytePerSecond: 1.u256, # profitability is lower (bad)
-      collateralPerByte: 1.u256,
+      collateral: 1.u256,
       expiry: 1.uint64,
       seen: false, # not seen (good)
     )
@@ -197,7 +199,7 @@ suite "Slot queue":
       slotSize: 1.uint64,
       duration: 1.uint64,
       pricePerBytePerSecond: 1.u256, # reward is lower (bad)
-      collateralPerByte: 1.u256, # collateral is lower (good)
+      collateral: 1.u256, # collateral is lower (good)
       expiry: 1.uint64,
       seen: false,
     )
@@ -208,7 +210,7 @@ suite "Slot queue":
       duration: 1.uint64,
       pricePerBytePerSecond: 2.u256,
         # reward is higher (good), more weight than collateral
-      collateralPerByte: 2.u256, # collateral is higher (bad)
+      collateral: 2.u256, # collateral is higher (bad)
       expiry: 1.uint64,
       seen: false,
     )
@@ -223,7 +225,7 @@ suite "Slot queue":
       slotSize: 1.uint64,
       duration: 1.uint64,
       pricePerBytePerSecond: 1.u256,
-      collateralPerByte: 2.u256, # collateral is higher (bad)
+      collateral: 2.u256, # collateral is higher (bad)
       expiry: 2.uint64, # expiry is longer (good)
       seen: false,
     )
@@ -233,7 +235,7 @@ suite "Slot queue":
       slotSize: 1.uint64,
       duration: 1.uint64,
       pricePerBytePerSecond: 1.u256,
-      collateralPerByte: 1.u256, # collateral is lower (good), more weight than expiry
+      collateral: 1.u256, # collateral is lower (good), more weight than expiry
       expiry: 1.uint64, # expiry is shorter (bad)
       seen: false,
     )
@@ -248,7 +250,7 @@ suite "Slot queue":
       slotSize: 1.uint64, # slotSize is smaller (good)
       duration: 1.uint64,
       pricePerBytePerSecond: 1.u256,
-      collateralPerByte: 1.u256,
+      collateral: 1.u256,
       expiry: 1.uint64, # expiry is shorter (bad)
       seen: false,
     )
@@ -258,7 +260,7 @@ suite "Slot queue":
       slotSize: 2.uint64, # slotSize is larger (bad)
       duration: 1.uint64,
       pricePerBytePerSecond: 1.u256,
-      collateralPerByte: 1.u256,
+      collateral: 1.u256,
       expiry: 2.uint64, # expiry is longer (good), more weight than slotSize
       seen: false,
     )
@@ -273,7 +275,7 @@ suite "Slot queue":
       slotSize: 2.uint64, # slotSize is larger (bad)
       duration: 1.uint64,
       pricePerBytePerSecond: 1.u256,
-      collateralPerByte: 1.u256,
+      collateral: 1.u256,
       expiry: 1.uint64, # expiry is shorter (bad)
       seen: false,
     )
@@ -283,7 +285,7 @@ suite "Slot queue":
       slotSize: 1.uint64, # slotSize is smaller (good)
       duration: 1.uint64,
       pricePerBytePerSecond: 1.u256,
-      collateralPerByte: 1.u256,
+      collateral: 1.u256,
       expiry: 1.uint64,
       seen: false,
     )
@@ -292,11 +294,16 @@ suite "Slot queue":
 
   test "expands available all possible slot indices on init":
     let request = StorageRequest.example
-    let items = SlotQueueItem.init(request)
+    let items = SlotQueueItem.init(request, collateral = request.ask.collateralPerSlot)
     check items.len.uint64 == request.ask.slots
     var checked = 0
     for slotIndex in 0'u16 ..< request.ask.slots.uint16:
-      check items.anyIt(it == SlotQueueItem.init(request, slotIndex))
+      check items.anyIt(
+        it ==
+          SlotQueueItem.init(
+            request, slotIndex, collateral = request.ask.collateralPerSlot
+          )
+      )
       inc checked
     check checked == items.len
 
@@ -322,34 +329,17 @@ suite "Slot queue":
     check isOk queue.push(item3)
     check isOk queue.push(item4)
 
-  test "populates item with exisiting request metadata":
-    newSlotQueue(maxSize = 8, maxWorkers = 1, processSlotDelay = 10.millis)
-    let request0 = StorageRequest.example
-    var request1 = StorageRequest.example
-    request1.ask.collateralPerByte += 1.u256
-    let items0 = SlotQueueItem.init(request0)
-    let items1 = SlotQueueItem.init(request1)
-    check queue.push(items0).isOk
-    check queue.push(items1).isOk
-    let populated = !queue.populateItem(request1.id, 12'u16)
-    check populated.requestId == request1.id
-    check populated.slotIndex == 12'u16
-    check populated.slotSize == request1.ask.slotSize
-    check populated.duration == request1.ask.duration
-    check populated.pricePerBytePerSecond == request1.ask.pricePerBytePerSecond
-    check populated.collateralPerByte == request1.ask.collateralPerByte
-
-  test "does not find exisiting request metadata":
-    newSlotQueue(maxSize = 2, maxWorkers = 2)
-    let item = SlotQueueItem.example
-    check queue.populateItem(item.requestId, 12'u16).isNone
-
   test "can support uint16.high slots":
     var request = StorageRequest.example
     let maxUInt16 = uint16.high
     let uint64Slots = uint64(maxUInt16)
     request.ask.slots = uint64Slots
-    let items = SlotQueueItem.init(request.id, request.ask, request.expiry)
+    let items = SlotQueueItem.init(
+      request.id,
+      request.ask,
+      request.expiry,
+      collateral = request.ask.collateralPerSlot,
+    )
     check items.len.uint16 == maxUInt16
 
   test "cannot support greater than uint16.high slots":
@@ -358,7 +348,12 @@ suite "Slot queue":
     let uint64Slots = uint64(int32Slots)
     request.ask.slots = uint64Slots
     expect SlotsOutOfRangeError:
-      discard SlotQueueItem.init(request.id, request.ask, request.expiry)
+      discard SlotQueueItem.init(
+        request.id,
+        request.ask,
+        request.expiry,
+        collateral = request.ask.collateralPerSlot,
+      )
 
   test "cannot push duplicate items":
     newSlotQueue(maxSize = 6, maxWorkers = 1, processSlotDelay = 15.millis)
@@ -399,8 +394,10 @@ suite "Slot queue":
     let request0 = StorageRequest.example
     var request1 = StorageRequest.example
     request1.ask.collateralPerByte += 1.u256
-    let items0 = SlotQueueItem.init(request0)
-    let items1 = SlotQueueItem.init(request1)
+    let items0 =
+      SlotQueueItem.init(request0, collateral = request0.ask.collateralPerSlot)
+    let items1 =
+      SlotQueueItem.init(request1, collateral = request1.ask.collateralPerSlot)
     check queue.push(items0).isOk
     check queue.push(items1).isOk
     let last = items1[items1.high]
@@ -413,8 +410,10 @@ suite "Slot queue":
     let request0 = StorageRequest.example
     var request1 = StorageRequest.example
     request1.ask.collateralPerByte += 1.u256
-    let items0 = SlotQueueItem.init(request0)
-    let items1 = SlotQueueItem.init(request1)
+    let items0 =
+      SlotQueueItem.init(request0, collateral = request0.ask.collateralPerSlot)
+    let items1 =
+      SlotQueueItem.init(request1, collateral = request1.ask.collateralPerSlot)
     check queue.push(items0).isOk
     check queue.push(items1).isOk
     queue.delete(request1.id)
@@ -433,42 +432,56 @@ suite "Slot queue":
     request3.ask.collateralPerByte = request2.ask.collateralPerByte + 1
     request4.ask.collateralPerByte = request3.ask.collateralPerByte + 1
     request5.ask.collateralPerByte = request4.ask.collateralPerByte + 1
-    let item0 = SlotQueueItem.init(request0, 0)
-    let item1 = SlotQueueItem.init(request1, 0)
-    let item2 = SlotQueueItem.init(request2, 0)
-    let item3 = SlotQueueItem.init(request3, 0)
-    let item4 = SlotQueueItem.init(request4, 0)
-    let item5 = SlotQueueItem.init(request5, 0)
+    let item0 =
+      SlotQueueItem.init(request0, 0, collateral = request0.ask.collateralPerSlot)
+    let item1 =
+      SlotQueueItem.init(request1, 0, collateral = request1.ask.collateralPerSlot)
+    let item2 =
+      SlotQueueItem.init(request2, 0, collateral = request2.ask.collateralPerSlot)
+    let item3 =
+      SlotQueueItem.init(request3, 0, collateral = request3.ask.collateralPerSlot)
+    let item4 =
+      SlotQueueItem.init(request4, 0, collateral = request4.ask.collateralPerSlot)
+    let item5 =
+      SlotQueueItem.init(request5, 0, collateral = request5.ask.collateralPerSlot)
     check queue.contains(item5) == false
     check queue.push(@[item0, item1, item2, item3, item4, item5]).isOk
     check queue.contains(item5)
 
   test "sorts items by profitability descending (higher pricePerBytePerSecond == higher priority == goes first in the list)":
     var request = StorageRequest.example
-    let item0 = SlotQueueItem.init(request, 0)
+    let item0 =
+      SlotQueueItem.init(request, 0, collateral = request.ask.collateralPerSlot)
     request.ask.pricePerBytePerSecond += 1.u256
-    let item1 = SlotQueueItem.init(request, 1)
+    let item1 =
+      SlotQueueItem.init(request, 1, collateral = request.ask.collateralPerSlot)
     check item1 < item0
 
-  test "sorts items by collateral ascending (higher required collateralPerByte = lower priority == comes later in the list)":
+  test "sorts items by collateral ascending (higher required collateral = lower priority == comes later in the list)":
     var request = StorageRequest.example
-    let item0 = SlotQueueItem.init(request, 0)
-    request.ask.collateralPerByte += 1.u256
-    let item1 = SlotQueueItem.init(request, 1)
+    let item0 =
+      SlotQueueItem.init(request, 0, collateral = request.ask.collateralPerSlot)
+    let item1 = SlotQueueItem.init(
+      request, 1, collateral = request.ask.collateralPerSlot + 1.u256
+    )
     check item1 > item0
 
   test "sorts items by expiry descending (longer expiry = higher priority)":
     var request = StorageRequest.example
-    let item0 = SlotQueueItem.init(request, 0)
+    let item0 =
+      SlotQueueItem.init(request, 0, collateral = request.ask.collateralPerSlot)
     request.expiry += 1
-    let item1 = SlotQueueItem.init(request, 1)
+    let item1 =
+      SlotQueueItem.init(request, 1, collateral = request.ask.collateralPerSlot)
     check item1 < item0
 
   test "sorts items by slot size descending (bigger dataset = higher profitability = higher priority)":
     var request = StorageRequest.example
-    let item0 = SlotQueueItem.init(request, 0)
+    let item0 =
+      SlotQueueItem.init(request, 0, collateral = request.ask.collateralPerSlot)
     request.ask.slotSize += 1
-    let item1 = SlotQueueItem.init(request, 1)
+    let item1 =
+      SlotQueueItem.init(request, 1, collateral = request.ask.collateralPerSlot)
     check item1 < item0
 
   test "should call callback once an item is added":
@@ -489,13 +502,17 @@ suite "Slot queue":
     # sleeping after push allows the slotqueue loop to iterate,
     # calling the callback for each pushed/updated item
     var request = StorageRequest.example
-    let item0 = SlotQueueItem.init(request, 0)
+    let item0 =
+      SlotQueueItem.init(request, 0, collateral = request.ask.collateralPerSlot)
     request.ask.pricePerBytePerSecond += 1.u256
-    let item1 = SlotQueueItem.init(request, 1)
+    let item1 =
+      SlotQueueItem.init(request, 1, collateral = request.ask.collateralPerSlot)
     request.ask.pricePerBytePerSecond += 1.u256
-    let item2 = SlotQueueItem.init(request, 2)
+    let item2 =
+      SlotQueueItem.init(request, 2, collateral = request.ask.collateralPerSlot)
     request.ask.pricePerBytePerSecond += 1.u256
-    let item3 = SlotQueueItem.init(request, 3)
+    let item3 =
+      SlotQueueItem.init(request, 3, collateral = request.ask.collateralPerSlot)
 
     check queue.push(item0).isOk
     await sleepAsync(1.millis)
@@ -520,13 +537,17 @@ suite "Slot queue":
     # sleeping after push allows the slotqueue loop to iterate,
     # calling the callback for each pushed/updated item
     var request = StorageRequest.example
-    let item0 = SlotQueueItem.init(request, 0)
+    let item0 =
+      SlotQueueItem.init(request, 0, collateral = request.ask.collateralPerSlot)
     request.ask.pricePerBytePerSecond += 1.u256
-    let item1 = SlotQueueItem.init(request, 1)
+    let item1 =
+      SlotQueueItem.init(request, 1, collateral = request.ask.collateralPerSlot)
     request.ask.pricePerBytePerSecond += 1.u256
-    let item2 = SlotQueueItem.init(request, 2)
+    let item2 =
+      SlotQueueItem.init(request, 2, collateral = request.ask.collateralPerSlot)
     request.ask.pricePerBytePerSecond += 1.u256
-    let item3 = SlotQueueItem.init(request, 3)
+    let item3 =
+      SlotQueueItem.init(request, 3, collateral = request.ask.collateralPerSlot)
 
     check queue.push(item0).isOk
     check queue.push(item1).isOk
@@ -550,7 +571,7 @@ suite "Slot queue":
     queue.pause
 
     let request = StorageRequest.example
-    var items = SlotQueueItem.init(request)
+    var items = SlotQueueItem.init(request, collateral = request.ask.collateralPerSlot)
     check queue.push(items).isOk
     # check all items processed
     check eventually queue.len == 0
@@ -558,8 +579,14 @@ suite "Slot queue":
   test "pushing seen item does not unpause queue":
     newSlotQueue(maxSize = 4, maxWorkers = 4)
     let request = StorageRequest.example
-    let item0 =
-      SlotQueueItem.init(request.id, 0'u16, request.ask, request.expiry, seen = true)
+    let item0 = SlotQueueItem.init(
+      request.id,
+      0'u16,
+      request.ask,
+      request.expiry,
+      request.ask.collateralPerSlot,
+      seen = true,
+    )
     check queue.paused
     check queue.push(item0).isOk
     check queue.paused
@@ -567,8 +594,14 @@ suite "Slot queue":
   test "paused queue waits for unpause before continuing processing":
     newSlotQueue(maxSize = 4, maxWorkers = 4)
     let request = StorageRequest.example
-    let item =
-      SlotQueueItem.init(request.id, 1'u16, request.ask, request.expiry, seen = false)
+    let item = SlotQueueItem.init(
+      request.id,
+      1'u16,
+      request.ask,
+      request.expiry,
+      request.ask.collateralPerSlot,
+      seen = false,
+    )
     check queue.paused
     # push causes unpause
     check queue.push(item).isOk
@@ -579,10 +612,22 @@ suite "Slot queue":
   test "processing a 'seen' item pauses the queue":
     newSlotQueue(maxSize = 4, maxWorkers = 4)
     let request = StorageRequest.example
-    let unseen =
-      SlotQueueItem.init(request.id, 0'u16, request.ask, request.expiry, seen = false)
-    let seen =
-      SlotQueueItem.init(request.id, 1'u16, request.ask, request.expiry, seen = true)
+    let unseen = SlotQueueItem.init(
+      request.id,
+      0'u16,
+      request.ask,
+      request.expiry,
+      request.ask.collateralPerSlot,
+      seen = false,
+    )
+    let seen = SlotQueueItem.init(
+      request.id,
+      1'u16,
+      request.ask,
+      request.expiry,
+      request.ask.collateralPerSlot,
+      seen = true,
+    )
     # push causes unpause
     check queue.push(unseen).isSuccess
     # check all items processed
@@ -595,10 +640,22 @@ suite "Slot queue":
   test "processing a 'seen' item does not decrease the number of workers":
     newSlotQueue(maxSize = 4, maxWorkers = 4)
     let request = StorageRequest.example
-    let unseen =
-      SlotQueueItem.init(request.id, 0'u16, request.ask, request.expiry, seen = false)
-    let seen =
-      SlotQueueItem.init(request.id, 1'u16, request.ask, request.expiry, seen = true)
+    let unseen = SlotQueueItem.init(
+      request.id,
+      0'u16,
+      request.ask,
+      request.expiry,
+      request.ask.collateralPerSlot,
+      seen = false,
+    )
+    let seen = SlotQueueItem.init(
+      request.id,
+      1'u16,
+      request.ask,
+      request.expiry,
+      request.ask.collateralPerSlot,
+      seen = true,
+    )
     # push seen item to ensure that queue is pausing
     check queue.push(seen).isSuccess
     # unpause and pause a number of times
@@ -615,10 +672,22 @@ suite "Slot queue":
   test "item 'seen' flags can be cleared":
     newSlotQueue(maxSize = 4, maxWorkers = 1)
     let request = StorageRequest.example
-    let item0 =
-      SlotQueueItem.init(request.id, 0'u16, request.ask, request.expiry, seen = true)
-    let item1 =
-      SlotQueueItem.init(request.id, 1'u16, request.ask, request.expiry, seen = true)
+    let item0 = SlotQueueItem.init(
+      request.id,
+      0'u16,
+      request.ask,
+      request.expiry,
+      request.ask.collateralPerSlot,
+      seen = true,
+    )
+    let item1 = SlotQueueItem.init(
+      request.id,
+      1'u16,
+      request.ask,
+      request.expiry,
+      request.ask.collateralPerSlot,
+      seen = true,
+    )
     check queue.push(item0).isOk
     check queue.push(item1).isOk
     check queue[0].seen

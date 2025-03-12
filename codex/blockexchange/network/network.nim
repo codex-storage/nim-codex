@@ -21,17 +21,18 @@ import ../../blocktype as bt
 import ../../logutils
 import ../protobuf/blockexc as pb
 import ../protobuf/payments
+import ../../utils/trackedfutures
 
 import ./networkpeer
 
-export network, payments
+export networkpeer, payments
 
 logScope:
   topics = "codex blockexcnetwork"
 
 const
   Codec* = "/codex/blockexc/1.0.0"
-  MaxInflight* = 100
+  DefaultMaxInflight* = 100
 
 type
   WantListHandler* = proc(peer: PeerId, wantList: WantList): Future[void] {.gcsafe.}
@@ -82,6 +83,8 @@ type
     request*: BlockExcRequest
     getConn: ConnProvider
     inflightSema: AsyncSemaphore
+    maxInflight: int = DefaultMaxInflight
+    trackedFutures*: TrackedFutures = TrackedFutures()
 
 proc peerId*(b: BlockExcNetwork): PeerId =
   ## Return peer id
@@ -220,23 +223,25 @@ proc handlePayment(
   if not network.handlers.onPayment.isNil:
     await network.handlers.onPayment(peer.id, payment)
 
-proc rpcHandler(b: BlockExcNetwork, peer: NetworkPeer, msg: Message) {.raises: [].} =
+proc rpcHandler(
+    b: BlockExcNetwork, peer: NetworkPeer, msg: Message
+) {.async: (raises: [CatchableError]).} =
   ## handle rpc messages
   ##
   if msg.wantList.entries.len > 0:
-    asyncSpawn b.handleWantList(peer, msg.wantList)
+    b.trackedFutures.track(b.handleWantList(peer, msg.wantList))
 
   if msg.payload.len > 0:
-    asyncSpawn b.handleBlocksDelivery(peer, msg.payload)
+    b.trackedFutures.track(b.handleBlocksDelivery(peer, msg.payload))
 
   if msg.blockPresences.len > 0:
-    asyncSpawn b.handleBlockPresence(peer, msg.blockPresences)
+    b.trackedFutures.track(b.handleBlockPresence(peer, msg.blockPresences))
 
   if account =? Account.init(msg.account):
-    asyncSpawn b.handleAccount(peer, account)
+    b.trackedFutures.track(b.handleAccount(peer, account))
 
   if payment =? SignedState.init(msg.payment):
-    asyncSpawn b.handlePayment(peer, payment)
+    b.trackedFutures.track(b.handlePayment(peer, payment))
 
 proc getOrCreatePeer(b: BlockExcNetwork, peer: PeerId): NetworkPeer =
   ## Creates or retrieves a BlockExcNetwork Peer
@@ -247,6 +252,7 @@ proc getOrCreatePeer(b: BlockExcNetwork, peer: PeerId): NetworkPeer =
 
   var getConn: ConnProvider = proc(): Future[Connection] {.async, gcsafe, closure.} =
     try:
+      trace "Getting new connection stream", peer
       return await b.switch.dial(peer, Codec)
     except CancelledError as error:
       raise error
@@ -256,8 +262,10 @@ proc getOrCreatePeer(b: BlockExcNetwork, peer: PeerId): NetworkPeer =
   if not isNil(b.getConn):
     getConn = b.getConn
 
-  let rpcHandler = proc(p: NetworkPeer, msg: Message) {.async.} =
-    b.rpcHandler(p, msg)
+  let rpcHandler = proc(
+      p: NetworkPeer, msg: Message
+  ) {.async: (raises: [CatchableError]).} =
+    await b.rpcHandler(p, msg)
 
   # create new pubsub peer
   let blockExcPeer = NetworkPeer.new(peer, getConn, rpcHandler)
@@ -282,47 +290,60 @@ proc dialPeer*(b: BlockExcNetwork, peer: PeerRecord) {.async.} =
     trace "Skipping dialing self", peer = peer.peerId
     return
 
+  if peer.peerId in b.peers:
+    trace "Already connected to peer", peer = peer.peerId
+    return
+
   await b.switch.connect(peer.peerId, peer.addresses.mapIt(it.address))
 
 proc dropPeer*(b: BlockExcNetwork, peer: PeerId) =
   ## Cleanup disconnected peer
   ##
 
+  trace "Dropping peer", peer
   b.peers.del(peer)
 
-method init*(b: BlockExcNetwork) =
+method init*(self: BlockExcNetwork) =
   ## Perform protocol initialization
   ##
 
   proc peerEventHandler(peerId: PeerId, event: PeerEvent) {.async.} =
     if event.kind == PeerEventKind.Joined:
-      b.setupPeer(peerId)
+      self.setupPeer(peerId)
     else:
-      b.dropPeer(peerId)
+      self.dropPeer(peerId)
 
-  b.switch.addPeerEventHandler(peerEventHandler, PeerEventKind.Joined)
-  b.switch.addPeerEventHandler(peerEventHandler, PeerEventKind.Left)
+  self.switch.addPeerEventHandler(peerEventHandler, PeerEventKind.Joined)
+  self.switch.addPeerEventHandler(peerEventHandler, PeerEventKind.Left)
 
-  proc handle(conn: Connection, proto: string) {.async, gcsafe, closure.} =
+  proc handler(conn: Connection, proto: string) {.async.} =
     let peerId = conn.peerId
-    let blockexcPeer = b.getOrCreatePeer(peerId)
+    let blockexcPeer = self.getOrCreatePeer(peerId)
     await blockexcPeer.readLoop(conn) # attach read loop
 
-  b.handler = handle
-  b.codec = Codec
+  self.handler = handler
+  self.codec = Codec
+
+proc stop*(self: BlockExcNetwork) {.async: (raises: []).} =
+  await self.trackedFutures.cancelTracked()
 
 proc new*(
     T: type BlockExcNetwork,
     switch: Switch,
     connProvider: ConnProvider = nil,
-    maxInflight = MaxInflight,
+    maxInflight = DefaultMaxInflight,
 ): BlockExcNetwork =
   ## Create a new BlockExcNetwork instance
   ##
 
   let self = BlockExcNetwork(
-    switch: switch, getConn: connProvider, inflightSema: newAsyncSemaphore(maxInflight)
+    switch: switch,
+    getConn: connProvider,
+    inflightSema: newAsyncSemaphore(maxInflight),
+    maxInflight: maxInflight,
   )
+
+  self.maxIncomingStreams = self.maxInflight
 
   proc sendWantList(
       id: PeerId,

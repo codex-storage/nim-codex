@@ -90,14 +90,14 @@ type
     availabilityLock: AsyncLock
       # Lock for protecting assertions of availability's sizes when searching for matching availability
     repo: RepoStore
-    onAvailabilityAdded: ?OnAvailabilityAdded
+    OnAvailabilitySaved: ?OnAvailabilitySaved
 
   GetNext* = proc(): Future[?seq[byte]] {.
     upraises: [], gcsafe, async: (raises: [CancelledError]), closure
   .}
   IterDispose* =
     proc(): Future[?!void] {.gcsafe, async: (raises: [CancelledError]), closure.}
-  OnAvailabilityAdded* = proc(availability: Availability): Future[void] {.
+  OnAvailabilitySaved* = proc(availability: Availability): Future[void] {.
     upraises: [], gcsafe, async: (raises: [])
   .}
   StorableIter* = ref object
@@ -214,10 +214,10 @@ logutils.formatIt(LogFormat.textLines, SomeStorableId):
 logutils.formatIt(LogFormat.json, SomeStorableId):
   it.to0xHexLog
 
-proc `onAvailabilityAdded=`*(
-    self: Reservations, onAvailabilityAdded: OnAvailabilityAdded
+proc `OnAvailabilitySaved=`*(
+    self: Reservations, OnAvailabilitySaved: OnAvailabilitySaved
 ) =
-  self.onAvailabilityAdded = some onAvailabilityAdded
+  self.OnAvailabilitySaved = some OnAvailabilitySaved
 
 func key*(id: AvailabilityId): ?!Key =
   ## sales / reservations / <availabilityId>
@@ -308,8 +308,8 @@ proc updateAvailability(
       trace "Creating new Availability"
       let res = await self.updateImpl(obj)
       # inform subscribers that Availability has been added
-      if onAvailabilityAdded =? self.onAvailabilityAdded:
-        await onAvailabilityAdded(obj)
+      if OnAvailabilitySaved =? self.OnAvailabilitySaved:
+        await OnAvailabilitySaved(obj)
       return res
     else:
       return failure(err)
@@ -344,11 +344,13 @@ proc updateAvailability(
 
   let res = await self.updateImpl(obj)
 
-  if oldAvailability.freeSize < obj.freeSize: # availability added
+  if oldAvailability.freeSize < obj.freeSize or oldAvailability.duration < obj.duration or
+      oldAvailability.minPricePerBytePerSecond < obj.minPricePerBytePerSecond or
+      oldAvailability.totalCollateral < obj.totalCollateral: # availability updated
     # inform subscribers that Availability has been modified (with increased
     # size)
-    if onAvailabilityAdded =? self.onAvailabilityAdded:
-      await onAvailabilityAdded(obj)
+    if OnAvailabilitySaved =? self.OnAvailabilitySaved:
+      await OnAvailabilitySaved(obj)
   return res
 
 proc update*(

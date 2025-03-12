@@ -63,7 +63,7 @@ asyncchecksuite "Sales - start":
     sales = Sales.new(market, clock, repo)
     reservations = sales.context.reservations
     sales.onStore = proc(
-        request: StorageRequest, slot: uint64, onBatch: BatchProc
+        request: StorageRequest, slot: uint64, onBatch: BatchProc, isRepairing = false
     ): Future[?!void] {.async.} =
       return success()
 
@@ -184,7 +184,7 @@ asyncchecksuite "Sales":
     sales = Sales.new(market, clock, repo)
     reservations = sales.context.reservations
     sales.onStore = proc(
-        request: StorageRequest, slot: uint64, onBatch: BatchProc
+        request: StorageRequest, slot: uint64, onBatch: BatchProc, isRepairing = false
     ): Future[?!void] {.async.} =
       return success()
 
@@ -233,7 +233,7 @@ asyncchecksuite "Sales":
     availability = a.get # update id
 
   proc notProcessed(itemsProcessed: seq[SlotQueueItem], request: StorageRequest): bool =
-    let items = SlotQueueItem.init(request)
+    let items = SlotQueueItem.init(request, collateral = request.ask.collateralPerSlot)
     for i in 0 ..< items.len:
       if itemsProcessed.contains(items[i]):
         return false
@@ -270,7 +270,7 @@ asyncchecksuite "Sales":
       done.complete()
     createAvailability()
     await market.requestStorage(request)
-    let items = SlotQueueItem.init(request)
+    let items = SlotQueueItem.init(request, collateral = request.ask.collateralPerSlot)
     check eventually items.allIt(itemsProcessed.contains(it))
 
   test "removes slots from slot queue once RequestCancelled emitted":
@@ -291,13 +291,15 @@ asyncchecksuite "Sales":
   test "removes slot index from slot queue once SlotFilled emitted":
     let request1 = await addRequestToSaturatedQueue()
     market.emitSlotFilled(request1.id, 1.uint64)
-    let expected = SlotQueueItem.init(request1, 1'u16)
+    let expected =
+      SlotQueueItem.init(request1, 1'u16, collateral = request1.ask.collateralPerSlot)
     check always (not itemsProcessed.contains(expected))
 
   test "removes slot index from slot queue once SlotReservationsFull emitted":
     let request1 = await addRequestToSaturatedQueue()
     market.emitSlotReservationsFull(request1.id, 1.uint64)
-    let expected = SlotQueueItem.init(request1, 1'u16)
+    let expected =
+      SlotQueueItem.init(request1, 1'u16, collateral = request1.ask.collateralPerSlot)
     check always (not itemsProcessed.contains(expected))
 
   test "adds slot index to slot queue once SlotFreed emitted":
@@ -307,14 +309,21 @@ asyncchecksuite "Sales":
 
     createAvailability()
     market.requested.add request # "contract" must be able to return request
+
     market.emitSlotFreed(request.id, 2.uint64)
 
-    let expected = SlotQueueItem.init(request, 2.uint16)
+    without collateralPerSlot =? await market.slotCollateral(request.id, 2.uint64),
+      error:
+      fail()
+
+    let expected =
+      SlotQueueItem.init(request, 2.uint16, collateral = request.ask.collateralPerSlot)
+
     check eventually itemsProcessed.contains(expected)
 
   test "items in queue are readded (and marked seen) once ignored":
     await market.requestStorage(request)
-    let items = SlotQueueItem.init(request)
+    let items = SlotQueueItem.init(request, collateral = request.ask.collateralPerSlot)
     check eventually queue.len > 0
       # queue starts paused, allow items to be added to the queue
     check eventually queue.paused
@@ -335,7 +344,7 @@ asyncchecksuite "Sales":
   test "queue is paused once availability is insufficient to service slots in queue":
     createAvailability() # enough to fill a single slot
     await market.requestStorage(request)
-    let items = SlotQueueItem.init(request)
+    let items = SlotQueueItem.init(request, collateral = request.ask.collateralPerSlot)
     check eventually queue.len > 0
       # queue starts paused, allow items to be added to the queue
     check eventually queue.paused
@@ -352,7 +361,7 @@ asyncchecksuite "Sales":
 
   test "availability size is reduced by request slot size when fully downloaded":
     sales.onStore = proc(
-        request: StorageRequest, slot: uint64, onBatch: BatchProc
+        request: StorageRequest, slot: uint64, onBatch: BatchProc, isRepairing = false
     ): Future[?!void] {.async.} =
       let blk = bt.Block.new(@[1.byte]).get
       await onBatch(blk.repeat(request.ask.slotSize.int))
@@ -365,7 +374,7 @@ asyncchecksuite "Sales":
   test "bytes are returned to availability once finished":
     var slotIndex = 0.uint64
     sales.onStore = proc(
-        request: StorageRequest, slot: uint64, onBatch: BatchProc
+        request: StorageRequest, slot: uint64, onBatch: BatchProc, isRepairing = false
     ): Future[?!void] {.async.} =
       slotIndex = slot
       let blk = bt.Block.new(@[1.byte]).get
@@ -439,7 +448,7 @@ asyncchecksuite "Sales":
 
     var storingRequest: StorageRequest
     sales.onStore = proc(
-        request: StorageRequest, slot: uint64, onBatch: BatchProc
+        request: StorageRequest, slot: uint64, onBatch: BatchProc, isRepairing = false
     ): Future[?!void] {.async.} =
       storingRequest = request
       return success()
@@ -451,7 +460,7 @@ asyncchecksuite "Sales":
     var storingRequest: StorageRequest
     var storingSlot: uint64
     sales.onStore = proc(
-        request: StorageRequest, slot: uint64, onBatch: BatchProc
+        request: StorageRequest, slot: uint64, onBatch: BatchProc, isRepairing = false
     ): Future[?!void] {.async.} =
       storingRequest = request
       storingSlot = slot
@@ -464,7 +473,7 @@ asyncchecksuite "Sales":
   test "makes storage available again when data retrieval fails":
     let error = newException(IOError, "data retrieval failed")
     sales.onStore = proc(
-        request: StorageRequest, slot: uint64, onBatch: BatchProc
+        request: StorageRequest, slot: uint64, onBatch: BatchProc, isRepairing = false
     ): Future[?!void] {.async.} =
       return failure(error)
     createAvailability()
@@ -533,7 +542,7 @@ asyncchecksuite "Sales":
   test "makes storage available again when other host fills the slot":
     let otherHost = Address.example
     sales.onStore = proc(
-        request: StorageRequest, slot: uint64, onBatch: BatchProc
+        request: StorageRequest, slot: uint64, onBatch: BatchProc, isRepairing = false
     ): Future[?!void] {.async.} =
       await sleepAsync(chronos.hours(1))
       return success()
@@ -549,7 +558,7 @@ asyncchecksuite "Sales":
 
     let origSize = availability.freeSize
     sales.onStore = proc(
-        request: StorageRequest, slot: uint64, onBatch: BatchProc
+        request: StorageRequest, slot: uint64, onBatch: BatchProc, isRepairing = false
     ): Future[?!void] {.async.} =
       await sleepAsync(chronos.hours(1))
       return success()
@@ -574,7 +583,7 @@ asyncchecksuite "Sales":
 
     let origSize = availability.freeSize
     sales.onStore = proc(
-        request: StorageRequest, slot: uint64, onBatch: BatchProc
+        request: StorageRequest, slot: uint64, onBatch: BatchProc, isRepairing = false
     ): Future[?!void] {.async.} =
       await sleepAsync(chronos.hours(1))
       return success()
