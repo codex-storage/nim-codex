@@ -19,7 +19,7 @@ marketplacesuite "Marketplace":
   var clientAccount: Address
 
   const minPricePerBytePerSecond = 1.u256
-  const collateralPerByte = 1.u256
+  const collateralPerByte = 1.u128
   const blocks = 8
   const ecNodes = 3
   const ecTolerance = 1
@@ -52,10 +52,10 @@ marketplacesuite "Marketplace":
     let cid = (await client.upload(data)).get
     let id = await client.requestStorage(
       cid,
-      duration = 20 * 60.uint64,
-      pricePerBytePerSecond = minPricePerBytePerSecond,
+      duration = 20 * 60.stuint(40),
+      pricePerBytePerSecond = minPricePerBytePerSecond.stuint(96),
       proofProbability = 3.u256,
-      expiry = 10 * 60.uint64,
+      expiry = 10 * 60.stuint(40),
       collateralPerByte = collateralPerByte,
       nodes = ecNodes,
       tolerance = ecTolerance,
@@ -89,7 +89,7 @@ marketplacesuite "Marketplace":
     discard (
       await host.postAvailability(
         totalSize = size,
-        duration = 20 * 60.uint64,
+        duration = duration,
         minPricePerBytePerSecond = minPricePerBytePerSecond,
         totalCollateral = size.u256 * minPricePerBytePerSecond,
       )
@@ -99,10 +99,10 @@ marketplacesuite "Marketplace":
     let cid = (await client.upload(data)).get
     let id = await client.requestStorage(
       cid,
-      duration = duration,
-      pricePerBytePerSecond = minPricePerBytePerSecond,
+      duration = duration.stuint(40),
+      pricePerBytePerSecond = minPricePerBytePerSecond.stuint(96),
       proofProbability = 3.u256,
-      expiry = 10 * 60.uint64,
+      expiry = (10 * 60).stuint(40),
       collateralPerByte = collateralPerByte,
       nodes = ecNodes,
       tolerance = ecTolerance,
@@ -135,7 +135,7 @@ marketplacesuite "Marketplace":
 
 marketplacesuite "Marketplace payouts":
   const minPricePerBytePerSecond = 1.u256
-  const collateralPerByte = 1.u256
+  const collateralPerByte = 1.u128
   const blocks = 8
   const ecNodes = 3
   const ecTolerance = 1
@@ -174,7 +174,7 @@ marketplacesuite "Marketplace payouts":
       totalSize = totalAvailabilitySize,
       duration = duration.uint64,
       minPricePerBytePerSecond = minPricePerBytePerSecond,
-      totalCollateral = collateralPerByte * totalAvailabilitySize.u256,
+      totalCollateral = collateralPerByte.stuint(256) * totalAvailabilitySize.u256,
     )
 
     let cid = (await clientApi.upload(data)).get
@@ -189,9 +189,9 @@ marketplacesuite "Marketplace payouts":
     # client requests storage but requires multiple slots to host the content
     let id = await clientApi.requestStorage(
       cid,
-      duration = duration,
-      pricePerBytePerSecond = minPricePerBytePerSecond,
-      expiry = expiry,
+      duration = duration.stuint(40),
+      pricePerBytePerSecond = minPricePerBytePerSecond.stuint(96),
+      expiry = expiry.stuint(40),
       collateralPerByte = collateralPerByte,
       nodes = ecNodes,
       tolerance = ecTolerance,

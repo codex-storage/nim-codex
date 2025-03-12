@@ -19,7 +19,7 @@ asyncchecksuite "sales state 'cancelled'":
   let slotIndex = request.ask.slots div 2
   let clock = MockClock.new()
 
-  let currentCollateral = UInt256.example
+  let currentCollateral = UInt128.example
 
   var market: MockMarket
   var state: SaleCancelled

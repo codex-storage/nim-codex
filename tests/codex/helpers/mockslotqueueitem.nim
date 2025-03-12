@@ -17,8 +17,8 @@ proc toSlotQueueItem*(item: MockSlotQueueItem): SlotQueueItem =
     slotIndex = item.slotIndex,
     ask = StorageAsk(
       slotSize: item.slotSize,
-      duration: item.duration,
-      pricePerBytePerSecond: item.pricePerBytePerSecond,
+      duration: item.duration.stuint(40),
+      pricePerBytePerSecond: item.pricePerBytePerSecond.stuint(96),
     ),
     expiry = item.expiry,
     seen = item.seen,

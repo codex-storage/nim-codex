@@ -1,3 +1,4 @@
+
 import std/importutils
 import std/net
 import std/sequtils
@@ -62,11 +63,11 @@ twonodessuite "REST API":
     let response = (
       await client1.requestStorageRaw(
         cid,
-        duration = 10.uint64,
-        pricePerBytePerSecond = 1.u256,
+        duration = 10.stuint(40),
+        pricePerBytePerSecond = 1.stuint(96),
         proofProbability = 3.u256,
-        collateralPerByte = 1.u256,
-        expiry = 9.uint64,
+        collateralPerByte = 1.u128,
+        expiry = 9.stuint(40),
       )
     )
 
@@ -81,20 +82,18 @@ twonodessuite "REST API":
       fmt"({minBlocks=}, {nodes=}, {tolerance=})", twoNodesConfig:
       let data = await RandomChunker.example(blocks = minBlocks)
       let cid = (await client1.upload(data)).get
-      let duration = 100.uint64
-      let pricePerBytePerSecond = 1.u256
-      let proofProbability = 3.u256
-      let expiry = 30.uint64
-      let collateralPerByte = 1.u256
-
-      var responseBefore = (
-        await client1.requestStorageRaw(
-          cid, duration, pricePerBytePerSecond, proofProbability, collateralPerByte,
-          expiry, nodes.uint, tolerance.uint,
-        )
+      let response = await client1.requestStorageRaw(
+        cid,
+        duration = 100.stuint(40),
+        pricePerBytePerSecond = 1.stuint(96),
+        proofProbability = 3.u256,
+        collateralPerByte = 1.u128,
+        expiry = 30.stuint(40),
+        nodes = nodes.uint,
+        tolerance = tolerance.uint,
       )
 
-      check responseBefore.status == 200
+      check response.status == 200
 
   test "node accepts file uploads with content type", twoNodesConfig:
     let headers = @[("Content-Type", "text/plain")]
