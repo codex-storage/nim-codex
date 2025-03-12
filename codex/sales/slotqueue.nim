@@ -32,8 +32,8 @@ type
     requestId: RequestId
     slotIndex: uint16
     slotSize: uint64
-    duration: uint64
-    pricePerBytePerSecond: UInt256
+    duration: requests.Duration
+    pricePerBytePerSecond: TokensPerSecond
     collateral: UInt256 # Collateral computed
     expiry: uint64
     seen: bool
@@ -69,7 +69,7 @@ const DefaultMaxWorkers = 3
 # slots.
 const DefaultMaxSize = 128'u16
 
-proc profitability(item: SlotQueueItem): UInt256 =
+proc profitability(item: SlotQueueItem): UInt128 =
   StorageAsk(
     duration: item.duration,
     pricePerBytePerSecond: item.pricePerBytePerSecond,
@@ -203,10 +203,10 @@ proc slotIndex*(self: SlotQueueItem): uint16 =
 proc slotSize*(self: SlotQueueItem): uint64 =
   self.slotSize
 
-proc duration*(self: SlotQueueItem): uint64 =
+proc duration*(self: SlotQueueItem): requests.Duration =
   self.duration
 
-proc pricePerBytePerSecond*(self: SlotQueueItem): UInt256 =
+proc pricePerBytePerSecond*(self: SlotQueueItem): TokensPerSecond =
   self.pricePerBytePerSecond
 
 proc collateralPerByte*(self: SlotQueueItem): UInt256 =
