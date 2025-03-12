@@ -309,8 +309,11 @@ proc cancelBlocks(
     return peerCtx
 
   try:
-    let (succeededFuts, failedFuts) =
-      await allFinishedFailed(toSeq(self.peers.peers.values).map(processPeer))
+    let (succeededFuts, failedFuts) = await allFinishedFailed(
+      toSeq(self.peers.peers.values).filterIt(it.peerHave.anyIt(it in addrs)).map(
+        processPeer
+      )
+    )
 
     (await allFinished(succeededFuts)).mapIt(it.read).apply do(peerCtx: BlockExcPeerCtx):
       peerCtx.cleanPresence(addrs)
