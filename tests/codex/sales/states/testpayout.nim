@@ -18,7 +18,7 @@ asyncchecksuite "sales state 'payout'":
   let slotIndex = request.ask.slots div 2
   let clock = MockClock.new()
 
-  let currentCollateral = UInt256.example
+  let currentCollateral = UInt128.example
 
   var market: MockMarket
   var state: SalePayout
@@ -41,4 +41,4 @@ asyncchecksuite "sales state 'payout'":
     )
     let next = await state.run(agent)
     check !next of SaleFinished
-    check SaleFinished(!next).returnedCollateral == some currentCollateral
+    check SaleFinished(!next).returnedCollateral == some collateral

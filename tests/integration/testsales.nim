@@ -131,11 +131,11 @@ multinodesuite "Sales":
     let id = (
       await client.requestStorage(
         cid,
-        duration = 20 * 60.uint64,
-        pricePerBytePerSecond = minPricePerBytePerSecond,
+        duration = (20 * 60).stuint(40),
+        pricePerBytePerSecond = minPricePerBytePerSecond.stuint(96),
         proofProbability = 3.u256,
-        expiry = (10 * 60).uint64,
-        collateralPerByte = collateralPerByte,
+        expiry = (10 * 60).stuint(40),
+        collateralPerByte = collateralPerByte.stuint(128),
         nodes = 3,
         tolerance = 1,
       )

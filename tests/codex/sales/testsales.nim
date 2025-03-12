@@ -44,14 +44,14 @@ asyncchecksuite "Sales - start":
       ask: StorageAsk(
         slots: 4,
         slotSize: 100.uint64,
-        duration: 60.uint64,
-        pricePerBytePerSecond: 1.u256,
-        collateralPerByte: 1.u256,
+        duration: 60.stuint(40),
+        pricePerBytePerSecond: 1.stuint(96),
+        collateralPerByte: 1.u128,
       ),
       content: StorageContent(
         cid: Cid.init("zb2rhheVmk3bLks5MgzTqyznLu1zqGH5jrfTA1eAZXrjx7Vob").tryGet
       ),
-      expiry: (getTime() + initDuration(hours = 1)).toUnix.uint64,
+      expiry: (getTime() + initDuration(hours = 1)).toUnix.stuint(40),
     )
 
     market = MockMarket.new()
@@ -79,7 +79,7 @@ asyncchecksuite "Sales - start":
       return success(proof)
     itemsProcessed = @[]
     expiry = (clock.now() + 42)
-    request.expiry = expiry.uint64
+    request.expiry = expiry.stuint(40)
 
   teardown:
     await sales.stop()
@@ -130,7 +130,7 @@ asyncchecksuite "Sales":
 
   var totalAvailabilitySize: uint64
   var minPricePerBytePerSecond: UInt256
-  var requestedCollateralPerByte: UInt256
+  var requestedCollateralPerByte: UInt128
   var totalCollateral: UInt256
   var availability: Availability
   var request: StorageRequest
@@ -145,8 +145,8 @@ asyncchecksuite "Sales":
   setup:
     totalAvailabilitySize = 100.uint64
     minPricePerBytePerSecond = 1.u256
-    requestedCollateralPerByte = 1.u256
-    totalCollateral = requestedCollateralPerByte * totalAvailabilitySize.stuint(256)
+    requestedCollateralPerByte = 1.u128
+    totalCollateral = requestedCollateralPerByte.stuint(256) * totalAvailabilitySize.stuint(256)
     availability = Availability.init(
       totalSize = totalAvailabilitySize,
       freeSize = totalAvailabilitySize,
@@ -160,14 +160,14 @@ asyncchecksuite "Sales":
       ask: StorageAsk(
         slots: 4,
         slotSize: 100.uint64,
-        duration: 60.uint64,
-        pricePerBytePerSecond: minPricePerBytePerSecond,
-        collateralPerByte: 1.u256,
+        duration: 60.stuint(40),
+        pricePerBytePerSecond: minPricePerBytePerSecond.stuint(96),
+        collateralPerByte: 1.u128,
       ),
       content: StorageContent(
         cid: Cid.init("zb2rhheVmk3bLks5MgzTqyznLu1zqGH5jrfTA1eAZXrjx7Vob").tryGet
       ),
-      expiry: (getTime() + initDuration(hours = 1)).toUnix.uint64,
+      expiry: (getTime() + initDuration(hours = 1)).toUnix.stuint(40),
     )
 
     market = MockMarket.new()
@@ -233,7 +233,8 @@ asyncchecksuite "Sales":
     availability = a.get # update id
 
   proc notProcessed(itemsProcessed: seq[SlotQueueItem], request: StorageRequest): bool =
-    let items = SlotQueueItem.init(request, collateral = request.ask.collateralPerSlot)
+    let collateral =request.ask.collateralPerSlot.stuint(256)
+    let items = SlotQueueItem.init(request, collateral)
     for i in 0 ..< items.len:
       if itemsProcessed.contains(items[i]):
         return false
@@ -280,7 +281,8 @@ asyncchecksuite "Sales":
         done.complete()
     createAvailability()
     await market.requestStorage(request)
-    let items = SlotQueueItem.init(request, collateral = request.ask.collateralPerSlot)
+    let collateral = request.ask.collateralPerSlot.stuint(256)
+    let items = SlotQueueItem.init(request, collateral)
     check eventually items.allIt(itemsProcessed.contains(it))
 
   test "removes request from slot queue once RequestFailed emitted":
@@ -296,15 +298,15 @@ asyncchecksuite "Sales":
   test "removes slot index from slot queue once SlotFilled emitted":
     let request1 = await addRequestToSaturatedQueue()
     market.emitSlotFilled(request1.id, 1.uint64)
-    let expected =
-      SlotQueueItem.init(request1, 1'u16, collateral = request1.ask.collateralPerSlot)
+    let collateral = request1.ask.collateralPerSlot.stuint(256)
+    let expected = SlotQueueItem.init(request1, 1'u16, collateral)
     check always (not itemsProcessed.contains(expected))
 
   test "removes slot index from slot queue once SlotReservationsFull emitted":
     let request1 = await addRequestToSaturatedQueue()
     market.emitSlotReservationsFull(request1.id, 1.uint64)
-    let expected =
-      SlotQueueItem.init(request1, 1'u16, collateral = request1.ask.collateralPerSlot)
+    let collateral = request1.ask.collateralPerSlot.stuint(256)
+    let expected = SlotQueueItem.init(request1, 1'u16, collateral)
     check always (not itemsProcessed.contains(expected))
 
   test "adds slot index to slot queue once SlotFreed emitted":
@@ -320,14 +322,15 @@ asyncchecksuite "Sales":
 
     market.emitSlotFreed(request.id, 2.uint64)
 
-    let expected =
-      SlotQueueItem.init(request, 2.uint16, collateral = request.ask.collateralPerSlot)
+    let collateral = request.ask.collateralPerSlot.stuint(256)
+    let expected = SlotQueueItem.init(request, 2.uint16, collateral)
 
     check eventually itemsProcessed.contains(expected)
 
   test "items in queue are readded (and marked seen) once ignored":
     await market.requestStorage(request)
-    let items = SlotQueueItem.init(request, collateral = request.ask.collateralPerSlot)
+    let collateral = request.ask.collateralPerSlot.stuint(256)
+    let items = SlotQueueItem.init(request, collateral)
     check eventually queue.len > 0
       # queue starts paused, allow items to be added to the queue
     check eventually queue.paused
@@ -348,7 +351,8 @@ asyncchecksuite "Sales":
   test "queue is paused once availability is insufficient to service slots in queue":
     createAvailability() # enough to fill a single slot
     await market.requestStorage(request)
-    let items = SlotQueueItem.init(request, collateral = request.ask.collateralPerSlot)
+    let collateral = request.ask.collateralPerSlot.stuint(256)
+    let items = SlotQueueItem.init(request, collateral)
     check eventually queue.len > 0
       # queue starts paused, allow items to be added to the queue
     check eventually queue.paused
@@ -396,12 +400,12 @@ asyncchecksuite "Sales":
 
     # complete request
     market.slotState[request.slotId(slotIndex)] = SlotState.Finished
-    clock.advance(request.ask.duration.int64)
+    clock.advance(request.ask.duration.truncate(int64))
 
     check eventually getAvailability().freeSize == origSize
 
   test "ignores download when duration not long enough":
-    availability.duration = request.ask.duration - 1
+    availability.duration = request.ask.duration.truncate(uint64) - 1
     createAvailability()
     await market.requestStorage(request)
     check wasIgnored()
@@ -413,7 +417,8 @@ asyncchecksuite "Sales":
     check wasIgnored()
 
   test "ignores request when reward is too low":
-    availability.minPricePerBytePerSecond = request.ask.pricePerBytePerSecond + 1
+    let price = request.ask.pricePerBytePerSecond.stuint(256)
+    availability.minPricePerBytePerSecond = price + 1
     createAvailability()
     await market.requestStorage(request)
     check wasIgnored()
