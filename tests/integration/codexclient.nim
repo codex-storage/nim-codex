@@ -1,7 +1,5 @@
 import std/httpclient
-import std/strutils
-
-from pkg/libp2p import Cid, `$`, init
+from pkg/libp2p import Cid, MultiHash, `$`, init, hex
 import pkg/stint
 import pkg/questionable/results
 import pkg/chronos/apps/http/[httpserver, shttpserver, httpclient]
@@ -47,10 +45,46 @@ proc upload*(client: CodexClient, contents: string): ?!Cid =
 proc upload*(client: CodexClient, bytes: seq[byte]): ?!Cid =
   client.upload(string.fromBytes(bytes))
 
+proc uploadTorrent*(
+    client: CodexClient,
+    contents: string,
+    filename = string.none,
+    contentType = "application/octet-stream",
+): ?!MultiHash =
+  var headers: HttpHeaders
+  if name =? filename:
+    headers = newHttpHeaders(
+      {"Content-Disposition": "filename=\"" & name & "\"", "Content-Type": contentType}
+    )
+  else:
+    headers = newHttpHeaders()
+  let response = client.http.request(
+    client.baseurl & "/torrent",
+    body = contents,
+    httpMethod = HttpPost,
+    headers = headers,
+  )
+  assert response.status == "200 OK"
+  MultiHash.init(response.body.hexToSeqByte).mapFailure
+
+proc uploadTorrent*(
+    client: CodexClient, bytes: seq[byte], filename = string.none
+): ?!MultiHash =
+  client.uploadTorrent(string.fromBytes(bytes), filename)
+
 proc download*(client: CodexClient, cid: Cid, local = false): ?!string =
   let response = client.http.get(
     client.baseurl & "/data/" & $cid & (if local: "" else: "/network/stream")
   )
+
+  if response.status != "200 OK":
+    return failure(response.status)
+
+  success response.body
+
+proc downloadTorrent*(client: CodexClient, infoHash: MultiHash): ?!string =
+  let response =
+    client.http.get(client.baseurl & "/torrent/" & infoHash.hex & "/network/stream")
 
   if response.status != "200 OK":
     return failure(response.status)
@@ -64,6 +98,17 @@ proc downloadManifestOnly*(client: CodexClient, cid: Cid): ?!string =
     return failure(response.status)
 
   success response.body
+
+proc downloadTorrentManifestOnly*(
+    client: CodexClient, infoHash: MultiHash
+): ?!RestTorrentContent =
+  let response =
+    client.http.get(client.baseurl & "/torrent/" & infoHash.hex & "/network/manifest")
+
+  if response.status != "200 OK":
+    return failure(response.status)
+
+  RestTorrentContent.fromJson(response.body)
 
 proc downloadNoStream*(client: CodexClient, cid: Cid): ?!string =
   let response = client.http.post(client.baseurl & "/data/" & $cid & "/network")
