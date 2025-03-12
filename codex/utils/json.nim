@@ -39,7 +39,6 @@ func `%`*(address: ethers.Address): JsonNode =
 
 proc fromJson*(_: type MultiHash, json: JsonNode): ?!MultiHash =
   expectJsonKind(MultiHash, JString, json)
-  echo "[MultiHash.fromJson] json.str: ", json.str
   without bytes =? json.str.hexToSeqByte.catch, err:
     return failure(err.msg)
   MultiHash.init(bytes).mapFailure
