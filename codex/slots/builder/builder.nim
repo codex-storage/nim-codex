@@ -315,13 +315,13 @@ proc new*[T, H](
     cellSize = cellSize
 
   if (manifest.blocksCount mod manifest.numSlots) != 0:
-    const msg = "Number of blocks must be divisable by number of slots."
+    const msg = "Number of blocks must be divisible by number of slots."
     trace msg
     return failure(msg)
 
   let cellSize = if manifest.verifiable: manifest.cellSize else: cellSize
   if (manifest.blockSize mod cellSize) != 0.NBytes:
-    const msg = "Block size must be divisable by cell size."
+    const msg = "Block size must be divisible by cell size."
     trace msg
     return failure(msg)
 
