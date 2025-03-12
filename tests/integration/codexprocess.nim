@@ -68,7 +68,7 @@ method stop*(node: CodexProcess) {.async.} =
 
   trace "stopping codex client"
   if client =? node.client:
-    client.close()
+    #client.close() # TODO: check if we need this
     node.client = none CodexClient
 
 method removeDataDir*(node: CodexProcess) =

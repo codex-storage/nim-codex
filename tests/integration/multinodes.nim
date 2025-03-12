@@ -276,7 +276,7 @@ template multinodesuite*(name: string, body: untyped) =
         quit(1)
 
     proc updateBootstrapNodes(node: CodexProcess) =
-      without ninfo =? node.client.info():
+      without ninfo =? waitFor node.client.info():
         # raise CatchableError instead of Defect (with .get or !) so we
         # can gracefully shutdown and prevent zombies
         raiseMultiNodeSuiteError "Failed to get node info"

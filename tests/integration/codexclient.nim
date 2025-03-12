@@ -15,55 +15,98 @@ export purchasing
 
 type CodexClient* = ref object
   baseurl: string
-  httpClients: seq[HttpClient]
+  http: HttpClient
 
 type CodexClientError* = object of CatchableError
 
 const HttpClientTimeoutMs = 60 * 1000
 
 proc new*(_: type CodexClient, baseurl: string): CodexClient =
-  CodexClient(baseurl: baseurl, httpClients: newSeq[HttpClient]())
+  CodexClient(http: newHttpClient(timeout = HttpClientTimeoutMs), baseurl: baseurl)
 
-proc http*(client: CodexClient): HttpClient =
-  let httpClient = newHttpClient(timeout = HttpClientTimeoutMs)
-  client.httpClients.insert(httpClient)
-  return httpClient
+proc get(
+    client: CodexClient, url: string
+): Future[HttpResponseTuple] {.async: (raises: [CancelledError, HttpError]).} =
+  return await fetch(HttpSessionRef.new(), parseUri(url))
 
-proc close*(client: CodexClient): void =
-  for httpClient in client.httpClients:
-    httpClient.close()
+proc post(
+    client: CodexClient, url: string, body: string, headers: seq[HttpHeaderTuple] = @[]
+): Future[HttpResponseTuple] {.async: (raises: [CancelledError, HttpError]).} =
+  let
+    request = HttpClientRequestRef.post(
+      HttpSessionRef.new(), url, headers = headers, body = body
+    ).get
+    response = await request.send()
+  return (response.status, await response.getBodyBytes())
 
-proc info*(client: CodexClient): ?!JsonNode =
-  let url = client.baseurl & "/debug/info"
-  JsonNode.parse(client.http().getContent(url))
+proc delete(
+    t: typedesc[HttpClientRequestRef],
+    session: HttpSessionRef,
+    url: string,
+    version: httputils.HttpVersion = HttpVersion11,
+    flags: set[HttpClientRequestFlag] = {},
+    maxResponseHeadersSize: int = HttpMaxHeadersSize,
+    headers: openArray[HttpHeaderTuple] = [],
+    body: openArray[byte] = [],
+): HttpResult[HttpClientRequestRef] =
+  HttpClientRequestRef.new(
+    session, url, MethodDelete, version, flags, maxResponseHeadersSize, headers, body
+  )
 
-proc setLogLevel*(client: CodexClient, level: string) =
-  let url = client.baseurl & "/debug/chronicles/loglevel?level=" & level
-  let headers = newHttpHeaders({"Content-Type": "text/plain"})
-  let response = client.http().request(url, httpMethod = HttpPost, headers = headers)
-  assert response.status == "200 OK"
+proc delete(
+    client: CodexClient, url: string, headers: seq[HttpHeaderTuple] = @[]
+): Future[HttpResponseTuple] {.async: (raises: [CancelledError, HttpError]).} =
+  let
+    request =
+      HttpClientRequestRef.delete(HttpSessionRef.new(), url, headers = headers).get
+    response = await request.send()
 
-proc upload*(client: CodexClient, contents: string): ?!Cid =
-  let response = client.http().post(client.baseurl & "/data", contents)
-  assert response.status == "200 OK"
+  return (response.status, await response.getBodyBytes())
+
+proc body*(response: HttpResponseTuple): string =
+  return bytesToString response.data
+
+proc info*(
+    client: CodexClient
+): Future[?!JsonNode] {.async: (raises: [CancelledError, HttpError]).} =
+  let response = await client.get(client.baseurl & "/debug/info")
+  return JsonNode.parse(response.body)
+
+proc setLogLevel*(
+    client: CodexClient, level: string
+): Future[void] {.async: (raises: [CancelledError, HttpError]).} =
+  let
+    url = client.baseurl & "/debug/chronicles/loglevel?level=" & level
+    headers = @[("Content-Type", "text/plain")]
+    response = await client.post(url, headers = headers, body = "")
+  assert response.status == 200
+
+proc upload*(
+    client: CodexClient, contents: string
+): Future[?!Cid] {.async: (raises: [CancelledError, HttpError]).} =
+  let response = await client.post(client.baseurl & "/data", contents)
+  assert response.status == 200
   Cid.init(response.body).mapFailure
 
-proc upload*(client: CodexClient, bytes: seq[byte]): ?!Cid =
-  client.upload(string.fromBytes(bytes))
+proc upload*(
+    client: CodexClient, bytes: seq[byte]
+): Future[?!Cid] {.async: (raw: true).} =
+  return client.upload(string.fromBytes(bytes))
 
-proc download*(client: CodexClient, cid: Cid, local = false): ?!string =
-  let response = client.http().get(
-      client.baseurl & "/data/" & $cid & (if local: "" else: "/network/stream")
-    )
+proc download*(
+    client: CodexClient, cid: Cid, local = false
+): Future[?!string] {.async: (raises: [CancelledError, HttpError]).} =
+  let response = await client.get(
+    client.baseurl & "/data/" & $cid & (if local: "" else: "/network/stream")
+  )
 
-  if response.status != "200 OK":
-    return failure(response.status)
+  if response.status != 200:
+    return failure($response.status)
 
   success response.body
 
 proc downloadManifestOnly*(client: CodexClient, cid: Cid): ?!string =
-  let response =
-    client.http().get(client.baseurl & "/data/" & $cid & "/network/manifest")
+  let response = client.http.get(client.baseurl & "/data/" & $cid & "/network/manifest")
 
   if response.status != "200 OK":
     return failure(response.status)
@@ -71,7 +114,7 @@ proc downloadManifestOnly*(client: CodexClient, cid: Cid): ?!string =
   success response.body
 
 proc downloadNoStream*(client: CodexClient, cid: Cid): ?!string =
-  let response = client.http().post(client.baseurl & "/data/" & $cid & "/network")
+  let response = client.http.post(client.baseurl & "/data/" & $cid & "/network")
 
   if response.status != "200 OK":
     return failure(response.status)
@@ -83,38 +126,44 @@ proc downloadBytes*(
 ): Future[?!seq[byte]] {.async.} =
   let uri = client.baseurl & "/data/" & $cid & (if local: "" else: "/network/stream")
 
-  let response = client.http().get(uri)
+  let response = client.http.get(uri)
 
   if response.status != "200 OK":
     return failure("fetch failed with status " & $response.status)
 
   success response.body.toBytes
 
-proc delete*(client: CodexClient, cid: Cid): ?!void =
+proc delete*(
+    client: CodexClient, cid: Cid
+): Future[?!void] {.async: (raises: [CancelledError, HttpError]).} =
   let
     url = client.baseurl & "/data/" & $cid
-    response = client.http().delete(url)
+    response = await client.delete(url)
 
-  if response.status != "204 No Content":
-    return failure(response.status)
+  if response.status != 204:
+    return failure($response.status)
 
   success()
 
-proc list*(client: CodexClient): ?!RestContentList =
+proc list*(
+    client: CodexClient
+): Future[?!RestContentList] {.async: (raises: [CancelledError, HttpError]).} =
   let url = client.baseurl & "/data"
-  let response = client.http().get(url)
+  let response = await client.get(url)
 
-  if response.status != "200 OK":
-    return failure(response.status)
+  if response.status != 200:
+    return failure($response.status)
 
   RestContentList.fromJson(response.body)
 
-proc space*(client: CodexClient): ?!RestRepoStore =
+proc space*(
+    client: CodexClient
+): Future[?!RestRepoStore] {.async: (raises: [CancelledError, HttpError]).} =
   let url = client.baseurl & "/space"
-  let response = client.http().get(url)
+  let response = await client.get(url)
 
-  if response.status != "200 OK":
-    return failure(response.status)
+  if response.status != 200:
+    return failure($response.status)
 
   RestRepoStore.fromJson(response.body)
 
@@ -128,7 +177,7 @@ proc requestStorageRaw*(
     expiry: uint64 = 0,
     nodes: uint = 3,
     tolerance: uint = 1,
-): Response =
+): Future[HttpResponseTuple] {.async: (raw: true).} =
   ## Call request storage REST endpoint
   ##
   let url = client.baseurl & "/storage/request/" & $cid
@@ -145,33 +194,33 @@ proc requestStorageRaw*(
   if expiry != 0:
     json["expiry"] = %($expiry)
 
-  return client.http().post(url, $json)
+  return client.post(url, $json)
 
-proc requestStorage*(
-    client: CodexClient,
-    cid: Cid,
-    duration: uint64,
-    pricePerBytePerSecond: UInt256,
-    proofProbability: UInt256,
-    expiry: uint64,
-    collateralPerByte: UInt256,
-    nodes: uint = 3,
-    tolerance: uint = 1,
-): ?!PurchaseId =
-  ## Call request storage REST endpoint
-  ##
-  let response = client.requestStorageRaw(
-    cid, duration, pricePerBytePerSecond, proofProbability, collateralPerByte, expiry,
-    nodes, tolerance,
-  )
-  if response.status != "200 OK":
-    doAssert(false, response.body)
-  PurchaseId.fromHex(response.body).catch
+# proc requestStorage*(
+#     client: CodexClient,
+#     cid: Cid,
+#     duration: uint64,
+#     pricePerBytePerSecond: UInt256,
+#     proofProbability: UInt256,
+#     expiry: uint64,
+#     collateralPerByte: UInt256,
+#     nodes: uint = 3,
+#     tolerance: uint = 1,
+# ): ?!PurchaseId =
+#   ## Call request storage REST endpoint
+#   ##
+#   let response = client.requestStorageRaw(
+#     cid, duration, pricePerBytePerSecond, proofProbability, collateralPerByte, expiry,
+#     nodes, tolerance,
+#   )
+#   if response.status != "200 OK":
+#     doAssert(false, response.body)
+#   PurchaseId.fromHex(response.body).catch
 
 proc getPurchase*(client: CodexClient, purchaseId: PurchaseId): ?!RestPurchase =
   let url = client.baseurl & "/storage/purchases/" & purchaseId.toHex
   try:
-    let body = client.http().getContent(url)
+    let body = client.http.getContent(url)
     return RestPurchase.fromJson(body)
   except CatchableError as e:
     return failure e.msg
@@ -179,21 +228,21 @@ proc getPurchase*(client: CodexClient, purchaseId: PurchaseId): ?!RestPurchase =
 proc getSalesAgent*(client: CodexClient, slotId: SlotId): ?!RestSalesAgent =
   let url = client.baseurl & "/sales/slots/" & slotId.toHex
   try:
-    let body = client.http().getContent(url)
+    let body = client.http.getContent(url)
     return RestSalesAgent.fromJson(body)
   except CatchableError as e:
     return failure e.msg
 
 proc getSlots*(client: CodexClient): ?!seq[Slot] =
   let url = client.baseurl & "/sales/slots"
-  let body = client.http().getContent(url)
+  let body = client.http.getContent(url)
   seq[Slot].fromJson(body)
 
 proc postAvailability*(
     client: CodexClient,
     totalSize, duration: uint64,
     minPricePerBytePerSecond, totalCollateral: UInt256,
-): ?!Availability =
+): Future[?!Availability] {.async: (raises: [CancelledError, HttpError]).} =
   ## Post sales availability endpoint
   ##
   let url = client.baseurl & "/sales/availability"
@@ -204,9 +253,10 @@ proc postAvailability*(
       "minPricePerBytePerSecond": minPricePerBytePerSecond,
       "totalCollateral": totalCollateral,
     }
-  let response = client.http().post(url, $json)
-  doAssert response.status == "201 Created",
-    "expected 201 Created, got " & response.status & ", body: " & response.body
+  let response = await client.post(url, $json)
+
+  doAssert response.status == 201,
+    "expected 201 Created, got " & $response.status & ", body: " & response.body
   Availability.fromJson(response.body)
 
 proc patchAvailabilityRaw*(
@@ -237,7 +287,7 @@ proc patchAvailabilityRaw*(
   if totalCollateral =? totalCollateral:
     json["totalCollateral"] = %totalCollateral
 
-  client.http().patch(url, $json)
+  client.http.patch(url, $json)
 
 proc patchAvailability*(
     client: CodexClient,
@@ -257,7 +307,7 @@ proc patchAvailability*(
 proc getAvailabilities*(client: CodexClient): ?!seq[Availability] =
   ## Call sales availability REST endpoint
   let url = client.baseurl & "/sales/availability"
-  let body = client.http().getContent(url)
+  let body = client.http.getContent(url)
   seq[Availability].fromJson(body)
 
 proc getAvailabilityReservations*(
@@ -265,7 +315,7 @@ proc getAvailabilityReservations*(
 ): ?!seq[Reservation] =
   ## Retrieves Availability's Reservations
   let url = client.baseurl & "/sales/availability/" & $availabilityId & "/reservations"
-  let body = client.http().getContent(url)
+  let body = client.http.getContent(url)
   seq[Reservation].fromJson(body)
 
 proc purchaseStateIs*(client: CodexClient, id: PurchaseId, state: string): bool =
@@ -278,25 +328,20 @@ proc requestId*(client: CodexClient, id: PurchaseId): ?RequestId =
   return client.getPurchase(id).option .? requestId
 
 proc uploadRaw*(
-    client: CodexClient, contents: string, headers = newHttpHeaders()
-): Response =
-  return client.http().request(
-      client.baseurl & "/data",
-      body = contents,
-      httpMethod = HttpPost,
-      headers = headers,
-    )
+    client: CodexClient, contents: string, headers: seq[HttpHeaderTuple] = @[]
+): Future[HttpResponseTuple] {.async: (raw: true).} =
+  return client.post(client.baseurl & "/data", body = contents, headers = headers)
 
-proc listRaw*(client: CodexClient): Response =
-  return client.http().request(client.baseurl & "/data", httpMethod = HttpGet)
+proc listRaw*(client: CodexClient): Future[HttpResponseTuple] {.async: (raw: true).} =
+  return client.get(client.baseurl & "/data")
 
 proc downloadRaw*(
-    client: CodexClient, cid: string, local = false, httpClient = client.http()
-): Response =
-  return httpClient.request(
-    client.baseurl & "/data/" & cid & (if local: "" else: "/network/stream"),
-    httpMethod = HttpGet,
-  )
+    client: CodexClient, cid: string, local = false
+): Future[HttpResponseTuple] {.async: (raw: true).} =
+  return
+    client.get(client.baseurl & "/data/" & cid & (if local: "" else: "/network/stream"))
 
-proc deleteRaw*(client: CodexClient, cid: string): Response =
-  return client.http().request(client.baseurl & "/data/" & cid, httpMethod = HttpDelete)
+proc deleteRaw*(
+    client: CodexClient, cid: string
+): Future[HttpResponseTuple] {.async: (raw: true).} =
+  return client.delete(client.baseurl & "/data/" & cid)
