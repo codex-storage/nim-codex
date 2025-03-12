@@ -4,7 +4,6 @@ import ../../utils/exceptions
 import ../salesagent
 import ../statemachine
 import ./errored
-from ../../contracts/marketplace import Marketplace_SlotIsFree
 
 logScope:
   topics = "marketplace sales failed"
@@ -36,10 +35,6 @@ method run*(
     return some State(SaleErrored(error: error))
   except CancelledError as e:
     trace "SaleFailed.run was cancelled", error = e.msgDetail
-  except Marketplace_SlotIsFree as e:
-    debug "The slot cannot be freed because it is already free.", error = e.msg
-    let error = newException(SaleFailedError, "Sale failed")
-    return some State(SaleErrored(error: error))
   except CatchableError as e:
     error "Error during SaleFailed.run", error = e.msgDetail
     return some State(SaleErrored(error: e))

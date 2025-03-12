@@ -148,7 +148,7 @@ method requestExpiresAt*(
 
 method getHost*(
     market: Market, requestId: RequestId, slotIndex: uint64
-): Future[?Address] {.base, async.} =
+): Future[?Address] {.base, async: (raises: [CancelledError, MarketError]).} =
   raiseAssert("not implemented")
 
 method currentCollateral*(

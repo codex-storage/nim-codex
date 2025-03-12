@@ -3,7 +3,6 @@ import ../../utils/exceptions
 import ../salesagent
 import ../statemachine
 import ./errored
-from ../../contracts/marketplace import Marketplace_SlotIsFree
 
 logScope:
   topics = "marketplace sales cancelled"
@@ -12,6 +11,14 @@ type SaleCancelled* = ref object of SaleState
 
 method `$`*(state: SaleCancelled): string =
   "SaleCancelled"
+
+proc slotIsFilledByMe(
+    market: Market, requestId: RequestId, slotIndex: uint64
+): Future[bool] {.async: (raises: [CancelledError, MarketError]).} =
+  let host = await market.getHost(requestId, slotIndex)
+  let me = await market.getSigner()
+
+  return host == me.some
 
 method run*(
     state: SaleCancelled, machine: Machine
@@ -24,22 +31,30 @@ method run*(
     raiseAssert "no sale request"
 
   try:
-    let slot = Slot(request: request, slotIndex: data.slotIndex)
-    debug "Collecting collateral and partial payout",
-      requestId = data.requestId, slotIndex = data.slotIndex
-    let currentCollateral = await market.currentCollateral(slot.id)
+    var returnedCollateral = UInt256.none
 
-    try:
-      await market.freeSlot(slot.id)
-    except Marketplace_SlotIsFree as e:
-      debug "The slot cannot be freed because it is already free."
+    if await slotIsFilledByMe(market, data.requestId, data.slotIndex):
+      debug "Collecting collateral and partial payout",
+        requestId = data.requestId, slotIndex = data.slotIndex
+
+      let slot = Slot(request: request, slotIndex: data.slotIndex)
+      let currentCollateral = await market.currentCollateral(slot.id)
+
+      try:
+        await market.freeSlot(slot.id)
+      except MarketError as e:
+        trace "Error when trying to free the slot", error = e.msg
+
+      returnedCollateral = currentCollateral.some
+    else:
+      debug "The slot is not filled by me"
 
     if onClear =? agent.context.onClear and request =? data.request:
       onClear(request, data.slotIndex)
 
     if onCleanUp =? agent.onCleanUp:
       await onCleanUp(
-        reprocessSlot = false, returnedCollateral = some currentCollateral
+        reprocessSlot = false, returnedCollateral = returnedCollateral
       )
 
     warn "Sale cancelled due to timeout",
