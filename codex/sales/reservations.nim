@@ -74,7 +74,7 @@ type
     # If set to false, the availability will not accept new slots.
     # If enabled, it will not impact any existing slots that are already being hosted.
     enabled* {.serialize.}: bool
-    # Specifies the latest date after which sales will no longer be accepted for availability.
+    # Specifies the latest timestamp after which the availability will no longer host any slots.
     # If set to 0, there will be no restrictions.
     until* {.serialize.}: SecondsSince1970
 
@@ -324,7 +324,7 @@ proc updateAvailability(
     if requestEnds.len > 0 and requestEnds.max > obj.until:
       let error = newException(
         UntilOutOfBoundsError,
-        "Until parameter must be greater or equal the current longest request",
+        "Until parameter must be greater or equal to the longest currently hosted slot",
       )
       return failure(error)
 

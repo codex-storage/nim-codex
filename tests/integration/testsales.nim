@@ -230,4 +230,4 @@ multinodesuite "Sales":
     check:
       response.status == "422 Unprocessable Entity"
       response.body ==
-        "Until parameter must be greater or equal the current longest request"
+        "Until parameter must be greater or equal to the longest currently hosted slot"
