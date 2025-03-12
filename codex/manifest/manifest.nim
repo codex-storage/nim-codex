@@ -366,9 +366,3 @@ func new*(
     filename: manifest.filename,
     mimetype: manifest.mimetype,
   )
-
-func new*(T: type Manifest, data: openArray[byte]): ?!Manifest =
-  ## Create a manifest instance from given data
-  ##
-
-  Manifest.decode(data)
