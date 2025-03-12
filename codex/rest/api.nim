@@ -53,6 +53,11 @@ declareCounter(codex_api_downloads, "codex API downloads")
 proc validate(pattern: string, value: string): int {.gcsafe, raises: [Defect].} =
   0
 
+proc formatTorrentManifest(
+    infoHash: MultiHash, torrentManifest: BitTorrentManifest
+): RestTorrentContent =
+  return RestTorrentContent.init(infoHash, torrentManifest)
+
 proc formatManifest(cid: Cid, manifest: Manifest): RestContent =
   return RestContent.init(cid, manifest)
 
@@ -208,7 +213,7 @@ proc retrieveInfoHash(
 
     while not stream.atEof:
       var
-        buff = newSeqUninitialized[byte](int(NBytes 1024 * 16))
+        buff = newSeqUninitialized[byte](BitTorrentBlockSize.int)
         len = await stream.readOnce(addr buff[0], buff.len)
 
       buff.setLen(len)
@@ -541,6 +546,37 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
       return RestApiResponse.error(Http404, err.msg, headers = headers)
 
     let json = %formatManifest(cid.get(), manifest)
+    return RestApiResponse.response($json, contentType = "application/json")
+
+  router.api(MethodGet, "/api/codex/v1/torrent/{infoHash}/network/manifest") do(
+    infoHash: MultiHash, resp: HttpResponseRef
+  ) -> RestApiResponse:
+    ## Download only the Bit Torrent manifest (if found)
+    ##
+
+    var headers = buildCorsHeaders("GET", allowedOrigin)
+
+    without infoHash =? infoHash.mapFailure, error:
+      return RestApiResponse.error(Http400, error.msg, headers = headers)
+
+    if infoHash.mcodec != Sha1HashCodec:
+      return RestApiResponse.error(
+        Http400, "Only torrents version 1 are currently supported!", headers = headers
+      )
+
+    without infoHashCid =? Cid.init(CIDv1, InfoHashV1Codec, infoHash).mapFailure, err:
+      error "Unable to create CID for BitTorrent info hash", err = err.msg
+      resp.status = Http404
+      await resp.sendBody(err.msg)
+      return
+
+    without torrentManifest =? (await node.fetchTorrentManifest(infoHashCid)), err:
+      error "Unable to fetch Torrent Manifest", err = err.msg
+      resp.status = Http404
+      await resp.sendBody(err.msg)
+      return
+
+    let json = %formatTorrentManifest(infoHash, torrentManifest)
     return RestApiResponse.response($json, contentType = "application/json")
 
   router.api(MethodGet, "/api/codex/v1/space") do() -> RestApiResponse:
