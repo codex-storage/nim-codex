@@ -254,8 +254,10 @@ method fillSlot(
       trace "calling fillSlot on contract"
       discard await market.contract.fillSlot(requestId, slotIndex, proof).confirm(1)
       trace "fillSlot transaction completed"
-    except Marketplace_SlotNotFree:
-      raiseMarketError("Slot not free")
+    except Marketplace_SlotNotFree as parent:
+      raise newException(
+        SlotNotFreeError, "Failed to fill slot because the slot is not free", parent
+      )
 
 method freeSlot*(market: OnChainMarket, slotId: SlotId) {.async.} =
   convertEthersError("Failed to free slot"):
@@ -340,7 +342,10 @@ method reserveSlot*(
       )
       .confirm(1)
     except SlotReservations_ReservationNotAllowed:
-      raiseMarketError("Reservation not allowed")
+      raise newException(
+        SlotReservationNotAllowedError,
+        "Failed to reserve slot because reservation is not allowed",
+      )
 
 method canReserveSlot*(
     market: OnChainMarket, requestId: RequestId, slotIndex: uint64

@@ -37,7 +37,7 @@ suite "sales state 'filling'":
     check !next of SaleFailed
 
   test "run switches to ignored when slot is not free":
-    let error = newException(MarketError, "Slot not free")
+    let error = newException(SlotNotFreeError, "Slot is not free")
     market.setErrorOnFillSlot(error)
     market.requested.add(request)
     market.slotState[request.slotId(slotIndex)] = SlotState.Filled

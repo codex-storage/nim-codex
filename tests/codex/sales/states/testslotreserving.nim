@@ -61,7 +61,8 @@ asyncchecksuite "sales state 'SlotReserving'":
     check errored.error == error
 
   test "run switches to ignored when reservation is not allowed":
-    let error = newException(MarketError, "Reservation not allowed")
+    let error =
+      newException(SlotReservationNotAllowedError, "Reservation is not allowed")
     market.setErrorOnReserveSlot(error)
     let next = !(await state.run(agent))
     check next of SaleIgnored
