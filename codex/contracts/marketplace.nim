@@ -167,7 +167,7 @@ proc submitProof*(
 .}
 
 proc markProofAsMissing*(
-  marketplace: Marketplace, id: SlotId, period: uint64
+  marketplace: Marketplace, id: SlotId, period: StUint[40]
 ): Confirmable {.
   contract,
   errors: [

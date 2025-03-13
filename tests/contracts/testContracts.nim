@@ -86,7 +86,7 @@ ethersuite "Marketplace contracts":
     let endOfPeriod = periodicity.periodEnd(missingPeriod)
     await ethProvider.advanceTimeTo(endOfPeriod.u256 + 1)
     switchAccount(client)
-    discard await marketplace.markProofAsMissing(slotId, missingPeriod).confirm(1)
+    discard await marketplace.markProofAsMissing(slotId, missingPeriod.stuint(40)).confirm(1)
 
   test "can be paid out at the end":
     switchAccount(host)
@@ -129,4 +129,4 @@ ethersuite "Marketplace contracts":
       periodicity.periodOf((await ethProvider.currentTime()).truncate(uint64))
     await ethProvider.advanceTime(periodicity.seconds.u256)
     expect Marketplace_SlotNotAcceptingProofs:
-      discard await marketplace.markProofAsMissing(slotId, missingPeriod).confirm(1)
+      discard await marketplace.markProofAsMissing(slotId, missingPeriod.stuint(40)).confirm(1)
