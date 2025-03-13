@@ -276,7 +276,9 @@ method freeSlot*(market: OnChainMarket, slotId: SlotId) {.async.} =
 
       discard await freeSlot.confirm(1)
     except Marketplace_SlotIsFree:
-      raiseMarketError("Slot is free")
+      raise newException(
+        SlotStateMismatchError, "Failed to free slot, slot is already free", parent
+      )
 
 method withdrawFunds(market: OnChainMarket, requestId: RequestId) {.async.} =
   convertEthersError("Failed to withdraw funds"):
