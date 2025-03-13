@@ -288,7 +288,9 @@ method freeSlot*(
 
       discard await freeSlot.confirm(1)
     except Marketplace_SlotIsFree:
-      raiseMarketError("Slot is free")
+      raise newException(
+        SlotStateMismatchError, "Failed to free slot, slot is already free", parent
+      )
 
 method withdrawFunds(
     market: OnChainMarket, requestId: RequestId

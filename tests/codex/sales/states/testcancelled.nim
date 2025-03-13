@@ -67,7 +67,8 @@ asyncchecksuite "sales state 'cancelled'":
       collateral = currentCollateral,
     )
 
-    let error = newException(MarketError, "Slot is free")
+    let error =
+      newException(SlotStateMismatchError, "Failed to free slot, slot is already free")
     market.setErrorOnFreeSlot(error)
 
     let next = await state.run(agent)
@@ -85,7 +86,8 @@ asyncchecksuite "sales state 'cancelled'":
       collateral = currentCollateral,
     )
 
-    let error = newException(MarketError, "Slot is free")
+    let error =
+      newException(SlotStateMismatchError, "Failed to free slot, slot is already free")
     market.setErrorOnFreeSlot(error)
 
     let next = await state.run(agent)
