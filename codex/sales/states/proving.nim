@@ -58,17 +58,17 @@ proc proveLoop(
     slotIndex
     slotId = slot.id
 
-  proc getCurrentPeriod(): Future[Period] {.async.} =
-    let periodicity = await market.periodicity()
+  proc getCurrentPeriod(): Period =
+    let periodicity = market.periodicity
     return periodicity.periodOf(clock.now().Timestamp)
 
   proc waitUntilPeriod(period: Period) {.async.} =
-    let periodicity = await market.periodicity()
+    let periodicity = market.periodicity
     # Ensure that we're past the period boundary by waiting an additional second
     await clock.waitUntil((periodicity.periodStart(period) + 1).toSecondsSince1970)
 
   while true:
-    let currentPeriod = await getCurrentPeriod()
+    let currentPeriod = getCurrentPeriod()
     let slotState = await market.slotState(slot.id)
 
     case slotState

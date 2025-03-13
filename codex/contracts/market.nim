@@ -21,7 +21,7 @@ type
     contract: Marketplace
     signer: Signer
     rewardRecipient: ?Address
-    configuration: ?MarketplaceConfig
+    configuration: MarketplaceConfig
     requestCache: LruCache[string, StorageRequest]
 
   MarketSubscription = market.Subscription
@@ -29,23 +29,39 @@ type
   OnChainMarketSubscription = ref object of MarketSubscription
     eventSubscription: EventSubscription
 
-func new*(
+proc loadConfig(
+    market: OnChainMarket
+): Future[?!MarketplaceConfig] {.async: (raises: [CancelledError]).} =
+  try:
+    return success await market.contract.configuration()
+  except EthersError:
+    let err = getCurrentException()
+    return failure newException(
+      MarketError,
+      "Failed to fetch the config from the Marketplace contract: " & err.msg,
+    )
+
+proc load*(
     _: type OnChainMarket,
     contract: Marketplace,
     rewardRecipient = Address.none,
     requestCacheSize: uint16 = DefaultRequestCacheSize,
-): OnChainMarket =
+): Future[?!OnChainMarket] {.async: (raises: [CancelledError]).} =
   without signer =? contract.signer:
     raiseAssert("Marketplace contract should have a signer")
 
   var requestCache = newLruCache[string, StorageRequest](int(requestCacheSize))
 
-  OnChainMarket(
+  let market = OnChainMarket(
     contract: contract,
     signer: signer,
     rewardRecipient: rewardRecipient,
     requestCache: requestCache,
   )
+
+  market.configuration = ? await market.loadConfig()
+
+  return success market
 
 proc raiseMarketError(message: string) {.raises: [MarketError].} =
   raise newException(MarketError, message)
@@ -62,20 +78,6 @@ template convertEthersError(msg: string = "", body) =
   except EthersError as error:
     raiseMarketError(error.msgDetail.prefixWith(msg))
 
-proc config(
-    market: OnChainMarket
-): Future[MarketplaceConfig] {.async: (raises: [CancelledError, MarketError]).} =
-  without resolvedConfig =? market.configuration:
-    if err =? (await market.loadConfig()).errorOption:
-      raiseMarketError(err.msg)
-
-    without config =? market.configuration:
-      raiseMarketError("Failed to access to config from the Marketplace contract")
-
-    return config
-
-  return resolvedConfig
-
 proc approveFunds(
     market: OnChainMarket, amount: UInt256
 ) {.async: (raises: [CancelledError, MarketError]).} =
@@ -85,67 +87,30 @@ proc approveFunds(
     let token = Erc20Token.new(tokenAddress, market.signer)
     discard await token.increaseAllowance(market.contract.address(), amount).confirm(1)
 
-method loadConfig*(
-    market: OnChainMarket
-): Future[?!void] {.async: (raises: [CancelledError]).} =
-  try:
-    without config =? market.configuration:
-      let fetchedConfig = await market.contract.configuration()
-
-      market.configuration = some fetchedConfig
-
-    return success()
-  except EthersError as err:
-    return failure newException(
-      MarketError,
-      "Failed to fetch the config from the Marketplace contract: " & err.msg,
-    )
-
-method getZkeyHash*(
-    market: OnChainMarket
-): Future[?string] {.async: (raises: [CancelledError, MarketError]).} =
-  let config = await market.config()
-  return some config.proofs.zkeyHash
-
 method getSigner*(
     market: OnChainMarket
 ): Future[Address] {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError("Failed to get signer address"):
     return await market.signer.getAddress()
 
-method periodicity*(
-    market: OnChainMarket
-): Future[Periodicity] {.async: (raises: [CancelledError, MarketError]).} =
-  convertEthersError("Failed to get Marketplace config"):
-    let config = await market.config()
-    let period = config.proofs.period
-    return Periodicity(seconds: period)
+method zkeyHash*(market: OnChainMarket): string =
+  return market.configuration.proofs.zkeyHash
 
-method proofTimeout*(
-    market: OnChainMarket
-): Future[uint64] {.async: (raises: [CancelledError, MarketError]).} =
-  convertEthersError("Failed to get Marketplace config"):
-    let config = await market.config()
-    return config.proofs.timeout
+method periodicity*(market: OnChainMarket): Periodicity =
+  let period = market.configuration.proofs.period
+  return Periodicity(seconds: period)
 
-method repairRewardPercentage*(
-    market: OnChainMarket
-): Future[uint8] {.async: (raises: [CancelledError, MarketError]).} =
-  convertEthersError("Failed to get Marketplace config"):
-    let config = await market.config()
-    return config.collateral.repairRewardPercentage
+method proofTimeout*(market: OnChainMarket): uint64  =
+  return market.configuration.proofs.timeout
 
-method requestDurationLimit*(market: OnChainMarket): Future[uint64] {.async.} =
-  convertEthersError("Failed to get Marketplace config"):
-    let config = await market.config()
-    return config.requestDurationLimit
+method repairRewardPercentage*(market: OnChainMarket): uint8 =
+  return market.configuration.collateral.repairRewardPercentage
 
-method proofDowntime*(
-    market: OnChainMarket
-): Future[uint8] {.async: (raises: [CancelledError, MarketError]).} =
-  convertEthersError("Failed to get Marketplace config"):
-    let config = await market.config()
-    return config.proofs.downtime
+method requestDurationLimit*(market: OnChainMarket): uint64 =
+  return market.configuration.requestDurationLimit
+
+method proofDowntime*(market: OnChainMarket): uint8 =
+  return market.configuration.proofs.downtime
 
 method getPointer*(market: OnChainMarket, slotId: SlotId): Future[uint8] {.async.} =
   convertEthersError("Failed to get slot pointer"):

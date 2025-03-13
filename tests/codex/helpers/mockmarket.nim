@@ -142,37 +142,24 @@ proc new*(_: type MockMarket, clock: ?Clock = Clock.none): MockMarket =
     signer: Address.example, config: config, canReserveSlot: true, clock: clock
   )
 
-method loadConfig*(
-    market: MockMarket
-): Future[?!void] {.async: (raises: [CancelledError]).} =
-  discard
-
 method getSigner*(
     market: MockMarket
 ): Future[Address] {.async: (raises: [CancelledError, MarketError]).} =
   return market.signer
 
-method periodicity*(
-    mock: MockMarket
-): Future[Periodicity] {.async: (raises: [CancelledError, MarketError]).} =
+method periodicity*(mock: MockMarket): Periodicity =
   return Periodicity(seconds: mock.config.proofs.period)
 
-method proofTimeout*(
-    market: MockMarket
-): Future[uint64] {.async: (raises: [CancelledError, MarketError]).} =
+method proofTimeout*(market: MockMarket): uint64 =
   return market.config.proofs.timeout
 
-method requestDurationLimit*(market: MockMarket): Future[uint64] {.async.} =
+method requestDurationLimit*(market: MockMarket): uint64 =
   return market.config.requestDurationLimit
 
-method proofDowntime*(
-    market: MockMarket
-): Future[uint8] {.async: (raises: [CancelledError, MarketError]).} =
+method proofDowntime*(market: MockMarket): uint8 =
   return market.config.proofs.downtime
 
-method repairRewardPercentage*(
-    market: MockMarket
-): Future[uint8] {.async: (raises: [CancelledError, MarketError]).} =
+method repairRewardPercentage*(market: MockMarket): uint8 =
   return market.config.collateral.repairRewardPercentage
 
 method getPointer*(market: MockMarket, slotId: SlotId): Future[uint8] {.async.} =

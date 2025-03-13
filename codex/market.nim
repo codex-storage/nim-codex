@@ -64,51 +64,32 @@ type
   ProofSubmitted* = object of MarketplaceEvent
     id*: SlotId
 
-method loadConfig*(
-    market: Market
-): Future[?!void] {.base, async: (raises: [CancelledError]).} =
-  raiseAssert("not implemented")
-
-method getZkeyHash*(
-    market: Market
-): Future[?string] {.base, async: (raises: [CancelledError, MarketError]).} =
-  raiseAssert("not implemented")
-
 method getSigner*(
     market: Market
 ): Future[Address] {.base, async: (raises: [CancelledError, MarketError]).} =
   raiseAssert("not implemented")
 
-method periodicity*(
-    market: Market
-): Future[Periodicity] {.base, async: (raises: [CancelledError, MarketError]).} =
+method periodicity*(market: Market): Periodicity {.base, gcsafe, raises:[].} =
   raiseAssert("not implemented")
 
-method proofTimeout*(
-    market: Market
-): Future[uint64] {.base, async: (raises: [CancelledError, MarketError]).} =
+method proofTimeout*(market: Market): uint64 {.base, gcsafe, raises:[].} =
   raiseAssert("not implemented")
 
-method repairRewardPercentage*(
-    market: Market
-): Future[uint8] {.base, async: (raises: [CancelledError, MarketError]).} =
+method repairRewardPercentage*(market: Market): uint8 {.base, gcsafe, raises:[].} =
   raiseAssert("not implemented")
 
-method requestDurationLimit*(market: Market): Future[uint64] {.base, async.} =
+method requestDurationLimit*(market: Market): uint64 {.base, gcsafe, raises:[].} =
   raiseAssert("not implemented")
 
-method proofDowntime*(
-    market: Market
-): Future[uint8] {.base, async: (raises: [CancelledError, MarketError]).} =
+method proofDowntime*(market: Market): uint8 {.base, gcsafe, raises: [].} =
   raiseAssert("not implemented")
 
 method getPointer*(market: Market, slotId: SlotId): Future[uint8] {.base, async.} =
   raiseAssert("not implemented")
 
 proc inDowntime*(market: Market, slotId: SlotId): Future[bool] {.async.} =
-  let downtime = await market.proofDowntime
   let pntr = await market.getPointer(slotId)
-  return pntr < downtime
+  return pntr < market.proofDowntime
 
 method requestStorage*(
     market: Market, request: StorageRequest
