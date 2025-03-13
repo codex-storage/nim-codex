@@ -42,8 +42,8 @@ method run*(
 
       try:
         await market.freeSlot(slot.id)
-      except MarketError as e:
-        trace "Error when trying to free the slot", error = e.msg
+      except SlotStateMismatchError as e:
+        warn "Failed to free slot because slot is already free", error = e.msg
 
       returnedCollateral = currentCollateral.some
 
