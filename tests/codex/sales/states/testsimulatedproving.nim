@@ -14,6 +14,7 @@ import ../../examples
 import ../../helpers
 import ../../helpers/mockmarket
 import ../../helpers/mockclock
+import ../helpers/periods
 
 asyncchecksuite "sales state 'simulated-proving'":
   let slot = Slot.example
@@ -54,16 +55,10 @@ asyncchecksuite "sales state 'simulated-proving'":
   teardown:
     await subscription.unsubscribe()
 
-  proc advanceToNextPeriod(market: Market) {.async.} =
-    let periodicity = await market.periodicity()
-    let current = periodicity.periodOf(clock.now().Timestamp)
-    let periodEnd = periodicity.periodEnd(current)
-    clock.set(periodEnd.toSecondsSince1970 + 1)
-
   proc waitForProvingRounds(market: Market, rounds: int) {.async.} =
     var rnds = rounds - 1 # proof round runs prior to advancing
     while rnds > 0:
-      await market.advanceToNextPeriod()
+      clock.advanceToNextPeriod(market)
       await proofSubmitted
       rnds -= 1
 
@@ -90,7 +85,7 @@ asyncchecksuite "sales state 'simulated-proving'":
     let future = state.run(agent)
 
     market.slotState[slot.id] = SlotState.Finished
-    await market.advanceToNextPeriod()
+    clock.advanceToNextPeriod(market)
 
     check eventually future.finished
     check !(future.read()) of SalePayout
