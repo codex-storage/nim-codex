@@ -197,7 +197,7 @@ method canProofBeMarkedAsMissing*(
 
 method reserveSlot*(
     market: Market, requestId: RequestId, slotIndex: uint64
-) {.base, async: (raises: [CancelledError, MarketError]).} =
+) {.base, async.} =
   raiseAssert("not implemented")
 
 method canReserveSlot*(

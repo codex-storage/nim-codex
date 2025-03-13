@@ -373,7 +373,7 @@ method canProofBeMarkedAsMissing*(
 
 method reserveSlot*(
     market: MockMarket, requestId: RequestId, slotIndex: uint64
-) {.async: (raises: [CancelledError, MarketError]).} =
+) {.async.} =
   if error =? market.errorOnReserveSlot:
     raise error
 
