@@ -34,7 +34,8 @@ type
     slotSize: uint64
     duration: uint64
     pricePerBytePerSecond: UInt256
-    collateral: UInt256 # Collateral computed
+    repairReward: UInt256
+    collateral: UInt256
     expiry: uint64
     seen: bool
 
@@ -70,11 +71,13 @@ const DefaultMaxWorkers = 3
 const DefaultMaxSize = 128'u16
 
 proc profitability(item: SlotQueueItem): UInt256 =
-  StorageAsk(
-    duration: item.duration,
-    pricePerBytePerSecond: item.pricePerBytePerSecond,
-    slotSize: item.slotSize,
-  ).pricePerSlot
+  let price =
+    StorageAsk(
+      duration: item.duration,
+      pricePerBytePerSecond: item.pricePerBytePerSecond,
+      slotSize: item.slotSize,
+    ).pricePerSlot
+  return price.stuint(256) + item.repairReward
 
 proc `<`*(a, b: SlotQueueItem): bool =
   # for A to have a higher priority than B (in a min queue), A must be less than
@@ -145,6 +148,7 @@ proc init*(
     ask: StorageAsk,
     expiry: uint64,
     collateral: UInt256,
+    repairReward = 0.u256,
     seen = false,
 ): SlotQueueItem =
   SlotQueueItem(
@@ -163,8 +167,11 @@ proc init*(
     request: StorageRequest,
     slotIndex: uint16,
     collateral: UInt256,
+    repairReward = 0.u256,
 ): SlotQueueItem =
-  SlotQueueItem.init(request.id, slotIndex, request.ask, request.expiry, collateral)
+  SlotQueueItem.init(
+    request.id, slotIndex, request.ask, request.expiry.u64, collateral, repairReward
+  )
 
 proc init*(
     _: type SlotQueueItem,
@@ -172,13 +179,14 @@ proc init*(
     ask: StorageAsk,
     expiry: uint64,
     collateral: UInt256,
+    repairReward = 0.u256,
 ): seq[SlotQueueItem] {.raises: [SlotsOutOfRangeError].} =
   if not ask.slots.inRange:
     raise newException(SlotsOutOfRangeError, "Too many slots")
 
   var i = 0'u16
   proc initSlotQueueItem(): SlotQueueItem =
-    let item = SlotQueueItem.init(requestId, i, ask, expiry, collateral)
+    let item = SlotQueueItem.init(requestId, i, ask, expiry, collateral, repairReward)
     inc i
     return item
 
@@ -187,9 +195,14 @@ proc init*(
   return items
 
 proc init*(
-    _: type SlotQueueItem, request: StorageRequest, collateral: UInt256
+    _: type SlotQueueItem,
+    request: StorageRequest,
+    collateral: UInt256,
+    repairReward = 0.u256,
 ): seq[SlotQueueItem] =
-  return SlotQueueItem.init(request.id, request.ask, request.expiry, collateral)
+  return SlotQueueItem.init(
+    request.id, request.ask, request.expiry, collateral, repairReward
+  )
 
 proc inRange*(val: SomeUnsignedInt): bool =
   val.uint16 in SlotQueueSize.low .. SlotQueueSize.high

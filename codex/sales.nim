@@ -332,16 +332,18 @@ proc onSlotFreed(sales: Sales, requestId: RequestId, slotIndex: uint64) =
         return
 
       let collateral = request.ask.collateralPerSlot.stuint(256)
+      let percentage = context.market.repairRewardPercentage
+      let repairReward = (collateral * percentage.u256) div 100.u256
 
       if slotIndex > uint16.high.uint64:
         error "Cannot cast slot index to uint16, value = ", slotIndex
         return
 
       without slotQueueItem =?
-        SlotQueueItem.init(request, slotIndex.uint16, collateral = collateral).catch,
-        err:
-        warn "Too many slots, cannot add to queue", error = err.msgDetail
-        return
+        SlotQueueItem.init(request, slotIndex.uint16, collateral, repairReward).catch,
+          err:
+          warn "Too many slots, cannot add to queue", error = err.msgDetail
+          return
 
       if err =? queue.push(slotQueueItem).errorOption:
         if err of SlotQueueItemExistsError:
