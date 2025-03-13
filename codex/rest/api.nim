@@ -116,7 +116,7 @@ proc retrieveCid(
 
     resp.setHeader("Content-Length", $manifest.datasetSize.int)
 
-    await resp.prepareChunked()
+    await resp.prepare(HttpResponseStreamType.Plain)
 
     while not stream.atEof:
       var
@@ -129,7 +129,7 @@ proc retrieveCid(
 
       bytes += buff.len
 
-      await resp.sendChunk(addr buff[0], buff.len)
+      await resp.send(addr buff[0], buff.len)
     await resp.finish()
     codex_api_downloads.inc()
   except CancelledError as exc:
