@@ -1,5 +1,5 @@
 import pkg/codex/streams/storestream
-import std/unittest
+import pkg/unittest2
 
 # From lip2p/tests/helpers
 const trackerNames = [StoreStreamTrackerName]

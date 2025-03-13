@@ -6,7 +6,7 @@ import ../../../asynctest
 import ../../examples
 import ../../helpers
 
-checksuite "block presence protobuf messages":
+suite "block presence protobuf messages":
   let
     cid = Cid.example
     address = BlockAddress(leaf: false, cid: cid)

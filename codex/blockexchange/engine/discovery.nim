@@ -48,7 +48,7 @@ type DiscoveryEngine* = ref object of RootObj
   pendingBlocks*: PendingBlocksManager # Blocks we're awaiting to be resolved
   discEngineRunning*: bool # Indicates if discovery is running
   concurrentDiscReqs: int # Concurrent discovery requests
-  discoveryLoop*: Future[void] # Discovery loop task handle
+  discoveryLoop*: Future[void].Raising([]) # Discovery loop task handle
   discoveryQueue*: AsyncQueue[Cid] # Discovery queue
   trackedFutures*: TrackedFutures # Tracked Discovery tasks futures
   minPeersPerBlock*: int # Max number of peers with block
@@ -57,30 +57,21 @@ type DiscoveryEngine* = ref object of RootObj
     # Inflight discovery requests
 
 proc discoveryQueueLoop(b: DiscoveryEngine) {.async: (raises: []).} =
-  while b.discEngineRunning:
-    for cid in toSeq(b.pendingBlocks.wantListBlockCids):
-      try:
+  try:
+    while b.discEngineRunning:
+      for cid in toSeq(b.pendingBlocks.wantListBlockCids):
         await b.discoveryQueue.put(cid)
-      except CancelledError:
-        trace "Discovery loop cancelled"
-        return
-      except CatchableError as exc:
-        warn "Exception in discovery loop", exc = exc.msg
 
-    try:
-      logScope:
-        sleep = b.discoveryLoopSleep
-        wanted = b.pendingBlocks.len
       await sleepAsync(b.discoveryLoopSleep)
-    except CancelledError:
-      discard # do not propagate as discoveryQueueLoop was asyncSpawned
+  except CancelledError:
+    trace "Discovery loop cancelled"
 
 proc discoveryTaskLoop(b: DiscoveryEngine) {.async: (raises: []).} =
   ## Run discovery tasks
   ##
 
-  while b.discEngineRunning:
-    try:
+  try:
+    while b.discEngineRunning:
       let cid = await b.discoveryQueue.get()
 
       if cid in b.inFlightDiscReqs:
@@ -90,35 +81,28 @@ proc discoveryTaskLoop(b: DiscoveryEngine) {.async: (raises: []).} =
       let haves = b.peers.peersHave(cid)
 
       if haves.len < b.minPeersPerBlock:
-        try:
-          let request = b.discovery.find(cid).wait(DefaultDiscoveryTimeout)
+        let request = b.discovery.find(cid)
+        b.inFlightDiscReqs[cid] = request
+        codex_inflight_discovery.set(b.inFlightDiscReqs.len.int64)
 
-          b.inFlightDiscReqs[cid] = request
+        defer:
+          b.inFlightDiscReqs.del(cid)
           codex_inflight_discovery.set(b.inFlightDiscReqs.len.int64)
-          let peers = await request
 
+        if (await request.withTimeout(DefaultDiscoveryTimeout)) and
+            peers =? (await request).catch:
           let dialed = await allFinished(peers.mapIt(b.network.dialPeer(it.data)))
 
           for i, f in dialed:
             if f.failed:
               await b.discovery.removeProvider(peers[i].data.peerId)
-        finally:
-          b.inFlightDiscReqs.del(cid)
-          codex_inflight_discovery.set(b.inFlightDiscReqs.len.int64)
-    except CancelledError:
-      trace "Discovery task cancelled"
-      return
-    except CatchableError as exc:
-      warn "Exception in discovery task runner", exc = exc.msg
-    except Exception as e:
-      # Raised by b.discovery.removeProvider somehow...
-      # This should not be catchable, and we should never get here. Therefore,
-      # raise a Defect.
-      raiseAssert "Exception when removing provider"
+  except CancelledError:
+    trace "Discovery task cancelled"
+    return
 
   info "Exiting discovery task runner"
 
-proc queueFindBlocksReq*(b: DiscoveryEngine, cids: seq[Cid]) {.inline.} =
+proc queueFindBlocksReq*(b: DiscoveryEngine, cids: seq[Cid]) =
   for cid in cids:
     if cid notin b.discoveryQueue:
       try:
@@ -126,11 +110,11 @@ proc queueFindBlocksReq*(b: DiscoveryEngine, cids: seq[Cid]) {.inline.} =
       except CatchableError as exc:
         warn "Exception queueing discovery request", exc = exc.msg
 
-proc start*(b: DiscoveryEngine) {.async.} =
+proc start*(b: DiscoveryEngine) {.async: (raises: []).} =
   ## Start the discengine task
   ##
 
-  trace "Discovery engine start"
+  trace "Discovery engine starting"
 
   if b.discEngineRunning:
     warn "Starting discovery engine twice"
@@ -140,12 +124,13 @@ proc start*(b: DiscoveryEngine) {.async.} =
   for i in 0 ..< b.concurrentDiscReqs:
     let fut = b.discoveryTaskLoop()
     b.trackedFutures.track(fut)
-    asyncSpawn fut
 
   b.discoveryLoop = b.discoveryQueueLoop()
   b.trackedFutures.track(b.discoveryLoop)
 
-proc stop*(b: DiscoveryEngine) {.async.} =
+  trace "Discovery engine started"
+
+proc stop*(b: DiscoveryEngine) {.async: (raises: []).} =
   ## Stop the discovery engine
   ##
 

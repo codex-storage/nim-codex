@@ -1,4 +1,4 @@
-import std/unittest
+import pkg/unittest2
 
 import pkg/codex/utils
 

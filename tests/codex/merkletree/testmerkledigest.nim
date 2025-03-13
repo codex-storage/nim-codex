@@ -1,7 +1,7 @@
-import std/unittest
 import std/sequtils
 import std/random
 
+import pkg/unittest2
 import pkg/poseidon2
 import pkg/poseidon2/sponge
 
