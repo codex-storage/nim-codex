@@ -94,10 +94,10 @@ method zkeyHash*(market: OnChainMarket): string =
 
 method periodicity*(market: OnChainMarket): Periodicity =
   let period = market.configuration.proofs.period
-  return Periodicity(seconds: period)
+  return Periodicity(seconds: period.u64)
 
 method proofTimeout*(market: OnChainMarket): uint64  =
-  return market.configuration.proofs.timeout
+  return market.configuration.proofs.timeout.u64
 
 method repairRewardPercentage*(market: OnChainMarket): uint8 =
   return market.configuration.collateral.repairRewardPercentage
@@ -127,7 +127,7 @@ method mySlots*(market: OnChainMarket): Future[seq[SlotId]] {.async.} =
 method requestStorage(market: OnChainMarket, request: StorageRequest) {.async.} =
   convertEthersError("Failed to request storage"):
     debug "Requesting storage"
-    await market.approveFunds(request.totalPrice())
+    await market.approveFunds(request.totalPrice().stuint(256))
     discard await market.contract.requestStorage(request).confirm(1)
 
 method getRequest*(
@@ -207,7 +207,7 @@ method fillSlot(
     requestId: RequestId,
     slotIndex: uint64,
     proof: Groth16Proof,
-    collateral: UInt256,
+    collateral: UInt128,
 ) {.async.} =
   convertEthersError("Failed to fill slot"):
     logScope:
@@ -215,7 +215,7 @@ method fillSlot(
       slotIndex
 
     try:
-      await market.approveFunds(collateral)
+      await market.approveFunds(collateral.stuint(256))
       trace "calling fillSlot on contract"
       discard await market.contract.fillSlot(requestId, slotIndex, proof).confirm(1)
       trace "fillSlot transaction completed"

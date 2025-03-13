@@ -50,17 +50,17 @@ proc example*(_: type StorageRequest): StorageRequest =
     ask: StorageAsk(
       slots: 4,
       slotSize: (1 * 1024 * 1024 * 1024).uint64, # 1 Gigabyte
-      duration: (10 * 60 * 60).uint64, # 10 hours
-      collateralPerByte: 1.u256,
+      duration: (10 * 60 * 60).stuint(40), # 10 hours
+      collateralPerByte: 1.u128,
       proofProbability: 4.u256, # require a proof roughly once every 4 periods
-      pricePerBytePerSecond: 1.u256,
+      pricePerBytePerSecond: 1.stuint(96),
       maxSlotLoss: 2, # 2 slots can be freed without data considered to be lost
     ),
     content: StorageContent(
       cid: Cid.init("zb2rhheVmk3bLks5MgzTqyznLu1zqGH5jrfTA1eAZXrjx7Vob").tryGet,
       merkleRoot: array[32, byte].example,
     ),
-    expiry: (60 * 60).uint64, # 1 hour ,
+    expiry: (60 * 60).stuint(40), # 1 hour ,
     nonce: Nonce.example,
   )
 

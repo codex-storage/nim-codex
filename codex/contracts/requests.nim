@@ -71,6 +71,9 @@ proc hash*(x: Address): Hash {.borrow.}
 func toArray*(id: RequestId | SlotId | Nonce): array[32, byte] =
   array[32, byte](id)
 
+func u64*(uint40: StUint[40]): uint64 =
+  uint40.truncate(uint64)
+
 proc `$`*(id: RequestId | SlotId | Nonce): string =
   id.toArray.toHex
 

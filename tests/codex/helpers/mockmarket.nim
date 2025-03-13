@@ -61,7 +61,7 @@ type
     slotIndex*: uint64
     proof*: Groth16Proof
     timestamp: ?SecondsSince1970
-    collateral*: UInt256
+    collateral*: UInt128
 
   Subscriptions = object
     onRequest: seq[RequestSubscription]
@@ -275,7 +275,7 @@ proc fillSlot*(
     slotIndex: uint64,
     proof: Groth16Proof,
     host: Address,
-    collateral = 0.u256,
+    collateral = 0.u128,
 ) =
   if error =? market.errorOnFillSlot:
     raise error

@@ -34,7 +34,7 @@ ethersuite "On-Chain Market":
   proc expectedPayout(
       r: StorageRequest, startTimestamp: UInt256, endTimestamp: UInt256
   ): UInt256 =
-    return (endTimestamp - startTimestamp) * r.ask.pricePerSlotPerSecond
+    return (endTimestamp - startTimestamp) * r.ask.pricePerSlotPerSecond.stuint(256)
 
   proc switchAccount(account: Signer) {.async.} =
     marketplace = marketplace.connect(account)
@@ -51,7 +51,7 @@ ethersuite "On-Chain Market":
     let tokenAddress = await marketplace.token()
     token = Erc20Token.new(tokenAddress, ethProvider.getSigner())
 
-    periodicity = Periodicity(seconds: config.proofs.period)
+    periodicity = Periodicity(seconds: config.proofs.period.u64)
 
     request = StorageRequest.example
     request.client = accounts[0]
@@ -90,12 +90,12 @@ ethersuite "On-Chain Market":
     let periodicity = market.periodicity
     let config = await marketplace.configuration()
     let periodLength = config.proofs.period
-    check periodicity.seconds == periodLength
+    check periodicity.seconds == periodLength.u64
 
   test "can retrieve proof timeout":
     let proofTimeout = market.proofTimeout
     let config = await marketplace.configuration()
-    check proofTimeout == config.proofs.timeout
+    check proofTimeout == config.proofs.timeout.u64
 
   test "supports marketplace requests":
     await market.requestStorage(request)
@@ -116,7 +116,7 @@ ethersuite "On-Chain Market":
 
     let endBalanceClient = await token.balanceOf(clientAddress)
 
-    check endBalanceClient == (startBalanceClient + request.totalPrice)
+    check endBalanceClient == (startBalanceClient + request.totalPrice.stuint(256))
 
   test "supports request subscriptions":
     var receivedIds: seq[RequestId]
@@ -559,7 +559,7 @@ ethersuite "On-Chain Market":
     let endBalance = await token.balanceOf(address)
 
     let expectedPayout = request.expectedPayout(filledAt, requestEnd.u256)
-    check endBalance == (startBalance + expectedPayout + request.ask.collateralPerSlot)
+    check endBalance == (startBalance + expectedPayout + request.ask.collateralPerSlot.stuint(256))
 
   test "pays rewards to reward recipient, collateral to host":
     market = ! await OnChainMarket.load(marketplace, hostRewardRecipient.some)
@@ -590,7 +590,7 @@ ethersuite "On-Chain Market":
     let endBalanceReward = await token.balanceOf(hostRewardRecipient)
 
     let expectedPayout = request.expectedPayout(filledAt, requestEnd.u256)
-    check endBalanceHost == (startBalanceHost + request.ask.collateralPerSlot)
+    check endBalanceHost == (startBalanceHost + request.ask.collateralPerSlot.stuint(256))
     check endBalanceReward == (startBalanceReward + expectedPayout)
 
   test "the request is added in cache after the fist access":
