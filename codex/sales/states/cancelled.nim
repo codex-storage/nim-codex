@@ -46,8 +46,6 @@ method run*(
         trace "Error when trying to free the slot", error = e.msg
 
       returnedCollateral = currentCollateral.some
-    else:
-      debug "The slot is not filled by me"
 
     if onClear =? agent.context.onClear and request =? data.request:
       onClear(request, data.slotIndex)
