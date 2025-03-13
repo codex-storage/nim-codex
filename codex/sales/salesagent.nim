@@ -11,6 +11,7 @@ import ./statemachine
 import ./salescontext
 import ./salesdata
 import ./reservations
+import ./slotqueue
 
 export reservations
 
@@ -42,10 +43,16 @@ proc newSalesAgent*(
     requestId: RequestId,
     slotIndex: uint64,
     request: ?StorageRequest,
+    slotQueueItem = SlotQueueItem.none,
 ): SalesAgent =
   var agent = SalesAgent.new()
   agent.context = context
-  agent.data = SalesData(requestId: requestId, slotIndex: slotIndex, request: request)
+  agent.data = SalesData(
+    requestId: requestId,
+    slotIndex: slotIndex,
+    request: request,
+    slotQueueItem: slotQueueItem,
+  )
   return agent
 
 proc retrieveRequest*(agent: SalesAgent) {.async.} =
