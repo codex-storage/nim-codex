@@ -275,7 +275,7 @@ method freeSlot*(market: OnChainMarket, slotId: SlotId) {.async.} =
         freeSlot = market.contract.freeSlot(slotId)
 
       discard await freeSlot.confirm(1)
-    except Marketplace_SlotIsFree:
+    except Marketplace_SlotIsFree as parent:
       raise newException(
         SlotStateMismatchError, "Failed to free slot, slot is already free", parent
       )
