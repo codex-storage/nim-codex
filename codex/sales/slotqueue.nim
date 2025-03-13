@@ -215,6 +215,9 @@ proc collateralPerByte*(self: SlotQueueItem): UInt256 =
 proc seen*(self: SlotQueueItem): bool =
   self.seen
 
+proc `seen=`*(self: var SlotQueueItem, seen: bool) =
+  self.seen = seen
+
 proc running*(self: SlotQueue): bool =
   self.running
 
