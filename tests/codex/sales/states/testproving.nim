@@ -14,6 +14,7 @@ import ../../examples
 import ../../helpers
 import ../../helpers/mockmarket
 import ../../helpers/mockclock
+import ../helpers/periods
 
 asyncchecksuite "sales state 'proving'":
   let slot = Slot.example
@@ -38,12 +39,6 @@ asyncchecksuite "sales state 'proving'":
     agent = newSalesAgent(context, request.id, slot.slotIndex, request.some)
     state = SaleProving.new()
 
-  proc advanceToNextPeriod(market: Market) {.async.} =
-    let periodicity = await market.periodicity()
-    let current = periodicity.periodOf(clock.now().Timestamp)
-    let periodEnd = periodicity.periodEnd(current)
-    clock.set(periodEnd.toSecondsSince1970 + 1)
-
   test "switches to cancelled state when request expires":
     let next = state.onCancelled(request)
     check !next of SaleCancelled
@@ -64,7 +59,7 @@ asyncchecksuite "sales state 'proving'":
     let future = state.run(agent)
 
     market.setProofRequired(slot.id, true)
-    await market.advanceToNextPeriod()
+    clock.advanceToNextPeriod(market)
 
     check eventually receivedIds.contains(slot.id)
 
@@ -77,7 +72,7 @@ asyncchecksuite "sales state 'proving'":
     let future = state.run(agent)
 
     market.slotState[slot.id] = SlotState.Finished
-    await market.advanceToNextPeriod()
+    clock.advanceToNextPeriod(market)
 
     check eventually future.finished
     check !(future.read()) of SalePayout
@@ -88,7 +83,7 @@ asyncchecksuite "sales state 'proving'":
     let future = state.run(agent)
 
     market.slotState[slot.id] = SlotState.Free
-    await market.advanceToNextPeriod()
+    clock.advanceToNextPeriod(market)
 
     check eventually future.finished
     check !(future.read()) of SaleErrored

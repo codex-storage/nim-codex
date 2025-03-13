@@ -684,7 +684,8 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
           headers = headers,
         )
 
-      let requestDurationLimit = await contracts.purchasing.market.requestDurationLimit
+      let requestDurationLimit = contracts.purchasing.market.requestDurationLimit
+
       if params.duration > requestDurationLimit:
         return RestApiResponse.error(
           Http422,
