@@ -14,7 +14,7 @@ type Deployment* = ref object
 const knownAddresses = {
   # Hardhat localhost network
   "31337":
-    {"Marketplace": Address.init("0x322813Fd9A801c5507c9de605d63CEA4f2CE6c44")}.toTable,
+    {"Marketplace": Address.init("0xa85233C63b9Ee964Add6F2cffe00Fd84eb32338f")}.toTable,
   # Taiko Alpha-3 Testnet
   "167005":
     {"Marketplace": Address.init("0x948CF9291b77Bd7ad84781b9047129Addf1b894F")}.toTable,
