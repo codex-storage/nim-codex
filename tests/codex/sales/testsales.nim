@@ -218,7 +218,7 @@ asyncchecksuite "Sales":
   proc allowRequestToStart() {.async.} =
     check eventually isInState(0, "SaleInitialProving")
     # it won't start proving until the next period
-    await clock.advanceToNextPeriod(market)
+    clock.advanceToNextPeriod(market)
 
   proc getAvailability(): Availability =
     let key = availability.id.key.get
