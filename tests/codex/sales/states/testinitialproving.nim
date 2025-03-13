@@ -40,7 +40,7 @@ asyncchecksuite "sales state 'initialproving'":
 
   proc allowProofToStart() {.async.} =
     # it won't start proving until the next period
-    await clock.advanceToNextPeriod(market)
+    clock.advanceToNextPeriod(market)
 
   test "switches to cancelled state when request expires":
     let next = state.onCancelled(request)

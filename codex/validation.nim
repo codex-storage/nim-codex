@@ -120,7 +120,7 @@ proc findEpoch(validation: Validation, secondsAgo: uint64): SecondsSince1970 =
 
 proc restoreHistoricalState(validation: Validation) {.async.} =
   trace "Restoring historical state..."
-  let requestDurationLimit = await validation.market.requestDurationLimit
+  let requestDurationLimit = validation.market.requestDurationLimit
   let startTimeEpoch = validation.findEpoch(secondsAgo = requestDurationLimit)
   let slotFilledEvents =
     await validation.market.queryPastSlotFilledEvents(fromTime = startTimeEpoch)
@@ -137,8 +137,8 @@ proc restoreHistoricalState(validation: Validation) {.async.} =
 proc start*(validation: Validation) {.async.} =
   trace "Starting validator",
     groups = validation.config.groups, groupIndex = validation.config.groupIndex
-  validation.periodicity = await validation.market.periodicity()
-  validation.proofTimeout = await validation.market.proofTimeout()
+  validation.periodicity = validation.market.periodicity
+  validation.proofTimeout = validation.market.proofTimeout
   await validation.subscribeSlotFilled()
   await validation.restoreHistoricalState()
   validation.running = validation.run()
