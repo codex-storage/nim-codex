@@ -1,4 +1,3 @@
-import std/httpclient
 import std/importutils
 import std/net
 import std/sequtils
@@ -71,7 +70,7 @@ twonodessuite "REST API":
 
     check:
       response.status == 400
-      response.body ==
+      (await response.body) ==
         "Dataset too small for erasure parameters, need at least " &
         $(2 * DefaultBlockSize.int) & " bytes"
 
@@ -111,7 +110,7 @@ twonodessuite "REST API":
     )
 
     check responseBefore.status == 400
-    check responseBefore.body == "Tolerance needs to be bigger then zero"
+    check (await responseBefore.body) == "Tolerance needs to be bigger then zero"
 
   test "request storage fails if duration exceeds limit", twoNodesConfig:
     let data = await RandomChunker.example(blocks = 2)
@@ -133,7 +132,7 @@ twonodessuite "REST API":
     )
 
     check responseBefore.status == 400
-    check "Duration exceeds limit of" in responseBefore.body
+    check "Duration exceeds limit of" in (await responseBefore.body)
 
   test "request storage fails if nodes and tolerance aren't correct", twoNodesConfig:
     let data = await RandomChunker.example(blocks = 2)
@@ -156,7 +155,7 @@ twonodessuite "REST API":
       )
 
       check responseBefore.status == 400
-      check responseBefore.body ==
+      check (await responseBefore.body) ==
         "Invalid parameters: parameters must satify `1 < (nodes - tolerance) ≥ tolerance`"
 
   test "request storage fails if tolerance > nodes (underflow protection)",
@@ -181,7 +180,7 @@ twonodessuite "REST API":
       )
 
       check responseBefore.status == 400
-      check responseBefore.body ==
+      check (await responseBefore.body) ==
         "Invalid parameters: `tolerance` cannot be greater than `nodes`"
 
   for ecParams in @[
@@ -212,14 +211,14 @@ twonodessuite "REST API":
     let response = await client1.uploadRaw("some file contents", headers)
 
     check response.status == 200
-    check response.body != ""
+    check (await response.body) != ""
 
   test "node accepts file uploads with content disposition", twoNodesConfig:
     let headers = @[("Content-Disposition", "attachment; filename=\"example.txt\"")]
     let response = await client1.uploadRaw("some file contents", headers)
 
     check response.status == 200
-    check response.body != ""
+    check (await response.body) != ""
 
   test "node accepts file uploads with content disposition without filename",
     twoNodesConfig:
@@ -227,21 +226,21 @@ twonodessuite "REST API":
     let response = await client1.uploadRaw("some file contents", headers)
 
     check response.status == 200
-    check response.body != ""
+    check (await response.body) != ""
 
   test "upload fails if content disposition contains bad filename", twoNodesConfig:
     let headers = @[("Content-Disposition", "attachment; filename=\"exam*ple.txt\"")]
     let response = await client1.uploadRaw("some file contents", headers)
 
     check response.status == 422
-    check response.body == "The filename is not valid."
+    check (await response.body) == "The filename is not valid."
 
   test "upload fails if content type is invalid", twoNodesConfig:
     let headers = @[("Content-Type", "hello/world")]
     let response = await client1.uploadRaw("some file contents", headers)
 
     check response.status == 422
-    check response.body == "The MIME type 'hello/world' is not valid."
+    check (await response.body) == "The MIME type 'hello/world' is not valid."
 
   test "node retrieve the metadata", twoNodesConfig:
     let headers =
@@ -250,10 +249,10 @@ twonodessuite "REST API":
         ("Content-Disposition", "attachment; filename=\"example.txt\""),
       ]
     let uploadResponse = await client1.uploadRaw("some file contents", headers)
-    let cid = uploadResponse.body
+    let cid = await uploadResponse.body
     let listResponse = await client1.listRaw()
 
-    let jsonData = parseJson(listResponse.body)
+    let jsonData = parseJson(await listResponse.body)
 
     check jsonData.hasKey("content") == true
 
@@ -268,82 +267,80 @@ twonodessuite "REST API":
     check manifest.hasKey("mimetype") == true
     check manifest["mimetype"].getStr() == "text/plain"
 
-  # test "node set the headers when for download", twoNodesConfig:
-  #   let headers = @[ 
-  #       ("Content-Disposition", "attachment; filename=\"example.txt\""),
-  #       ("Content-Type", "text/plain"),
-  #   ]
+  test "node set the headers when for download", twoNodesConfig:
+    let headers =
+      @[
+        ("Content-Disposition", "attachment; filename=\"example.txt\""),
+        ("Content-Type", "text/plain"),
+      ]
 
-  #   let uploadResponse = await client1.uploadRaw("some file contents", headers)
-  #   let cid = uploadResponse.body
+    let uploadResponse = await client1.uploadRaw("some file contents", headers)
+    let cid = await uploadResponse.body
 
-  #   check uploadResponse.status == 200
+    check uploadResponse.status == 200
 
-  #   let response = await client1.downloadRaw(cid)
+    let response = await client1.downloadRaw(cid)
 
-  #   check response.status == 200
-  #   check response.headers.hasKey("Content-Type") == true
-  #   check response.headers["Content-Type"] == "text/plain"
-  #   check response.headers.hasKey("Content-Disposition") == true
-  #   check response.headers["Content-Disposition"] ==
-  #     "attachment; filename=\"example.txt\""
+    check response.status == 200
+    check "Content-Type" in response.headers
+    check response.headers.getString("Content-Type") == "text/plain"
+    check "Content-Disposition" in response.headers
+    check response.headers.getString("Content-Disposition") ==
+      "attachment; filename=\"example.txt\""
 
-  #   let local = true
-  #   let localResponse = await client1.downloadRaw(cid, local)
+    let local = true
+    let localResponse = await client1.downloadRaw(cid, local)
 
-  #   check localResponse.status == 200
-  #   check localResponse.headers.hasKey("Content-Type") == true
-  #   check localResponse.headers["Content-Type"] == "text/plain"
-  #   check localResponse.headers.hasKey("Content-Disposition") == true
-  #   check localResponse.headers["Content-Disposition"] ==
-  #     "attachment; filename=\"example.txt\""
+    check localResponse.status == 200
+    check "Content-Type" in localResponse.headers
+    check localResponse.headers.getString("Content-Type") == "text/plain"
+    check "Content-Disposition" in localResponse.headers
+    check localResponse.headers.getString("Content-Disposition") ==
+      "attachment; filename=\"example.txt\""
 
   test "should delete a dataset when requested", twoNodesConfig:
     let cid = (await client1.upload("some file contents")).get
 
     var response = await client1.downloadRaw($cid, local = true)
-    check response.body == "some file contents"
+    check (await response.body) == "some file contents"
 
     (await client1.delete(cid)).get
 
     response = await client1.downloadRaw($cid, local = true)
     check response.status == 404
 
-  # test "should return 200 when attempting delete of non-existing block", twoNodesConfig:
-  #   let response = client1.deleteRaw($(Cid.example()))
-  #   check response.status == "204 No Content"
+  test "should return 200 when attempting delete of non-existing block", twoNodesConfig:
+    let response = await client1.deleteRaw($(Cid.example()))
+    check response.status == 204
 
-  # test "should return 200 when attempting delete of non-existing dataset",
-  #   twoNodesConfig:
-  #   let cid = Manifest.example().makeManifestBlock().get.cid
-  #   let response = client1.deleteRaw($cid)
-  #   check response.status == "204 No Content"
+  test "should return 200 when attempting delete of non-existing dataset",
+    twoNodesConfig:
+    let cid = Manifest.example().makeManifestBlock().get.cid
+    let response = await client1.deleteRaw($cid)
+    check response.status == 204
 
-  # test "should not crash if the download stream is closed before download completes",
-  #   twoNodesConfig:
-  #   privateAccess(client1.type)
-  #   privateAccess(client1.http.type)
+  test "should not crash if the download stream is closed before download completes",
+    twoNodesConfig:
+    # FIXME this is not a good test. For some reason, to get this to fail, I have to 
+    #   store content that is several times the default stream buffer size, otherwise
+    #   the test will succeed even when the bug is present. Since this is probably some
+    #   setting that is internal to chronos, it might change in future versions, 
+    #   invalidating this test.
 
-  #   let cid = client1.upload(repeat("some file contents", 1000)).get
-  #   let httpClient = client1.http()
+    let
+      contents = repeat("b", DefaultStreamBufferSize * 10)
+      cid = (await client1.upload(contents)).get
+      response = await client1.downloadRaw($cid)
 
-  #   try:
-  #     # Sadly, there's no high level API for preventing the client from
-  #     # consuming the whole response, and we need to close the socket
-  #     # before that happens if we want to trigger the bug, so we need to
-  #     # resort to this.
-  #     httpClient.getBody = false
-  #     let response = client1.downloadRaw($cid, httpClient = httpClient)
+    let reader = response.getBodyReader()
 
-  #     # Read 4 bytes from the stream just to make sure we actually
-  #     # receive some data.
-  #     let data = httpClient.socket.recv(4)
-  #     check data.len == 4
+    # Read 4 bytes from the stream just to make sure we actually
+    # receive some data.
+    check (bytesToString await reader.read(4)) == "bbbb"
 
-  #     # Prematurely closes the connection.
-  #     httpClient.close()
-  #   finally:
-  #     httpClient.getBody = true
+    # Abruptly closes the stream (we have to dig all the way to the transport
+    #   or Chronos will close things "nicely").
+    response.connection.reader.tsource.close()
 
-  #   let response = client1.downloadRaw($cid, httpClient = httpClient)
-  #   check response.body == repeat("some file contents", 1000)
+    let response2 = await client1.downloadRaw($cid)
+    check (await response2.body) == contents

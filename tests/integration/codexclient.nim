@@ -4,14 +4,14 @@ import std/strutils
 from pkg/libp2p import Cid, `$`, init
 import pkg/stint
 import pkg/questionable/results
-import pkg/chronos/apps/http/[httpserver, shttpserver, httpclient]
+import pkg/chronos/apps/http/[httpserver, shttpserver, httpclient, httptable]
 import pkg/codex/logutils
 import pkg/codex/rest/json
 import pkg/codex/purchasing
 import pkg/codex/errors
 import pkg/codex/sales/reservations
 
-export purchasing
+export purchasing, httptable, httpclient
 
 type CodexClient* = ref object
   baseurl: string
@@ -25,19 +25,21 @@ proc new*(_: type CodexClient, baseurl: string): CodexClient =
   CodexClient(http: newHttpClient(timeout = HttpClientTimeoutMs), baseurl: baseurl)
 
 proc get(
-    client: CodexClient, url: string
-): Future[HttpResponseTuple] {.async: (raises: [CancelledError, HttpError]).} =
-  return await fetch(HttpSessionRef.new(), parseUri(url))
+    client: CodexClient, url: string, headers: seq[HttpHeaderTuple] = @[]
+): Future[HttpClientResponseRef] {.async: (raises: [CancelledError, HttpError]).} =
+  var request =
+    HttpClientRequestRef.get(HttpSessionRef.new(), url, headers = headers).get
+
+  return await request.send()
 
 proc post(
     client: CodexClient, url: string, body: string, headers: seq[HttpHeaderTuple] = @[]
-): Future[HttpResponseTuple] {.async: (raises: [CancelledError, HttpError]).} =
-  let
-    request = HttpClientRequestRef.post(
-      HttpSessionRef.new(), url, headers = headers, body = body
-    ).get
-    response = await request.send()
-  return (response.status, await response.getBodyBytes())
+): Future[HttpClientResponseRef] {.async: (raises: [CancelledError, HttpError]).} =
+  let request = HttpClientRequestRef.post(
+    HttpSessionRef.new(), url, headers = headers, body = body
+  ).get
+
+  return await request.send()
 
 proc delete(
     t: typedesc[HttpClientRequestRef],
@@ -55,22 +57,22 @@ proc delete(
 
 proc delete(
     client: CodexClient, url: string, headers: seq[HttpHeaderTuple] = @[]
-): Future[HttpResponseTuple] {.async: (raises: [CancelledError, HttpError]).} =
-  let
-    request =
-      HttpClientRequestRef.delete(HttpSessionRef.new(), url, headers = headers).get
-    response = await request.send()
+): Future[HttpClientResponseRef] {.async: (raises: [CancelledError, HttpError]).} =
+  let request =
+    HttpClientRequestRef.delete(HttpSessionRef.new(), url, headers = headers).get
 
-  return (response.status, await response.getBodyBytes())
+  return await request.send()
 
-proc body*(response: HttpResponseTuple): string =
-  return bytesToString response.data
+proc body*(
+    response: HttpClientResponseRef
+): Future[string] {.async: (raises: [CancelledError, HttpError]).} =
+  return bytesToString (await response.getBodyBytes())
 
 proc info*(
     client: CodexClient
 ): Future[?!JsonNode] {.async: (raises: [CancelledError, HttpError]).} =
   let response = await client.get(client.baseurl & "/debug/info")
-  return JsonNode.parse(response.body)
+  return JsonNode.parse(await response.body)
 
 proc setLogLevel*(
     client: CodexClient, level: string
@@ -86,7 +88,7 @@ proc upload*(
 ): Future[?!Cid] {.async: (raises: [CancelledError, HttpError]).} =
   let response = await client.post(client.baseurl & "/data", contents)
   assert response.status == 200
-  Cid.init(response.body).mapFailure
+  Cid.init(await response.body).mapFailure
 
 proc upload*(
     client: CodexClient, bytes: seq[byte]
@@ -103,35 +105,35 @@ proc download*(
   if response.status != 200:
     return failure($response.status)
 
-  success response.body
+  success await response.body
 
-proc downloadManifestOnly*(client: CodexClient, cid: Cid): ?!string =
-  let response = client.http.get(client.baseurl & "/data/" & $cid & "/network/manifest")
+# proc downloadManifestOnly*(client: CodexClient, cid: Cid): ?!string =
+#   let response = client.http.get(client.baseurl & "/data/" & $cid & "/network/manifest")
 
-  if response.status != "200 OK":
-    return failure(response.status)
+#   if response.status != "200 OK":
+#     return failure(response.status)
 
-  success response.body
+#   success response.body
 
-proc downloadNoStream*(client: CodexClient, cid: Cid): ?!string =
-  let response = client.http.post(client.baseurl & "/data/" & $cid & "/network")
+# proc downloadNoStream*(client: CodexClient, cid: Cid): ?!string =
+#   let response = client.http.post(client.baseurl & "/data/" & $cid & "/network")
 
-  if response.status != "200 OK":
-    return failure(response.status)
+#   if response.status != "200 OK":
+#     return failure(response.status)
 
-  success response.body
+#   success response.body
 
-proc downloadBytes*(
-    client: CodexClient, cid: Cid, local = false
-): Future[?!seq[byte]] {.async.} =
-  let uri = client.baseurl & "/data/" & $cid & (if local: "" else: "/network/stream")
+# proc downloadBytes*(
+#     client: CodexClient, cid: Cid, local = false
+# ): Future[?!seq[byte]] {.async.} =
+#   let uri = client.baseurl & "/data/" & $cid & (if local: "" else: "/network/stream")
 
-  let response = client.http.get(uri)
+#   let response = client.http.get(uri)
 
-  if response.status != "200 OK":
-    return failure("fetch failed with status " & $response.status)
+#   if response.status != "200 OK":
+#     return failure("fetch failed with status " & $response.status)
 
-  success response.body.toBytes
+#   success response.body.toBytes
 
 proc delete*(
     client: CodexClient, cid: Cid
@@ -154,7 +156,7 @@ proc list*(
   if response.status != 200:
     return failure($response.status)
 
-  RestContentList.fromJson(response.body)
+  RestContentList.fromJson(await response.body)
 
 proc space*(
     client: CodexClient
@@ -165,7 +167,7 @@ proc space*(
   if response.status != 200:
     return failure($response.status)
 
-  RestRepoStore.fromJson(response.body)
+  RestRepoStore.fromJson(await response.body)
 
 proc requestStorageRaw*(
     client: CodexClient,
@@ -177,7 +179,7 @@ proc requestStorageRaw*(
     expiry: uint64 = 0,
     nodes: uint = 3,
     tolerance: uint = 1,
-): Future[HttpResponseTuple] {.async: (raw: true).} =
+): Future[HttpClientResponseRef] {.async: (raw: true).} =
   ## Call request storage REST endpoint
   ##
   let url = client.baseurl & "/storage/request/" & $cid
@@ -254,10 +256,11 @@ proc postAvailability*(
       "totalCollateral": totalCollateral,
     }
   let response = await client.post(url, $json)
+  let body = await response.body
 
   doAssert response.status == 201,
-    "expected 201 Created, got " & $response.status & ", body: " & response.body
-  Availability.fromJson(response.body)
+    "expected 201 Created, got " & $response.status & ", body: " & body
+  Availability.fromJson(body)
 
 proc patchAvailabilityRaw*(
     client: CodexClient,
@@ -329,19 +332,21 @@ proc requestId*(client: CodexClient, id: PurchaseId): ?RequestId =
 
 proc uploadRaw*(
     client: CodexClient, contents: string, headers: seq[HttpHeaderTuple] = @[]
-): Future[HttpResponseTuple] {.async: (raw: true).} =
+): Future[HttpClientResponseRef] {.async: (raw: true).} =
   return client.post(client.baseurl & "/data", body = contents, headers = headers)
 
-proc listRaw*(client: CodexClient): Future[HttpResponseTuple] {.async: (raw: true).} =
+proc listRaw*(
+    client: CodexClient
+): Future[HttpClientResponseRef] {.async: (raw: true).} =
   return client.get(client.baseurl & "/data")
 
 proc downloadRaw*(
     client: CodexClient, cid: string, local = false
-): Future[HttpResponseTuple] {.async: (raw: true).} =
+): Future[HttpClientResponseRef] {.async: (raw: true).} =
   return
     client.get(client.baseurl & "/data/" & cid & (if local: "" else: "/network/stream"))
 
 proc deleteRaw*(
     client: CodexClient, cid: string
-): Future[HttpResponseTuple] {.async: (raw: true).} =
+): Future[HttpClientResponseRef] {.async: (raw: true).} =
   return client.delete(client.baseurl & "/data/" & cid)
