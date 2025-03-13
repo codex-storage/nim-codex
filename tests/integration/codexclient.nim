@@ -107,21 +107,26 @@ proc download*(
 
   success await response.body
 
-# proc downloadManifestOnly*(client: CodexClient, cid: Cid): ?!string =
-#   let response = client.http.get(client.baseurl & "/data/" & $cid & "/network/manifest")
+proc downloadManifestOnly*(
+    client: CodexClient, cid: Cid
+): Future[?!string] {.async: (raises: [CancelledError, HttpError]).} =
+  let response =
+    await client.get(client.baseurl & "/data/" & $cid & "/network/manifest")
 
-#   if response.status != "200 OK":
-#     return failure(response.status)
+  if response.status != 200:
+    return failure($response.status)
 
-#   success response.body
+  success await response.body
 
-# proc downloadNoStream*(client: CodexClient, cid: Cid): ?!string =
-#   let response = client.http.post(client.baseurl & "/data/" & $cid & "/network")
+proc downloadNoStream*(
+    client: CodexClient, cid: Cid
+): Future[?!string] {.async: (raises: [CancelledError, HttpError]).} =
+  let response = await client.get(client.baseurl & "/data/" & $cid & "/network")
 
-#   if response.status != "200 OK":
-#     return failure(response.status)
+  if response.status != 200:
+    return failure($response.status)
 
-#   success response.body
+  success await response.body
 
 # proc downloadBytes*(
 #     client: CodexClient, cid: Cid, local = false
