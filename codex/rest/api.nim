@@ -499,11 +499,6 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
     except CatchableError as exc:
       trace "Excepting processing request", exc = exc.msg
       return RestApiResponse.error(Http500, headers = headers)
-    except RangeDefect as exc:
-      trace "Out of range error", exc = exc.msg
-      return RestApiResponse.error(
-        Http422, "The values provided are out of range", headers = headers
-      )
 
   router.api(MethodOptions, "/api/codex/v1/sales/availability/{id}") do(
     id: AvailabilityId, resp: HttpResponseRef
@@ -589,9 +584,6 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
     except CatchableError as exc:
       trace "Excepting processing request", exc = exc.msg
       return RestApiResponse.error(Http500)
-    except RangeDefect as exc:
-      trace "Out of range error", exc = exc.msg
-      return RestApiResponse.error(Http422, "The values provided are out of range")
 
   router.rawApi(MethodGet, "/api/codex/v1/sales/availability/{id}/reservations") do(
     id: AvailabilityId

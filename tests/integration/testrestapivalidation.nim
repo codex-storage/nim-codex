@@ -19,7 +19,7 @@ from ./multinodes import Role, getTempDirName, jsonRpcProviderUrl, nextFreePort
 # the execution.
 asyncchecksuite "Rest API validation":
   var node: CodexProcess
-  var config = CodexConfigs.init(nodes = 1).debug().configs[0]
+  var config = CodexConfigs.init(nodes = 1).configs[0]
   let starttime = now().format("yyyy-MM-dd'_'HH:mm:ss")
   let nodexIdx = 0
   let datadir = getTempDirName(starttime, Role.Client, nodexIdx)
@@ -198,40 +198,50 @@ asyncchecksuite "Rest API validation":
     check (await response.body) == "Total size must be larger then zero"
 
   test "updating availability when total size is zero returns 422":
-    let availability = (await client1.postAvailability(
-      totalSize = 140000.uint64,
-      duration = 200.uint64,
-      minPricePerBytePerSecond = 3.u256,
-      totalCollateral = 300.u256,
-    )).get
-    let response = await client1.patchAvailabilityRaw(availability.id, totalSize = 0.uint64.some)
+    let availability = (
+      await client1.postAvailability(
+        totalSize = 140000.uint64,
+        duration = 200.uint64,
+        minPricePerBytePerSecond = 3.u256,
+        totalCollateral = 300.u256,
+      )
+    ).get
+    let response =
+      await client1.patchAvailabilityRaw(availability.id, totalSize = 0.uint64.some)
 
     check response.status == 422
     check (await response.body) == "Total size must be larger then zero"
 
   test "creating availability when total size is negative returns 422":
-    let response = await client1.postAvailabilityRaw(
-      totalSize = -1.uint64,
-      duration = 200.uint64,
-      minPricePerBytePerSecond = 3.u256,
-      totalCollateral = 300.u256,
+    let json =
+      %*{
+        "totalSize": "-1",
+        "duration": "200",
+        "minPricePerBytePerSecond": "3",
+        "totalCollateral": "300",
+      }
+    let response = await client1.post(client1.buildUrl("/sales/availability"), $json)
+
+    check response.status == 422
+    check (await response.body) == "Parsed integer outside of valid range"
+
+  test "updating availability when total size is negative returns 422":
+    let availability = (
+      await client1.postAvailability(
+        totalSize = 140000.uint64,
+        duration = 200.uint64,
+        minPricePerBytePerSecond = 3.u256,
+        totalCollateral = 300.u256,
+      )
+    ).get
+
+    let json = %*{"totalSize": "-1"}
+    let response = await client1.patch(
+      client1.buildUrl("/sales/availability/") & $availability.id, $json
     )
 
     check response.status == 422
-    check (await response.body) == "The values provided are out of range"
-
-  test "updating availability when total size is negative returns 422":
-    let availability = (await client1.postAvailability(
-      totalSize = 140000.uint64,
-      duration = 200.uint64,
-      minPricePerBytePerSecond = 3.u256,
-      totalCollateral = 300.u256,
-    )).get
-    let response =
-      await client1.patchAvailabilityRaw(availability.id, totalSize = -1.uint64.some)
-
-    check response.status == 422
-    check (await response.body) == "The values provided are out of range"
+    check (await response.body) == "Parsed integer outside of valid range"
 
   waitFor node.stop()
   node.removeDataDir()
