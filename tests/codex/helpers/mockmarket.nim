@@ -8,6 +8,7 @@ import pkg/codex/market
 import pkg/codex/contracts/requests
 import pkg/codex/contracts/proofs
 import pkg/codex/contracts/config
+import pkg/questionable/results
 
 from pkg/ethers import BlockTag
 import codex/clock
@@ -46,7 +47,9 @@ type
     subscriptions: Subscriptions
     config*: MarketplaceConfig
     canReserveSlot*: bool
-    reserveSlotThrowError*: ?(ref MarketError)
+    errorOnReserveSlot*: ?(ref CatchableError)
+    errorOnFreeSlot*: ?(ref CatchableError)
+    errorOnGetHost*: ?(ref MarketError)
     clock: ?Clock
 
   Fulfillment* = object
@@ -143,7 +146,9 @@ method loadConfig*(
 ): Future[?!void] {.async: (raises: [CancelledError]).} =
   discard
 
-method getSigner*(market: MockMarket): Future[Address] {.async.} =
+method getSigner*(
+    market: MockMarket
+): Future[Address] {.async: (raises: [CancelledError, MarketError]).} =
   return market.signer
 
 method periodicity*(
@@ -227,7 +232,10 @@ method requestExpiresAt*(
 
 method getHost*(
     market: MockMarket, requestId: RequestId, slotIndex: uint64
-): Future[?Address] {.async.} =
+): Future[?Address] {.async: (raises: [CancelledError, MarketError]).} =
+  if error =? market.errorOnGetHost:
+    raise error
+
   for slot in market.filled:
     if slot.requestId == requestId and slot.slotIndex == slotIndex:
       return some slot.host
@@ -235,7 +243,7 @@ method getHost*(
 
 method currentCollateral*(
     market: MockMarket, slotId: SlotId
-): Future[UInt256] {.async.} =
+): Future[UInt256] {.async: (raises: [MarketError, CancelledError]).} =
   for slot in market.filled:
     if slotId == slotId(slot.requestId, slot.slotIndex):
       return slot.collateral
@@ -311,6 +319,9 @@ method fillSlot*(
   market.fillSlot(requestId, slotIndex, proof, market.signer, collateral)
 
 method freeSlot*(market: MockMarket, slotId: SlotId) {.async.} =
+  if error =? market.errorOnFreeSlot:
+    raise error
+
   market.freed.add(slotId)
   for s in market.filled:
     if slotId(s.requestId, s.slotIndex) == slotId:
@@ -370,7 +381,7 @@ method canProofBeMarkedAsMissing*(
 method reserveSlot*(
     market: MockMarket, requestId: RequestId, slotIndex: uint64
 ) {.async.} =
-  if error =? market.reserveSlotThrowError:
+  if error =? market.errorOnReserveSlot:
     raise error
 
 method canReserveSlot*(
@@ -381,8 +392,26 @@ method canReserveSlot*(
 func setCanReserveSlot*(market: MockMarket, canReserveSlot: bool) =
   market.canReserveSlot = canReserveSlot
 
-func setReserveSlotThrowError*(market: MockMarket, error: ?(ref MarketError)) =
-  market.reserveSlotThrowError = error
+func setErrorOnReserveSlot*(market: MockMarket, error: ref CatchableError) =
+  market.errorOnReserveSlot =
+    if error.isNil:
+      none (ref CatchableError)
+    else:
+      some error
+
+func setErrorOnFreeSlot*(market: MockMarket, error: ref CatchableError) =
+  market.errorOnFreeSlot =
+    if error.isNil:
+      none (ref CatchableError)
+    else:
+      some error
+
+func setErrorOnGetHost*(market: MockMarket, error: ref MarketError) =
+  market.errorOnGetHost =
+    if error.isNil:
+      none (ref MarketError)
+    else:
+      some error
 
 method subscribeRequests*(
     market: MockMarket, callback: OnRequest
