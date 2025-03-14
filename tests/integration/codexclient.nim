@@ -15,77 +15,71 @@ export purchasing, httptable, httpclient
 
 type CodexClient* = ref object
   baseurl: string
-  http: HttpClient
+  session: HttpSessionRef
 
 type CodexClientError* = object of CatchableError
 
-const HttpClientTimeoutMs = 60 * 1000
-
 proc new*(_: type CodexClient, baseurl: string): CodexClient =
-  CodexClient(http: newHttpClient(timeout = HttpClientTimeoutMs), baseurl: baseurl)
+  CodexClient(session: HttpSessionRef.new(), baseurl: baseurl)
 
-proc get(
-    client: CodexClient, url: string, headers: seq[HttpHeaderTuple] = @[]
-): Future[HttpClientResponseRef] {.async: (raises: [CancelledError, HttpError]).} =
-  var request =
-    HttpClientRequestRef.get(HttpSessionRef.new(), url, headers = headers).get
-
-  return await request.send()
-
-proc post(
-    client: CodexClient,
-    url: string,
-    body: string = "",
-    headers: seq[HttpHeaderTuple] = @[],
-): Future[HttpClientResponseRef] {.async: (raises: [CancelledError, HttpError]).} =
-  let request = HttpClientRequestRef.post(
-    HttpSessionRef.new(), url, headers = headers, body = body
-  ).get
-
-  return await request.send()
+proc close*(self: CodexClient): Future[void] {.async: (raises: []).} =
+  await self.session.closeWait()
 
 proc request(
-    t: typedesc[HttpClientRequestRef],
-    session: HttpSessionRef,
+    self: CodexClient,
     httpMethod: httputils.HttpMethod,
     url: string,
-    version: httputils.HttpVersion = HttpVersion11,
-    flags: set[HttpClientRequestFlag] = {},
-    maxResponseHeadersSize: int = HttpMaxHeadersSize,
-    headers: openArray[HttpHeaderTuple] = [],
     body: openArray[char] = [],
-): HttpResult[HttpClientRequestRef] =
-  HttpClientRequestRef.new(
-    session,
+    headers: openArray[HttpHeaderTuple] = [],
+): Future[HttpClientResponseRef] {.
+    async: (raw: true, raises: [CancelledError, HttpError])
+.} =
+  HttpClientRequestRef
+  .new(
+    self.session,
     url,
     httpMethod,
-    version,
-    flags,
-    maxResponseHeadersSize,
-    headers,
-    body.toOpenArrayByte(0, len(body) - 1),
-  )
-
-proc delete(
-    client: CodexClient, url: string, headers: seq[HttpHeaderTuple] = @[]
-): Future[HttpClientResponseRef] {.async: (raises: [CancelledError, HttpError]).} =
-  let request = HttpClientRequestRef.request(
-    HttpSessionRef.new(), MethodDelete, url, headers = headers
+    version = HttpVersion11,
+    flags = {},
+    maxResponseHeadersSize = HttpMaxHeadersSize,
+    headers = headers,
+    body = body.toOpenArrayByte(0, len(body) - 1),
   ).get
+  .send()
 
-  return await request.send()
-
-proc patch(
-    client: CodexClient,
+proc post(
+    self: CodexClient,
     url: string,
     body: string = "",
     headers: seq[HttpHeaderTuple] = @[],
-): Future[HttpClientResponseRef] {.async: (raises: [CancelledError, HttpError]).} =
-  let request = HttpClientRequestRef.request(
-    HttpSessionRef.new(), MethodPatch, url, headers = headers, body = body
-  ).get
+): Future[HttpClientResponseRef] {.
+    async: (raw: true, raises: [CancelledError, HttpError])
+.} =
+  return self.request(MethodPost, url, headers = headers, body = body)
 
-  return await request.send()
+proc get(
+    self: CodexClient, url: string, headers: seq[HttpHeaderTuple] = @[]
+): Future[HttpClientResponseRef] {.
+    async: (raw: true, raises: [CancelledError, HttpError])
+.} =
+  return self.request(MethodGet, url, headers = headers)
+
+proc delete(
+    self: CodexClient, url: string, headers: seq[HttpHeaderTuple] = @[]
+): Future[HttpClientResponseRef] {.
+    async: (raw: true, raises: [CancelledError, HttpError])
+.} =
+  return self.request(MethodDelete, url, headers = headers)
+
+proc patch(
+    self: CodexClient,
+    url: string,
+    body: string = "",
+    headers: seq[HttpHeaderTuple] = @[],
+): Future[HttpClientResponseRef] {.
+    async: (raw: true, raises: [CancelledError, HttpError])
+.} =
+  return self.request(MethodPatch, url, headers = headers, body = body)
 
 proc body*(
     response: HttpClientResponseRef
@@ -297,11 +291,6 @@ proc getSalesAgent*(
     return RestSalesAgent.fromJson(body)
   except CatchableError as e:
     return failure e.msg
-
-proc getSlots*(client: CodexClient): ?!seq[Slot] =
-  let url = client.baseurl & "/sales/slots"
-  let body = client.http.getContent(url)
-  seq[Slot].fromJson(body)
 
 proc postAvailability*(
     client: CodexClient,
