@@ -23,10 +23,9 @@ type
 
   TestManagerConfig* = object # Echoes stdout from Hardhat process
     debugHardhat*: bool
-    # Echoes stdout from the integration test file process. Codex process logs
-    # can also be output if a test uses a multinodesuite, requires
-    # CodexConfig.debug to be enabled
-    debugCodexNodes*: bool
+    # Shows all log topics at TRACE log level by disabling codex node output log
+    # topic filters, eg libp2p, websock, JSON RPC
+    noCodexLogFilters*: bool
     # Shows test status updates at regular time intervals. Useful for running
     # locally while attended. Set to false for unattended runs, eg CI.
     showContinuousStatusUpdates*: bool
@@ -339,6 +338,12 @@ proc buildCommand(
     let discPort = await nextFreePort(test.manager.lastCodexDiscPort + 1000)
     test.manager.lastCodexDiscPort = discPort
 
+    let codexLogLevel =
+      if test.manager.config.noCodexLogFilters:
+        "TRACE"
+      else:
+        "TRACE;disabled:libp2p,websock,JSONRPC-HTTP-CLIENT,JSONRPC-WS-CLIENT,discv5"
+
     withLock(test.manager.hardhatPortLock):
       try:
         return
@@ -346,15 +351,14 @@ proc buildCommand(
           "nim c " &
             &"-d:CodexApiPort={apiPort} " &
             &"-d:CodexDiscPort={discPort} " &
-            &"-d:DebugCodexNodes={test.manager.config.debugCodexNodes} " &
-            &"-d:DebugHardhat={test.manager.config.debugHardhat} " &
-            &"-d:LogsDir={test.logsDir} " &
+            &"-d:CodexLogsDir={test.logsDir} " &
+            &"-d:CodexLogLevel=\"{codexLogLevel}\" " &
+            &"-d:CodexLogToFile=true " &
             (hhPort |? "") & " " &
             &"-d:TestId={test.testId} " &
-            # Log multinodes chronicles logs to file. If DebugCodexNodes is also
-            # enabled, the chronicles output will also get logged to stdout.
+            # Log multinodes chronicles logs settings (log to file with no
+            # colours, and loglevel = TRACE).
             "-d:chronicles_log_level=TRACE " &
-            "-d:chronicles_disabled_topics=websock,JSONRPC-HTTP-CLIENT,JSONRPC-WS-CLIENT " &
             "-d:chronicles_sinks=textlines[nocolors,file] " &
             "--verbosity:0 " &
             "--hints:off " &

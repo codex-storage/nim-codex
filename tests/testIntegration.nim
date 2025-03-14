@@ -32,10 +32,7 @@ const TestConfigs =
 
 # Echoes stdout from Hardhat process
 const DebugHardhat {.booldefine.} = false
-# Echoes stdout from the integration test file process. Codex process logs can
-# also be output if a test uses a multinodesuite, requires CodexConfig.debug
-# to be enabled
-const DebugCodexNodes {.booldefine.} = false
+const NoCodexLogFilters {.booldefine.} = false
 # Shows test status updates at time intervals. Useful for running locally with
 # active terminal interaction. Set to false for unattended runs, eg CI.
 const ShowContinuousStatusUpdates {.booldefine.} = false
@@ -82,7 +79,7 @@ proc run(): Future[bool] {.async: (raises: []).} =
   let manager = TestManager.new(
     config = TestManagerConfig(
       debugHardhat: DebugHardhat,
-      debugCodexNodes: DebugCodexNodes,
+      noCodexLogFilters: NoCodexLogFilters,
       showContinuousStatusUpdates: ShowContinuousStatusUpdates,
       logsDir: logsDir,
       testTimeout: TestTimeout.minutes,
