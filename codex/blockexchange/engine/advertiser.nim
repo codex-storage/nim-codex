@@ -41,80 +41,86 @@ type Advertiser* = ref object of RootObj
   advertiserRunning*: bool # Indicates if discovery is running
   concurrentAdvReqs: int # Concurrent advertise requests
 
-  advertiseLocalStoreLoop*: Future[void] # Advertise loop task handle
+  advertiseLocalStoreLoop*: Future[void].Raising([]) # Advertise loop task handle
   advertiseQueue*: AsyncQueue[Cid] # Advertise queue
   trackedFutures*: TrackedFutures # Advertise tasks futures
 
   advertiseLocalStoreLoopSleep: Duration # Advertise loop sleep
   inFlightAdvReqs*: Table[Cid, Future[void]] # Inflight advertise requests
 
-proc addCidToQueue(b: Advertiser, cid: Cid) {.async.} =
+proc addCidToQueue(b: Advertiser, cid: Cid) {.async: (raises: [CancelledError]).} =
   if cid notin b.advertiseQueue:
     await b.advertiseQueue.put(cid)
+
     trace "Advertising", cid
 
-proc advertiseBlock(b: Advertiser, cid: Cid) {.async.} =
+proc advertiseBlock(b: Advertiser, cid: Cid) {.async: (raises: [CancelledError]).} =
   without isM =? cid.isManifest, err:
     warn "Unable to determine if cid is manifest"
     return
 
-  if isM:
-    without blk =? await b.localStore.getBlock(cid), err:
-      error "Error retrieving manifest block", cid, err = err.msg
-      return
+  try:
+    if isM:
+      without blk =? await b.localStore.getBlock(cid), err:
+        error "Error retrieving manifest block", cid, err = err.msg
+        return
 
-    without manifest =? Manifest.decode(blk), err:
-      error "Unable to decode as manifest", err = err.msg
-      return
+      without manifest =? Manifest.decode(blk), err:
+        error "Unable to decode as manifest", err = err.msg
+        return
 
-    # announce manifest cid and tree cid
-    await b.addCidToQueue(cid)
-    await b.addCidToQueue(manifest.treeCid)
+      # announce manifest cid and tree cid
+      await b.addCidToQueue(cid)
+      await b.addCidToQueue(manifest.treeCid)
+  except CancelledError as exc:
+    trace "Cancelled advertise block", cid
+    raise exc
+  except CatchableError as e:
+    error "failed to advertise block", cid, error = e.msgDetail
 
 proc advertiseLocalStoreLoop(b: Advertiser) {.async: (raises: []).} =
-  while b.advertiserRunning:
-    try:
-      if cids =? await b.localStore.listBlocks(blockType = BlockType.Manifest):
-        trace "Advertiser begins iterating blocks..."
-        for c in cids:
-          if cid =? await c:
-            await b.advertiseBlock(cid)
-        trace "Advertiser iterating blocks finished."
+  try:
+    while b.advertiserRunning:
+      try:
+        if cids =? await b.localStore.listBlocks(blockType = BlockType.Manifest):
+          trace "Advertiser begins iterating blocks..."
+          for c in cids:
+            if cid =? await c:
+              await b.advertiseBlock(cid)
+          trace "Advertiser iterating blocks finished."
+      except CatchableError as e:
+        error "Error in advertise local store loop", error = e.msgDetail
+        raiseAssert("Unexpected exception in advertiseLocalStoreLoop")
 
       await sleepAsync(b.advertiseLocalStoreLoopSleep)
-    except CancelledError:
-      break # do not propagate as advertiseLocalStoreLoop was asyncSpawned
-    except CatchableError as e:
-      error "failed to advertise blocks in local store", error = e.msgDetail
+  except CancelledError:
+    warn "Cancelled advertise local store loop"
 
   info "Exiting advertise task loop"
 
 proc processQueueLoop(b: Advertiser) {.async: (raises: []).} =
-  while b.advertiserRunning:
-    try:
+  try:
+    while b.advertiserRunning:
       let cid = await b.advertiseQueue.get()
 
       if cid in b.inFlightAdvReqs:
         continue
 
-      try:
-        let request = b.discovery.provide(cid)
+      let request = b.discovery.provide(cid)
+      b.inFlightAdvReqs[cid] = request
+      codex_inflight_advertise.set(b.inFlightAdvReqs.len.int64)
 
-        b.inFlightAdvReqs[cid] = request
-        codex_inflight_advertise.set(b.inFlightAdvReqs.len.int64)
-        await request
-      finally:
+      defer:
         b.inFlightAdvReqs.del(cid)
         codex_inflight_advertise.set(b.inFlightAdvReqs.len.int64)
-    except CancelledError:
-      trace "Advertise task cancelled"
-      return
-    except CatchableError as exc:
-      warn "Exception in advertise task runner", exc = exc.msg
+
+      await request
+  except CancelledError:
+    warn "Cancelled advertise task runner"
 
   info "Exiting advertise task runner"
 
-proc start*(b: Advertiser) {.async.} =
+proc start*(b: Advertiser) {.async: (raises: []).} =
   ## Start the advertiser
   ##
 
@@ -134,13 +140,11 @@ proc start*(b: Advertiser) {.async.} =
   for i in 0 ..< b.concurrentAdvReqs:
     let fut = b.processQueueLoop()
     b.trackedFutures.track(fut)
-    asyncSpawn fut
 
   b.advertiseLocalStoreLoop = advertiseLocalStoreLoop(b)
   b.trackedFutures.track(b.advertiseLocalStoreLoop)
-  asyncSpawn b.advertiseLocalStoreLoop
 
-proc stop*(b: Advertiser) {.async.} =
+proc stop*(b: Advertiser) {.async: (raises: []).} =
   ## Stop the advertiser
   ##
 

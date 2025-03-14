@@ -1,8 +1,9 @@
-import std/unittest
-import codex/utils/options
+import pkg/unittest2
+import pkg/codex/utils/options
+
 import ../helpers
 
-checksuite "optional casts":
+suite "optional casts":
   test "casting value to same type works":
     check 42 as int == some 42
 
@@ -31,7 +32,7 @@ checksuite "optional casts":
     check 42.some as string == string.none
     check int.none as int == int.none
 
-checksuite "Optionalize":
+suite "Optionalize":
   test "does not except non-object types":
     static:
       doAssert not compiles(Optionalize(int))

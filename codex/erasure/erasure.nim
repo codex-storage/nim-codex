@@ -327,7 +327,7 @@ proc asyncEncode*(
   defer:
     dealloc(data)
 
-  ## Create an ecode task with block data 
+  ## Create an ecode task with block data
   var task = EncodeTask(
     erasure: addr self,
     blockSize: blockSize,
@@ -519,7 +519,7 @@ proc asyncDecode*(
     dealloc(blockData)
     dealloc(parityData)
 
-  ## Create an decode task with block data 
+  ## Create an decode task with block data
   var task = DecodeTask(
     erasure: addr self,
     blockSize: blockSize,

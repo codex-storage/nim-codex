@@ -1,6 +1,6 @@
-import std/unittest
 import std/random
 
+import pkg/unittest2
 import pkg/stew/objects
 import pkg/questionable
 import pkg/questionable/results
@@ -11,7 +11,7 @@ import pkg/codex/stores/repostore/coders
 
 import ../../helpers
 
-checksuite "Test coders":
+suite "Test coders":
   proc rand(T: type NBytes): T =
     rand(Natural).NBytes
 

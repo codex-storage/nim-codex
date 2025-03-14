@@ -1,10 +1,10 @@
-import std/unittest
+import pkg/unittest2
 
 import pkg/codex/stores
 import ../../examples
 import ../../helpers
 
-checksuite "engine payments":
+suite "Engine payments":
   let address = EthAddress.example
   let amount = 42.u256
 
