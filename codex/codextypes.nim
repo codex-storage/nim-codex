@@ -25,7 +25,8 @@ export tables
 
 const
   # BitTorrent specific
-  DefaultPieceLength* = NBytes 1024 * 64
+  # DefaultPieceLength* = NBytes 1024 * 1024 * 4 # 4MiB
+  DefaultPieceLength* = NBytes 1024 * 256 # 256KiB
   BitTorrentBlockSize* = NBytes 1024 * 16
 
   # Size of blocks for storage / network exchange,
