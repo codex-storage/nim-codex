@@ -46,8 +46,9 @@ const HardhatPort {.intdefine.}: int = 8545
 const CodexApiPort {.intdefine.}: int = 8080
 const CodexDiscPort {.intdefine.}: int = 8090
 const TestId {.strdefine.}: string = "TestId"
-const DebugCodexNodes {.booldefine.}: bool = false
-const LogsDir {.strdefine.}: string = ""
+const CodexLogToFile {.booldefine.}: bool = false
+const CodexLogLevel {.strdefine.}: string = ""
+const CodexLogsDir {.strdefine.}: string = ""
 
 proc raiseMultiNodeSuiteError(
     msg: string, parent: ref CatchableError = nil
@@ -122,7 +123,7 @@ template multinodesuite*(name: string, body: untyped) =
       if config.logFile:
         try:
           let updatedLogFile =
-            getLogFile(LogsDir, starttime, name, currentTestName, $role, none int)
+            getLogFile(CodexLogsDir, starttime, name, currentTestName, $role, none int)
           args.add "--log-file=" & updatedLogFile
         except IOError as e:
           raiseMultiNodeSuiteError(
@@ -166,10 +167,11 @@ template multinodesuite*(name: string, body: untyped) =
         sanitize($starttime) / sanitize($role & "_" & $roleIdx)
 
       try:
-        if config.logFile.isSome or DebugCodexNodes:
+        if config.logFile.isSome or CodexLogToFile:
           try:
-            let updatedLogFile =
-              getLogFile(LogsDir, starttime, name, currentTestName, $role, some roleIdx)
+            let updatedLogFile = getLogFile(
+              CodexLogsDir, starttime, name, currentTestName, $role, some roleIdx
+            )
             config.withLogFile(updatedLogFile)
           except IOError as e:
             raiseMultiNodeSuiteError(
@@ -183,9 +185,9 @@ template multinodesuite*(name: string, body: untyped) =
                 " because logfile path could not be obtained: " & e.msg,
               e,
             )
-
-        if DebugCodexNodes:
-          config.addCliOption("--log-level", $LogLevel.TRACE)
+        # TODO: uncomment once HttpClient has been asyncified
+        # when CodexLogLevel != "":
+        #   config.addCliOption("--log-level", CodexLogLevel)
 
         var apiPort, discPort: int
         withLock(codexPortLock):
@@ -281,9 +283,9 @@ template multinodesuite*(name: string, body: untyped) =
         )
 
         return await newCodexProcess(providerIdx, config, Role.Provider)
-      except CodexConfigError as e:
+      except CodexConfigError as exc:
         raiseMultiNodeSuiteError "Failed to start codex node, error adding cli options: " &
-          e.msg, e
+          exc.msg, exc
 
     proc startValidatorNode(
         conf: CodexConfig
@@ -362,9 +364,9 @@ template multinodesuite*(name: string, body: untyped) =
       # When this file is run with `-d:chronicles_sinks=textlines[file]`, we
       # need to set the log file path at runtime, otherwise chronicles didn't seem to
       # create a log file even when using an absolute path
-      when defaultChroniclesStream.outputs is (FileOutput,) and LogsDir.len > 0:
+      when defaultChroniclesStream.outputs is (FileOutput,) and CodexLogsDir.len > 0:
         let logFile =
-          LogsDir / sanitize(getAppFilename().extractFilename & ".chronicles.log")
+          CodexLogsDir / sanitize(getAppFilename().extractFilename & ".chronicles.log")
         let success = defaultChroniclesStream.outputs[0].open(logFile, fmAppend)
         doAssert success, "Failed to open log file: " & logFile
 
