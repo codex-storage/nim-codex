@@ -33,7 +33,10 @@ proc get(
   return await request.send()
 
 proc post(
-    client: CodexClient, url: string, body: string, headers: seq[HttpHeaderTuple] = @[]
+    client: CodexClient,
+    url: string,
+    body: string = "",
+    headers: seq[HttpHeaderTuple] = @[],
 ): Future[HttpClientResponseRef] {.async: (raises: [CancelledError, HttpError]).} =
   let request = HttpClientRequestRef.post(
     HttpSessionRef.new(), url, headers = headers, body = body
@@ -121,7 +124,7 @@ proc downloadManifestOnly*(
 proc downloadNoStream*(
     client: CodexClient, cid: Cid
 ): Future[?!string] {.async: (raises: [CancelledError, HttpError]).} =
-  let response = await client.get(client.baseurl & "/data/" & $cid & "/network")
+  let response = await client.post(client.baseurl & "/data/" & $cid & "/network")
 
   if response.status != 200:
     return failure($response.status)

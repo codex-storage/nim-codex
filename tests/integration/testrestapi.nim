@@ -321,11 +321,11 @@ twonodessuite "REST API":
 
   test "should not crash if the download stream is closed before download completes",
     twoNodesConfig:
-    # FIXME this is not a good test. For some reason, to get this to fail, I have to 
+    # FIXME this is not a good test. For some reason, to get this to fail, I have to
     #   store content that is several times the default stream buffer size, otherwise
     #   the test will succeed even when the bug is present. Since this is probably some
-    #   setting that is internal to chronos, it might change in future versions, 
-    #   invalidating this test.
+    #   setting that is internal to chronos, it might change in future versions,
+    #   invalidating this test. Works on Chronos 4.0.3.
 
     let
       contents = repeat("b", DefaultStreamBufferSize * 10)

@@ -73,15 +73,17 @@ twonodessuite "Uploads and downloads":
     let resp2 = await client1.downloadManifestOnly(cid1)
     checkRestContent(cid1, resp2)
 
-  # test "node allows downloading content without stream", twoNodesConfig:
-  #   let content1 = "some file contents"
-  #   let cid1 = (await client1.upload(content1)).get
+  test "node allows downloading content without stream", twoNodesConfig:
+    let
+      content1 = "some file contents"
+      cid1 = (await client1.upload(content1)).get
+      resp1 = await client2.downloadNoStream(cid1)
 
-  #   let resp1 = await client2.downloadNoStream(cid1)
-  #   checkRestContent(cid1, resp1)
-  #   let resp2 = (await client2.download(cid1, local = true)).get
-  #   check:
-  #     content1 == resp2
+    checkRestContent(cid1, resp1)
+
+    let resp2 = (await client2.download(cid1, local = true)).get
+    check:
+      content1 == resp2
 
   test "reliable transfer test", twoNodesConfig:
     proc transferTest(a: CodexClient, b: CodexClient) {.async.} =
