@@ -113,10 +113,17 @@ proc setLogLevel*(
     response = await client.post(url, headers = headers, body = "")
   assert response.status == 200
 
+proc uploadRaw*(
+    client: CodexClient, contents: string, headers: seq[HttpHeaderTuple] = @[]
+): Future[HttpClientResponseRef] {.
+    async: (raw: true, raises: [CancelledError, HttpError])
+.} =
+  return client.post(client.baseurl & "/data", body = contents, headers = headers)
+
 proc upload*(
     client: CodexClient, contents: string
 ): Future[?!Cid] {.async: (raises: [CancelledError, HttpError]).} =
-  let response = await client.post(client.baseurl & "/data", contents)
+  let response = await client.uploadRaw(contents)
   assert response.status == 200
   Cid.init(await response.body).mapFailure
 
@@ -125,12 +132,35 @@ proc upload*(
 ): Future[?!Cid] {.async: (raw: true).} =
   return client.upload(string.fromBytes(bytes))
 
+proc downloadRaw*(
+    client: CodexClient, cid: string, local = false
+): Future[HttpClientResponseRef] {.
+    async: (raw: true, raises: [CancelledError, HttpError])
+.} =
+  return
+    client.get(client.baseurl & "/data/" & cid & (if local: "" else: "/network/stream"))
+
+proc downloadBytes*(
+    client: CodexClient, cid: Cid, local = false
+): Future[?!seq[byte]] {.async: (raises: [CancelledError, HttpError]).} =
+  let response = await client.downloadRaw($cid, local = local)
+
+  if response.status != 200:
+    return failure($response.status)
+
+  success await response.getBodyBytes()
+
 proc download*(
     client: CodexClient, cid: Cid, local = false
 ): Future[?!string] {.async: (raises: [CancelledError, HttpError]).} =
-  let response = await client.get(
-    client.baseurl & "/data/" & $cid & (if local: "" else: "/network/stream")
-  )
+  without response =? await client.downloadBytes(cid, local = local), err:
+    return failure(err)
+  return success bytesToString(response)
+
+proc downloadNoStream*(
+    client: CodexClient, cid: Cid
+): Future[?!string] {.async: (raises: [CancelledError, HttpError]).} =
+  let response = await client.post(client.baseurl & "/data/" & $cid & "/network")
 
   if response.status != 200:
     return failure($response.status)
@@ -148,45 +178,34 @@ proc downloadManifestOnly*(
 
   success await response.body
 
-proc downloadNoStream*(
-    client: CodexClient, cid: Cid
-): Future[?!string] {.async: (raises: [CancelledError, HttpError]).} =
-  let response = await client.post(client.baseurl & "/data/" & $cid & "/network")
-
-  if response.status != 200:
-    return failure($response.status)
-
-  success await response.body
-
-# proc downloadBytes*(
-#     client: CodexClient, cid: Cid, local = false
-# ): Future[?!seq[byte]] {.async.} =
-#   let uri = client.baseurl & "/data/" & $cid & (if local: "" else: "/network/stream")
-
-#   let response = client.http.get(uri)
-
-#   if response.status != "200 OK":
-#     return failure("fetch failed with status " & $response.status)
-
-#   success response.body.toBytes
+proc deleteRaw*(
+    client: CodexClient, cid: string
+): Future[HttpClientResponseRef] {.
+    async: (raw: true, raises: [CancelledError, HttpError])
+.} =
+  return client.delete(client.baseurl & "/data/" & cid)
 
 proc delete*(
     client: CodexClient, cid: Cid
 ): Future[?!void] {.async: (raises: [CancelledError, HttpError]).} =
-  let
-    url = client.baseurl & "/data/" & $cid
-    response = await client.delete(url)
+  let response = await client.deleteRaw($cid)
 
   if response.status != 204:
     return failure($response.status)
 
   success()
 
+proc listRaw*(
+    client: CodexClient
+): Future[HttpClientResponseRef] {.
+    async: (raw: true, raises: [CancelledError, HttpError])
+.} =
+  return client.get(client.baseurl & "/data")
+
 proc list*(
     client: CodexClient
 ): Future[?!RestContentList] {.async: (raises: [CancelledError, HttpError]).} =
-  let url = client.baseurl & "/data"
-  let response = await client.get(url)
+  let response = await client.listRaw()
 
   if response.status != 200:
     return failure($response.status)
@@ -383,24 +402,3 @@ proc requestId*(
     client: CodexClient, id: PurchaseId
 ): Future[?RequestId] {.async: (raises: [CancelledError, HttpError]).} =
   return (await client.getPurchase(id)).option .? requestId
-
-proc uploadRaw*(
-    client: CodexClient, contents: string, headers: seq[HttpHeaderTuple] = @[]
-): Future[HttpClientResponseRef] {.async: (raw: true).} =
-  return client.post(client.baseurl & "/data", body = contents, headers = headers)
-
-proc listRaw*(
-    client: CodexClient
-): Future[HttpClientResponseRef] {.async: (raw: true).} =
-  return client.get(client.baseurl & "/data")
-
-proc downloadRaw*(
-    client: CodexClient, cid: string, local = false
-): Future[HttpClientResponseRef] {.async: (raw: true).} =
-  return
-    client.get(client.baseurl & "/data/" & cid & (if local: "" else: "/network/stream"))
-
-proc deleteRaw*(
-    client: CodexClient, cid: string
-): Future[HttpClientResponseRef] {.async: (raw: true).} =
-  return client.delete(client.baseurl & "/data/" & cid)
