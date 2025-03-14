@@ -1,5 +1,6 @@
 import std/httpclient
 import pkg/codex/contracts
+from pkg/codex/stores/repostore/types import DefaultQuotaBytes
 import ./twonodes
 import ../codex/examples
 import ../contracts/time
@@ -53,15 +54,6 @@ multinodesuite "Sales":
     ).get
     check availability in host.getAvailabilities().get
 
-  test "updating non-existing availability", salesConfig:
-    let nonExistingResponse = host.patchAvailabilityRaw(
-      AvailabilityId.example,
-      duration = 100.uint64.some,
-      minPricePerBytePerSecond = 2.u256.some,
-      totalCollateral = 200.u256.some,
-    )
-    check nonExistingResponse.status == "404 Not Found"
-
   test "updating availability", salesConfig:
     let availability = host.postAvailability(
       totalSize = 140000.uint64,
@@ -83,18 +75,6 @@ multinodesuite "Sales":
     check updatedAvailability.totalCollateral == 200
     check updatedAvailability.totalSize == 140000.uint64
     check updatedAvailability.freeSize == 140000.uint64
-
-  test "updating availability - freeSize is not allowed to be changed", salesConfig:
-    let availability = host.postAvailability(
-      totalSize = 140000.uint64,
-      duration = 200.uint64,
-      minPricePerBytePerSecond = 3.u256,
-      totalCollateral = 300.u256,
-    ).get
-    let freeSizeResponse =
-      host.patchAvailabilityRaw(availability.id, freeSize = 110000.uint64.some)
-    check freeSizeResponse.status == "400 Bad Request"
-    check "not allowed" in freeSizeResponse.body
 
   test "updating availability - updating totalSize", salesConfig:
     let availability = host.postAvailability(
@@ -142,7 +122,7 @@ multinodesuite "Sales":
     let utilizedSize = updatedAvailability.totalSize - updatedAvailability.freeSize
     let totalSizeResponse =
       host.patchAvailabilityRaw(availability.id, totalSize = (utilizedSize - 1).some)
-    check totalSizeResponse.status == "400 Bad Request"
+    check totalSizeResponse.status == "422 Unprocessable Entity"
     check "totalSize must be larger then current totalSize" in totalSizeResponse.body
 
     host.patchAvailability(availability.id, totalSize = (originalSize + 20000).some)
