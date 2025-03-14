@@ -36,8 +36,11 @@ method run*(
     requestId = data.requestId, slotIndex = data.slotIndex
 
   try:
+    if onClear =? agent.context.onClear:
+      onClear(request, data.slotIndex)
+
     if onCleanUp =? agent.onCleanUp:
-      await onCleanUp(returnedCollateral = state.returnedCollateral)
+      await onCleanUp(returnedCollateral = state.returnedCollateral, returnBytes = true)
   except CancelledError as e:
     trace "SaleFilled.run onCleanUp was cancelled", error = e.msgDetail
   except CatchableError as e:

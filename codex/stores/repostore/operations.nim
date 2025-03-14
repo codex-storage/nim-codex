@@ -105,7 +105,7 @@ proc updateQuotaUsage*(
     minusUsed: NBytes = 0.NBytes,
     plusReserved: NBytes = 0.NBytes,
     minusReserved: NBytes = 0.NBytes,
-): Future[?!void] {.async.} =
+): Future[?!void] {.async: (raises: [CancelledError]).} =
   await self.metaDs.modify(
     QuotaUsedKey,
     proc(maybeCurrUsage: ?QuotaUsage): Future[?QuotaUsage] {.async.} =

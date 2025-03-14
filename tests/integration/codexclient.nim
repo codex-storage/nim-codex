@@ -189,11 +189,13 @@ proc getSlots*(client: CodexClient): ?!seq[Slot] =
   let body = client.http().getContent(url)
   seq[Slot].fromJson(body)
 
-proc postAvailability*(
+proc postAvailabilityRaw*(
     client: CodexClient,
     totalSize, duration: uint64,
     minPricePerBytePerSecond, totalCollateral: UInt256,
-): ?!Availability =
+    enabled: ?bool = bool.none,
+    until: ?SecondsSince1970 = SecondsSince1970.none,
+): Response =
   ## Post sales availability endpoint
   ##
   let url = client.baseurl & "/sales/availability"
@@ -203,8 +205,27 @@ proc postAvailability*(
       "duration": duration,
       "minPricePerBytePerSecond": minPricePerBytePerSecond,
       "totalCollateral": totalCollateral,
+      "enabled": enabled,
+      "until": until,
     }
-  let response = client.http().post(url, $json)
+  return client.http().post(url, $json)
+
+proc postAvailability*(
+    client: CodexClient,
+    totalSize, duration: uint64,
+    minPricePerBytePerSecond, totalCollateral: UInt256,
+    enabled: ?bool = bool.none,
+    until: ?SecondsSince1970 = SecondsSince1970.none,
+): ?!Availability =
+  let response = client.postAvailabilityRaw(
+    totalSize = totalSize,
+    duration = duration,
+    minPricePerBytePerSecond = minPricePerBytePerSecond,
+    totalCollateral = totalCollateral,
+    enabled = enabled,
+    until = until,
+  )
+
   doAssert response.status == "201 Created",
     "expected 201 Created, got " & response.status & ", body: " & response.body
   Availability.fromJson(response.body)
@@ -214,6 +235,8 @@ proc patchAvailabilityRaw*(
     availabilityId: AvailabilityId,
     totalSize, freeSize, duration: ?uint64 = uint64.none,
     minPricePerBytePerSecond, totalCollateral: ?UInt256 = UInt256.none,
+    enabled: ?bool = bool.none,
+    until: ?SecondsSince1970 = SecondsSince1970.none,
 ): Response =
   ## Updates availability
   ##
@@ -237,6 +260,12 @@ proc patchAvailabilityRaw*(
   if totalCollateral =? totalCollateral:
     json["totalCollateral"] = %totalCollateral
 
+  if enabled =? enabled:
+    json["enabled"] = %enabled
+
+  if until =? until:
+    json["until"] = %until
+
   client.http().patch(url, $json)
 
 proc patchAvailability*(
@@ -244,6 +273,8 @@ proc patchAvailability*(
     availabilityId: AvailabilityId,
     totalSize, duration: ?uint64 = uint64.none,
     minPricePerBytePerSecond, totalCollateral: ?UInt256 = UInt256.none,
+    enabled: ?bool = bool.none,
+    until: ?SecondsSince1970 = SecondsSince1970.none,
 ): void =
   let response = client.patchAvailabilityRaw(
     availabilityId,
@@ -251,8 +282,11 @@ proc patchAvailability*(
     duration = duration,
     minPricePerBytePerSecond = minPricePerBytePerSecond,
     totalCollateral = totalCollateral,
+    enabled = enabled,
+    until = until,
   )
-  doAssert response.status == "200 OK", "expected 200 OK, got " & response.status
+  doAssert response.status == "204 No Content",
+    "expected 200 OK, got " & response.status
 
 proc getAvailabilities*(client: CodexClient): ?!seq[Availability] =
   ## Call sales availability REST endpoint
