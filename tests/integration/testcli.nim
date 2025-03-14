@@ -12,8 +12,9 @@ import ../examples
 const HardhatPort {.intdefine.}: int = 8545
 const CodexApiPort {.intdefine.}: int = 8080
 const CodexDiscPort {.intdefine.}: int = 8090
-const DebugCodexNodes {.booldefine.}: bool = false
-const LogsDir {.strdefine.}: string = ""
+const CodexLogToFile {.booldefine.}: bool = false
+const CodexLogLevel {.strdefine.}: string = ""
+const CodexLogsDir {.strdefine.}: string = ""
 
 asyncchecksuite "Command line interface":
   let startTime = now().format("yyyy-MM-dd'_'HH:mm:ss")
@@ -30,21 +31,23 @@ asyncchecksuite "Command line interface":
       tbody
 
   proc addLogFile(args: seq[string]): seq[string] =
-    when DebugCodexNodes:
-      return args.concat @[
+    var args = args
+    when CodexLogToFile:
+      args.add(
         "--log-file=" &
           getLogFile(
-            LogsDir,
+            CodexLogsDir,
             startTime,
             "Command line interface",
             currentTestName,
             "Client",
             some nodeCount mod testCount,
-          ),
-        "--log-level=" & $LogLevel.TRACE,
-      ]
-    else:
-      return args
+          )
+      )
+    when CodexLogLevel != "":
+      args.add "--log-level=" & CodexLogLevel
+
+    return args
 
   proc startCodex(arguments: seq[string]): Future[CodexProcess] {.async.} =
     inc nodeCount
@@ -56,7 +59,7 @@ asyncchecksuite "Command line interface":
           "--disc-port=" & $(await nextFreePort(CodexDiscPort + nodeCount)),
         ]
       ),
-      debug = DebugCodexNodes,
+      debug = false,
       "cli-test-node",
     )
 
