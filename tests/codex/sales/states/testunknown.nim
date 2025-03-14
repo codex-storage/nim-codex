@@ -14,7 +14,7 @@ import ../../helpers/mockmarket
 import ../../examples
 import ../../helpers
 
-checksuite "sales state 'unknown'":
+suite "sales state 'unknown'":
   let request = StorageRequest.example
   let slotIndex = request.ask.slots div 2
   let slotId = slotId(request.id, slotIndex)

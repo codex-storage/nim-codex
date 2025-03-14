@@ -7,7 +7,7 @@ import pkg/codex/utils/iter
 import ../../asynctest
 import ../helpers
 
-checksuite "Test Iter":
+suite "Test Iter":
   test "Should be finished":
     let iter = Iter[int].empty()
 

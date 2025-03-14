@@ -153,7 +153,11 @@ proc updateExpiry*(
     let ensuringFutures = Iter[int].new(0 ..< manifest.blocksCount).mapIt(
         self.networkStore.localStore.ensureExpiry(manifest.treeCid, it, expiry)
       )
-    await allFuturesThrowing(ensuringFutures)
+
+    let res = await allFinishedFailed(ensuringFutures)
+    if res.failure.len > 0:
+      trace "Some blocks failed to update expiry", len = res.failure.len
+      return failure("Some blocks failed to update expiry (" & $res.failure.len & " )")
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
@@ -186,8 +190,10 @@ proc fetchBatched*(
           if not (await address in self.networkStore) or fetchLocal:
             self.networkStore.getBlock(address)
 
-    if blocksErr =? (await allFutureResult(blocks)).errorOption:
-      return failure(blocksErr)
+    let res = await allFinishedFailed(blocks)
+    if res.failure.len > 0:
+      trace "Some blocks failed to fetch", len = res.failure.len
+      return failure("Some blocks failed to fetch (" & $res.failure.len & " )")
 
     if not onBatch.isNil and
         batchErr =? (await onBatch(blocks.mapIt(it.read.get))).errorOption:
@@ -213,6 +219,30 @@ proc fetchBatched*(
   let iter = Iter[int].new(0 ..< manifest.blocksCount)
   self.fetchBatched(manifest.treeCid, iter, batchSize, onBatch, fetchLocal)
 
+proc fetchDatasetAsync*(
+    self: CodexNodeRef, manifest: Manifest, fetchLocal = true
+): Future[void] {.async: (raises: []).} =
+  ## Asynchronously fetch a dataset in the background.
+  ## This task will be tracked and cleaned up on node shutdown.
+  ##
+  try:
+    if err =? (
+      await self.fetchBatched(
+        manifest = manifest, batchSize = DefaultFetchBatch, fetchLocal = fetchLocal
+      )
+    ).errorOption:
+      error "Unable to fetch blocks", err = err.msg
+  except CancelledError as exc:
+    trace "Cancelled fetching blocks", exc = exc.msg
+  except CatchableError as exc:
+    error "Error fetching blocks", exc = exc.msg
+
+proc fetchDatasetAsyncTask*(self: CodexNodeRef, manifest: Manifest) =
+  ## Start fetching a dataset in the background.
+  ## The task will be tracked and cleaned up on node shutdown.
+  ##
+  self.trackedFutures.track(self.fetchDatasetAsync(manifest, fetchLocal = false))
+
 proc streamSingleBlock(self: CodexNodeRef, cid: Cid): Future[?!LPStream] {.async.} =
   ## Streams the contents of a single block.
   ##
@@ -223,36 +253,27 @@ proc streamSingleBlock(self: CodexNodeRef, cid: Cid): Future[?!LPStream] {.async
   without blk =? (await self.networkStore.getBlock(BlockAddress.init(cid))), err:
     return failure(err)
 
-  proc streamOneBlock(): Future[void] {.async.} =
+  proc streamOneBlock(): Future[void] {.async: (raises: []).} =
     try:
+      defer:
+        await stream.pushEof()
       await stream.pushData(blk.data)
     except CatchableError as exc:
       trace "Unable to send block", cid, exc = exc.msg
-      discard
-    finally:
-      await stream.pushEof()
 
   self.trackedFutures.track(streamOneBlock())
   LPStream(stream).success
 
 proc streamEntireDataset(
-    self: CodexNodeRef,
-    manifest: Manifest,
-    manifestCid: Cid,
-    prefetchBatch = DefaultFetchBatch,
+    self: CodexNodeRef, manifest: Manifest, manifestCid: Cid
 ): Future[?!LPStream] {.async.} =
   ## Streams the contents of the entire dataset described by the manifest.
-  ## Background jobs (erasure decoding and prefetching) will be cancelled when
-  ## the stream is closed.
   ##
   trace "Retrieving blocks from manifest", manifestCid
 
-  let stream = LPStream(StoreStream.new(self.networkStore, manifest, pad = false))
-  var jobs: seq[Future[void]]
-
   if manifest.protected:
     # Retrieve, decode and save to the local store all EС groups
-    proc erasureJob(): Future[void] {.async.} =
+    proc erasureJob(): Future[void] {.async: (raises: []).} =
       try:
         # Spawn an erasure decoding job
         let erasure = Erasure.new(
@@ -260,36 +281,17 @@ proc streamEntireDataset(
         )
         without _ =? (await erasure.decode(manifest)), error:
           error "Unable to erasure decode manifest", manifestCid, exc = error.msg
-      except CancelledError:
-        trace "Erasure job cancelled", manifestCid
       except CatchableError as exc:
         trace "Error erasure decoding manifest", manifestCid, exc = exc.msg
 
-    jobs.add(erasureJob())
+    self.trackedFutures.track(erasureJob())
 
-  proc prefetch(): Future[void] {.async.} =
-    try:
-      if err =?
-          (await self.fetchBatched(manifest, prefetchBatch, fetchLocal = false)).errorOption:
-        error "Unable to fetch blocks", err = err.msg
-    except CancelledError:
-      trace "Prefetch job cancelled"
-    except CatchableError as exc:
-      error "Error fetching blocks", exc = exc.msg
+  self.trackedFutures.track(self.fetchDatasetAsync(manifest, fetchLocal = false))
+    # prefetch task should not fetch from local store
 
-  jobs.add(prefetch())
-
-  # Monitor stream completion and cancel background jobs when done
-  proc monitorStream() {.async.} =
-    try:
-      await stream.join()
-    finally:
-      await allFutures(jobs.mapIt(it.cancelAndWait))
-
-  self.trackedFutures.track(monitorStream())
-
+  # Retrieve all blocks of the dataset sequentially from the local store or network
   trace "Creating store stream for manifest", manifestCid
-  stream.success
+  LPStream(StoreStream.new(self.networkStore, manifest, pad = false)).success
 
 proc retrieve*(
     self: CodexNodeRef, cid: Cid, local: bool = true
@@ -632,8 +634,11 @@ proc onStore(
 
     let ensureExpiryFutures =
       blocks.mapIt(self.networkStore.ensureExpiry(it.cid, expiry.toSecondsSince1970))
-    if updateExpiryErr =? (await allFutureResult(ensureExpiryFutures)).errorOption:
-      return failure(updateExpiryErr)
+
+    let res = await allFinishedFailed(ensureExpiryFutures)
+    if res.failure.len > 0:
+      trace "Some blocks failed to update expiry", len = res.failure.len
+      return failure("Some blocks failed to update expiry (" & $res.failure.len & " )")
 
     if not blocksCb.isNil and err =? (await blocksCb(blocks)).errorOption:
       trace "Unable to process blocks", err = err.msg

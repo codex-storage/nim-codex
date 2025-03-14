@@ -28,8 +28,11 @@ const DefaultChunkSize* = DefaultBlockSize
 
 type
   # default reader type
+  ChunkerError* = object of CatchableError
   ChunkBuffer* = ptr UncheckedArray[byte]
-  Reader* = proc(data: ChunkBuffer, len: int): Future[int] {.gcsafe, raises: [Defect].}
+  Reader* = proc(data: ChunkBuffer, len: int): Future[int] {.
+    gcsafe, async: (raises: [ChunkerError, CancelledError])
+  .}
 
   # Reader that splits input data into fixed-size chunks
   Chunker* = ref object
@@ -74,7 +77,7 @@ proc new*(
 
   proc reader(
       data: ChunkBuffer, len: int
-  ): Future[int] {.gcsafe, async, raises: [Defect].} =
+  ): Future[int] {.gcsafe, async: (raises: [ChunkerError, CancelledError]).} =
     var res = 0
     try:
       while res < len:
@@ -85,7 +88,7 @@ proc new*(
       raise error
     except LPStreamError as error:
       error "LPStream error", err = error.msg
-      raise error
+      raise newException(ChunkerError, "LPStream error", error)
     except CatchableError as exc:
       error "CatchableError exception", exc = exc.msg
       raise newException(Defect, exc.msg)
@@ -102,7 +105,7 @@ proc new*(
 
   proc reader(
       data: ChunkBuffer, len: int
-  ): Future[int] {.gcsafe, async, raises: [Defect].} =
+  ): Future[int] {.gcsafe, async: (raises: [ChunkerError, CancelledError]).} =
     var total = 0
     try:
       while total < len:

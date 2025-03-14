@@ -1,12 +1,14 @@
-import std/unittest
 import std/os
-import codex/utils/keyutils
+
+import pkg/unittest2
+import pkg/codex/utils/keyutils
+
 import ../helpers
 
 when defined(windows):
   import stew/windows/acl
 
-checksuite "keyutils":
+suite "keyutils":
   let path = getTempDir() / "CodexTest"
 
   setup:

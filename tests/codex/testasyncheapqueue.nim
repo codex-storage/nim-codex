@@ -22,7 +22,7 @@ proc toSortedSeq[T](h: AsyncHeapQueue[T], queueType = QueueType.Min): seq[T] =
   while tmp.len > 0:
     result.add(popNoWait(tmp).tryGet())
 
-checksuite "Synchronous tests":
+suite "Synchronous tests":
   test "Test pushNoWait - Min":
     var heap = newAsyncHeapQueue[int]()
     let data = [1, 3, 5, 7, 9, 2, 4, 6, 8, 0]
