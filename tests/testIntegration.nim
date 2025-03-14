@@ -1,5 +1,6 @@
 import ./integration/testcli
 import ./integration/testrestapi
+import ./integration/testrestapivalidation
 import ./integration/testupdownload
 import ./integration/testsales
 import ./integration/testpurchasing
