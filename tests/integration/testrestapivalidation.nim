@@ -19,7 +19,7 @@ from ./multinodes import Role, getTempDirName, jsonRpcProviderUrl, nextFreePort
 # the execution.
 asyncchecksuite "Rest API validation":
   var node: CodexProcess
-  var config = CodexConfigs.init(nodes = 1).debug().configs[0]
+  var config = CodexConfigs.init(nodes = 1).configs[0]
   let starttime = now().format("yyyy-MM-dd'_'HH:mm:ss")
   let nodexIdx = 0
   let datadir = getTempDirName(starttime, Role.Client, nodexIdx)
@@ -204,15 +204,17 @@ asyncchecksuite "Rest API validation":
     check response.body == "Total size must be larger then zero"
 
   test "creating availability when total size is negative returns 422":
-    let response = client1.postAvailabilityRaw(
-      totalSize = -1.uint64,
-      duration = 200.uint64,
-      minPricePerBytePerSecond = 3.u256,
-      totalCollateral = 300.u256,
-    )
+    let json =
+      %*{
+        "totalSize": "-1",
+        "duration": "200",
+        "minPricePerBytePerSecond": "3",
+        "totalCollateral": "300",
+      }
+    let response = client1.http().post(client1.buildUrl("/sales/availability"), $json)
 
-    check response.status == "422 Unprocessable Entity"
-    check response.body == "The values provided are out of range"
+    check response.status == "400 Bad Request"
+    check response.body == "Parsed integer outside of valid range"
 
   test "updating availability when total size is negative returns 422":
     let availability = client1.postAvailability(
@@ -221,11 +223,14 @@ asyncchecksuite "Rest API validation":
       minPricePerBytePerSecond = 3.u256,
       totalCollateral = 300.u256,
     ).get
-    let response =
-      client1.patchAvailabilityRaw(availability.id, totalSize = -1.uint64.some)
 
-    check response.status == "422 Unprocessable Entity"
-    check response.body == "The values provided are out of range"
+    let json = %*{"totalSize": "-1"}
+    let response = client1.http().patch(
+        client1.buildUrl("/sales/availability/") & $availability.id, $json
+      )
+
+    check response.status == "400 Bad Request"
+    check response.body == "Parsed integer outside of valid range"
 
   waitFor node.stop()
   node.removeDataDir()

@@ -309,3 +309,6 @@ proc downloadRaw*(
 
 proc deleteRaw*(client: CodexClient, cid: string): Response =
   return client.http().request(client.baseurl & "/data/" & cid, httpMethod = HttpDelete)
+
+proc buildUrl*(client: CodexClient, path: string): string =
+  return client.baseurl & path
