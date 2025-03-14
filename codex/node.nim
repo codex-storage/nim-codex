@@ -691,7 +691,8 @@ proc storePieces*(
           err:
           return failure(err)
         pieces.add(mh)
-        trace "successfully computed piece multihash", pieces = $pieces
+        trace "successfully computed piece multihash",
+          piece = $mh, numberOfPieces = pieces.len
         pieceIter = Iter[int].new(0 ..< numOfBlocksPerPiece)
         pieceHashCtx.init()
       without mhash =? MultiHash.digest($hcodec, chunk).mapFailure, err:
@@ -712,7 +713,7 @@ proc storePieces*(
       let idx = pieceIter.next()
       trace "stored block in piece with index", idx
       if chunk.len < blockSize.int:
-        trace "no more block to read"
+        trace "no more blocks to read"
         break
   except CancelledError as exc:
     raise exc
@@ -725,7 +726,9 @@ proc storePieces*(
     return failure(err)
   pieces.add(mh)
 
-  trace "finished processing blocks", pieces = $pieces
+  trace "successfully computed last piece multihash", piece = $mh
+
+  trace "finished processing blocks", numberOfPieces = pieces.len
 
   without tree =? CodexTree.init(cids), err:
     return failure(err)
