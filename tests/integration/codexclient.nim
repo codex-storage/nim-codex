@@ -269,10 +269,12 @@ proc getPurchase*(
   except CatchableError as e:
     return failure e.msg
 
-proc getSalesAgent*(client: CodexClient, slotId: SlotId): ?!RestSalesAgent =
+proc getSalesAgent*(
+    client: CodexClient, slotId: SlotId
+): Future[?!RestSalesAgent] {.async: (raises: [CancelledError, HttpError]).} =
   let url = client.baseurl & "/sales/slots/" & slotId.toHex
   try:
-    let body = client.http.getContent(url)
+    let body = await client.getContent(url)
     return RestSalesAgent.fromJson(body)
   except CatchableError as e:
     return failure e.msg
@@ -361,10 +363,10 @@ proc getAvailabilities*(
 
 proc getAvailabilityReservations*(
     client: CodexClient, availabilityId: AvailabilityId
-): ?!seq[Reservation] =
+): Future[?!seq[Reservation]] {.async: (raises: [CancelledError, HttpError]).} =
   ## Retrieves Availability's Reservations
   let url = client.baseurl & "/sales/availability/" & $availabilityId & "/reservations"
-  let body = client.http.getContent(url)
+  let body = await client.getContent(url)
   seq[Reservation].fromJson(body)
 
 proc purchaseStateIs*(
@@ -372,11 +374,15 @@ proc purchaseStateIs*(
 ): Future[bool] {.async: (raises: [CancelledError, HttpError]).} =
   (await client.getPurchase(id)).option .? state == some state
 
-proc saleStateIs*(client: CodexClient, id: SlotId, state: string): bool =
-  client.getSalesAgent(id).option .? state == some state
+proc saleStateIs*(
+    client: CodexClient, id: SlotId, state: string
+): Future[bool] {.async: (raises: [CancelledError, HttpError]).} =
+  (await client.getSalesAgent(id)).option .? state == some state
 
-# proc requestId*(client: CodexClient, id: PurchaseId): ?RequestId =
-#   return client.getPurchase(id).option .? requestId
+proc requestId*(
+    client: CodexClient, id: PurchaseId
+): Future[?RequestId] {.async: (raises: [CancelledError, HttpError]).} =
+  return (await client.getPurchase(id)).option .? requestId
 
 proc uploadRaw*(
     client: CodexClient, contents: string, headers: seq[HttpHeaderTuple] = @[]

@@ -83,16 +83,18 @@ template marketplacesuite*(name: string, body: untyped) =
         expiry: uint64 = 4.periods,
         nodes = providers().len,
         tolerance = 0,
-    ): Future[PurchaseId] {.async.} =
-      let id = client.requestStorage(
-        cid,
-        expiry = expiry,
-        duration = duration,
-        proofProbability = proofProbability,
-        collateralPerByte = collateralPerByte,
-        pricePerBytePerSecond = pricePerBytePerSecond,
-        nodes = nodes.uint,
-        tolerance = tolerance.uint,
+    ): Future[PurchaseId] {.async: (raises: [CancelledError, HttpError]).} =
+      let id = (
+        await client.requestStorage(
+          cid,
+          expiry = expiry,
+          duration = duration,
+          proofProbability = proofProbability,
+          collateralPerByte = collateralPerByte,
+          pricePerBytePerSecond = pricePerBytePerSecond,
+          nodes = nodes.uint,
+          tolerance = tolerance.uint,
+        )
       ).get
 
       return id
