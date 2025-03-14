@@ -17,47 +17,71 @@ asyncchecksuite "tracked futures":
     check module.trackedFutures.len == 0
 
   test "tracks unfinished futures":
-    let fut = newFuture[void]("test")
+    let fut = Future[void].Raising([]).init("test", {FutureFlag.OwnCancelSchedule})
     module.trackedFutures.track(fut)
     check module.trackedFutures.len == 1
 
   test "does not track completed futures":
-    let fut = newFuture[void]("test")
+    let fut = Future[void].Raising([]).init("test", {FutureFlag.OwnCancelSchedule})
     fut.complete()
     module.trackedFutures.track(fut)
-    check eventually module.trackedFutures.len == 0
-
-  test "does not track failed futures":
-    let fut = newFuture[void]("test")
-    fut.fail((ref CatchableError)(msg: "some error"))
-    module.trackedFutures.track(fut)
-    check eventually module.trackedFutures.len == 0
+    check module.trackedFutures.len == 0
 
   test "does not track cancelled futures":
-    let fut = newFuture[void]("test")
+    let fut = Future[void].Raising([]).init("test", {FutureFlag.OwnCancelSchedule})
+    fut.cancelCallback = proc(data: pointer) =
+      fut.cancelAndSchedule() # manually schedule the cancel
+
     await fut.cancelAndWait()
     module.trackedFutures.track(fut)
     check eventually module.trackedFutures.len == 0
 
   test "removes tracked future when finished":
-    let fut = newFuture[void]("test")
+    let fut = Future[void].Raising([]).init("test", {FutureFlag.OwnCancelSchedule})
     module.trackedFutures.track(fut)
+    check module.trackedFutures.len == 1
     fut.complete()
     check eventually module.trackedFutures.len == 0
 
   test "removes tracked future when cancelled":
-    let fut = newFuture[void]("test")
+    let fut = Future[void].Raising([]).init("test", {FutureFlag.OwnCancelSchedule})
+    fut.cancelCallback = proc(data: pointer) =
+      fut.cancelAndSchedule() # manually schedule the cancel
+
     module.trackedFutures.track(fut)
+    check module.trackedFutures.len == 1
+    await fut.cancelAndWait()
+    check eventually module.trackedFutures.len == 0
+
+  test "completed and removes future on cancel":
+    let fut = Future[void].Raising([]).init("test", {FutureFlag.OwnCancelSchedule})
+    fut.cancelCallback = proc(data: pointer) =
+      fut.complete()
+
+    module.trackedFutures.track(fut)
+    check module.trackedFutures.len == 1
     await fut.cancelAndWait()
     check eventually module.trackedFutures.len == 0
 
   test "cancels and removes all tracked futures":
-    let fut1 = newFuture[void]("test1")
-    let fut2 = newFuture[void]("test2")
-    let fut3 = newFuture[void]("test3")
+    let fut1 = Future[void].Raising([]).init("test1", {FutureFlag.OwnCancelSchedule})
+    fut1.cancelCallback = proc(data: pointer) =
+      fut1.cancelAndSchedule() # manually schedule the cancel
+
+    let fut2 = Future[void].Raising([]).init("test2", {FutureFlag.OwnCancelSchedule})
+    fut2.cancelCallback = proc(data: pointer) =
+      fut2.cancelAndSchedule() # manually schedule the cancel
+
+    let fut3 = Future[void].Raising([]).init("test3", {FutureFlag.OwnCancelSchedule})
+    fut3.cancelCallback = proc(data: pointer) =
+      fut3.cancelAndSchedule() # manually schedule the cancel
+
     module.trackedFutures.track(fut1)
+    check module.trackedFutures.len == 1
     module.trackedFutures.track(fut2)
+    check module.trackedFutures.len == 2
     module.trackedFutures.track(fut3)
+    check module.trackedFutures.len == 3
     await module.trackedFutures.cancelTracked()
     check eventually fut1.cancelled
     check eventually fut2.cancelled

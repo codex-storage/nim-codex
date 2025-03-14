@@ -38,7 +38,9 @@ type
   AnyProof* = CircomProof
 
   AnySampler* = Poseidon2Sampler
+    # add any other generic type here, eg. Poseidon2Sampler | ReinforceConcreteSampler
   AnyBuilder* = Poseidon2Builder
+    # add any other generic type here, eg. Poseidon2Builder | ReinforceConcreteBuilder
 
   AnyProofInputs* = ProofInputs[Poseidon2Hash]
   Prover* = ref object of RootObj

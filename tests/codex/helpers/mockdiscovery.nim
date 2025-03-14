@@ -14,29 +14,42 @@ import pkg/codex/discovery
 import pkg/contractabi/address as ca
 
 type MockDiscovery* = ref object of Discovery
-  findBlockProvidersHandler*:
-    proc(d: MockDiscovery, cid: Cid): Future[seq[SignedPeerRecord]] {.gcsafe.}
-  publishBlockProvideHandler*: proc(d: MockDiscovery, cid: Cid): Future[void] {.gcsafe.}
-  findHostProvidersHandler*:
-    proc(d: MockDiscovery, host: ca.Address): Future[seq[SignedPeerRecord]] {.gcsafe.}
-  publishHostProvideHandler*:
-    proc(d: MockDiscovery, host: ca.Address): Future[void] {.gcsafe.}
+  findBlockProvidersHandler*: proc(
+    d: MockDiscovery, cid: Cid
+  ): Future[seq[SignedPeerRecord]] {.async: (raises: [CancelledError]).}
+
+  publishBlockProvideHandler*:
+    proc(d: MockDiscovery, cid: Cid): Future[void] {.async: (raises: [CancelledError]).}
+
+  findHostProvidersHandler*: proc(
+    d: MockDiscovery, host: ca.Address
+  ): Future[seq[SignedPeerRecord]] {.async: (raises: [CancelledError]).}
+
+  publishHostProvideHandler*: proc(d: MockDiscovery, host: ca.Address): Future[void] {.
+    async: (raises: [CancelledError])
+  .}
 
 proc new*(T: type MockDiscovery): MockDiscovery =
   MockDiscovery()
 
-proc findPeer*(d: Discovery, peerId: PeerId): Future[?PeerRecord] {.async.} =
+proc findPeer*(
+    d: Discovery, peerId: PeerId
+): Future[?PeerRecord] {.async: (raises: [CancelledError]).} =
   ## mock find a peer - always return none
-  ## 
+  ##
   return none(PeerRecord)
 
-method find*(d: MockDiscovery, cid: Cid): Future[seq[SignedPeerRecord]] {.async.} =
+method find*(
+    d: MockDiscovery, cid: Cid
+): Future[seq[SignedPeerRecord]] {.async: (raises: [CancelledError]).} =
   if isNil(d.findBlockProvidersHandler):
     return
 
   return await d.findBlockProvidersHandler(d, cid)
 
-method provide*(d: MockDiscovery, cid: Cid): Future[void] {.async.} =
+method provide*(
+    d: MockDiscovery, cid: Cid
+): Future[void] {.async: (raises: [CancelledError]).} =
   if isNil(d.publishBlockProvideHandler):
     return
 
@@ -44,13 +57,15 @@ method provide*(d: MockDiscovery, cid: Cid): Future[void] {.async.} =
 
 method find*(
     d: MockDiscovery, host: ca.Address
-): Future[seq[SignedPeerRecord]] {.async.} =
+): Future[seq[SignedPeerRecord]] {.async: (raises: [CancelledError]).} =
   if isNil(d.findHostProvidersHandler):
     return
 
   return await d.findHostProvidersHandler(d, host)
 
-method provide*(d: MockDiscovery, host: ca.Address): Future[void] {.async.} =
+method provide*(
+    d: MockDiscovery, host: ca.Address
+): Future[void] {.async: (raises: [CancelledError]).} =
   if isNil(d.publishHostProvideHandler):
     return
 

@@ -11,7 +11,7 @@ import ./commonstoretests
 import ../../asynctest
 import ../helpers
 
-checksuite "Cache Store":
+suite "Cache Store":
   var
     newBlock, newBlock1, newBlock2, newBlock3: Block
     store: CacheStore

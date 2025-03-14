@@ -116,7 +116,7 @@ asyncchecksuite "Purchasing":
       await purchase.wait()
     check market.withdrawn == @[request.id]
 
-checksuite "Purchasing state machine":
+suite "Purchasing state machine":
   var purchasing: Purchasing
   var market: MockMarket
   var clock: MockClock

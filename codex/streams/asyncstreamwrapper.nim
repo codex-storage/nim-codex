@@ -57,6 +57,8 @@ template withExceptions(body: untyped) =
     raise newLPStreamEOFError()
   except AsyncStreamError as exc:
     raise newException(LPStreamError, exc.msg)
+  except CatchableError as exc:
+    raise newException(Defect, "Unexpected error in AsyncStreamWrapper", exc)
 
 method readOnce*(
     self: AsyncStreamWrapper, pbytes: pointer, nbytes: int
@@ -74,11 +76,13 @@ method readOnce*(
 
 proc completeWrite(
     self: AsyncStreamWrapper, fut: Future[void], msgLen: int
-): Future[void] {.async.} =
+): Future[void] {.async: (raises: [CancelledError, LPStreamError]).} =
   withExceptions:
     await fut
 
-method write*(self: AsyncStreamWrapper, msg: seq[byte]): Future[void] =
+method write*(
+    self: AsyncStreamWrapper, msg: seq[byte]
+): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
   # Avoid a copy of msg being kept in the closure created by `{.async.}` as this
   # drives up memory usage
 

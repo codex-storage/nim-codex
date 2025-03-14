@@ -1,8 +1,9 @@
+{.push raises: [].}
+
 import pkg/stew/byteutils
 import pkg/stint
 import pkg/nitro
 import pkg/questionable
-import pkg/upraises
 import ./blockexc
 
 export AccountMessage
@@ -10,9 +11,6 @@ export StateChannelUpdate
 
 export stint
 export nitro
-
-push:
-  {.upraises: [].}
 
 type Account* = object
   address*: EthAddress

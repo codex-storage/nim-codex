@@ -320,15 +320,8 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
       error "Failed to fetch manifest", err = err.msg
       return RestApiResponse.error(Http404, err.msg, headers = headers)
 
-    proc fetchDatasetAsync(): Future[void] {.async.} =
-      try:
-        if err =? (await node.fetchBatched(manifest)).errorOption:
-          error "Unable to fetch dataset", cid = cid.get(), err = err.msg
-      except CatchableError as exc:
-        error "CatchableError when fetching dataset", cid = cid.get(), exc = exc.msg
-        discard
-
-    asyncSpawn fetchDatasetAsync()
+    # Start fetching the dataset in the background
+    node.fetchDatasetAsyncTask(manifest)
 
     let json = %formatManifest(cid.get(), manifest)
     return RestApiResponse.response($json, contentType = "application/json")
