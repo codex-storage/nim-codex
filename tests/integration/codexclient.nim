@@ -44,25 +44,46 @@ proc post(
 
   return await request.send()
 
-proc delete(
+proc request(
     t: typedesc[HttpClientRequestRef],
     session: HttpSessionRef,
+    httpMethod: httputils.HttpMethod,
     url: string,
     version: httputils.HttpVersion = HttpVersion11,
     flags: set[HttpClientRequestFlag] = {},
     maxResponseHeadersSize: int = HttpMaxHeadersSize,
     headers: openArray[HttpHeaderTuple] = [],
-    body: openArray[byte] = [],
+    body: openArray[char] = [],
 ): HttpResult[HttpClientRequestRef] =
   HttpClientRequestRef.new(
-    session, url, MethodDelete, version, flags, maxResponseHeadersSize, headers, body
+    session,
+    url,
+    httpMethod,
+    version,
+    flags,
+    maxResponseHeadersSize,
+    headers,
+    body.toOpenArrayByte(0, len(body) - 1),
   )
 
 proc delete(
     client: CodexClient, url: string, headers: seq[HttpHeaderTuple] = @[]
 ): Future[HttpClientResponseRef] {.async: (raises: [CancelledError, HttpError]).} =
-  let request =
-    HttpClientRequestRef.delete(HttpSessionRef.new(), url, headers = headers).get
+  let request = HttpClientRequestRef.request(
+    HttpSessionRef.new(), MethodDelete, url, headers = headers
+  ).get
+
+  return await request.send()
+
+proc patch(
+    client: CodexClient,
+    url: string,
+    body: string = "",
+    headers: seq[HttpHeaderTuple] = @[],
+): Future[HttpClientResponseRef] {.async: (raises: [CancelledError, HttpError]).} =
+  let request = HttpClientRequestRef.request(
+    HttpSessionRef.new(), MethodPatch, url, headers = headers, body = body
+  ).get
 
   return await request.send()
 
@@ -70,6 +91,12 @@ proc body*(
     response: HttpClientResponseRef
 ): Future[string] {.async: (raises: [CancelledError, HttpError]).} =
   return bytesToString (await response.getBodyBytes())
+
+proc getContent(
+    client: CodexClient, url: string, headers: seq[HttpHeaderTuple] = @[]
+): Future[string] {.async: (raises: [CancelledError, HttpError]).} =
+  let response = await client.get(url, headers)
+  return await response.body
 
 proc info*(
     client: CodexClient
@@ -187,7 +214,9 @@ proc requestStorageRaw*(
     expiry: uint64 = 0,
     nodes: uint = 3,
     tolerance: uint = 1,
-): Future[HttpClientResponseRef] {.async: (raw: true).} =
+): Future[HttpClientResponseRef] {.
+    async: (raw: true, raises: [CancelledError, HttpError])
+.} =
   ## Call request storage REST endpoint
   ##
   let url = client.baseurl & "/storage/request/" & $cid
@@ -206,31 +235,36 @@ proc requestStorageRaw*(
 
   return client.post(url, $json)
 
-# proc requestStorage*(
-#     client: CodexClient,
-#     cid: Cid,
-#     duration: uint64,
-#     pricePerBytePerSecond: UInt256,
-#     proofProbability: UInt256,
-#     expiry: uint64,
-#     collateralPerByte: UInt256,
-#     nodes: uint = 3,
-#     tolerance: uint = 1,
-# ): ?!PurchaseId =
-#   ## Call request storage REST endpoint
-#   ##
-#   let response = client.requestStorageRaw(
-#     cid, duration, pricePerBytePerSecond, proofProbability, collateralPerByte, expiry,
-#     nodes, tolerance,
-#   )
-#   if response.status != "200 OK":
-#     doAssert(false, response.body)
-#   PurchaseId.fromHex(response.body).catch
+proc requestStorage*(
+    client: CodexClient,
+    cid: Cid,
+    duration: uint64,
+    pricePerBytePerSecond: UInt256,
+    proofProbability: UInt256,
+    expiry: uint64,
+    collateralPerByte: UInt256,
+    nodes: uint = 3,
+    tolerance: uint = 1,
+): Future[?!PurchaseId] {.async: (raises: [CancelledError, HttpError]).} =
+  ## Call request storage REST endpoint
+  ##
+  let
+    response = await client.requestStorageRaw(
+      cid, duration, pricePerBytePerSecond, proofProbability, collateralPerByte, expiry,
+      nodes, tolerance,
+    )
+    body = await response.body
 
-proc getPurchase*(client: CodexClient, purchaseId: PurchaseId): ?!RestPurchase =
+  if response.status != 200:
+    doAssert(false, body)
+  PurchaseId.fromHex(body).catch
+
+proc getPurchase*(
+    client: CodexClient, purchaseId: PurchaseId
+): Future[?!RestPurchase] {.async: (raises: [CancelledError, HttpError]).} =
   let url = client.baseurl & "/storage/purchases/" & purchaseId.toHex
   try:
-    let body = client.http.getContent(url)
+    let body = await client.getContent(url)
     return RestPurchase.fromJson(body)
   except CatchableError as e:
     return failure e.msg
@@ -275,7 +309,9 @@ proc patchAvailabilityRaw*(
     availabilityId: AvailabilityId,
     totalSize, freeSize, duration: ?uint64 = uint64.none,
     minPricePerBytePerSecond, totalCollateral: ?UInt256 = UInt256.none,
-): Response =
+): Future[HttpClientResponseRef] {.
+    async: (raw: true, raises: [CancelledError, HttpError])
+.} =
   ## Updates availability
   ##
   let url = client.baseurl & "/sales/availability/" & $availabilityId
@@ -298,27 +334,29 @@ proc patchAvailabilityRaw*(
   if totalCollateral =? totalCollateral:
     json["totalCollateral"] = %totalCollateral
 
-  client.http.patch(url, $json)
+  client.patch(url, $json)
 
 proc patchAvailability*(
     client: CodexClient,
     availabilityId: AvailabilityId,
     totalSize, duration: ?uint64 = uint64.none,
     minPricePerBytePerSecond, totalCollateral: ?UInt256 = UInt256.none,
-): void =
-  let response = client.patchAvailabilityRaw(
+): Future[void] {.async: (raises: [CancelledError, HttpError]).} =
+  let response = await client.patchAvailabilityRaw(
     availabilityId,
     totalSize = totalSize,
     duration = duration,
     minPricePerBytePerSecond = minPricePerBytePerSecond,
     totalCollateral = totalCollateral,
   )
-  doAssert response.status == "200 OK", "expected 200 OK, got " & response.status
+  doAssert response.status == 200, "expected 200 OK, got " & $response.status
 
-proc getAvailabilities*(client: CodexClient): ?!seq[Availability] =
+proc getAvailabilities*(
+    client: CodexClient
+): Future[?!seq[Availability]] {.async: (raises: [CancelledError, HttpError]).} =
   ## Call sales availability REST endpoint
   let url = client.baseurl & "/sales/availability"
-  let body = client.http.getContent(url)
+  let body = await client.getContent(url)
   seq[Availability].fromJson(body)
 
 proc getAvailabilityReservations*(
@@ -329,14 +367,16 @@ proc getAvailabilityReservations*(
   let body = client.http.getContent(url)
   seq[Reservation].fromJson(body)
 
-proc purchaseStateIs*(client: CodexClient, id: PurchaseId, state: string): bool =
-  client.getPurchase(id).option .? state == some state
+proc purchaseStateIs*(
+    client: CodexClient, id: PurchaseId, state: string
+): Future[bool] {.async: (raises: [CancelledError, HttpError]).} =
+  (await client.getPurchase(id)).option .? state == some state
 
 proc saleStateIs*(client: CodexClient, id: SlotId, state: string): bool =
   client.getSalesAgent(id).option .? state == some state
 
-proc requestId*(client: CodexClient, id: PurchaseId): ?RequestId =
-  return client.getPurchase(id).option .? requestId
+# proc requestId*(client: CodexClient, id: PurchaseId): ?RequestId =
+#   return client.getPurchase(id).option .? requestId
 
 proc uploadRaw*(
     client: CodexClient, contents: string, headers: seq[HttpHeaderTuple] = @[]
