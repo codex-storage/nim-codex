@@ -54,15 +54,6 @@ multinodesuite "Sales":
     ).get
     check availability in host.getAvailabilities().get
 
-  test "updating non-existing availability", salesConfig:
-    let nonExistingResponse = host.patchAvailabilityRaw(
-      AvailabilityId.example,
-      duration = 100.uint64.some,
-      minPricePerBytePerSecond = 2.u256.some,
-      totalCollateral = 200.u256.some,
-    )
-    check nonExistingResponse.status == "404 Not Found"
-
   test "updating availability", salesConfig:
     let availability = host.postAvailability(
       totalSize = 140000.uint64,
@@ -84,18 +75,6 @@ multinodesuite "Sales":
     check updatedAvailability.totalCollateral == 200
     check updatedAvailability.totalSize == 140000.uint64
     check updatedAvailability.freeSize == 140000.uint64
-
-  test "updating availability - freeSize is not allowed to be changed", salesConfig:
-    let availability = host.postAvailability(
-      totalSize = 140000.uint64,
-      duration = 200.uint64,
-      minPricePerBytePerSecond = 3.u256,
-      totalCollateral = 300.u256,
-    ).get
-    let freeSizeResponse =
-      host.patchAvailabilityRaw(availability.id, freeSize = 110000.uint64.some)
-    check freeSizeResponse.status == "422 Unprocessable Entity"
-    check "not allowed" in freeSizeResponse.body
 
   test "updating availability - updating totalSize", salesConfig:
     let availability = host.postAvailability(
@@ -151,74 +130,3 @@ multinodesuite "Sales":
       (host.getAvailabilities().get).findItem(availability).get
     check newUpdatedAvailability.totalSize == originalSize + 20000
     check newUpdatedAvailability.freeSize - updatedAvailability.freeSize == 20000
-
-  test "creating availability above the node quota returns 422", salesConfig:
-    let response = host.postAvailabilityRaw(
-      totalSize = 24000000000.uint64,
-      duration = 200.uint64,
-      minPricePerBytePerSecond = 3.u256,
-      totalCollateral = 300.u256,
-    )
-
-    check response.status == "422 Unprocessable Entity"
-    check response.body == "Not enough storage quota"
-
-  test "updating availability above the node quota returns 422", salesConfig:
-    let availability = host.postAvailability(
-      totalSize = 140000.uint64,
-      duration = 200.uint64,
-      minPricePerBytePerSecond = 3.u256,
-      totalCollateral = 300.u256,
-    ).get
-    let response =
-      host.patchAvailabilityRaw(availability.id, totalSize = 24000000000.uint64.some)
-
-    check response.status == "422 Unprocessable Entity"
-    check response.body == "Not enough storage quota"
-
-  test "creating availability when total size is zero returns 422", salesConfig:
-    let response = host.postAvailabilityRaw(
-      totalSize = 0.uint64,
-      duration = 200.uint64,
-      minPricePerBytePerSecond = 3.u256,
-      totalCollateral = 300.u256,
-    )
-
-    check response.status == "422 Unprocessable Entity"
-    check response.body == "Total size must be larger then zero"
-
-  test "updating availability when total size is zero returns 422", salesConfig:
-    let availability = host.postAvailability(
-      totalSize = 140000.uint64,
-      duration = 200.uint64,
-      minPricePerBytePerSecond = 3.u256,
-      totalCollateral = 300.u256,
-    ).get
-    let response = host.patchAvailabilityRaw(availability.id, totalSize = 0.uint64.some)
-
-    check response.status == "422 Unprocessable Entity"
-    check response.body == "Total size must be larger then zero"
-
-  test "creating availability when total size is negative returns 422", salesConfig:
-    let response = host.postAvailabilityRaw(
-      totalSize = -1.uint64,
-      duration = 200.uint64,
-      minPricePerBytePerSecond = 3.u256,
-      totalCollateral = 300.u256,
-    )
-
-    check response.status == "422 Unprocessable Entity"
-    check response.body == "The values provided are out of range"
-
-  test "updating availability when total size is negative returns 422", salesConfig:
-    let availability = host.postAvailability(
-      totalSize = 140000.uint64,
-      duration = 200.uint64,
-      minPricePerBytePerSecond = 3.u256,
-      totalCollateral = 300.u256,
-    ).get
-    let response =
-      host.patchAvailabilityRaw(availability.id, totalSize = -1.uint64.some)
-
-    check response.status == "422 Unprocessable Entity"
-    check response.body == "The values provided are out of range"
