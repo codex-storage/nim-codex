@@ -114,7 +114,12 @@ proc retrieveCid(
     else:
       resp.setHeader("Content-Disposition", "attachment")
 
-    resp.setHeader("Content-Length", $manifest.datasetSize.int)
+    # For erasure-coded datasets, we need to return the _original_ length; i.e.,
+    # the length of the non-erasure-coded dataset, as that's what we will be
+    # returning to the client.
+    let contentLength =
+      if manifest.protected: manifest.originalDatasetSize else: manifest.datasetSize
+    resp.setHeader("Content-Length", $(contentLength.int))
 
     await resp.prepare(HttpResponseStreamType.Plain)
 
