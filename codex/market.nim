@@ -18,7 +18,7 @@ export periods
 type
   Market* = ref object of RootObj
   MarketError* = object of CodexError
-  SlotNotFreeError* = object of MarketError
+  SlotStateMismatchError* = object of MarketError
   SlotReservationNotAllowedError* = object of MarketError
   Subscription* = ref object of RootObj
   OnRequest* =

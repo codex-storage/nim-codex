@@ -48,7 +48,7 @@ method run*(
     debug "Filling slot"
     try:
       await market.fillSlot(data.requestId, data.slotIndex, state.proof, collateral)
-    except SlotNotFreeError as e:
+    except SlotStateMismatchError as e:
       debug "Slot is already filled, ignoring slot"
       return some State(SaleIgnored(reprocessSlot: false, returnBytes: true))
     except MarketError as e:

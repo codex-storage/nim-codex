@@ -256,7 +256,8 @@ method fillSlot(
       trace "fillSlot transaction completed"
     except Marketplace_SlotNotFree as parent:
       raise newException(
-        SlotNotFreeError, "Failed to fill slot because the slot is not free", parent
+        SlotStateMismatchError, "Failed to fill slot because the slot is not free",
+        parent,
       )
 
 method freeSlot*(market: OnChainMarket, slotId: SlotId) {.async.} =
