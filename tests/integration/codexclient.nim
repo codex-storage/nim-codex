@@ -17,8 +17,6 @@ type CodexClient* = ref object
   baseurl: string
   session: HttpSessionRef
 
-type CodexClientError* = object of CatchableError
-
 proc new*(_: type CodexClient, baseurl: string): CodexClient =
   CodexClient(session: HttpSessionRef.new(), baseurl: baseurl)
 
