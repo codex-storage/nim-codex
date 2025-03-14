@@ -13,21 +13,18 @@ marketplacesuite "Bug #821 - node crashes during erasure coding":
         .withLogFile()
         # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
         .withLogTopics("node", "erasure", "marketplace").some,
-      providers: CodexConfigs.init(nodes = 0)
-      # .debug() # uncomment to enable console log output
-      # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-      # .withLogTopics("node", "marketplace", "sales", "reservations", "node", "proving", "clock")
-      .some,
+      providers: CodexConfigs.init(nodes = 0).some,
     ):
-    let pricePerBytePerSecond = 1.u256
-    let duration = 20.periods
-    let collateralPerByte = 1.u256
-    let expiry = 10.periods
-    let data = await RandomChunker.example(blocks = 8)
-    let client = clients()[0]
-    let clientApi = client.client
+    let
+      pricePerBytePerSecond = 1.u256
+      duration = 20.periods
+      collateralPerByte = 1.u256
+      expiry = 10.periods
+      data = await RandomChunker.example(blocks = 8)
+      client = clients()[0]
+      clientApi = client.client
 
-    let cid = clientApi.upload(data).get
+    let cid = (await clientApi.upload(data)).get
 
     var requestId = none RequestId
     proc onStorageRequested(eventResult: ?!StorageRequested) =
@@ -49,9 +46,11 @@ marketplacesuite "Bug #821 - node crashes during erasure coding":
 
     check eventually(requestId.isSome, timeout = expiry.int * 1000)
 
-    let request = await marketplace.getRequest(requestId.get)
-    let cidFromRequest = request.content.cid
-    let downloaded = await clientApi.downloadBytes(cidFromRequest, local = true)
+    let
+      request = await marketplace.getRequest(requestId.get)
+      cidFromRequest = request.content.cid
+      downloaded = await clientApi.downloadBytes(cidFromRequest, local = true)
+
     check downloaded.isOk
     check downloaded.get.toHex == data.toHex
 

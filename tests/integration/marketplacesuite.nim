@@ -60,13 +60,13 @@ template marketplacesuite*(name: string, body: untyped) =
         duration: uint64,
         collateralPerByte: UInt256,
         minPricePerBytePerSecond: UInt256,
-    ) =
+    ): Future[void] {.async: (raises: [CancelledError, HttpError, ConfigurationError]).} =
       let totalCollateral = datasetSize.u256 * collateralPerByte
       # post availability to each provider
       for i in 0 ..< providers().len:
         let provider = providers()[i].client
 
-        discard provider.postAvailability(
+        discard await provider.postAvailability(
           totalSize = datasetSize,
           duration = duration.uint64,
           minPricePerBytePerSecond = minPricePerBytePerSecond,
@@ -83,16 +83,18 @@ template marketplacesuite*(name: string, body: untyped) =
         expiry: uint64 = 4.periods,
         nodes = providers().len,
         tolerance = 0,
-    ): Future[PurchaseId] {.async.} =
-      let id = client.requestStorage(
-        cid,
-        expiry = expiry,
-        duration = duration,
-        proofProbability = proofProbability,
-        collateralPerByte = collateralPerByte,
-        pricePerBytePerSecond = pricePerBytePerSecond,
-        nodes = nodes.uint,
-        tolerance = tolerance.uint,
+    ): Future[PurchaseId] {.async: (raises: [CancelledError, HttpError]).} =
+      let id = (
+        await client.requestStorage(
+          cid,
+          expiry = expiry,
+          duration = duration,
+          proofProbability = proofProbability,
+          collateralPerByte = collateralPerByte,
+          pricePerBytePerSecond = pricePerBytePerSecond,
+          nodes = nodes.uint,
+          tolerance = tolerance.uint,
+        )
       ).get
 
       return id
