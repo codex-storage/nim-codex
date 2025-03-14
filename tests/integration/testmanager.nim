@@ -640,7 +640,7 @@ proc run(test: IntegrationTest) {.async: (raises: []).} =
     of IntegrationTestStatus.Ok:
       notice "Test passed"
 
-proc runTests(manager: TestManager) {.async: (raises: [CancelledError]).} =
+proc runTests(manager: TestManager) {.async: (raises: []).} =
   var testFutures: seq[Future[void]]
 
   manager.timeStart = some Moment.now()
@@ -658,13 +658,14 @@ proc runTests(manager: TestManager) {.async: (raises: [CancelledError]).} =
     let futRun = test.run()
     testFutures.add futRun
 
-  defer:
+  try:
+    await allFutures testFutures
+    manager.timeEnd = some Moment.now()
+  except CancelledError as e:
+    discard
+  finally:
     for fut in testFutures:
       await fut.cancelAndWait()
-
-  await allFutures testFutures
-
-  manager.timeEnd = some Moment.now()
 
 proc withBorder(
     msg: string, align = Align.Left, width = 67, borders = {Border.Left, Border.Right}
