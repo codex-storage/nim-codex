@@ -41,7 +41,7 @@ proc raiseMultiNodeSuiteError(msg: string) =
   raise newException(MultiNodeSuiteError, msg)
 
 proc nextFreePort(startPort: int): Future[int] {.async.} =
-  proc client(server: StreamServer, transp: StreamTransport) {.async.} =
+  proc client(server: StreamServer, transp: StreamTransport) {.async: (raises: []).} =
     await transp.closeWait()
 
   var port = startPort

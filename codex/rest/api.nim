@@ -39,6 +39,7 @@ import ../manifest
 import ../streams/asyncstreamwrapper
 import ../stores
 import ../utils/options
+import ../bittorrent/manifest
 
 import ./coders
 import ./json
@@ -51,6 +52,11 @@ declareCounter(codex_api_downloads, "codex API downloads")
 
 proc validate(pattern: string, value: string): int {.gcsafe, raises: [Defect].} =
   0
+
+proc formatTorrentManifest(
+    infoHash: MultiHash, torrentManifest: BitTorrentManifest
+): RestTorrentContent =
+  return RestTorrentContent.init(infoHash, torrentManifest)
 
 proc formatManifest(cid: Cid, manifest: Manifest): RestContent =
   return RestContent.init(cid, manifest)
@@ -144,6 +150,74 @@ proc retrieveCid(
     if not stream.isNil:
       await stream.close()
 
+proc retrieveInfoHash(
+    node: CodexNodeRef, infoHash: MultiHash, resp: HttpResponseRef
+): Future[void] {.async.} =
+  ## Download torrent from the node in a streaming
+  ## manner
+  ##
+  var stream: LPStream
+
+  var bytes = 0
+  try:
+    without torrent =? (await node.retrieveTorrent(infoHash)), err:
+      error "Unable to fetch Torrent Metadata", err = err.msg
+      resp.status = Http404
+      await resp.sendBody(err.msg)
+      return
+    let (torrentManifest, codexManifest) = torrent
+
+    without stream =? (await node.streamTorrent(torrentManifest, codexManifest)), err:
+      if err of BlockNotFoundError:
+        resp.status = Http404
+        await resp.sendBody("")
+        return
+      else:
+        resp.status = Http500
+        await resp.sendBody(err.msg)
+        return
+
+    if codexManifest.mimetype.isSome:
+      resp.setHeader("Content-Type", codexManifest.mimetype.get())
+    else:
+      resp.addHeader("Content-Type", "application/octet-stream")
+
+    if codexManifest.filename.isSome:
+      resp.setHeader(
+        "Content-Disposition",
+        "attachment; filename=\"" & codexManifest.filename.get() & "\"",
+      )
+    else:
+      resp.setHeader("Content-Disposition", "attachment")
+
+    await resp.prepareChunked()
+
+    while not stream.atEof:
+      var
+        buff = newSeqUninitialized[byte](BitTorrentBlockSize.int)
+        len = await stream.readOnce(addr buff[0], buff.len)
+
+      buff.setLen(len)
+      if buff.len <= 0:
+        break
+
+      bytes += buff.len
+
+      await resp.sendChunk(addr buff[0], buff.len)
+    await resp.finish()
+    codex_api_downloads.inc()
+  except CancelledError as exc:
+    raise exc
+  except CatchableError as exc:
+    warn "Error streaming blocks", exc = exc.msg
+    resp.status = Http500
+    if resp.isPending():
+      await resp.sendBody(exc.msg)
+  finally:
+    info "Sent bytes for torrent", infoHash = $infoHash, bytes
+    if not stream.isNil:
+      await stream.close()
+
 proc buildCorsHeaders(
     httpMethod: string, allowedOrigin: Option[string]
 ): seq[(string, string)] =
@@ -174,7 +248,81 @@ proc getFilenameFromContentDisposition(contentDisposition: string): ?string =
   return filename[0 ..^ 2].some
 
 proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRouter) =
-  let allowedOrigin = router.allowedOrigin # prevents capture inside of api defintion
+  let allowedOrigin = router.allowedOrigin # prevents capture inside of api definition
+
+  router.api(MethodOptions, "/api/codex/v1/torrent") do(
+    resp: HttpResponseRef
+  ) -> RestApiResponse:
+    if corsOrigin =? allowedOrigin:
+      resp.setCorsHeaders("POST", corsOrigin)
+      resp.setHeader(
+        "Access-Control-Allow-Headers", "content-type, content-disposition"
+      )
+
+    resp.status = Http204
+    await resp.sendBody("")
+
+  router.rawApi(MethodPost, "/api/codex/v1/torrent") do() -> RestApiResponse:
+    ## Upload a file in a streaming manner
+    ##
+
+    trace "Handling file upload"
+    var bodyReader = request.getBodyReader()
+    if bodyReader.isErr():
+      return RestApiResponse.error(Http500, msg = bodyReader.error())
+
+    # Attempt to handle `Expect` header
+    # some clients (curl), wait 1000ms
+    # before giving up
+    #
+    await request.handleExpect()
+
+    var mimetype = request.headers.getString(ContentTypeHeader).some
+
+    if mimetype.get() != "":
+      let mimetypeVal = mimetype.get()
+      var m = newMimetypes()
+      let extension = m.getExt(mimetypeVal, "")
+      if extension == "":
+        return RestApiResponse.error(
+          Http422, "The MIME type '" & mimetypeVal & "' is not valid."
+        )
+    else:
+      mimetype = string.none
+
+    const ContentDispositionHeader = "Content-Disposition"
+    let contentDisposition = request.headers.getString(ContentDispositionHeader)
+    let filename = getFilenameFromContentDisposition(contentDisposition)
+
+    if filename.isSome and not isValidFilename(filename.get()):
+      return RestApiResponse.error(Http422, "The filename is not valid.")
+
+    # Here we could check if the extension matches the filename if needed
+
+    let reader = bodyReader.get()
+
+    try:
+      without infoHash =? (
+        await node.storeTorrent(
+          AsyncStreamWrapper.new(reader = AsyncStreamReader(reader)),
+          filename = filename,
+          mimetype = mimetype,
+        )
+      ), error:
+        error "Error uploading file", exc = error.msg
+        return RestApiResponse.error(Http500, error.msg)
+
+      codex_api_uploads.inc()
+      trace "Uploaded torrent", infoHash = $infoHash
+      return RestApiResponse.response(infoHash.hex)
+    except CancelledError:
+      trace "Upload cancelled error"
+      return RestApiResponse.error(Http500)
+    except AsyncStreamError:
+      trace "Async stream error"
+      return RestApiResponse.error(Http500)
+    finally:
+      await reader.closeWait()
 
   router.api(MethodOptions, "/api/codex/v1/data") do(
     resp: HttpResponseRef
@@ -340,6 +488,29 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
     resp.setHeader("Access-Control-Expose-Headers", "Content-Disposition")
     await node.retrieveCid(cid.get(), local = false, resp = resp)
 
+  router.api(MethodGet, "/api/codex/v1/torrent/{infoHash}/network/stream") do(
+    infoHash: MultiHash, resp: HttpResponseRef
+  ) -> RestApiResponse:
+    var headers = buildCorsHeaders("GET", allowedOrigin)
+
+    without infoHash =? infoHash.mapFailure, error:
+      return RestApiResponse.error(Http400, error.msg, headers = headers)
+
+    if infoHash.mcodec != Sha1HashCodec:
+      return RestApiResponse.error(
+        Http400, "Only torrents version 1 are currently supported!", headers = headers
+      )
+
+    if corsOrigin =? allowedOrigin:
+      resp.setCorsHeaders("GET", corsOrigin)
+      resp.setHeader("Access-Control-Headers", "X-Requested-With")
+
+    trace "torrent requested: ", multihash = $infoHash
+
+    await node.retrieveInfoHash(infoHash, resp = resp)
+
+    # return RestApiResponse.response(Http200)
+
   router.api(MethodGet, "/api/codex/v1/data/{cid}/network/manifest") do(
     cid: Cid, resp: HttpResponseRef
   ) -> RestApiResponse:
@@ -356,6 +527,37 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
       return RestApiResponse.error(Http404, err.msg, headers = headers)
 
     let json = %formatManifest(cid.get(), manifest)
+    return RestApiResponse.response($json, contentType = "application/json")
+
+  router.api(MethodGet, "/api/codex/v1/torrent/{infoHash}/network/manifest") do(
+    infoHash: MultiHash, resp: HttpResponseRef
+  ) -> RestApiResponse:
+    ## Download only the Bit Torrent manifest (if found)
+    ##
+
+    var headers = buildCorsHeaders("GET", allowedOrigin)
+
+    without infoHash =? infoHash.mapFailure, error:
+      return RestApiResponse.error(Http400, error.msg, headers = headers)
+
+    if infoHash.mcodec != Sha1HashCodec:
+      return RestApiResponse.error(
+        Http400, "Only torrents version 1 are currently supported!", headers = headers
+      )
+
+    without infoHashCid =? Cid.init(CIDv1, InfoHashV1Codec, infoHash).mapFailure, err:
+      error "Unable to create CID for BitTorrent info hash", err = err.msg
+      resp.status = Http404
+      await resp.sendBody(err.msg)
+      return
+
+    without torrentManifest =? (await node.fetchTorrentManifest(infoHashCid)), err:
+      error "Unable to fetch Torrent Manifest", err = err.msg
+      resp.status = Http404
+      await resp.sendBody(err.msg)
+      return
+
+    let json = %formatTorrentManifest(infoHash, torrentManifest)
     return RestApiResponse.response($json, contentType = "application/json")
 
   router.api(MethodGet, "/api/codex/v1/space") do() -> RestApiResponse:
