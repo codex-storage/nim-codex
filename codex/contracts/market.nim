@@ -216,11 +216,10 @@ method currentCollateral*(
     return await market.contract.currentCollateral(slotId)
 
 method getActiveSlot*(market: OnChainMarket, slotId: SlotId): Future[?Slot] {.async.} =
-  convertEthersError("Failed to get active slot"):
-    try:
-      return some await market.contract.getActiveSlot(slotId)
-    except Marketplace_SlotIsFree:
-      return none Slot
+  try:
+    return some await market.contract.getActiveSlot(slotId)
+  except EthersError:
+    return none Slot
 
 method fillSlot(
     market: OnChainMarket,
