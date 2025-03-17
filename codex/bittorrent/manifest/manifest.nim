@@ -34,6 +34,9 @@ func `==`*(a: BitTorrentInfo, b: BitTorrentInfo): bool =
   a.length == b.length and a.pieceLength == b.pieceLength and a.pieces == b.pieces and
     a.name == b.name
 
+func `==`*(a: BitTorrentManifest, b: BitTorrentManifest): bool =
+  a.info == b.info and a.codexManifestCid == b.codexManifestCid
+
 proc newBitTorrentManifest*(
     info: BitTorrentInfo, codexManifestCid: Cid
 ): BitTorrentManifest =
