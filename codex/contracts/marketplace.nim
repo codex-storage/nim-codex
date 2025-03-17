@@ -113,19 +113,6 @@ proc freeSlot*(
   ]
 .}
 
-proc freeSlot*(
-  marketplace: Marketplace,
-  id: SlotId,
-  rewardRecipient: Address,
-  collateralRecipient: Address,
-): Confirmable {.
-  contract,
-  errors: [
-    Marketplace_InvalidSlotHost, Marketplace_AlreadyPaid,
-    Marketplace_StartNotBeforeExpiry, Marketplace_UnknownRequest, Marketplace_SlotIsFree,
-  ]
-.}
-
 proc getRequest*(
   marketplace: Marketplace, id: RequestId
 ): StorageRequest {.contract, view, errors: [Marketplace_UnknownRequest].}
