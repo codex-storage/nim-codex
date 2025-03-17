@@ -224,7 +224,8 @@ method fillSlot(
     try:
       await market.approveFunds(collateral.stuint(256))
       trace "calling fillSlot on contract"
-      discard await market.contract.fillSlot(requestId, slotIndex, proof).confirm(1)
+      let overrides = TransactionOverrides(gasLimit: some 500_000.u256)
+      discard await market.contract.fillSlot(requestId, slotIndex, proof, overrides).confirm(1)
       trace "fillSlot transaction completed"
     except Marketplace_SlotNotFree as parent:
       raise newException(
