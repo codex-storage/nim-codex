@@ -11,22 +11,19 @@ import ./checktest
 ## changes to the blockchain do not persist.
 template ethersuite*(name, body) =
   asyncchecksuite name:
-    var ethProvider {.inject, used.}: JsonRpcProvider
-    var accounts {.inject, used.}: seq[Address]
+    var ethProvider {.inject, used.} = JsonRpcProvider.new("ws://localhost:8545")
+    var accounts {.inject, used.} = waitFor ethProvider.listAccounts()
     var snapshot: JsonNode
 
     setup:
-      ethProvider = JsonRpcProvider.new(
-        "http://127.0.0.1:8545", pollingInterval = chronos.milliseconds(100)
-      )
       snapshot = await send(ethProvider, "evm_snapshot")
-      accounts = await ethProvider.listAccounts()
 
     teardown:
-      await ethProvider.close()
       discard await send(ethProvider, "evm_revert", @[snapshot])
 
     body
+
+    waitFor ethProvider.close()
 
 export asynctest
 export ethers except `%`
