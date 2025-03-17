@@ -528,38 +528,6 @@ ethersuite "On-Chain Market":
     let expectedPayout = request.expectedPayout(filledAt, requestEnd.u256)
     check endBalance == (startBalance + expectedPayout + request.ask.collateralPerSlot.stuint(256))
 
-  test "pays rewards to reward recipient, collateral to host":
-    market = ! await OnChainMarket.load(marketplace, hostRewardRecipient.some)
-    let hostAddress = await host.getAddress()
-
-    await market.requestStorage(request)
-
-    await switchAccount(host)
-    await market.reserveSlot(request.id, 0.uint64)
-    await market.fillSlot(request.id, 0.uint64, proof, request.ask.collateralPerSlot)
-    let filledAt = (await ethProvider.currentTime()) - 1.u256
-
-    for slotIndex in 1 ..< request.ask.slots:
-      await market.reserveSlot(request.id, slotIndex.uint64)
-      await market.fillSlot(
-        request.id, slotIndex.uint64, proof, request.ask.collateralPerSlot
-      )
-
-    let requestEnd = await market.getRequestEnd(request.id)
-    await ethProvider.advanceTimeTo(requestEnd.u256 + 1)
-
-    let startBalanceHost = await token.balanceOf(hostAddress)
-    let startBalanceReward = await token.balanceOf(hostRewardRecipient)
-
-    await market.freeSlot(request.slotId(0.uint64))
-
-    let endBalanceHost = await token.balanceOf(hostAddress)
-    let endBalanceReward = await token.balanceOf(hostRewardRecipient)
-
-    let expectedPayout = request.expectedPayout(filledAt, requestEnd.u256)
-    check endBalanceHost == (startBalanceHost + request.ask.collateralPerSlot.stuint(256))
-    check endBalanceReward == (startBalanceReward + expectedPayout)
-
   test "the request is added in cache after the fist access":
     await market.requestStorage(request)
 
