@@ -377,23 +377,6 @@ proc subscribeRequested(sales: Sales) {.async.} =
   except CatchableError as e:
     error "Unable to subscribe to storage request events", msg = e.msg
 
-proc subscribeCancellation(sales: Sales) {.async.} =
-  let context = sales.context
-  let market = context.market
-  let queue = context.slotQueue
-
-  proc onCancelled(requestId: RequestId) =
-    trace "request cancelled (via contract RequestCancelled event), removing all request slots from queue"
-    queue.delete(requestId)
-
-  try:
-    let sub = await market.subscribeRequestCancelled(onCancelled)
-    sales.subscriptions.add(sub)
-  except CancelledError as error:
-    raise error
-  except CatchableError as e:
-    error "Unable to subscribe to cancellation events", msg = e.msg
-
 proc subscribeFulfilled*(sales: Sales) {.async.} =
   let context = sales.context
   let market = context.market
@@ -518,7 +501,6 @@ proc subscribe(sales: Sales) {.async.} =
   await sales.subscribeFailure()
   await sales.subscribeSlotFilled()
   await sales.subscribeSlotFreed()
-  await sales.subscribeCancellation()
   await sales.subscribeSlotReservationsFull()
 
 proc unsubscribe(sales: Sales) {.async.} =
