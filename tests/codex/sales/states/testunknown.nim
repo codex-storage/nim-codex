@@ -5,7 +5,6 @@ import pkg/codex/sales/salescontext
 import pkg/codex/sales/states/unknown
 import pkg/codex/sales/states/errored
 import pkg/codex/sales/states/filled
-import pkg/codex/sales/states/finished
 import pkg/codex/sales/states/failed
 import pkg/codex/sales/states/payout
 
@@ -47,11 +46,6 @@ suite "sales state 'unknown'":
     market.slotState[slotId] = SlotState.Finished
     let next = await state.run(agent)
     check !next of SalePayout
-
-  test "switches to finished state when on chain state is 'paid'":
-    market.slotState[slotId] = SlotState.Paid
-    let next = await state.run(agent)
-    check !next of SaleFinished
 
   test "switches to failed state when on chain state is 'failed'":
     market.slotState[slotId] = SlotState.Failed
