@@ -20,7 +20,6 @@ type
   OnChainMarket* = ref object of Market
     contract: Marketplace
     signer: Signer
-    rewardRecipient: ?Address
     configuration: MarketplaceConfig
     requestCache: LruCache[string, StorageRequest]
 
@@ -44,7 +43,6 @@ proc loadConfig(
 proc load*(
     _: type OnChainMarket,
     contract: Marketplace,
-    rewardRecipient = Address.none,
     requestCacheSize: uint16 = DefaultRequestCacheSize,
 ): Future[?!OnChainMarket] {.async: (raises: [CancelledError]).} =
   without signer =? contract.signer:
@@ -55,7 +53,6 @@ proc load*(
   let market = OnChainMarket(
     contract: contract,
     signer: signer,
-    rewardRecipient: rewardRecipient,
     requestCache: requestCache,
   )
 
@@ -221,22 +218,7 @@ method fillSlot(
 
 method freeSlot*(market: OnChainMarket, slotId: SlotId) {.async.} =
   convertEthersError("Failed to free slot"):
-    var freeSlot: Future[Confirmable]
-    if rewardRecipient =? market.rewardRecipient:
-      # If --reward-recipient specified, use it as the reward recipient, and use
-      # the SP's address as the collateral recipient
-      let collateralRecipient = await market.getSigner()
-      freeSlot = market.contract.freeSlot(
-        slotId,
-        rewardRecipient, # --reward-recipient
-        collateralRecipient,
-      ) # SP's address
-    else:
-      # Otherwise, use the SP's address as both the reward and collateral
-      # recipient (the contract will use msg.sender for both)
-      freeSlot = market.contract.freeSlot(slotId)
-
-    discard await freeSlot.confirm(1)
+    discard await  market.contract.freeSlot(slotId).confirm(1)
 
 method withdrawFunds(market: OnChainMarket, requestId: RequestId) {.async.} =
   convertEthersError("Failed to withdraw funds"):
