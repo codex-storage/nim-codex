@@ -327,7 +327,7 @@ method subscribeRequests*(
       error "There was an error in Request subscription", msg = eventErr.msg
       return
 
-    callback(event.requestId, event.ask, event.expiry)
+    callback(event.requestId, event.ask, event.expiry.truncate(uint64))
 
   convertEthersError("Failed to subscribe to StorageRequested events"):
     let subscription = await market.contract.subscribe(StorageRequested, onEvent)
