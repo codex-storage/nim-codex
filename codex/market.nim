@@ -18,6 +18,7 @@ export periods
 type
   Market* = ref object of RootObj
   MarketError* = object of CodexError
+  SlotStateMismatchError* = object of MarketError
   Subscription* = ref object of RootObj
   OnRequest* =
     proc(id: RequestId, ask: StorageAsk, expiry: uint64) {.gcsafe, upraises: [].}
@@ -72,7 +73,9 @@ method getZkeyHash*(
 ): Future[?string] {.base, async: (raises: [CancelledError, MarketError]).} =
   raiseAssert("not implemented")
 
-method getSigner*(market: Market): Future[Address] {.base, async.} =
+method getSigner*(
+    market: Market
+): Future[Address] {.base, async: (raises: [CancelledError, MarketError]).} =
   raiseAssert("not implemented")
 
 method periodicity*(
@@ -142,12 +145,12 @@ method requestExpiresAt*(
 
 method getHost*(
     market: Market, requestId: RequestId, slotIndex: uint64
-): Future[?Address] {.base, async.} =
+): Future[?Address] {.base, async: (raises: [CancelledError, MarketError]).} =
   raiseAssert("not implemented")
 
 method currentCollateral*(
     market: Market, slotId: SlotId
-): Future[UInt256] {.base, async.} =
+): Future[UInt256] {.base, async: (raises: [MarketError, CancelledError]).} =
   raiseAssert("not implemented")
 
 method getActiveSlot*(market: Market, slotId: SlotId): Future[?Slot] {.base, async.} =
