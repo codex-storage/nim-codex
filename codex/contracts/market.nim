@@ -435,35 +435,6 @@ method subscribeFulfillment(
     let subscription = await market.contract.subscribe(RequestFulfilled, onEvent)
     return OnChainMarketSubscription(eventSubscription: subscription)
 
-method subscribeRequestCancelled*(
-    market: OnChainMarket, callback: OnRequestCancelled
-): Future[MarketSubscription] {.async.} =
-  proc onEvent(eventResult: ?!RequestCancelled) {.upraises: [].} =
-    without event =? eventResult, eventErr:
-      error "There was an error in RequestCancelled subscription", msg = eventErr.msg
-      return
-
-    callback(event.requestId)
-
-  convertEthersError("Failed to subscribe to RequestCancelled events"):
-    let subscription = await market.contract.subscribe(RequestCancelled, onEvent)
-    return OnChainMarketSubscription(eventSubscription: subscription)
-
-method subscribeRequestCancelled*(
-    market: OnChainMarket, requestId: RequestId, callback: OnRequestCancelled
-): Future[MarketSubscription] {.async.} =
-  proc onEvent(eventResult: ?!RequestCancelled) {.upraises: [].} =
-    without event =? eventResult, eventErr:
-      error "There was an error in RequestCancelled subscription", msg = eventErr.msg
-      return
-
-    if event.requestId == requestId:
-      callback(event.requestId)
-
-  convertEthersError("Failed to subscribe to RequestCancelled events"):
-    let subscription = await market.contract.subscribe(RequestCancelled, onEvent)
-    return OnChainMarketSubscription(eventSubscription: subscription)
-
 method subscribeRequestFailed*(
     market: OnChainMarket, callback: OnRequestFailed
 ): Future[MarketSubscription] {.async.} =

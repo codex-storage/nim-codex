@@ -28,7 +28,6 @@ type
   OnSlotFreed* = proc(requestId: RequestId, slotIndex: uint64) {.gcsafe, upraises: [].}
   OnSlotReservationsFull* =
     proc(requestId: RequestId, slotIndex: uint64) {.gcsafe, upraises: [].}
-  OnRequestCancelled* = proc(requestId: RequestId) {.gcsafe, upraises: [].}
   OnRequestFailed* = proc(requestId: RequestId) {.gcsafe, upraises: [].}
   OnProofSubmitted* = proc(id: SlotId) {.gcsafe, upraises: [].}
   ProofChallenge* = array[32, byte]
@@ -53,9 +52,6 @@ type
     slotIndex*: uint64
 
   RequestFulfilled* = object of MarketplaceEvent
-    requestId* {.indexed.}: RequestId
-
-  RequestCancelled* = object of MarketplaceEvent
     requestId* {.indexed.}: RequestId
 
   RequestFailed* = object of MarketplaceEvent
@@ -227,16 +223,6 @@ method subscribeSlotFreed*(
 
 method subscribeSlotReservationsFull*(
     market: Market, callback: OnSlotReservationsFull
-): Future[Subscription] {.base, async.} =
-  raiseAssert("not implemented")
-
-method subscribeRequestCancelled*(
-    market: Market, callback: OnRequestCancelled
-): Future[Subscription] {.base, async.} =
-  raiseAssert("not implemented")
-
-method subscribeRequestCancelled*(
-    market: Market, requestId: RequestId, callback: OnRequestCancelled
 ): Future[Subscription] {.base, async.} =
   raiseAssert("not implemented")
 
