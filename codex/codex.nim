@@ -110,7 +110,7 @@ proc bootstrapInteractions(s: CodexServer): Future[void] {.async.} =
 
     let marketplace = Marketplace.new(marketplaceAddress, signer)
     without market =? await OnChainMarket.load(
-      marketplace, config.rewardRecipient, config.marketplaceRequestCacheSize
+      marketplace, config.marketplaceRequestCacheSize
     ), error:
       fatal "Cannot load market", error = error.msg
       quit QuitFailure
