@@ -6,7 +6,7 @@ import pkg/questionable/results
 import ../../blocktype
 import ./manifest
 
-func decode(_: type BitTorrentManifest, data: openArray[byte]): ?!BitTorrentManifest =
+func decode*(_: type BitTorrentManifest, data: openArray[byte]): ?!BitTorrentManifest =
   # ```protobuf
   #   Message BitTorrentManifest {
   #     Message Piece {
