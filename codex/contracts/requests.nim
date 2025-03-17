@@ -54,7 +54,6 @@ type
     Filled
     Finished
     Failed
-    Paid
     Cancelled
     Repair
 
