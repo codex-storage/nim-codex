@@ -275,8 +275,10 @@ template multinodesuite*(name: string, body: untyped) =
         fail()
         quit(1)
 
-    proc updateBootstrapNodes(node: CodexProcess) =
-      without ninfo =? waitFor node.client.info():
+    proc updateBootstrapNodes(
+        node: CodexProcess
+    ): Future[void] {.async: (raises: [CatchableError]).} =
+      without ninfo =? await node.client.info():
         # raise CatchableError instead of Defect (with .get or !) so we
         # can gracefully shutdown and prevent zombies
         raiseMultiNodeSuiteError "Failed to get node info"
@@ -315,14 +317,14 @@ template multinodesuite*(name: string, body: untyped) =
           for config in clients.configs:
             let node = await startClientNode(config)
             running.add RunningNode(role: Role.Client, node: node)
-            CodexProcess(node).updateBootstrapNodes()
+            await CodexProcess(node).updateBootstrapNodes()
 
       if var providers =? nodeConfigs.providers:
         failAndTeardownOnError "failed to start provider nodes":
           for config in providers.configs.mitems:
             let node = await startProviderNode(config)
             running.add RunningNode(role: Role.Provider, node: node)
-            CodexProcess(node).updateBootstrapNodes()
+            await CodexProcess(node).updateBootstrapNodes()
 
       if var validators =? nodeConfigs.validators:
         failAndTeardownOnError "failed to start validator nodes":
