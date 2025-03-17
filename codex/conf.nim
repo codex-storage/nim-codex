@@ -355,11 +355,6 @@ type
         name: "validator-group-index"
       .}: uint16
 
-      rewardRecipient* {.
-        desc: "Address to send payouts to (eg rewards and refunds)",
-        name: "reward-recipient"
-      .}: Option[EthAddress]
-
       marketplaceRequestCacheSize* {.
         desc:
           "Maximum number of StorageRequests kept in memory." &
