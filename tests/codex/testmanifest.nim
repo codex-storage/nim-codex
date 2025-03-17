@@ -13,7 +13,7 @@ import ../asynctest
 import ./helpers
 import ./examples
 
-checksuite "Manifest":
+suite "Manifest":
   let
     manifest =
       Manifest.new(treeCid = Cid.example, blockSize = 1.MiBs, datasetSize = 100.MiBs)

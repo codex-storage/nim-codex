@@ -84,12 +84,12 @@ asyncchecksuite "Block Advertising and Discovery":
 
     blockDiscovery.publishBlockProvideHandler = proc(
         d: MockDiscovery, cid: Cid
-    ): Future[void] {.async, gcsafe.} =
+    ): Future[void] {.async: (raises: [CancelledError]).} =
       return
 
     blockDiscovery.findBlockProvidersHandler = proc(
         d: MockDiscovery, cid: Cid
-    ): Future[seq[SignedPeerRecord]] {.async.} =
+    ): Future[seq[SignedPeerRecord]] {.async: (raises: [CancelledError]).} =
       await engine.resolveBlocks(blocks.filterIt(it.cid == cid))
 
     await allFuturesThrowing(allFinished(pendingBlocks))
@@ -97,17 +97,17 @@ asyncchecksuite "Block Advertising and Discovery":
     await engine.stop()
 
   test "Should advertise trees":
-    let
-      cids = @[manifest.treeCid]
-      advertised = initTable.collect:
-        for cid in cids:
-          {cid: newFuture[void]()}
+    let cids = @[manifest.treeCid]
+    var advertised = initTable.collect:
+      for cid in cids:
+        {cid: newFuture[void]()}
 
     blockDiscovery.publishBlockProvideHandler = proc(
         d: MockDiscovery, cid: Cid
-    ) {.async.} =
-      if cid in advertised and not advertised[cid].finished():
-        advertised[cid].complete()
+    ) {.async: (raises: [CancelledError]).} =
+      advertised.withValue(cid, fut):
+        if not fut[].finished:
+          fut[].complete()
 
     await engine.start()
     await allFuturesThrowing(allFinished(toSeq(advertised.values)))
@@ -118,7 +118,7 @@ asyncchecksuite "Block Advertising and Discovery":
 
     blockDiscovery.publishBlockProvideHandler = proc(
         d: MockDiscovery, cid: Cid
-    ) {.async.} =
+    ) {.async: (raises: [CancelledError]).} =
       check:
         cid notin blockCids
 
@@ -138,7 +138,7 @@ asyncchecksuite "Block Advertising and Discovery":
 
     blockDiscovery.findBlockProvidersHandler = proc(
         d: MockDiscovery, cid: Cid
-    ): Future[seq[SignedPeerRecord]] =
+    ): Future[seq[SignedPeerRecord]] {.async: (raises: [CancelledError]).} =
       check false
 
     await engine.start()
@@ -221,17 +221,17 @@ asyncchecksuite "E2E - Multiple Nodes Discovery":
 
     MockDiscovery(blockexc[1].engine.discovery.discovery).publishBlockProvideHandler = proc(
         d: MockDiscovery, cid: Cid
-    ): Future[void] {.async.} =
+    ) {.async: (raises: [CancelledError]).} =
       advertised[cid] = switch[1].peerInfo.signedPeerRecord
 
     MockDiscovery(blockexc[2].engine.discovery.discovery).publishBlockProvideHandler = proc(
         d: MockDiscovery, cid: Cid
-    ): Future[void] {.async.} =
+    ) {.async: (raises: [CancelledError]).} =
       advertised[cid] = switch[2].peerInfo.signedPeerRecord
 
     MockDiscovery(blockexc[3].engine.discovery.discovery).publishBlockProvideHandler = proc(
         d: MockDiscovery, cid: Cid
-    ): Future[void] {.async.} =
+    ) {.async: (raises: [CancelledError]).} =
       advertised[cid] = switch[3].peerInfo.signedPeerRecord
 
     discard blockexc[1].engine.pendingBlocks.getWantHandle(mBlocks[0].cid)
@@ -266,23 +266,21 @@ asyncchecksuite "E2E - Multiple Nodes Discovery":
 
     MockDiscovery(blockexc[0].engine.discovery.discovery).findBlockProvidersHandler = proc(
         d: MockDiscovery, cid: Cid
-    ): Future[seq[SignedPeerRecord]] {.async.} =
-      if cid in advertised:
-        result.add(advertised[cid])
+    ): Future[seq[SignedPeerRecord]] {.async: (raises: [CancelledError]).} =
+      advertised.withValue(cid, val):
+        result.add(val[])
 
     let futs = collect(newSeq):
       for m in mBlocks[0 .. 2]:
         blockexc[0].engine.requestBlock(m.cid)
 
-    await allFuturesThrowing(
-      switch.mapIt(it.start()) & blockexc.mapIt(it.engine.start())
-    )
-    .wait(10.seconds)
+    await allFuturesThrowing(switch.mapIt(it.start())).wait(10.seconds)
+    await allFuturesThrowing(blockexc.mapIt(it.engine.start())).wait(10.seconds)
 
     await allFutures(futs).wait(10.seconds)
 
-    await allFuturesThrowing(blockexc.mapIt(it.engine.stop()) & switch.mapIt(it.stop()))
-    .wait(10.seconds)
+    await allFuturesThrowing(blockexc.mapIt(it.engine.stop())).wait(10.seconds)
+    await allFuturesThrowing(switch.mapIt(it.stop())).wait(10.seconds)
 
   test "E2E - Should advertise and discover blocks with peers already connected":
     # Distribute the blocks amongst 1..3
@@ -292,17 +290,17 @@ asyncchecksuite "E2E - Multiple Nodes Discovery":
 
     MockDiscovery(blockexc[1].engine.discovery.discovery).publishBlockProvideHandler = proc(
         d: MockDiscovery, cid: Cid
-    ): Future[void] {.async.} =
+    ) {.async: (raises: [CancelledError]).} =
       advertised[cid] = switch[1].peerInfo.signedPeerRecord
 
     MockDiscovery(blockexc[2].engine.discovery.discovery).publishBlockProvideHandler = proc(
         d: MockDiscovery, cid: Cid
-    ): Future[void] {.async.} =
+    ) {.async: (raises: [CancelledError]).} =
       advertised[cid] = switch[2].peerInfo.signedPeerRecord
 
     MockDiscovery(blockexc[3].engine.discovery.discovery).publishBlockProvideHandler = proc(
         d: MockDiscovery, cid: Cid
-    ): Future[void] {.async.} =
+    ) {.async: (raises: [CancelledError]).} =
       advertised[cid] = switch[3].peerInfo.signedPeerRecord
 
     discard blockexc[1].engine.pendingBlocks.getWantHandle(mBlocks[0].cid)
@@ -337,18 +335,16 @@ asyncchecksuite "E2E - Multiple Nodes Discovery":
 
     MockDiscovery(blockexc[0].engine.discovery.discovery).findBlockProvidersHandler = proc(
         d: MockDiscovery, cid: Cid
-    ): Future[seq[SignedPeerRecord]] {.async.} =
-      if cid in advertised:
-        return @[advertised[cid]]
+    ): Future[seq[SignedPeerRecord]] {.async: (raises: [CancelledError]).} =
+      advertised.withValue(cid, val):
+        return @[val[]]
 
     let futs = mBlocks[0 .. 2].mapIt(blockexc[0].engine.requestBlock(it.cid))
 
-    await allFuturesThrowing(
-      switch.mapIt(it.start()) & blockexc.mapIt(it.engine.start())
-    )
-    .wait(10.seconds)
+    await allFuturesThrowing(switch.mapIt(it.start())).wait(10.seconds)
+    await allFuturesThrowing(blockexc.mapIt(it.engine.start())).wait(10.seconds)
 
     await allFutures(futs).wait(10.seconds)
 
-    await allFuturesThrowing(blockexc.mapIt(it.engine.stop()) & switch.mapIt(it.stop()))
-    .wait(10.seconds)
+    await allFuturesThrowing(blockexc.mapIt(it.engine.stop())).wait(10.seconds)
+    await allFuturesThrowing(switch.mapIt(it.stop())).wait(10.seconds)

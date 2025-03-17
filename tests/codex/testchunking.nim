@@ -27,7 +27,7 @@ asyncchecksuite "Chunking":
     let contents = [1.byte, 2, 3, 4, 5, 6, 7, 8, 9, 0]
     proc reader(
         data: ChunkBuffer, len: int
-    ): Future[int] {.gcsafe, async, raises: [Defect].} =
+    ): Future[int] {.gcsafe, async: (raises: [ChunkerError, CancelledError]).} =
       let read = min(contents.len - offset, len)
       if read == 0:
         return 0
@@ -97,8 +97,13 @@ asyncchecksuite "Chunking":
     discard (await chunker.getBytes())
 
   test "stream should forward LPStreamError":
-    expect LPStreamError:
+    try:
       await raiseStreamException(newException(LPStreamError, "test error"))
+    except ChunkerError as exc:
+      check exc.parent of LPStreamError
+    except CatchableError as exc:
+      checkpoint("Unexpected error: " & exc.msg)
+      fail()
 
   test "stream should catch LPStreamEOFError":
     await raiseStreamException(newException(LPStreamEOFError, "test error"))
@@ -106,7 +111,3 @@ asyncchecksuite "Chunking":
   test "stream should forward CancelledError":
     expect CancelledError:
       await raiseStreamException(newException(CancelledError, "test error"))
-
-  test "stream should forward LPStreamError":
-    expect LPStreamError:
-      await raiseStreamException(newException(LPStreamError, "test error"))

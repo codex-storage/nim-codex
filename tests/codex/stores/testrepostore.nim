@@ -24,7 +24,7 @@ import ../helpers/mockclock
 import ../examples
 import ./commonstoretests
 
-checksuite "Test RepoStore start/stop":
+suite "Test RepoStore start/stop":
   var
     repoDs: Datastore
     metaDs: Datastore
