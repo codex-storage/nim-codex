@@ -442,12 +442,17 @@ proc teardownTest(
       if test.status == IntegrationTestStatus.Error or
           (test.status == IntegrationTestStatus.Failed and test.output.isErrorLike):
         test.logFile("stderr.log").appendFile(output.stdErr.stripAnsi)
+    except AsyncTimeoutError:
+      error "Timeout waiting for stdout or stderr stream contents, nothing will be written to file"
     except IOError as e:
       warn "Failed to write test stdout and/or stderr to file", error = e.msg
     except AsyncStreamError as e:
       error "Failed to read test process output stream", error = e.msg
       test.output = TestOutput.failure(e)
       test.status = IntegrationTestStatus.Error
+    finally:
+      await stdOutStream.cancelAndWait()
+      await stdErrStream.cancelAndWait()
 
     await test.process.closeWait()
     trace "Test process output streams closed"
