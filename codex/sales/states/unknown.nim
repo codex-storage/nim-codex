@@ -50,8 +50,6 @@ method run*(
       return some State(SaleFilled())
     of SlotState.Finished:
       return some State(SalePayout())
-    of SlotState.Paid:
-      return some State(SaleFinished())
     of SlotState.Failed:
       return some State(SaleFailed())
     of SlotState.Cancelled:
