@@ -429,8 +429,8 @@ proc teardownTest(
 
     try:
       trace "Reading stdout and stderr streams"
-      output.stdOut = string.fromBytes(await noCancel stdOutStream)
-      output.stdErr = string.fromBytes(await noCancel stdErrStream)
+      output.stdOut = string.fromBytes(await noCancel stdOutStream.wait(1.seconds))
+      output.stdErr = string.fromBytes(await noCancel stdErrStream.wait(1.seconds))
       test.output = success output
 
       trace "Writing stdout and/or stderr streams to file",
