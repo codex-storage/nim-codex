@@ -24,7 +24,7 @@ suite "Taiko L2 Integration Tests":
     )
     node1.waitUntilStarted()
 
-    let bootstrap = (!node1.client.info())["spr"].getStr()
+    let bootstrap = (!(await node1.client.info()))["spr"].getStr()
 
     node2 = startNode(
       [
