@@ -89,7 +89,6 @@ asyncchecksuite "sales state 'preparing'":
     check next of SaleIgnored
     let ignored = SaleIgnored(next)
     check ignored.reprocessSlot
-    check ignored.returnBytes == false
 
   test "run switches to ignored when availability is not enabled":
     await createAvailability(enabled = false)
@@ -109,7 +108,6 @@ asyncchecksuite "sales state 'preparing'":
     check next of SaleIgnored
     let ignored = SaleIgnored(next)
     check ignored.reprocessSlot
-    check ignored.returnBytes == false
 
   test "run switches to errored when reserve fails with other error":
     await createAvailability()

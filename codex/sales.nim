@@ -113,7 +113,6 @@ proc remove(sales: Sales, agent: SalesAgent) {.async.} =
 proc cleanUp(
     sales: Sales,
     agent: SalesAgent,
-    returnBytes: bool,
     reprocessSlot: bool,
     returnedCollateral: ?UInt256,
     processing: Future[void],
@@ -132,7 +131,7 @@ proc cleanUp(
   # if reservation for the SalesAgent was not created, then it means
   # that the cleanUp was called before the sales process really started, so
   # there are not really any bytes to be returned
-  if returnBytes and request =? data.request and reservation =? data.reservation:
+  if request =? data.request and reservation =? data.reservation:
     if returnErr =? (
       await sales.context.reservations.returnBytesToAvailability(
         reservation.availabilityId, reservation.id, request.ask.slotSize
@@ -203,9 +202,9 @@ proc processSlot(sales: Sales, item: SlotQueueItem, done: Future[void]) =
     newSalesAgent(sales.context, item.requestId, item.slotIndex, none StorageRequest)
 
   agent.onCleanUp = proc(
-      returnBytes = false, reprocessSlot = false, returnedCollateral = UInt256.none
+      reprocessSlot = false, returnedCollateral = UInt256.none
   ) {.async.} =
-    await sales.cleanUp(agent, returnBytes, reprocessSlot, returnedCollateral, done)
+    await sales.cleanUp(agent, reprocessSlot, returnedCollateral, done)
 
   agent.onFilled = some proc(request: StorageRequest, slotIndex: uint64) =
     sales.filled(request, slotIndex, done)
@@ -271,12 +270,12 @@ proc load*(sales: Sales) {.async.} =
       newSalesAgent(sales.context, slot.request.id, slot.slotIndex, some slot.request)
 
     agent.onCleanUp = proc(
-        returnBytes = false, reprocessSlot = false, returnedCollateral = UInt256.none
+        reprocessSlot = false, returnedCollateral = UInt256.none
     ) {.async.} =
       # since workers are not being dispatched, this future has not been created
       # by a worker. Create a dummy one here so we can call sales.cleanUp
       let done: Future[void] = nil
-      await sales.cleanUp(agent, returnBytes, reprocessSlot, returnedCollateral, done)
+      await sales.cleanUp(agent, reprocessSlot, returnedCollateral, done)
 
     # There is no need to assign agent.onFilled as slots loaded from `mySlots`
     # are inherently already filled and so assigning agent.onFilled would be

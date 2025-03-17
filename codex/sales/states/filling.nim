@@ -50,7 +50,7 @@ method run*(
     except MarketError as e:
       if e.msg.contains "Slot is not free":
         debug "Slot is already filled, ignoring slot"
-        return some State(SaleIgnored(reprocessSlot: false, returnBytes: true))
+        return some State(SaleIgnored(reprocessSlot: false))
       else:
         return some State(SaleErrored(error: e))
     # other CatchableErrors are handled "automatically" by the SaleState

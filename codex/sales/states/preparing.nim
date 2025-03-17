@@ -56,7 +56,7 @@ method run*(
     let slotId = slotId(data.requestId, data.slotIndex)
     let state = await market.slotState(slotId)
     if state != SlotState.Free and state != SlotState.Repair:
-      return some State(SaleIgnored(reprocessSlot: false, returnBytes: false))
+      return some State(SaleIgnored(reprocessSlot: false))
 
     # TODO: Once implemented, check to ensure the host is allowed to fill the slot,
     # due to the [sliding window mechanism](https://github.com/codex-storage/codex-research/blob/master/design/marketplace.md#dispersal)

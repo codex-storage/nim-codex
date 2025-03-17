@@ -47,7 +47,7 @@ method run*(
       except MarketError as e:
         if e.msg.contains "SlotReservations_ReservationNotAllowed":
           debug "Slot cannot be reserved, ignoring", error = e.msg
-          return some State(SaleIgnored(reprocessSlot: false, returnBytes: true))
+          return some State(SaleIgnored(reprocessSlot: false))
         else:
           return some State(SaleErrored(error: e))
       # other CatchableErrors are handled "automatically" by the SaleState
@@ -58,7 +58,7 @@ method run*(
       # do not re-add this slot to the queue, and return bytes from Reservation to
       # the Availability
       debug "Slot cannot be reserved, ignoring"
-      return some State(SaleIgnored(reprocessSlot: false, returnBytes: true))
+      return some State(SaleIgnored(reprocessSlot: false))
   except CancelledError as e:
     trace "SaleSlotReserving.run was cancelled", error = e.msgDetail
   except CatchableError as e:

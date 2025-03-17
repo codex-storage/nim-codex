@@ -23,7 +23,6 @@ asyncchecksuite "sales state 'finished'":
   var market: MockMarket
   var state: SaleFinished
   var agent: SalesAgent
-  var returnBytesWas = bool.none
   var reprocessSlotWas = bool.none
   var returnedCollateralValue = UInt256.none
   var saleCleared = bool.none
@@ -31,9 +30,8 @@ asyncchecksuite "sales state 'finished'":
   setup:
     market = MockMarket.new()
     let onCleanUp = proc(
-        returnBytes = false, reprocessSlot = false, returnedCollateral = UInt256.none
+        reprocessSlot = false, returnedCollateral = UInt256.none
     ) {.async.} =
-      returnBytesWas = some returnBytes
       reprocessSlotWas = some reprocessSlot
       returnedCollateralValue = returnedCollateral
 
@@ -52,9 +50,8 @@ asyncchecksuite "sales state 'finished'":
     let next = state.onFailed(request)
     check !next of SaleFailed
 
-  test "calls onCleanUp with returnBytes = true, reprocessSlot = true, and returnedCollateral = currentCollateral":
+  test "calls onCleanUp with reprocessSlot = true, and returnedCollateral = currentCollateral":
     discard await state.run(agent)
-    check eventually returnBytesWas == some true
     check eventually reprocessSlotWas == some false
     check eventually returnedCollateralValue == some currentCollateral
     check eventually saleCleared == some true

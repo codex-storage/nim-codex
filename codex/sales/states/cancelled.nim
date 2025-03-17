@@ -34,9 +34,7 @@ method run*(
 
     if onCleanUp =? agent.onCleanUp:
       await onCleanUp(
-        returnBytes = true,
-        reprocessSlot = false,
-        returnedCollateral = some currentCollateral,
+        reprocessSlot = false, returnedCollateral = some currentCollateral
       )
 
     warn "Sale cancelled due to timeout",
