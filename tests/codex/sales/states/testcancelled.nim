@@ -17,8 +17,6 @@ asyncchecksuite "sales state 'cancelled'":
   let slotIndex = request.ask.slots div 2
   let clock = MockClock.new()
 
-  let collateral = UInt128.example
-
   var market: MockMarket
   var state: SaleCancelled
   var agent: SalesAgent
@@ -41,6 +39,7 @@ asyncchecksuite "sales state 'cancelled'":
     state = SaleCancelled.new()
 
   test "calls onCleanUp":
+    let collateral = request.ask.collateralPerSlot
     market.fillSlot(
       requestId = request.id,
       slotIndex = slotIndex,
