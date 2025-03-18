@@ -238,14 +238,6 @@ method getHost*(
       return some slot.host
   return none Address
 
-method currentCollateral*(
-    market: MockMarket, slotId: SlotId
-): Future[UInt256] {.async.} =
-  for slot in market.filled:
-    if slotId == slotId(slot.requestId, slot.slotIndex):
-      return slot.collateral
-  return 0.u256
-
 proc emitSlotFilled*(market: MockMarket, requestId: RequestId, slotIndex: uint64) =
   var subscriptions = market.subscriptions.onSlotFilled
   for subscription in subscriptions:
