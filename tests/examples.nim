@@ -40,6 +40,9 @@ proc example*[T](_: type seq[T]): seq[T] =
 proc example*(_: type UInt256): UInt256 =
   UInt256.fromBytes(array[32, byte].example)
 
+proc example*(_: type UInt128): UInt128 =
+  UInt128.fromBytes(array[16, byte].example)
+
 proc example*[T: distinct](_: type T): T =
   type baseType = T.distinctBase
   T(baseType.example)
@@ -72,9 +75,8 @@ proc example*(_: type Slot): Slot =
 proc example*(_: type SlotQueueItem): SlotQueueItem =
   let request = StorageRequest.example
   let slot = Slot.example
-  SlotQueueItem.init(
-    request, slot.slotIndex.uint16, collateral = request.ask.collateralPerSlot
-  )
+  let collateral = request.ask.collateralPerSlot.stuint(256)
+  SlotQueueItem.init(request, slot.slotIndex.uint16, collateral)
 
 proc example(_: type G1Point): G1Point =
   G1Point(x: UInt256.example, y: UInt256.example)

@@ -17,7 +17,7 @@ asyncchecksuite "sales state 'cancelled'":
   let slotIndex = request.ask.slots div 2
   let clock = MockClock.new()
 
-  let collateral = UInt256.example
+  let collateral = UInt128.example
 
   var market: MockMarket
   var state: SaleCancelled
@@ -51,4 +51,4 @@ asyncchecksuite "sales state 'cancelled'":
     discard await state.run(agent)
     check eventually returnBytesWas == some true
     check eventually reprocessSlotWas == some false
-    check eventually returnedCollateralValue == some collateral
+    check eventually returnedCollateralValue == some collateral.stuint(256)

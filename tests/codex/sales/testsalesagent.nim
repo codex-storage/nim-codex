@@ -41,7 +41,8 @@ asyncchecksuite "Sales agent":
 
   setup:
     market = MockMarket.new()
-    market.requestExpiry[request.id] = getTime().toUnix() + request.expiry.int64
+    let expiry = getTime().toUnix() + request.expiry.toSecondsSince1970
+    market.requestExpiry[request.id] = expiry
     clock = MockClock.new()
     context = SalesContext(market: market, clock: clock)
     slotIndex = 0.uint64

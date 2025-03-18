@@ -33,7 +33,7 @@ type
     slotIndex: uint16
     slotSize: uint64
     duration: uint64
-    pricePerBytePerSecond: TokensPerSecond
+    pricePerBytePerSecond: UInt256
     repairReward: UInt256
     collateral: UInt256
     expiry: uint64
@@ -74,7 +74,7 @@ proc profitability(item: SlotQueueItem): UInt256 =
   let price =
     StorageAsk(
       duration: item.duration.stuint(40),
-      pricePerBytePerSecond: item.pricePerBytePerSecond,
+      pricePerBytePerSecond: item.pricePerBytePerSecond.stuint(96),
       slotSize: item.slotSize,
     ).pricePerSlot
   return price.stuint(256) + item.repairReward
@@ -156,7 +156,7 @@ proc init*(
     slotIndex: slotIndex,
     slotSize: ask.slotSize,
     duration: ask.duration.u64,
-    pricePerBytePerSecond: ask.pricePerBytePerSecond,
+    pricePerBytePerSecond: ask.pricePerBytePerSecond.stuint(256),
     collateral: collateral,
     expiry: expiry,
     seen: seen,
@@ -219,7 +219,7 @@ proc slotSize*(self: SlotQueueItem): uint64 =
 proc duration*(self: SlotQueueItem): uint64 =
   self.duration
 
-proc pricePerBytePerSecond*(self: SlotQueueItem): TokensPerSecond =
+proc pricePerBytePerSecond*(self: SlotQueueItem): UInt256 =
   self.pricePerBytePerSecond
 
 proc collateralPerByte*(self: SlotQueueItem): UInt256 =
