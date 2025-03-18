@@ -18,7 +18,7 @@ asyncchecksuite "sales state 'finished'":
   let slotIndex = request.ask.slots div 2
   let clock = MockClock.new()
 
-  let currentCollateral = UInt256.example
+  let collateral = UInt256.example
 
   var market: MockMarket
   var state: SaleFinished
@@ -39,7 +39,7 @@ asyncchecksuite "sales state 'finished'":
     let context = SalesContext(market: market, clock: clock)
     agent = newSalesAgent(context, request.id, slotIndex, request.some)
     agent.onCleanUp = onCleanUp
-    state = SaleFinished(returnedCollateral: some currentCollateral)
+    state = SaleFinished(returnedCollateral: some collateral)
 
   test "switches to cancelled state when request expires":
     let next = state.onCancelled(request)
@@ -49,8 +49,8 @@ asyncchecksuite "sales state 'finished'":
     let next = state.onFailed(request)
     check !next of SaleFailed
 
-  test "calls onCleanUp with returnBytes = false, reprocessSlot = true, and returnedCollateral = currentCollateral":
+  test "calls onCleanUp":
     discard await state.run(agent)
     check eventually returnBytesWas == some false
     check eventually reprocessSlotWas == some false
-    check eventually returnedCollateralValue == some currentCollateral
+    check eventually returnedCollateralValue == some collateral

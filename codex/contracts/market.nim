@@ -206,12 +206,6 @@ method getHost(
     else:
       return none Address
 
-method currentCollateral*(
-    market: OnChainMarket, slotId: SlotId
-): Future[UInt256] {.async.} =
-  convertEthersError("Failed to get slot's current collateral"):
-    return await market.contract.currentCollateral(slotId)
-
 method getActiveSlot*(market: OnChainMarket, slotId: SlotId): Future[?Slot] {.async.} =
   try:
     return some await market.contract.getActiveSlot(slotId)
