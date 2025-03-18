@@ -438,10 +438,10 @@ proc teardownTest(
         stdoutBytes = output.stdOut.len,
         stderrFile = test.logFile("stderr.log"),
         stderrBytes = output.stdErr.len
-      test.logFile("stdout.log").appendFile(output.stdOut.stripAnsi)
-      if test.status == IntegrationTestStatus.Error or
-          (test.status == IntegrationTestStatus.Failed and test.output.isErrorLike):
-        test.logFile("stderr.log").appendFile(output.stdErr.stripAnsi)
+      # test.logFile("stdout.log").appendFile(output.stdOut.stripAnsi)
+      # if test.status == IntegrationTestStatus.Error or
+      #     (test.status == IntegrationTestStatus.Failed and test.output.isErrorLike):
+      #   test.logFile("stderr.log").appendFile(output.stdErr.stripAnsi)
     except AsyncTimeoutError:
       error "Timeout waiting for stdout or stderr stream contents, nothing will be written to file"
     except IOError as e:
