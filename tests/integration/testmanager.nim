@@ -421,7 +421,7 @@ proc teardownTest(
     if test.process.running |? false:
       try:
         output.exitCode =
-          some (await noCancel test.process.terminateAndWaitForExit(500.millis))
+          some (await noCancel test.process.terminateAndWaitForExit(1.seconds))
         trace "Test process terminated", exitCode = output.exitCode
       except AsyncProcessError, AsyncProcessTimeoutError:
         let e = getCurrentException()
@@ -556,12 +556,6 @@ proc start(test: IntegrationTest) {.async: (raises: []).} =
       # `untilTimeout` exceptions are handled in `run`
       await test.teardown(hardhat, outputReader, errorReader)
         # doesn't raise CancelledError, so noCancel not needed
-      doAssert test.status != IntegrationTestStatus.New and
-        test.status != IntegrationTestStatus.Running,
-        "Integration test is in the wrong state!"
-      doAssert test.timeEnd.isSome, "Integration test end time not set!"
-      doAssert (test.output.isOk and output =? test.output and output != nil) or
-        test.output.isErr, "Integration test output not set!"
 
     output.exitCode =
       try:
@@ -627,6 +621,10 @@ proc run(test: IntegrationTest) {.async: (raises: []).} =
     logScope:
       name = test.config.name
       duration = test.duration
+
+    doAssert test.timeEnd.isSome, "Integration test end time not set!"
+    doAssert (test.output.isOk and output =? test.output and output != nil) or
+      test.output.isErr, "Integration test output not set!"
 
     case test.status
     of IntegrationTestStatus.New:
