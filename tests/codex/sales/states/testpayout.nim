@@ -18,8 +18,6 @@ asyncchecksuite "sales state 'payout'":
   let slotIndex = request.ask.slots div 2
   let clock = MockClock.new()
 
-  let currentCollateral = UInt256.example
-
   var market: MockMarket
   var state: SalePayout
   var agent: SalesAgent
@@ -32,13 +30,14 @@ asyncchecksuite "sales state 'payout'":
     state = SalePayout.new()
 
   test "switches to 'finished' state and provides returnedCollateral":
+    let collateral = request.ask.collateralPerSlot
     market.fillSlot(
       requestId = request.id,
       slotIndex = slotIndex,
       proof = Groth16Proof.default,
       host = Address.example,
-      collateral = currentCollateral,
+      collateral = collateral
     )
     let next = await state.run(agent)
     check !next of SaleFinished
-    check SaleFinished(!next).returnedCollateral == some currentCollateral
+    check SaleFinished(!next).returnedCollateral == some collateral
