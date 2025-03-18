@@ -20,6 +20,7 @@ import std/strutils
 import std/typetraits
 
 import pkg/chronos
+import pkg/chronos/config
 import pkg/chronicles/helpers
 import pkg/chronicles/topics_registry
 import pkg/confutils/defs
@@ -34,6 +35,10 @@ import pkg/libp2p
 import pkg/ethers
 import pkg/questionable
 import pkg/questionable/results
+
+when chronosProfiling:
+  import pkg/chroprof
+  import pkg/chroprof/collector
 
 import ./codextypes
 import ./discovery
@@ -143,6 +148,12 @@ type
       abbr: "d",
       name: "data-dir"
     .}: OutDir
+
+    profilerMaxMetrics* {.
+      desc: "Maximum number of metrics to export to Prometheus.",
+      defaultValue: 100,
+      name: "profiler-max-metrics"
+    .}: int
 
     listenAddrs* {.
       desc: "Multi Addresses to listen on",
@@ -777,11 +788,17 @@ proc setupLogging*(conf: CodexConf) =
     quit QuitFailure
 
 proc setupMetrics*(config: CodexConf) =
+  when chronosProfiling:
+    enableProfiling()
+
   if config.metricsEnabled:
     let metricsAddress = config.metricsAddress
     notice "Starting metrics HTTP server",
       url = "http://" & $metricsAddress & ":" & $config.metricsPort & "/metrics"
     try:
+      when chronosProfiling:
+        enableProfilerMetrics(k = config.profilerMaxMetrics)
+
       startMetricsHttpServer($metricsAddress, config.metricsPort)
     except CatchableError as exc:
       raiseAssert exc.msg
