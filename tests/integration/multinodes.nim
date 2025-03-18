@@ -91,11 +91,7 @@ template multinodesuite*(name: string, body: untyped) =
     var ethProvider {.inject, used.}: JsonRpcProvider
     var accounts {.inject, used.}: seq[Address]
     var snapshot: JsonNode
-
-    if nodeConfigs.hardhat.isNone:
-      ethProvider = JsonRpcProvider.new(
-        jsonRpcProviderUrl, pollingInterval = chronos.milliseconds(100)
-      )
+    var resubscribeFut: Future[void]
 
     template test(tname, startNodeConfigs, tbody) =
       currentTestName = tname
@@ -266,6 +262,11 @@ template multinodesuite*(name: string, body: untyped) =
       else:
         discard await send(ethProvider, "evm_revert", @[snapshot])
 
+        await ethProvider.close()
+
+      if not resubscribeFut.isNil:
+        await resubscribeFut.cancelAndWait()
+
       running = @[]
 
     template failAndTeardownOnError(message: string, tryBody: untyped) =
@@ -289,14 +290,16 @@ template multinodesuite*(name: string, body: untyped) =
         raiseMultiNodeSuiteError "Failed to get node info"
       bootstrapNodes.add ninfo["spr"].getStr()
 
+    proc resubscribeOnTimeout() {.async.} =
+      while true:
+        await sleepAsync(5.int64.minutes)
+        #await ethProvider.resubscribeAll()
+
     setup:
       if var conf =? nodeConfigs.hardhat:
         try:
           let node = await startHardhatNode(conf)
           running.add RunningNode(role: Role.Hardhat, node: node)
-          ethProvider = JsonRpcProvider.new(
-            jsonRpcProviderUrl, pollingInterval = chronos.milliseconds(100)
-          )
         except CatchableError as e:
           echo "failed to start hardhat node"
           fail()
@@ -306,14 +309,14 @@ template multinodesuite*(name: string, body: untyped) =
         # Workaround for https://github.com/NomicFoundation/hardhat/issues/2053
         # Do not use websockets, but use http and polling to stop subscriptions
         # from being removed after 5 minutes
-        # ethProvider = JsonRpcProvider.new(
-        #   jsonRpcProviderUrl, pollingInterval = chronos.milliseconds(100)
-        # )
+        ethProvider = JsonRpcProvider.new(jsonRpcProviderUrl)
         # if hardhat was NOT started by the test, take a snapshot so it can be
         # reverted in the test teardown
         if nodeConfigs.hardhat.isNone:
           snapshot = await send(ethProvider, "evm_snapshot")
         accounts = await ethProvider.listAccounts()
+
+        resubscribeFut = resubscribeOnTimeout()
       except CatchableError as e:
         echo "Hardhat not running. Run hardhat manually " &
           "before executing tests, or include a " & "HardhatConfig in the test setup."
@@ -347,7 +350,3 @@ template multinodesuite*(name: string, body: untyped) =
       await teardownImpl()
 
     body
-
-    let hardhat = hardhat()
-    if hardhat.isNil:
-      waitFor ethProvider.close()
