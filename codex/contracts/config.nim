@@ -11,7 +11,7 @@ type
     collateral*: CollateralConfig
     proofs*: ProofConfig
     reservations*: SlotReservationsConfig
-    requestDurationLimit*: uint64
+    requestDurationLimit*: StUint[40]
 
   CollateralConfig* = object
     repairRewardPercentage*: uint8

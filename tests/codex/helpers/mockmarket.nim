@@ -127,13 +127,13 @@ proc new*(_: type MockMarket, clock: ?Clock = Clock.none): MockMarket =
       validatorRewardPercentage: 20,
     ),
     proofs: ProofConfig(
-      period: 10.Period,
-      timeout: 5.uint64,
+      period: 10.stuint(40),
+      timeout: 5.stuint(40),
       downtime: 64.uint8,
       downtimeProduct: 67.uint8,
     ),
     reservations: SlotReservationsConfig(maxReservations: 3),
-    requestDurationLimit: (60 * 60 * 24 * 30).uint64,
+    requestDurationLimit: (60 * 60 * 24 * 30).stuint(40),
   )
   MockMarket(
     signer: Address.example, config: config, canReserveSlot: true, clock: clock
@@ -143,13 +143,13 @@ method getSigner*(market: MockMarket): Future[Address] {.async.} =
   return market.signer
 
 method periodicity*(mock: MockMarket): Periodicity =
-  return Periodicity(seconds: mock.config.proofs.period)
+  return Periodicity(seconds: mock.config.proofs.period.u64)
 
 method proofTimeout*(market: MockMarket): uint64 =
-  return market.config.proofs.timeout
+  return market.config.proofs.timeout.u64
 
 method requestDurationLimit*(market: MockMarket): uint64 =
-  return market.config.requestDurationLimit
+  return market.config.requestDurationLimit.u64
 
 method proofDowntime*(market: MockMarket): uint8 =
   return market.config.proofs.downtime
@@ -164,7 +164,7 @@ method requestStorage*(market: MockMarket, request: StorageRequest) {.async.} =
   market.requested.add(request)
   var subscriptions = market.subscriptions.onRequest
   for subscription in subscriptions:
-    subscription.callback(request.id, request.ask, request.expiry)
+    subscription.callback(request.id, request.ask, request.expiry.u64)
 
 method myRequests*(market: MockMarket): Future[seq[RequestId]] {.async.} =
   return market.activeRequests[market.signer]
@@ -289,7 +289,7 @@ method fillSlot*(
     requestId: RequestId,
     slotIndex: uint64,
     proof: Groth16Proof,
-    collateral: UInt256,
+    collateral: UInt128,
 ) {.async.} =
   market.fillSlot(requestId, slotIndex, proof, market.signer, collateral)
 

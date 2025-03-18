@@ -120,7 +120,7 @@ method repairRewardPercentage*(market: OnChainMarket): uint8 =
   return market.configuration.collateral.repairRewardPercentage
 
 method requestDurationLimit*(market: OnChainMarket): uint64 =
-  return market.configuration.requestDurationLimit
+  return market.configuration.requestDurationLimit.u64
 
 method proofDowntime*(market: OnChainMarket): uint8 =
   return market.configuration.proofs.downtime

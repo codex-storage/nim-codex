@@ -470,13 +470,13 @@ proc iterateManifests*(self: CodexNodeRef, onManifest: OnManifest) {.async.} =
 proc setupRequest(
     self: CodexNodeRef,
     cid: Cid,
-    duration: uint64,
+    duration: StUint[40],
     proofProbability: UInt256,
     nodes: uint,
     tolerance: uint,
-    pricePerBytePerSecond: UInt256,
-    collateralPerByte: UInt256,
-    expiry: uint64,
+    pricePerBytePerSecond: TokensPerSecond,
+    collateralPerByte: UInt128,
+    expiry: StUint[40],
 ): Future[?!StorageRequest] {.async.} =
   ## Setup slots for a given dataset
   ##
@@ -551,13 +551,13 @@ proc setupRequest(
 proc requestStorage*(
     self: CodexNodeRef,
     cid: Cid,
-    duration: uint64,
+    duration: StUint[40],
     proofProbability: UInt256,
     nodes: uint,
     tolerance: uint,
-    pricePerBytePerSecond: UInt256,
-    collateralPerByte: UInt256,
-    expiry: uint64,
+    pricePerBytePerSecond: TokensPerSecond,
+    collateralPerByte: UInt128,
+    expiry: StUint[40],
 ): Future[?!PurchaseId] {.async.} =
   ## Initiate a request for storage sequence, this might
   ## be a multistep procedure.
