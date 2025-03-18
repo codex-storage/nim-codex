@@ -32,7 +32,7 @@ type
     requestId: RequestId
     slotIndex: uint16
     slotSize: uint64
-    duration: requests.Duration
+    duration: uint64
     pricePerBytePerSecond: TokensPerSecond
     repairReward: UInt256
     collateral: UInt256
@@ -73,7 +73,7 @@ const DefaultMaxSize = 128'u16
 proc profitability(item: SlotQueueItem): UInt256 =
   let price =
     StorageAsk(
-      duration: item.duration,
+      duration: item.duration.stuint(40),
       pricePerBytePerSecond: item.pricePerBytePerSecond,
       slotSize: item.slotSize,
     ).pricePerSlot
@@ -155,7 +155,7 @@ proc init*(
     requestId: requestId,
     slotIndex: slotIndex,
     slotSize: ask.slotSize,
-    duration: ask.duration,
+    duration: ask.duration.u64,
     pricePerBytePerSecond: ask.pricePerBytePerSecond,
     collateral: collateral,
     expiry: expiry,
@@ -201,7 +201,7 @@ proc init*(
     repairReward = 0.u256,
 ): seq[SlotQueueItem] =
   return SlotQueueItem.init(
-    request.id, request.ask, request.expiry, collateral, repairReward
+    request.id, request.ask, request.expiry.u64, collateral, repairReward
   )
 
 proc inRange*(val: SomeUnsignedInt): bool =
@@ -216,7 +216,7 @@ proc slotIndex*(self: SlotQueueItem): uint16 =
 proc slotSize*(self: SlotQueueItem): uint64 =
   self.slotSize
 
-proc duration*(self: SlotQueueItem): requests.Duration =
+proc duration*(self: SlotQueueItem): uint64 =
   self.duration
 
 proc pricePerBytePerSecond*(self: SlotQueueItem): TokensPerSecond =
