@@ -503,14 +503,14 @@ ethersuite "On-Chain Market":
       (await market.queryPastStorageRequestedEvents(blocksAgo = 2))
     )
 
-  test "pays rewards and collateral to host":
+  test "pays rewards and returns collateral to host":
     await market.requestStorage(request)
 
     let address = await host.getAddress()
     await switchAccount(host)
     await market.reserveSlot(request.id, 0.uint64)
     await market.fillSlot(request.id, 0.uint64, proof, request.ask.collateralPerSlot)
-    let filledAt = await ethProvider.currentTime()
+    let filledAt = await ethProvider.blockTime(BlockTag.latest)
 
     for slotIndex in 1 ..< request.ask.slots:
       await market.reserveSlot(request.id, slotIndex.uint64)
@@ -528,7 +528,7 @@ ethersuite "On-Chain Market":
     let expectedPayout = request.expectedPayout(filledAt, requestEnd.u256)
     check endBalance == (startBalance + expectedPayout + request.ask.collateralPerSlot.stuint(256))
 
-  test "the request is added in cache after the fist access":
+  test "the request is added to cache after the first access":
     await market.requestStorage(request)
 
     check market.requestCache.contains($request.id) == false
