@@ -110,6 +110,7 @@ template multinodesuite*(name: string, body: untyped) =
       currentTestName = tname
       nodeConfigs = startNodeConfigs
       test tname:
+        trace "Starting test", name = tname, nodeConfigs
         tbody
 
     proc updatePort(url: var string, port: int) =
