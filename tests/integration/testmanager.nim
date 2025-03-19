@@ -558,7 +558,7 @@ proc start(test: IntegrationTest) {.async: (raises: []).} =
       test.status = IntegrationTestStatus.Error
       return
 
-    var futCaptureOutput: Future[(seq[string], seq[string])].Raising([])
+    var futCaptureOutput: Future[(seq[string], seq[string])].Raising([CancelledError])
     defer:
       # called at the end of successful runs but also when `start` is cancelled
       # (from `untilTimeout`) due to a timeout. This defer runs first before
@@ -568,7 +568,7 @@ proc start(test: IntegrationTest) {.async: (raises: []).} =
 
     var output = TestOutput.new()
     test.output = success(output)
-    futCaptureOutput = noCancel test.captureProcessOutput()
+    futCaptureOutput = test.captureProcessOutput()
 
     output.exitCode =
       try:
