@@ -167,7 +167,7 @@ template multinodesuite*(name: string, body: untyped) =
         sanitize($starttime) / sanitize($role & "_" & $roleIdx)
 
       try:
-        if config.logFile.isSome: # or CodexLogToFile:
+        if config.logFile.isSome or CodexLogToFile:
           try:
             let updatedLogFile = getLogFile(
               CodexLogsDir, starttime, name, currentTestName, $role, some roleIdx
@@ -360,15 +360,15 @@ template multinodesuite*(name: string, body: untyped) =
       except CatchableError as e:
         raiseMultiNodeSuiteError "Failed to get node info: " & e.msg, e
 
-    # setupAll:
-    #   # When this file is run with `-d:chronicles_sinks=textlines[file]`, we
-    #   # need to set the log file path at runtime, otherwise chronicles didn't seem to
-    #   # create a log file even when using an absolute path
-    #   when defaultChroniclesStream.outputs is (FileOutput,) and CodexLogsDir.len > 0:
-    #     let logFile =
-    #       CodexLogsDir / sanitize(getAppFilename().extractFilename & ".chronicles.log")
-    #     let success = defaultChroniclesStream.outputs[0].open(logFile, fmAppend)
-    #     doAssert success, "Failed to open log file: " & logFile
+    setupAll:
+      # When this file is run with `-d:chronicles_sinks=textlines[file]`, we
+      # need to set the log file path at runtime, otherwise chronicles didn't seem to
+      # create a log file even when using an absolute path
+      when defaultChroniclesStream.outputs is (FileOutput,) and CodexLogsDir.len > 0:
+        let logFile =
+          CodexLogsDir / sanitize(getAppFilename().extractFilename & ".chronicles.log")
+        let success = defaultChroniclesStream.outputs[0].open(logFile, fmAppend)
+        doAssert success, "Failed to open log file: " & logFile
 
     setup:
       if var conf =? nodeConfigs.hardhat:
