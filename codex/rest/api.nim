@@ -653,7 +653,7 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
         return RestApiResponse.error(Http400, error.msg, headers = headers)
 
       let requestDurationLimit = contracts.purchasing.market.requestDurationLimit
-      if params.duration > requestDurationLimit:
+      if params.duration.u64 > requestDurationLimit:
         return RestApiResponse.error(
           Http400,
           "Duration exceeds limit of " & $requestDurationLimit & " seconds",

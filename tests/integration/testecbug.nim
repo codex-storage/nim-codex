@@ -34,12 +34,12 @@ marketplacesuite "Bug #821 - node crashes during erasure coding":
     let subscription = await marketplace.subscribe(StorageRequested, onStorageRequested)
 
     # client requests storage but requires multiple slots to host the content
-    let id = await clientApi.requestStorage(
+    discard await clientApi.requestStorage(
       cid,
-      duration = duration,
-      pricePerBytePerSecond = pricePerBytePerSecond,
-      expiry = expiry,
-      collateralPerByte = collateralPerByte,
+      duration = duration.stuint(40),
+      pricePerBytePerSecond = pricePerBytePerSecond.stuint(96),
+      expiry = expiry.stuint(40),
+      collateralPerByte = collateralPerByte.stuint(128),
       nodes = 3,
       tolerance = 1,
     )

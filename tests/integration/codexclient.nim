@@ -218,11 +218,11 @@ proc space*(
 proc requestStorageRaw*(
     client: CodexClient,
     cid: Cid,
-    duration: uint64,
-    pricePerBytePerSecond: UInt256,
+    duration: StUint[40],
+    pricePerBytePerSecond: StUint[96],
     proofProbability: UInt256,
-    collateralPerByte: UInt256,
-    expiry: uint64 = 0,
+    collateralPerByte: UInt128,
+    expiry = 0.stuint(40),
     nodes: uint = 3,
     tolerance: uint = 1,
 ): Future[HttpClientResponseRef] {.
@@ -241,7 +241,7 @@ proc requestStorageRaw*(
       "tolerance": tolerance,
     }
 
-  if expiry != 0:
+  if expiry != 0.stuint(40):
     json["expiry"] = %($expiry)
 
   return client.post(url, $json)
@@ -249,11 +249,11 @@ proc requestStorageRaw*(
 proc requestStorage*(
     client: CodexClient,
     cid: Cid,
-    duration: uint64,
-    pricePerBytePerSecond: UInt256,
+    duration: StUint[40],
+    pricePerBytePerSecond: StUint[96],
     proofProbability: UInt256,
-    expiry: uint64,
-    collateralPerByte: UInt256,
+    expiry: StUint[40],
+    collateralPerByte: UInt128,
     nodes: uint = 3,
     tolerance: uint = 1,
 ): Future[?!PurchaseId] {.async: (raises: [CancelledError, HttpError]).} =

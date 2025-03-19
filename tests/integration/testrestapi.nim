@@ -1,3 +1,4 @@
+
 import std/importutils
 import std/net
 import std/sequtils
@@ -60,11 +61,11 @@ twonodessuite "REST API":
     let response = (
       await client1.requestStorageRaw(
         cid,
-        duration = 10.uint64,
-        pricePerBytePerSecond = 1.u256,
+        duration = 10.stuint(40),
+        pricePerBytePerSecond = 1.stuint(96),
         proofProbability = 3.u256,
-        collateralPerByte = 1.u256,
-        expiry = 9.uint64,
+        collateralPerByte = 1.u128,
+        expiry = 9.stuint(40),
       )
     )
 
@@ -80,11 +81,11 @@ twonodessuite "REST API":
     let response = (
       await client1.requestStorageRaw(
         cid,
-        duration = 10.uint64,
-        pricePerBytePerSecond = 1.u256,
+        duration = 10.stuint(40),
+        pricePerBytePerSecond = 1.stuint(96),
         proofProbability = 3.u256,
-        collateralPerByte = 1.u256,
-        expiry = 9.uint64,
+        collateralPerByte = 1.u128,
+        expiry = 9.stuint(40),
       )
     )
 
@@ -94,93 +95,81 @@ twonodessuite "REST API":
   test "request storage fails if tolerance is zero", twoNodesConfig:
     let data = await RandomChunker.example(blocks = 2)
     let cid = (await client1.upload(data)).get
-    let duration = 100.uint64
-    let pricePerBytePerSecond = 1.u256
-    let proofProbability = 3.u256
-    let expiry = 30.uint64
-    let collateralPerByte = 1.u256
-    let nodes = 3
-    let tolerance = 0
-
-    var responseBefore = (
-      await client1.requestStorageRaw(
-        cid, duration, pricePerBytePerSecond, proofProbability, collateralPerByte,
-        expiry, nodes.uint, tolerance.uint,
-      )
+    let response = await client1.requestStorageRaw(
+      cid,
+      duration = 100.stuint(40),
+      pricePerBytePerSecond = 1.stuint(96),
+      proofProbability = 3.u256,
+      collateralPerByte = 1.u128,
+      expiry = 30.stuint(40),
+      nodes = 3.uint,
+      tolerance = 0.uint,
     )
 
-    check responseBefore.status == 400
-    check (await responseBefore.body) == "Tolerance needs to be bigger then zero"
+    check response.status == 400
+    check (await response.body) == "Tolerance needs to be bigger then zero"
 
   test "request storage fails if duration exceeds limit", twoNodesConfig:
     let data = await RandomChunker.example(blocks = 2)
     let cid = (await client1.upload(data)).get
-    let duration = (31 * 24 * 60 * 60).uint64
-      # 31 days TODO: this should not be hardcoded, but waits for https://github.com/codex-storage/nim-codex/issues/1056
-    let proofProbability = 3.u256
-    let expiry = 30.uint
-    let collateralPerByte = 1.u256
-    let nodes = 3
-    let tolerance = 2
-    let pricePerBytePerSecond = 1.u256
-
-    var responseBefore = (
-      await client1.requestStorageRaw(
-        cid, duration, pricePerBytePerSecond, proofProbability, collateralPerByte,
-        expiry, nodes.uint, tolerance.uint,
-      )
+    let response = await client1.requestStorageRaw(
+      cid,
+      duration = (31 * 24 * 60 * 60).stuint(40), # 31 days TODO: this should not be hardcoded, but waits for https://github.com/codex-storage/nim-codex/issues/1056
+      pricePerBytePerSecond = 1.stuint(96),
+      proofProbability = 3.u256,
+      collateralPerByte = 1.u128,
+      expiry = 30.stuint(40),
+      nodes = 3.uint,
+      tolerance = 0.uint,
     )
 
-    check responseBefore.status == 400
-    check "Duration exceeds limit of" in (await responseBefore.body)
+    check response.status == 400
+    check "Duration exceeds limit of" in (await response.body)
 
   test "request storage fails if nodes and tolerance aren't correct", twoNodesConfig:
     let data = await RandomChunker.example(blocks = 2)
     let cid = (await client1.upload(data)).get
-    let duration = 100.uint64
-    let pricePerBytePerSecond = 1.u256
-    let proofProbability = 3.u256
-    let expiry = 30.uint64
-    let collateralPerByte = 1.u256
     let ecParams = @[(1, 1), (2, 1), (3, 2), (3, 3)]
-
     for ecParam in ecParams:
       let (nodes, tolerance) = ecParam
 
-      var responseBefore = (
-        await client1.requestStorageRaw(
-          cid, duration, pricePerBytePerSecond, proofProbability, collateralPerByte,
-          expiry, nodes.uint, tolerance.uint,
-        )
+      let response = await client1.requestStorageRaw(
+        cid,
+        duration = 100.stuint(40),
+        pricePerBytePerSecond = 1.stuint(96),
+        proofProbability = 3.u256,
+        collateralPerByte = 1.u128,
+        expiry = 30.stuint(40),
+        nodes = nodes.uint,
+        tolerance = tolerance.uint,
       )
 
-      check responseBefore.status == 400
-      check (await responseBefore.body) ==
+      check response.status == 400
+      check (await response.body) ==
         "Invalid parameters: parameters must satify `1 < (nodes - tolerance) ≥ tolerance`"
 
   test "request storage fails if tolerance > nodes (underflow protection)",
     twoNodesConfig:
     let data = await RandomChunker.example(blocks = 2)
     let cid = (await client1.upload(data)).get
-    let duration = 100.uint64
-    let pricePerBytePerSecond = 1.u256
-    let proofProbability = 3.u256
-    let expiry = 30.uint64
-    let collateralPerByte = 1.u256
     let ecParams = @[(0, 1), (1, 2), (2, 3)]
 
     for ecParam in ecParams:
       let (nodes, tolerance) = ecParam
 
-      var responseBefore = (
-        await client1.requestStorageRaw(
-          cid, duration, pricePerBytePerSecond, proofProbability, collateralPerByte,
-          expiry, nodes.uint, tolerance.uint,
-        )
+      let response = await client1.requestStorageRaw(
+        cid,
+        duration = 100.stuint(40),
+        pricePerBytePerSecond = 1.stuint(96),
+        proofProbability = 3.u256,
+        collateralPerByte = 1.u128,
+        expiry = 30.stuint(40),
+        nodes = nodes.uint,
+        tolerance = tolerance.uint,
       )
 
-      check responseBefore.status == 400
-      check (await responseBefore.body) ==
+      check response.status == 400
+      check (await response.body) ==
         "Invalid parameters: `tolerance` cannot be greater than `nodes`"
 
   for ecParams in @[
@@ -191,20 +180,18 @@ twonodessuite "REST API":
       fmt"({minBlocks=}, {nodes=}, {tolerance=})", twoNodesConfig:
       let data = await RandomChunker.example(blocks = minBlocks)
       let cid = (await client1.upload(data)).get
-      let duration = 100.uint64
-      let pricePerBytePerSecond = 1.u256
-      let proofProbability = 3.u256
-      let expiry = 30.uint64
-      let collateralPerByte = 1.u256
-
-      var responseBefore = (
-        await client1.requestStorageRaw(
-          cid, duration, pricePerBytePerSecond, proofProbability, collateralPerByte,
-          expiry, nodes.uint, tolerance.uint,
-        )
+      let response = await client1.requestStorageRaw(
+        cid,
+        duration = 100.stuint(40),
+        pricePerBytePerSecond = 1.stuint(96),
+        proofProbability = 3.u256,
+        collateralPerByte = 1.u128,
+        expiry = 30.stuint(40),
+        nodes = nodes.uint,
+        tolerance = tolerance.uint,
       )
 
-      check responseBefore.status == 200
+      check response.status == 200
 
   test "node accepts file uploads with content type", twoNodesConfig:
     let headers = @[("Content-Type", "text/plain")]
