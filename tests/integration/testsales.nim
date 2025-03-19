@@ -33,49 +33,57 @@ multinodesuite "Sales":
     client = clients()[0].client
 
   test "node handles new storage availability", salesConfig:
-    let availability1 = host.postAvailability(
-      totalSize = 1.uint64,
-      duration = 2.uint64,
-      minPricePerBytePerSecond = 3.u256,
-      totalCollateral = 4.u256,
+    let availability1 = (
+      await host.postAvailability(
+        totalSize = 1.uint64,
+        duration = 2.uint64,
+        minPricePerBytePerSecond = 3.u256,
+        totalCollateral = 4.u256,
+      )
     ).get
-    let availability2 = host.postAvailability(
-      totalSize = 4.uint64,
-      duration = 5.uint64,
-      minPricePerBytePerSecond = 6.u256,
-      totalCollateral = 7.u256,
+    let availability2 = (
+      await host.postAvailability(
+        totalSize = 4.uint64,
+        duration = 5.uint64,
+        minPricePerBytePerSecond = 6.u256,
+        totalCollateral = 7.u256,
+      )
     ).get
     check availability1 != availability2
 
   test "node lists storage that is for sale", salesConfig:
-    let availability = host.postAvailability(
-      totalSize = 1.uint64,
-      duration = 2.uint64,
-      minPricePerBytePerSecond = 3.u256,
-      totalCollateral = 4.u256,
+    let availability = (
+      await host.postAvailability(
+        totalSize = 1.uint64,
+        duration = 2.uint64,
+        minPricePerBytePerSecond = 3.u256,
+        totalCollateral = 4.u256,
+      )
     ).get
-    check availability in host.getAvailabilities().get
+    check availability in (await host.getAvailabilities()).get
 
   test "updating non-existing availability", salesConfig:
-    let nonExistingResponse = host.patchAvailabilityRaw(
+    let nonExistingResponse = await host.patchAvailabilityRaw(
       AvailabilityId.example,
       duration = 100.uint64.some,
       minPricePerBytePerSecond = 2.u256.some,
       totalCollateral = 200.u256.some,
     )
-    check nonExistingResponse.status == "404 Not Found"
+    check nonExistingResponse.status == 404
 
   test "updating availability", salesConfig:
-    let availability = host.postAvailability(
-      totalSize = 140000.uint64,
-      duration = 200.uint64,
-      minPricePerBytePerSecond = 3.u256,
-      totalCollateral = 300.u256,
+    let availability = (
+      await host.postAvailability(
+        totalSize = 140000.uint64,
+        duration = 200.uint64,
+        minPricePerBytePerSecond = 3.u256,
+        totalCollateral = 300.u256,
+      )
     ).get
 
     var until = getTime().toUnix()
 
-    host.patchAvailability(
+    await host.patchAvailability(
       availability.id,
       duration = 100.uint64.some,
       minPricePerBytePerSecond = 2.u256.some,
@@ -84,7 +92,8 @@ multinodesuite "Sales":
       until = until.some,
     )
 
-    let updatedAvailability = (host.getAvailabilities().get).findItem(availability).get
+    let updatedAvailability =
+      ((await host.getAvailabilities()).get).findItem(availability).get
     check updatedAvailability.duration == 100.uint64
     check updatedAvailability.minPricePerBytePerSecond == 2
     check updatedAvailability.totalCollateral == 200
@@ -94,27 +103,32 @@ multinodesuite "Sales":
     check updatedAvailability.until == until
 
   test "updating availability - freeSize is not allowed to be changed", salesConfig:
-    let availability = host.postAvailability(
-      totalSize = 140000.uint64,
-      duration = 200.uint64,
-      minPricePerBytePerSecond = 3.u256,
-      totalCollateral = 300.u256,
+    let availability = (
+      await host.postAvailability(
+        totalSize = 140000.uint64,
+        duration = 200.uint64,
+        minPricePerBytePerSecond = 3.u256,
+        totalCollateral = 300.u256,
+      )
     ).get
     let freeSizeResponse =
-      host.patchAvailabilityRaw(availability.id, freeSize = 110000.uint64.some)
-    check freeSizeResponse.status == "400 Bad Request"
-    check "not allowed" in freeSizeResponse.body
+      await host.patchAvailabilityRaw(availability.id, freeSize = 110000.uint64.some)
+    check freeSizeResponse.status == 400
+    check "not allowed" in (await freeSizeResponse.body)
 
   test "updating availability - updating totalSize", salesConfig:
-    let availability = host.postAvailability(
-      totalSize = 140000.uint64,
-      duration = 200.uint64,
-      minPricePerBytePerSecond = 3.u256,
-      totalCollateral = 300.u256,
+    let availability = (
+      await host.postAvailability(
+        totalSize = 140000.uint64,
+        duration = 200.uint64,
+        minPricePerBytePerSecond = 3.u256,
+        totalCollateral = 300.u256,
+      )
     ).get
-    host.patchAvailability(availability.id, totalSize = 100000.uint64.some)
+    await host.patchAvailability(availability.id, totalSize = 100000.uint64.some)
 
-    let updatedAvailability = (host.getAvailabilities().get).findItem(availability).get
+    let updatedAvailability =
+      ((await host.getAvailabilities()).get).findItem(availability).get
     check updatedAvailability.totalSize == 100000
     check updatedAvailability.freeSize == 100000
 
@@ -125,58 +139,70 @@ multinodesuite "Sales":
     let minPricePerBytePerSecond = 3.u256
     let collateralPerByte = 1.u256
     let totalCollateral = originalSize.u256 * collateralPerByte
-    let availability = host.postAvailability(
-      totalSize = originalSize,
-      duration = 20 * 60.uint64,
-      minPricePerBytePerSecond = minPricePerBytePerSecond,
-      totalCollateral = totalCollateral,
+    let availability = (
+      await host.postAvailability(
+        totalSize = originalSize,
+        duration = 20 * 60.uint64,
+        minPricePerBytePerSecond = minPricePerBytePerSecond,
+        totalCollateral = totalCollateral,
+      )
     ).get
 
     # Lets create storage request that will utilize some of the availability's space
-    let cid = client.upload(data).get
-    let id = client.requestStorage(
-      cid,
-      duration = 20 * 60.uint64,
-      pricePerBytePerSecond = minPricePerBytePerSecond,
-      proofProbability = 3.u256,
-      expiry = (10 * 60).uint64,
-      collateralPerByte = collateralPerByte,
-      nodes = 3,
-      tolerance = 1,
+    let cid = (await client.upload(data)).get
+    let id = (
+      await client.requestStorage(
+        cid,
+        duration = 20 * 60.uint64,
+        pricePerBytePerSecond = minPricePerBytePerSecond,
+        proofProbability = 3.u256,
+        expiry = (10 * 60).uint64,
+        collateralPerByte = collateralPerByte,
+        nodes = 3,
+        tolerance = 1,
+      )
     ).get
 
-    check eventually(client.purchaseStateIs(id, "started"), timeout = 10 * 60 * 1000)
-    let updatedAvailability = (host.getAvailabilities().get).findItem(availability).get
+    check eventually(
+      await client.purchaseStateIs(id, "started"), timeout = 10 * 60 * 1000
+    )
+    let updatedAvailability =
+      ((await host.getAvailabilities()).get).findItem(availability).get
     check updatedAvailability.totalSize != updatedAvailability.freeSize
 
     let utilizedSize = updatedAvailability.totalSize - updatedAvailability.freeSize
-    let totalSizeResponse =
-      host.patchAvailabilityRaw(availability.id, totalSize = (utilizedSize - 1).some)
+    let totalSizeResponse = (
+      await host.patchAvailabilityRaw(
+        availability.id, totalSize = (utilizedSize - 1).some
+      )
+    )
+    check totalSizeResponse.status == 400
+    check "totalSize must be larger then current totalSize" in
+      (await totalSizeResponse.body)
 
-    check totalSizeResponse.status == "400 Bad Request"
-    check "totalSize must be larger then current totalSize" in totalSizeResponse.body
-
-    host.patchAvailability(availability.id, totalSize = (originalSize + 20000).some)
-
+    await host.patchAvailability(
+      availability.id, totalSize = (originalSize + 20000).some
+    )
     let newUpdatedAvailability =
-      (host.getAvailabilities().get).findItem(availability).get
+      ((await host.getAvailabilities()).get).findItem(availability).get
     check newUpdatedAvailability.totalSize == originalSize + 20000
     check newUpdatedAvailability.freeSize - updatedAvailability.freeSize == 20000
 
   test "updating availability fails with until negative", salesConfig:
-    let availability = host.postAvailability(
-      totalSize = 140000.uint64,
-      duration = 200.uint64,
-      minPricePerBytePerSecond = 3.u256,
-      totalCollateral = 300.u256,
+    let availability = (
+      await host.postAvailability(
+        totalSize = 140000.uint64,
+        duration = 200.uint64,
+        minPricePerBytePerSecond = 3.u256,
+        totalCollateral = 300.u256,
+      )
     ).get
 
     let response =
-      host.patchAvailabilityRaw(availability.id, until = -1.SecondsSince1970.some)
+      await host.patchAvailabilityRaw(availability.id, until = -1.SecondsSince1970.some)
 
     check:
-      response.status == "422 Unprocessable Entity"
-      response.body == "Cannot set until to a negative value"
+      (await response.body) == "Cannot set until to a negative value"
 
   test "returns an error when trying to update the until date before an existing a request is finished",
     salesConfig:
@@ -189,37 +215,44 @@ multinodesuite "Sales":
     let ecTolerance = 1.uint
 
     # host makes storage available
-    let availability = host.postAvailability(
-      totalSize = size,
-      duration = duration,
-      minPricePerBytePerSecond = minPricePerBytePerSecond,
-      totalCollateral = size.u256 * minPricePerBytePerSecond,
+    let availability = (
+      await host.postAvailability(
+        totalSize = size,
+        duration = duration,
+        minPricePerBytePerSecond = minPricePerBytePerSecond,
+        totalCollateral = size.u256 * minPricePerBytePerSecond,
+      )
     ).get
 
     # client requests storage
-    let cid = client.upload(data).get
-    let id = client.requestStorage(
-      cid,
-      duration = duration,
-      pricePerBytePerSecond = minPricePerBytePerSecond,
-      proofProbability = 3.u256,
-      expiry = 10 * 60.uint64,
-      collateralPerByte = collateralPerByte,
-      nodes = ecNodes,
-      tolerance = ecTolerance,
+    let cid = (await client.upload(data)).get
+    let id = (
+      await client.requestStorage(
+        cid,
+        duration = duration,
+        pricePerBytePerSecond = minPricePerBytePerSecond,
+        proofProbability = 3.u256,
+        expiry = 10 * 60.uint64,
+        collateralPerByte = collateralPerByte,
+        nodes = ecNodes,
+        tolerance = ecTolerance,
+      )
     ).get
 
-    check eventually(client.purchaseStateIs(id, "started"), timeout = 10 * 60 * 1000)
-    let purchase = client.getPurchase(id).get
+    check eventually(
+      await client.purchaseStateIs(id, "started"), timeout = 10 * 60 * 1000
+    )
+    let purchase = (await client.getPurchase(id)).get
     check purchase.error == none string
 
     let unixNow = getTime().toUnix()
     let until = unixNow + 1.SecondsSince1970
 
-    let response =
-      host.patchAvailabilityRaw(availabilityId = availability.id, until = until.some)
+    let response = await host.patchAvailabilityRaw(
+      availabilityId = availability.id, until = until.some
+    )
 
     check:
-      response.status == "422 Unprocessable Entity"
-      response.body ==
+      response.status == 422
+      (await response.body) ==
         "Until parameter must be greater or equal to the longest currently hosted slot"

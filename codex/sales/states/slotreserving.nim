@@ -44,12 +44,11 @@ method run*(
       try:
         trace "Reserving slot"
         await market.reserveSlot(data.requestId, data.slotIndex)
+      except SlotReservationNotAllowedError as e:
+        debug "Slot cannot be reserved, ignoring", error = e.msg
+        return some State(SaleIgnored(reprocessSlot: false))
       except MarketError as e:
-        if e.msg.contains "SlotReservations_ReservationNotAllowed":
-          debug "Slot cannot be reserved, ignoring", error = e.msg
-          return some State(SaleIgnored(reprocessSlot: false))
-        else:
-          return some State(SaleErrored(error: e))
+        return some State(SaleErrored(error: e))
       # other CatchableErrors are handled "automatically" by the SaleState
 
       trace "Slot successfully reserved"
