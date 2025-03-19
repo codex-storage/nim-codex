@@ -38,7 +38,7 @@ type
   StorageRequested* = object of MarketplaceEvent
     requestId*: RequestId
     ask*: StorageAsk
-    expiry*: StUint[40]
+    expiry*: StorageDuration
 
   SlotFilled* = object of MarketplaceEvent
     requestId* {.indexed.}: RequestId

@@ -19,7 +19,7 @@ type
     client* {.serialize.}: Address
     ask* {.serialize.}: StorageAsk
     content* {.serialize.}: StorageContent
-    expiry* {.serialize.}: Duration
+    expiry* {.serialize.}: StorageDuration
     nonce*: Nonce
 
   StorageAsk* = object
@@ -28,7 +28,7 @@ type
     collateralPerByte* {.serialize.}: UInt128
     slots* {.serialize.}: uint64
     slotSize* {.serialize.}: uint64
-    duration* {.serialize.}: Duration
+    duration* {.serialize.}: StorageDuration
     maxSlotLoss* {.serialize.}: uint64
 
   StorageContent* = object
@@ -57,7 +57,7 @@ type
     Cancelled
     Repair
 
-  Duration* = StUint[40]
+  StorageDuration* = StUint[40]
   TokensPerSecond* = StUint[96]
 
 proc `==`*(x, y: Nonce): bool {.borrow.}
