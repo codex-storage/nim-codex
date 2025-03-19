@@ -652,7 +652,7 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
       without params =? StorageRequestParams.fromJson(body), error:
         return RestApiResponse.error(Http400, error.msg, headers = headers)
 
-      let requestDurationLimit = await contracts.purchasing.market.requestDurationLimit
+      let requestDurationLimit = contracts.purchasing.market.requestDurationLimit
       if params.duration > requestDurationLimit:
         return RestApiResponse.error(
           Http400,
