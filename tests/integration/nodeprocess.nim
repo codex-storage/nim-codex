@@ -92,8 +92,8 @@ proc captureOutput(
 
         node.onOutputLineCaptured(line)
 
-        await sleepAsync(1.millis)
-      await sleepAsync(1.millis)
+        await sleepAsync(1.nanos)
+      await sleepAsync(1.nanos)
   except CancelledError:
     discard # do not propagate as captureOutput was asyncSpawned
   except AsyncStreamError as e:
