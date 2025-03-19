@@ -15,6 +15,7 @@ import ./hardhatprocess
 import ./nodeconfigs
 import ../asynctest
 import ../checktest
+from ../helpers import resubscribeWebsocketEventsOnTimeout
 
 export asynctest
 export ethers except `%`
@@ -290,11 +291,6 @@ template multinodesuite*(name: string, body: untyped) =
         raiseMultiNodeSuiteError "Failed to get node info"
       bootstrapNodes.add ninfo["spr"].getStr()
 
-    proc resubscribeOnTimeout() {.async.} =
-      while true:
-        await sleepAsync(5.int64.minutes)
-        #await ethProvider.resubscribeAll()
-
     setup:
       if var conf =? nodeConfigs.hardhat:
         try:
@@ -316,7 +312,7 @@ template multinodesuite*(name: string, body: untyped) =
           snapshot = await send(ethProvider, "evm_snapshot")
         accounts = await ethProvider.listAccounts()
 
-        resubscribeFut = resubscribeOnTimeout()
+        resubscribeFut = resubscribeWebsocketEventsOnTimeout(ethProvider)
       except CatchableError as e:
         echo "Hardhat not running. Run hardhat manually " &
           "before executing tests, or include a " & "HardhatConfig in the test setup."
