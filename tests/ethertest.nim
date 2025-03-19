@@ -4,6 +4,7 @@ import pkg/chronos
 
 import ./asynctest
 import ./checktest
+from ./helpers import resubscribeWebsocketEventsOnTimeout
 
 ## Unit testing suite that sets up an Ethereum testing environment.
 ## Injects a `ethProvider` instance, and a list of `accounts`.
@@ -16,17 +17,12 @@ template ethersuite*(name, body) =
     var snapshot: JsonNode
     var fut: Future[void]
 
-    proc resubscribeOnTimeout() {.async.} =
-      while true:
-        await sleepAsync(5.int64.minutes)
-        #await ethProvider.resubscribeAll()
-
     setup:
       ethProvider = JsonRpcProvider.new("ws://localhost:8545")
       snapshot = await send(ethProvider, "evm_snapshot")
       accounts = await ethProvider.listAccounts()
 
-      fut = resubscribeOnTimeout()
+      fut = resubscribeWebsocketEventsOnTimeout(ethProvider)
     teardown:
       if not fut.isNil:
         await fut.cancelAndWait()
