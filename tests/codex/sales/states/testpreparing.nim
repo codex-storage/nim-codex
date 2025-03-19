@@ -55,8 +55,7 @@ asyncchecksuite "sales state 'preparing'":
     context.reservations = reservations
     agent = newSalesAgent(context, request.id, slotIndex, request.some)
 
-    market.requestEnds[request.id] =
-      getTime().toUnix() + cast[int64](request.ask.duration)
+    market.requestEnds[request.id] = clock.now() + cast[int64](request.ask.duration)
 
   teardown:
     await repo.stop()
