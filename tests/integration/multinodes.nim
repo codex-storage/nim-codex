@@ -401,21 +401,21 @@ template multinodesuite*(name: string, body: untyped) =
       if var clients =? nodeConfigs.clients:
         failAndTeardownOnError "failed to start client nodes":
           for config in clients.configs:
-            let node = await noCancel startClientNode(config)
+            let node = await startClientNode(config)
             running.add RunningNode(role: Role.Client, node: node)
             await CodexProcess(node).updateBootstrapNodes()
 
       if var providers =? nodeConfigs.providers:
         failAndTeardownOnError "failed to start provider nodes":
           for config in providers.configs.mitems:
-            let node = await noCancel startProviderNode(config)
+            let node = await startProviderNode(config)
             running.add RunningNode(role: Role.Provider, node: node)
             await CodexProcess(node).updateBootstrapNodes()
 
       if var validators =? nodeConfigs.validators:
         failAndTeardownOnError "failed to start validator nodes":
           for config in validators.configs.mitems:
-            let node = await noCancel startValidatorNode(config)
+            let node = await startValidatorNode(config)
             running.add RunningNode(role: Role.Validator, node: node)
 
       # ensure that we have a recent block with a fresh timestamp
