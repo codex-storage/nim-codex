@@ -194,23 +194,18 @@ proc retrieveInfoHash(
     let stream =
       await node.streamTorrent(torrentManifest, codexManifest, torrentPieceValidator)
 
-    let pieceIter = torrentPieceValidator.getNewPieceIterator()
+    while not stream.atEof:
+      trace "Waiting for piece..."
+      let pieceIndex = await torrentPieceValidator.waitForNextPiece()
 
-    var pieceIndex = 0
-
-    while not pieceIter.finished and not stream.atEof:
-      trace "Waiting for piece", pieceIndex
-      if not (await torrentPieceValidator.waitForNextPiece()):
-        warn "No more torrent pieces expected. TorrentPieceValidator out of sync"
+      if -1 == pieceIndex:
+        warn "No more torrent pieces expected. TorrentPieceValidator might be out of sync!"
         break
 
       trace "Got piece", pieceIndex
-      inc pieceIndex
 
       let blocksPerPieceIter = torrentPieceValidator.getNewBlocksPerPieceIterator()
-      while not stream.atEof:
-        if blocksPerPieceIter.finished:
-          break
+      while not blocksPerPieceIter.finished and not stream.atEof:
         var buff = newSeqUninitialized[byte](BitTorrentBlockSize.int)
         # wait for the next the piece to prefetch
         let len = await stream.readOnce(addr buff[0], buff.len)
