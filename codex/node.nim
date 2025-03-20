@@ -50,6 +50,7 @@ import ./utils/trackedfutures
 # bittorrent
 from ./codextypes import InfoHashV1Codec
 import ./bittorrent/manifest
+import ./bittorrent/piecevalidator
 
 export logutils
 
@@ -432,8 +433,11 @@ proc fetchPieces*(
   )
 
 proc streamTorrent*(
-    self: CodexNodeRef, torrentManifest: BitTorrentManifest, codexManifest: Manifest
-): Future[?!LPStream] {.async: (raises: []).} =
+    self: CodexNodeRef,
+    torrentManifest: BitTorrentManifest,
+    codexManifest: Manifest,
+    pieceValidator: TorrentPieceValidator,
+): Future[LPStream] {.async: (raises: []).} =
   trace "Retrieving pieces from torrent"
   let stream = LPStream(StoreStream.new(self.networkStore, codexManifest, pad = false))
   var jobs: seq[Future[void]]
@@ -441,20 +445,14 @@ proc streamTorrent*(
   proc onPieceReceived(blocks: seq[bt.Block], pieceIndex: int): ?!void {.raises: [].} =
     trace "Fetched torrent piece - verifying..."
 
-    var pieceHashCtx: sha1
-    pieceHashCtx.init()
+    if err =? pieceValidator.validatePiece(blocks, pieceIndex).errorOption:
+      error "Piece verification failed", pieceIndex = pieceIndex, err = err.msg
+      return failure(err)
 
-    for blk in blocks:
-      pieceHashCtx.update(blk.data)
-
-    let pieceHash = pieceHashCtx.finish()
-
-    if (pieceHash != torrentManifest.info.pieces[pieceIndex]):
-      error "Piece verification failed", pieceIndex = pieceIndex
-      return failure("Piece verification failed")
-
-    trace "Piece verified", pieceIndex, pieceHash
-    # great success
+    if err =? pieceValidator.markPieceAsValid(pieceIndex).errorOption:
+      error "Unable to mark piece as valid", pieceIndex = pieceIndex
+      return failure("Unable to mark piece as valid")
+    trace "Piece verified", pieceIndex
     success()
 
   proc prefetch(): Future[void] {.async: (raises: []).} =
@@ -463,7 +461,8 @@ proc streamTorrent*(
         await self.fetchPieces(torrentManifest, codexManifest, onPieceReceived)
       ).errorOption:
         error "Unable to fetch blocks", err = err.msg
-        await stream.close()
+        await noCancel pieceValidator.cancel()
+        await noCancel stream.close()
     except CancelledError:
       trace "Prefetch cancelled"
 
@@ -481,7 +480,7 @@ proc streamTorrent*(
   self.trackedFutures.track(monitorStream())
 
   trace "Creating store stream for torrent manifest"
-  stream.success
+  stream
 
 proc retrieveTorrent*(
     self: CodexNodeRef, infoHash: MultiHash
