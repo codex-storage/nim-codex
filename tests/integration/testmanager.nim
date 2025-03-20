@@ -699,7 +699,7 @@ proc withBorder(
   if borders.contains(Border.Right):
     result &= " |"
 
-proc printResult(manager: TestManager) {.raises: [TestManagerError].} =
+proc printResult(manager: TestManager) =
   var successes = 0
   var totalDurationSerial: Duration
   echo ""
@@ -753,7 +753,7 @@ proc printResult(manager: TestManager) {.raises: [TestManagerError].} =
 
 proc start*(
     manager: TestManager
-) {.async: (raises: [CancelledError, TestManagerError]).} =
+) {.async: (raises: [CancelledError]).} =
   if manager.config.showContinuousStatusUpdates:
     let fut = manager.continuallyShowUpdates()
     manager.trackedFutures.track fut
