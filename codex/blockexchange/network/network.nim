@@ -323,7 +323,9 @@ method init*(self: BlockExcNetwork) =
   ## Perform protocol initialization
   ##
 
-  proc peerEventHandler(peerId: PeerId, event: PeerEvent) {.async.} =
+  proc peerEventHandler(
+      peerId: PeerId, event: PeerEvent
+  ): Future[void] {.gcsafe, async: (raises: [CancelledError]).} =
     if event.kind == PeerEventKind.Joined:
       self.setupPeer(peerId)
     else:
@@ -332,7 +334,9 @@ method init*(self: BlockExcNetwork) =
   self.switch.addPeerEventHandler(peerEventHandler, PeerEventKind.Joined)
   self.switch.addPeerEventHandler(peerEventHandler, PeerEventKind.Left)
 
-  proc handler(conn: Connection, proto: string) {.async.} =
+  proc handler(
+      conn: Connection, proto: string
+  ): Future[void] {.async: (raises: [CancelledError]).} =
     let peerId = conn.peerId
     let blockexcPeer = self.getOrCreatePeer(peerId)
     await blockexcPeer.readLoop(conn) # attach read loop
