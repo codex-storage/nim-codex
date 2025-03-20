@@ -38,8 +38,10 @@ import ../erasure/erasure
 import ../manifest
 import ../streams/asyncstreamwrapper
 import ../stores
+import ../utils/iter
 import ../utils/options
 import ../bittorrent/manifest
+import ../bittorrent/piecevalidator
 
 import ./coders
 import ./json
@@ -172,16 +174,6 @@ proc retrieveInfoHash(
       return
     let (torrentManifest, codexManifest) = torrent
 
-    without stream =? (await node.streamTorrent(torrentManifest, codexManifest)), err:
-      if err of BlockNotFoundError:
-        resp.status = Http404
-        await resp.sendBody("")
-        return
-      else:
-        resp.status = Http500
-        await resp.sendBody(err.msg)
-        return
-
     if codexManifest.mimetype.isSome:
       resp.setHeader("Content-Type", codexManifest.mimetype.get())
     else:
@@ -197,21 +189,44 @@ proc retrieveInfoHash(
 
     await resp.prepareChunked()
 
-    while not stream.atEof:
-      var
-        buff = newSeqUninitialized[byte](BitTorrentBlockSize.int)
-        len = await stream.readOnce(addr buff[0], buff.len)
+    let torrentPieceValidator = newTorrentPieceValidator(torrentManifest, codexManifest)
 
-      buff.setLen(len)
-      if buff.len <= 0:
+    let stream =
+      await node.streamTorrent(torrentManifest, codexManifest, torrentPieceValidator)
+
+    let pieceIter = torrentPieceValidator.getNewPieceIterator()
+
+    var pieceIndex = 0
+
+    while not pieceIter.finished and not stream.atEof:
+      trace "Waiting for piece", pieceIndex
+      if not (await torrentPieceValidator.waitForNextPiece()):
+        warn "No more torrent pieces expected. TorrentPieceValidator out of sync"
         break
 
-      bytes += buff.len
+      trace "Got piece", pieceIndex
+      inc pieceIndex
 
-      await resp.sendChunk(addr buff[0], buff.len)
+      let blocksPerPieceIter = torrentPieceValidator.getNewBlocksPerPieceIterator()
+      while not stream.atEof:
+        if blocksPerPieceIter.finished:
+          break
+        var buff = newSeqUninitialized[byte](BitTorrentBlockSize.int)
+        # wait for the next the piece to prefetch
+        let len = await stream.readOnce(addr buff[0], buff.len)
+
+        buff.setLen(len)
+        if buff.len <= 0:
+          break
+
+        bytes += buff.len
+
+        await resp.sendChunk(addr buff[0], buff.len)
+        discard blocksPerPieceIter.next()
     await resp.finish()
     codex_api_downloads.inc()
   except CancelledError as exc:
+    info "Stream cancelled", exc = exc.msg
     raise exc
   except CatchableError as exc:
     warn "Error streaming blocks", exc = exc.msg
