@@ -68,7 +68,9 @@ proc requestStorage*(
   errors: [
     Marketplace_InvalidClientAddress, Marketplace_RequestAlreadyExists,
     Marketplace_InvalidExpiry, Marketplace_InsufficientSlots,
-    Marketplace_InvalidMaxSlotLoss,
+    Marketplace_InvalidMaxSlotLoss, Marketplace_InsufficientDuration,
+    Marketplace_InsufficientProofProbability, Marketplace_InsufficientCollateral,
+    Marketplace_InsufficientReward, Marketplace_InvalidCid,
   ]
 .}
 
