@@ -50,7 +50,7 @@ ethersuite "Marketplace contracts":
     discard
       await token.approve(marketplace.address, request.ask.collateralPerSlot.stuint(256)).confirm(1)
     discard await marketplace.reserveSlot(request.id, 0.uint64).confirm(1)
-    let overrides = TransactionOverrides(gasLimit: some 500_000.u256)
+    let overrides = TransactionOverrides(gasLimit: some 700_000.u256)
     let receipt = await marketplace.fillSlot(request.id, 0.uint64, proof, overrides).confirm(1)
     filledAt = await ethProvider.blockTime(BlockTag.init(!receipt.blockNumber))
     slotId = request.slotId(0.uint64)
@@ -72,7 +72,7 @@ ethersuite "Marketplace contracts":
       .approve(marketplace.address, request.ask.collateralPerSlot.stuint(256))
       .confirm(1)
       discard await marketplace.reserveSlot(request.id, slotIndex.uint64).confirm(1)
-      let overrides = TransactionOverrides(gasLimit: some 500_000.u256)
+      let overrides = TransactionOverrides(gasLimit: some 700_000.u256)
       discard await marketplace.fillSlot(request.id, slotIndex.uint64, proof, overrides).confirm(1)
 
   test "accept marketplace proofs":
