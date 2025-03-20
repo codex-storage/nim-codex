@@ -53,24 +53,26 @@ proc getNewBlocksPerPieceIterator*(self: TorrentPieceValidator): Iter[int] =
 
 proc waitForNextPiece*(
     self: TorrentPieceValidator
-): Future[bool] {.async: (raises: [CancelledError]).} =
+): Future[int] {.async: (raises: [CancelledError]).} =
   if self.waitIter.finished:
-    return false
-  await self.pieces[self.waitIter.next()]
-  true
+    return -1
+  let pieceIndex = self.waitIter.next()
+  await self.pieces[pieceIndex]
+  pieceIndex
 
-proc confirmCurrentPiece*(self: TorrentPieceValidator): bool {.raises: [].} =
+proc confirmCurrentPiece*(self: TorrentPieceValidator): int {.raises: [].} =
   if self.confirmIter.finished:
-    return false
-  self.pieces[self.confirmIter.next()].complete()
-  true
+    return -1
+  let pieceIndex = self.confirmIter.next()
+  self.pieces[pieceIndex].complete()
+  pieceIndex
 
 proc cancel*(self: TorrentPieceValidator): Future[void] {.async: (raises: []).} =
   await noCancel allFutures(self.pieces.mapIt(it.cancelAndWait))
 
 proc validatePiece*(
     self: TorrentPieceValidator, blocks: seq[Block]
-): bool {.raises: [].} =
+): int {.raises: [].} =
   var pieceHashCtx: sha1
   pieceHashCtx.init()
 
@@ -79,10 +81,11 @@ proc validatePiece*(
 
   let computedPieceHash = pieceHashCtx.finish()
 
-  if (computedPieceHash != self.torrentManifest.info.pieces[self.validationIter.next()]):
-    return false
+  let pieceIndex = self.validationIter.next()
+  if (computedPieceHash != self.torrentManifest.info.pieces[pieceIndex]):
+    return -1
 
-  true
+  pieceIndex
 
 #################################################################
 # Previous API, keeping it for now, probably will not be needed

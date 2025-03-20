@@ -85,18 +85,18 @@ suite "Torrent PieceValidator":
     let numberOfPieces = exampleTorrentManifest.info.pieces.len
     for i in 0 ..< numberOfPieces:
       let fut = pieceValidator.waitForNextPiece()
-      check pieceValidator.confirmCurrentPiece()
-      check await fut
+      check pieceValidator.confirmCurrentPiece() == i
+      check (await fut) == i
 
   test "awaiting is independent from confirming":
     let numberOfPieces = exampleTorrentManifest.info.pieces.len
-    var futs = newSeq[Future[bool]](numberOfPieces)
+    var futs = newSeq[Future[int]](numberOfPieces)
     for i in 0 ..< numberOfPieces:
       futs[i] = pieceValidator.waitForNextPiece()
     for i in 0 ..< numberOfPieces:
-      check pieceValidator.confirmCurrentPiece()
+      check pieceValidator.confirmCurrentPiece() == i
     for i in 0 ..< numberOfPieces:
-      check await futs[i]
+      check (await futs[i]) == i
 
   test "sequential validation of blocks":
     let blocksInPieces = newSeqWith(
@@ -133,19 +133,19 @@ suite "Torrent PieceValidator":
 
     pieceValidator = newTorrentPieceValidator(torrentManifest, codexManifest)
 
-    for blks in blocksInPieces:
+    for pieceIndex, blks in blocksInPieces:
       # streaming client will wait on the piece validator to validate the piece
       let fut = pieceValidator.waitForNextPiece()
 
       # during prefetch we will validate each piece sequentially
       # piece validator maintains internal iterators in its object
       # to keep track of the validation order
-      check pieceValidator.validatePiece(blks)
+      check pieceValidator.validatePiece(blks) == pieceIndex
 
       # after piece is validated, the prefetch task will confirm the piece
       # again, using internal state, the validator knows which piece to confirm
-      check pieceValidator.confirmCurrentPiece()
+      check pieceValidator.confirmCurrentPiece() == pieceIndex
 
       # the fut will be resolved after the piece is confirmed
       # and the streaming client can continue
-      check await fut
+      check (await fut) == pieceIndex
