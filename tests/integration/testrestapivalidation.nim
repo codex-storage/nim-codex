@@ -37,11 +37,11 @@ asyncchecksuite "Rest API validation":
 
   waitFor node.waitUntilStarted()
 
-  let client1 = node.client()
+  let client = node.client()
 
   test "should return 400 when attempting delete of non-existing dataset":
     let data = await RandomChunker.example(blocks = 2)
-    let cid = (await client1.upload(data)).get
+    let cid = (await client.upload(data)).get
     let duration = 100.uint64
     let pricePerBytePerSecond = 1.u256
     let proofProbability = 3.u256
@@ -50,7 +50,7 @@ asyncchecksuite "Rest API validation":
     let nodes = 3
     let tolerance = 0
 
-    var responseBefore = await client1.requestStorageRaw(
+    var responseBefore = await client.requestStorageRaw(
       cid, duration, pricePerBytePerSecond, proofProbability, collateralPerByte, expiry,
       nodes.uint, tolerance.uint,
     )
@@ -59,9 +59,9 @@ asyncchecksuite "Rest API validation":
     check (await responseBefore.body) == "Tolerance needs to be bigger then zero"
 
   test "request storage fails for datasets that are too small":
-    let cid = (await client1.upload("some file contents")).get
+    let cid = (await client.upload("some file contents")).get
     let response = (
-      await client1.requestStorageRaw(
+      await client.requestStorageRaw(
         cid,
         duration = 10.uint64,
         pricePerBytePerSecond = 1.u256,
@@ -79,7 +79,7 @@ asyncchecksuite "Rest API validation":
 
   test "request storage fails if nodes and tolerance aren't correct":
     let data = await RandomChunker.example(blocks = 2)
-    let cid = (await client1.upload(data)).get
+    let cid = (await client.upload(data)).get
     let duration = 100.uint64
     let pricePerBytePerSecond = 1.u256
     let proofProbability = 3.u256
@@ -91,7 +91,7 @@ asyncchecksuite "Rest API validation":
       let (nodes, tolerance) = ecParam
 
       var responseBefore = (
-        await client1.requestStorageRaw(
+        await client.requestStorageRaw(
           cid, duration, pricePerBytePerSecond, proofProbability, collateralPerByte,
           expiry, nodes.uint, tolerance.uint,
         )
@@ -103,7 +103,7 @@ asyncchecksuite "Rest API validation":
 
   test "request storage fails if tolerance > nodes (underflow protection)":
     let data = await RandomChunker.example(blocks = 2)
-    let cid = (await client1.upload(data)).get
+    let cid = (await client.upload(data)).get
     let duration = 100.uint64
     let pricePerBytePerSecond = 1.u256
     let proofProbability = 3.u256
@@ -113,7 +113,7 @@ asyncchecksuite "Rest API validation":
     let tolerance = 0
 
     var responseBefore = (
-      await client1.requestStorageRaw(
+      await client.requestStorageRaw(
         cid, duration, pricePerBytePerSecond, proofProbability, collateralPerByte,
         expiry, nodes.uint, tolerance.uint,
       )
@@ -124,20 +124,20 @@ asyncchecksuite "Rest API validation":
 
   test "upload fails if content disposition contains bad filename":
     let headers = @[("Content-Disposition", "attachment; filename=\"exam*ple.txt\"")]
-    let response = await client1.uploadRaw("some file contents", headers)
+    let response = await client.uploadRaw("some file contents", headers)
 
     check response.status == 422
     check (await response.body) == "The filename is not valid."
 
   test "upload fails if content type is invalid":
     let headers = @[("Content-Type", "hello/world")]
-    let response = await client1.uploadRaw("some file contents", headers)
+    let response = await client.uploadRaw("some file contents", headers)
 
     check response.status == 422
     check (await response.body) == "The MIME type 'hello/world' is not valid."
 
   test "updating non-existing availability":
-    let nonExistingResponse = await client1.patchAvailabilityRaw(
+    let nonExistingResponse = await client.patchAvailabilityRaw(
       AvailabilityId.example,
       duration = 100.uint64.some,
       minPricePerBytePerSecond = 2.u256.some,
@@ -147,7 +147,7 @@ asyncchecksuite "Rest API validation":
 
   test "updating availability - freeSize is not allowed to be changed":
     let availability = (
-      await client1.postAvailability(
+      await client.postAvailability(
         totalSize = 140000.uint64,
         duration = 200.uint64,
         minPricePerBytePerSecond = 3.u256,
@@ -155,12 +155,12 @@ asyncchecksuite "Rest API validation":
       )
     ).get
     let freeSizeResponse =
-      await client1.patchAvailabilityRaw(availability.id, freeSize = 110000.uint64.some)
+      await client.patchAvailabilityRaw(availability.id, freeSize = 110000.uint64.some)
     check freeSizeResponse.status == 422
     check "not allowed" in (await freeSizeResponse.body)
 
   test "creating availability above the node quota returns 422":
-    let response = await client1.postAvailabilityRaw(
+    let response = await client.postAvailabilityRaw(
       totalSize = 24000000000.uint64,
       duration = 200.uint64,
       minPricePerBytePerSecond = 3.u256,
@@ -172,14 +172,14 @@ asyncchecksuite "Rest API validation":
 
   test "updating availability above the node quota returns 422":
     let availability = (
-      await client1.postAvailability(
+      await client.postAvailability(
         totalSize = 140000.uint64,
         duration = 200.uint64,
         minPricePerBytePerSecond = 3.u256,
         totalCollateral = 300.u256,
       )
     ).get
-    let response = await client1.patchAvailabilityRaw(
+    let response = await client.patchAvailabilityRaw(
       availability.id, totalSize = 24000000000.uint64.some
     )
 
@@ -187,7 +187,7 @@ asyncchecksuite "Rest API validation":
     check (await response.body) == "Not enough storage quota"
 
   test "creating availability when total size is zero returns 422":
-    let response = await client1.postAvailabilityRaw(
+    let response = await client.postAvailabilityRaw(
       totalSize = 0.uint64,
       duration = 200.uint64,
       minPricePerBytePerSecond = 3.u256,
@@ -199,7 +199,7 @@ asyncchecksuite "Rest API validation":
 
   test "updating availability when total size is zero returns 422":
     let availability = (
-      await client1.postAvailability(
+      await client.postAvailability(
         totalSize = 140000.uint64,
         duration = 200.uint64,
         minPricePerBytePerSecond = 3.u256,
@@ -207,7 +207,7 @@ asyncchecksuite "Rest API validation":
       )
     ).get
     let response =
-      await client1.patchAvailabilityRaw(availability.id, totalSize = 0.uint64.some)
+      await client.patchAvailabilityRaw(availability.id, totalSize = 0.uint64.some)
 
     check response.status == 422
     check (await response.body) == "Total size must be larger then zero"
@@ -220,14 +220,14 @@ asyncchecksuite "Rest API validation":
         "minPricePerBytePerSecond": "3",
         "totalCollateral": "300",
       }
-    let response = await client1.post(client1.buildUrl("/sales/availability"), $json)
+    let response = await client.post(client.buildUrl("/sales/availability"), $json)
 
-    check response.status == 422
+    check response.status == 400
     check (await response.body) == "Parsed integer outside of valid range"
 
   test "updating availability when total size is negative returns 422":
     let availability = (
-      await client1.postAvailability(
+      await client.postAvailability(
         totalSize = 140000.uint64,
         duration = 200.uint64,
         minPricePerBytePerSecond = 3.u256,
@@ -236,11 +236,11 @@ asyncchecksuite "Rest API validation":
     ).get
 
     let json = %*{"totalSize": "-1"}
-    let response = await client1.patch(
-      client1.buildUrl("/sales/availability/") & $availability.id, $json
+    let response = await client.patch(
+      client.buildUrl("/sales/availability/") & $availability.id, $json
     )
 
-    check response.status == 422
+    check response.status == 400
     check (await response.body) == "Parsed integer outside of valid range"
 
   waitFor node.stop()
