@@ -10,7 +10,6 @@ ethersuite "Marketplace contracts":
   let proof = Groth16Proof.example
 
   var client, host: Signer
-  var rewardRecipient, collateralRecipient: Address
   var marketplace: Marketplace
   var token: Erc20Token
   var periodicity: Periodicity
@@ -28,8 +27,6 @@ ethersuite "Marketplace contracts":
   setup:
     client = ethProvider.getSigner(accounts[0])
     host = ethProvider.getSigner(accounts[1])
-    rewardRecipient = accounts[2]
-    collateralRecipient = accounts[3]
 
     let address = Marketplace.address(dummyVerifier = true)
     marketplace = Marketplace.new(address, ethProvider.getSigner())

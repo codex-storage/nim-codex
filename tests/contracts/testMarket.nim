@@ -29,7 +29,6 @@ ethersuite "On-Chain Market":
   var periodicity: Periodicity
   var host: Signer
   var otherHost: Signer
-  var hostRewardRecipient: Address
 
   proc expectedPayout(
       r: StorageRequest, startTimestamp: UInt256, endTimestamp: UInt256
@@ -39,13 +38,12 @@ ethersuite "On-Chain Market":
   proc switchAccount(account: Signer) {.async.} =
     marketplace = marketplace.connect(account)
     token = token.connect(account)
-    market = ! await OnChainMarket.load(marketplace, market.rewardRecipient)
+    market = ! await OnChainMarket.load(marketplace)
 
   setup:
     let address = Marketplace.address(dummyVerifier = true)
     marketplace = Marketplace.new(address, ethProvider.getSigner())
     let config = await marketplace.configuration()
-    hostRewardRecipient = accounts[2]
 
     market = ! await OnChainMarket.load(marketplace)
     let tokenAddress = await marketplace.token()
