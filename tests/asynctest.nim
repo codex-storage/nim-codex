@@ -1,3 +1,3 @@
-import pkg/asynctest/chronos/unittest
+import pkg/asynctest/chronos/unittest2
 
-export unittest
+export unittest2

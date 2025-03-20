@@ -82,11 +82,11 @@ type
     availabilityLock: AsyncLock
       # Lock for protecting assertions of availability's sizes when searching for matching availability
     repo: RepoStore
-    onAvailabilityAdded: ?OnAvailabilityAdded
+    OnAvailabilitySaved: ?OnAvailabilitySaved
 
   GetNext* = proc(): Future[?seq[byte]] {.upraises: [], gcsafe, closure.}
   IterDispose* = proc(): Future[?!void] {.gcsafe, closure.}
-  OnAvailabilityAdded* =
+  OnAvailabilitySaved* =
     proc(availability: Availability): Future[void] {.upraises: [], gcsafe.}
   StorableIter* = ref object
     finished*: bool
@@ -189,10 +189,10 @@ logutils.formatIt(LogFormat.textLines, SomeStorableId):
 logutils.formatIt(LogFormat.json, SomeStorableId):
   it.to0xHexLog
 
-proc `onAvailabilityAdded=`*(
-    self: Reservations, onAvailabilityAdded: OnAvailabilityAdded
+proc `OnAvailabilitySaved=`*(
+    self: Reservations, OnAvailabilitySaved: OnAvailabilitySaved
 ) =
-  self.onAvailabilityAdded = some onAvailabilityAdded
+  self.OnAvailabilitySaved = some OnAvailabilitySaved
 
 func key*(id: AvailabilityId): ?!Key =
   ## sales / reservations / <availabilityId>
@@ -268,18 +268,18 @@ proc updateAvailability(
       trace "Creating new Availability"
       let res = await self.updateImpl(obj)
       # inform subscribers that Availability has been added
-      if onAvailabilityAdded =? self.onAvailabilityAdded:
-        # when chronos v4 is implemented, and OnAvailabilityAdded is annotated
+      if OnAvailabilitySaved =? self.OnAvailabilitySaved:
+        # when chronos v4 is implemented, and OnAvailabilitySaved is annotated
         # with async:(raises:[]), we can remove this try/catch as we know, with
         # certainty, that nothing will be raised
         try:
-          await onAvailabilityAdded(obj)
+          await OnAvailabilitySaved(obj)
         except CancelledError as e:
           raise e
         except CatchableError as e:
           # we don't have any insight into types of exceptions that
-          # `onAvailabilityAdded` can raise because it is caller-defined
-          warn "Unknown error during 'onAvailabilityAdded' callback", error = e.msg
+          # `OnAvailabilitySaved` can raise because it is caller-defined
+          warn "Unknown error during 'OnAvailabilitySaved' callback", error = e.msg
       return res
     else:
       return failure(err)
@@ -300,21 +300,23 @@ proc updateAvailability(
 
   let res = await self.updateImpl(obj)
 
-  if oldAvailability.freeSize < obj.freeSize: # availability added
+  if oldAvailability.freeSize < obj.freeSize or oldAvailability.duration < obj.duration or
+      oldAvailability.minPricePerBytePerSecond < obj.minPricePerBytePerSecond or
+      oldAvailability.totalCollateral < obj.totalCollateral: # availability updated
     # inform subscribers that Availability has been modified (with increased
     # size)
-    if onAvailabilityAdded =? self.onAvailabilityAdded:
-      # when chronos v4 is implemented, and OnAvailabilityAdded is annotated
+    if OnAvailabilitySaved =? self.OnAvailabilitySaved:
+      # when chronos v4 is implemented, and OnAvailabilitySaved is annotated
       # with async:(raises:[]), we can remove this try/catch as we know, with
       # certainty, that nothing will be raised
       try:
-        await onAvailabilityAdded(obj)
+        await OnAvailabilitySaved(obj)
       except CancelledError as e:
         raise e
       except CatchableError as e:
         # we don't have any insight into types of exceptions that
-        # `onAvailabilityAdded` can raise because it is caller-defined
-        warn "Unknown error during 'onAvailabilityAdded' callback", error = e.msg
+        # `OnAvailabilitySaved` can raise because it is caller-defined
+        warn "Unknown error during 'OnAvailabilitySaved' callback", error = e.msg
 
   return res
 

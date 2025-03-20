@@ -65,9 +65,15 @@ proc formatManifestBlocks(node: CodexNodeRef): Future[JsonNode] {.async.} =
 
   return %RestContentList.init(content)
 
+proc isPending(resp: HttpResponseRef): bool =
+  ## Checks that an HttpResponseRef object is still pending; i.e.,
+  ## that no body has yet been sent. This helps us guard against calling
+  ## sendBody(resp: HttpResponseRef, ...) twice, which is illegal.
+  return resp.getResponseState() == HttpResponseState.Empty
+
 proc retrieveCid(
     node: CodexNodeRef, cid: Cid, local: bool = true, resp: HttpResponseRef
-): Future[RestApiResponse] {.async.} =
+): Future[void] {.async: (raises: [CancelledError, HttpWriteError]).} =
   ## Download a file from the node in a streaming
   ## manner
   ##
@@ -79,16 +85,21 @@ proc retrieveCid(
     without stream =? (await node.retrieve(cid, local)), error:
       if error of BlockNotFoundError:
         resp.status = Http404
-        return await resp.sendBody("")
+        await resp.sendBody(
+          "The requested CID could not be retrieved (" & error.msg & ")."
+        )
+        return
       else:
         resp.status = Http500
-        return await resp.sendBody(error.msg)
+        await resp.sendBody(error.msg)
+        return
 
     # It is ok to fetch again the manifest because it will hit the cache
     without manifest =? (await node.fetchManifest(cid)), err:
       error "Failed to fetch manifest", err = err.msg
       resp.status = Http404
-      return await resp.sendBody(err.msg)
+      await resp.sendBody(err.msg)
+      return
 
     if manifest.mimetype.isSome:
       resp.setHeader("Content-Type", manifest.mimetype.get())
@@ -103,7 +114,14 @@ proc retrieveCid(
     else:
       resp.setHeader("Content-Disposition", "attachment")
 
-    await resp.prepareChunked()
+    # For erasure-coded datasets, we need to return the _original_ length; i.e.,
+    # the length of the non-erasure-coded dataset, as that's what we will be
+    # returning to the client.
+    let contentLength =
+      if manifest.protected: manifest.originalDatasetSize else: manifest.datasetSize
+    resp.setHeader("Content-Length", $(contentLength.int))
+
+    await resp.prepare(HttpResponseStreamType.Plain)
 
     while not stream.atEof:
       var
@@ -116,13 +134,16 @@ proc retrieveCid(
 
       bytes += buff.len
 
-      await resp.sendChunk(addr buff[0], buff.len)
+      await resp.send(addr buff[0], buff.len)
     await resp.finish()
     codex_api_downloads.inc()
+  except CancelledError as exc:
+    raise exc
   except CatchableError as exc:
     warn "Error streaming blocks", exc = exc.msg
     resp.status = Http500
-    return await resp.sendBody("")
+    if resp.isPending():
+      await resp.sendBody(exc.msg)
   finally:
     info "Sent bytes", cid = cid, bytes
     if not stream.isNil:
@@ -299,15 +320,8 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
       error "Failed to fetch manifest", err = err.msg
       return RestApiResponse.error(Http404, err.msg, headers = headers)
 
-    proc fetchDatasetAsync(): Future[void] {.async.} =
-      try:
-        if err =? (await node.fetchBatched(manifest)).errorOption:
-          error "Unable to fetch dataset", cid = cid.get(), err = err.msg
-      except CatchableError as exc:
-        error "CatchableError when fetching dataset", cid = cid.get(), exc = exc.msg
-        discard
-
-    asyncSpawn fetchDatasetAsync()
+    # Start fetching the dataset in the background
+    node.fetchDatasetAsyncTask(manifest)
 
     let json = %formatManifest(cid.get(), manifest)
     return RestApiResponse.response($json, contentType = "application/json")
@@ -328,6 +342,7 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
       resp.setCorsHeaders("GET", corsOrigin)
       resp.setHeader("Access-Control-Headers", "X-Requested-With")
 
+    resp.setHeader("Access-Control-Expose-Headers", "Content-Disposition")
     await node.retrieveCid(cid.get(), local = false, resp = resp)
 
   router.api(MethodGet, "/api/codex/v1/data/{cid}/network/manifest") do(

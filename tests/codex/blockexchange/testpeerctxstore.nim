@@ -1,7 +1,7 @@
 import std/sugar
 import std/sequtils
-import std/unittest
 
+import pkg/unittest2
 import pkg/libp2p
 
 import pkg/codex/blockexchange/peers
@@ -11,7 +11,7 @@ import pkg/codex/blockexchange/protobuf/presence
 import ../helpers
 import ../examples
 
-checksuite "Peer Context Store":
+suite "Peer Context Store":
   var
     store: PeerCtxStore
     peerCtx: BlockExcPeerCtx
@@ -31,7 +31,7 @@ checksuite "Peer Context Store":
   test "Should get peer":
     check store.get(peerCtx.id) == peerCtx
 
-checksuite "Peer Context Store Peer Selection":
+suite "Peer Context Store Peer Selection":
   var
     store: PeerCtxStore
     peerCtxs: seq[BlockExcPeerCtx]
