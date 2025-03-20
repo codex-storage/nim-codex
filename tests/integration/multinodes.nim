@@ -15,7 +15,6 @@ import ./hardhatprocess
 import ./nodeconfigs
 import ../asynctest
 import ../checktest
-from ../helpers import resubscribeWebsocketEventsOnTimeout
 
 export asynctest
 export ethers except `%`
@@ -102,7 +101,6 @@ template multinodesuite*(name: string, body: untyped) =
     var ethProvider {.inject, used.}: JsonRpcProvider
     var accounts {.inject, used.}: seq[Address]
     var snapshot: JsonNode
-    var resubscribeFut: Future[void]
 
     template test(tname, startNodeConfigs, tbody) =
       currentTestName = tname
@@ -274,9 +272,6 @@ template multinodesuite*(name: string, body: untyped) =
 
         await ethProvider.close()
 
-      if not resubscribeFut.isNil:
-        await resubscribeFut.cancelAndWait()
-
       running = @[]
 
     template failAndTeardownOnError(message: string, tryBody: untyped) =
@@ -320,8 +315,6 @@ template multinodesuite*(name: string, body: untyped) =
         if nodeConfigs.hardhat.isNone:
           snapshot = await send(ethProvider, "evm_snapshot")
         accounts = await ethProvider.listAccounts()
-
-        resubscribeFut = resubscribeWebsocketEventsOnTimeout(ethProvider)
       except CatchableError as e:
         echo "Hardhat not running. Run hardhat manually " &
           "before executing tests, or include a " & "HardhatConfig in the test setup."
