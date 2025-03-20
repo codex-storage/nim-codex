@@ -1,7 +1,7 @@
-import std/unittest
 import std/strformat
 import std/sequtils
 
+import pkg/unittest2
 import pkg/nimcrypto
 import pkg/stew/byteutils
 import pkg/questionable
