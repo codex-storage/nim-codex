@@ -1,6 +1,6 @@
-import std/unittest
 import std/strformat
 
+import pkg/unittest2
 import pkg/libp2p/[cid, multicodec, multihash]
 import pkg/stew/byteutils
 import pkg/questionable
