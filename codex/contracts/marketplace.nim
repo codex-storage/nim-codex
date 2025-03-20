@@ -51,7 +51,6 @@ type
   Proofs_ProofNotMissing* = object of SolidityError
   Proofs_ProofNotRequired* = object of SolidityError
   Proofs_ProofAlreadyMarkedMissing* = object of SolidityError
-  Proofs_InvalidProbability* = object of SolidityError
   Periods_InvalidSecondsPerPeriod* = object of SolidityError
   SlotReservations_ReservationNotAllowed* = object of SolidityError
 
