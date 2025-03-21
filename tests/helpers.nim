@@ -1,7 +1,7 @@
 import helpers/multisetup
 import helpers/trackers
 import helpers/templeveldb
-
+import std/times
 import std/sequtils, chronos
 
 export multisetup, trackers, templeveldb
@@ -35,3 +35,14 @@ proc allFuturesThrowing*[T, E]( # https://github.com/nim-lang/Nim/issues/23432
     futs: varargs[InternalRaisesFuture[T, E]]
 ): Future[void] =
   allFuturesThrowing(futs.mapIt(FutureBase(it)))
+
+template safeEventually*(expression: untyped, waitingTime = 250, timeout = 5000): bool =
+  proc safeEventually(): Future[bool] {.async.} =
+    let endTime = getTime() + initDuration(milliseconds = timeout)
+    while not expression:
+      if endTime < getTime():
+        return false
+      await sleepAsync(waitingTime)
+    return true
+
+  await safeEventually()
