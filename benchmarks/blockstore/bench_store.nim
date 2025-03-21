@@ -201,6 +201,10 @@ proc benchmarkGetCidAndProof(
     discard (waitFor store.getCidAndProof(treeCid, i)).tryGet()
   i += 1
 
+proc benchmarkCodexTree(cids: seq[Cid], benchmarkLoops: int) =
+  benchmark "codex_tree", benchmarkLoops:
+    discard CodexTree.init(cids).tryGet()
+
 template profileFunc(fn: untyped) =
   enableProfiling()
   `fn`
@@ -217,11 +221,13 @@ proc benchmarkRepoStore(store: RepoStore) =
 
   var
     blcks = newSeq[bt.Block]()
+    cids = newSeq[Cid]()
     proofs = newSeq[CodexProof]()
 
   for i in 0 ..< benchmarkLoops:
     var blk = createTestBlock(testDataLen.int)
     blcks.add(blk)
+    cids.add(blk.cid)
 
   let (manifest, tree) = makeManifestAndTree(blcks).tryGet()
   let treeCid = tree.rootCid.tryGet()
@@ -244,6 +250,8 @@ proc benchmarkRepoStore(store: RepoStore) =
 
   benchmarkPut(store, blcks, benchmarkLoops)
   benchmarkDel(store, blcks, benchmarkLoops)
+
+  benchmarkCodexTree(cids, benchmarkLoops)
 
 proc benchStore(store: RepoStore, node: CodexNodeRef, file: File) =
   benchmark "store", 1:
