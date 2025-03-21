@@ -5,6 +5,7 @@ import pkg/chronicles
 import pkg/chronos/asyncproc
 import pkg/libp2p
 import std/os
+import std/strformat
 import std/strutils
 import codex/conf
 import codex/utils/exceptions
@@ -78,11 +79,9 @@ proc captureOutput(
 
   trace "waiting for output", output
 
-  let stream = node.process.stdoutStream
-
   try:
     while node.process.running.option == some true:
-      while (let line = await stream.readLine(0, node.outputLineEndings); line != ""):
+      while (let line = await node.process.stdoutStream.readLine(0, node.outputLineEndings); line != ""):
         if node.debug:
           # would be nice if chronicles could parse and display with colors
           echo line
@@ -121,13 +120,14 @@ method stop*(
 
   await node.trackedFutures.cancelTracked()
   if not node.process.isNil:
-    trace "terminating node process..."
-    var exitCode = -1
+    let processId = node.process.processId
+    trace "terminating node process...", processId
     try:
-      exitCode = await noCancel node.process.terminateAndWaitForExit(2.seconds)
+      let exitCode = await noCancel node.process.terminateAndWaitForExit(2.seconds)
       if exitCode > 0 and exitCode != 143 and # 143 = SIGTERM (initiated above)
       exitCode != expectedErrCode:
         warn "process exited with a non-zero exit code", exitCode
+      trace "node process terminated", exitCode
     except CatchableError:
       try:
         let forcedExitCode = await noCancel node.process.killAndWaitForExit(3.seconds)
@@ -140,17 +140,34 @@ method stop*(
       proc closeProcessStreams() {.async: (raises: []).} =
         trace "closing node process' streams"
         await node.process.closeWait()
-        node.process = nil
         trace "node process' streams closed"
 
-      # windows will hang waiting to close process streams, so we can asyncspawn
-      # in the hopes that it will eventually close them without hanging the
-      # process
+      # Windows hangs when attempting to hardhat's process streams,
+      # so try to kill the process externally.
+      # TODO: Chronos gives us an msys2 processid, and this command is used
+      # to kill a windows processid, so we need to run a command to 
+      # get the windows pid from the msys pid first.
       when defined(windows):
-        asyncSpawn closeProcessStreams()
+        if node.name.contains("hardhat"):
+          trace "killing process by id", processId
+          try:
+            let cmdResult = await execCommandEx(&"wmic process where processid={processid} delete")
+            if cmdResult.status > 0:
+              error "failed to kill process by id", processId, exitCode = cmdResult.status, error = cmdResult.stdError
+            else:
+              error "successfully killed process by id", processId, exitCode = cmdResult.status, output = cmdResult.stdOutput
+          except CancelledError as e:
+            discard
+          except AsyncProcessError as e:
+            error "Failed to kill process by id", processId, error = e.msg
+        else:
+          await closeProcessStreams()
       else:
         await closeProcessStreams()
-      trace "node stopped", exitCode
+
+      node.process = nil
+        
+      trace "node stopped"
 
 proc waitUntilOutput*(
     node: NodeProcess, output: string
