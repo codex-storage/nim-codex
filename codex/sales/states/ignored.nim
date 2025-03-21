@@ -14,7 +14,6 @@ logScope:
 
 type SaleIgnored* = ref object of SaleState
   reprocessSlot*: bool # readd slot to queue with `seen` flag
-  returnBytes*: bool # return unreleased bytes from Reservation to Availability
 
 method `$`*(state: SaleIgnored): string =
   "SaleIgnored"
@@ -26,9 +25,7 @@ method run*(
 
   try:
     if onCleanUp =? agent.onCleanUp:
-      await onCleanUp(
-        reprocessSlot = state.reprocessSlot, returnBytes = state.returnBytes
-      )
+      await onCleanUp(reprocessSlot = state.reprocessSlot)
   except CancelledError as e:
     trace "SaleIgnored.run was cancelled", error = e.msgDetail
   except CatchableError as e:

@@ -13,6 +13,7 @@ import pkg/codex/sales/salesagent
 import pkg/codex/sales/salescontext
 import pkg/codex/sales/reservations
 import pkg/codex/stores/repostore
+import times
 import ../../../asynctest
 import ../../helpers
 import ../../examples
@@ -39,6 +40,8 @@ asyncchecksuite "sales state 'preparing'":
       duration = request.ask.duration + 60.uint64,
       minPricePerBytePerSecond = request.ask.pricePerBytePerSecond,
       totalCollateral = request.ask.collateralPerSlot * request.ask.slots.u256,
+      enabled = true,
+      until = 0.SecondsSince1970,
     )
     let repoDs = SQLiteDatastore.new(Memory).tryGet()
     let metaDs = SQLiteDatastore.new(Memory).tryGet()
@@ -51,6 +54,8 @@ asyncchecksuite "sales state 'preparing'":
     reservations = MockReservations.new(repo)
     context.reservations = reservations
     agent = newSalesAgent(context, request.id, slotIndex, request.some)
+
+    market.requestEnds[request.id] = clock.now() + cast[int64](request.ask.duration)
 
   teardown:
     await repo.stop()
@@ -67,10 +72,14 @@ asyncchecksuite "sales state 'preparing'":
     let next = state.onSlotFilled(request.id, slotIndex)
     check !next of SaleFilled
 
-  proc createAvailability() {.async.} =
+  proc createAvailability(enabled = true) {.async.} =
     let a = await reservations.createAvailability(
-      availability.totalSize, availability.duration,
-      availability.minPricePerBytePerSecond, availability.totalCollateral,
+      availability.totalSize,
+      availability.duration,
+      availability.minPricePerBytePerSecond,
+      availability.totalCollateral,
+      enabled,
+      until = 0.SecondsSince1970,
     )
     availability = a.get
 
@@ -79,7 +88,11 @@ asyncchecksuite "sales state 'preparing'":
     check next of SaleIgnored
     let ignored = SaleIgnored(next)
     check ignored.reprocessSlot
-    check ignored.returnBytes == false
+
+  test "run switches to ignored when availability is not enabled":
+    await createAvailability(enabled = false)
+    let next = !(await state.run(agent))
+    check next of SaleIgnored
 
   test "run switches to slot reserving state after reservation created":
     await createAvailability()
@@ -94,7 +107,6 @@ asyncchecksuite "sales state 'preparing'":
     check next of SaleIgnored
     let ignored = SaleIgnored(next)
     check ignored.reprocessSlot
-    check ignored.returnBytes == false
 
   test "run switches to errored when reserve fails with other error":
     await createAvailability()

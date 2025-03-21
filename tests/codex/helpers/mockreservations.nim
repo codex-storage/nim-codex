@@ -2,6 +2,7 @@ import pkg/chronos
 import pkg/codex/sales
 import pkg/codex/stores
 import pkg/questionable/results
+import pkg/codex/clock
 
 type MockReservations* = ref object of Reservations
   createReservationThrowBytesOutOfBoundsError: bool
@@ -28,6 +29,7 @@ method createReservation*(
     requestId: RequestId,
     slotIndex: uint64,
     collateralPerByte: UInt256,
+    validUntil: SecondsSince1970,
 ): Future[?!Reservation] {.async.} =
   if self.createReservationThrowBytesOutOfBoundsError:
     let error = newException(
@@ -45,4 +47,5 @@ method createReservation*(
     requestId,
     slotIndex,
     collateralPerByte,
+    validUntil,
   )

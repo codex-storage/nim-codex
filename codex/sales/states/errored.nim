@@ -34,7 +34,7 @@ method run*(
       onClear(request, data.slotIndex)
 
     if onCleanUp =? agent.onCleanUp:
-      await onCleanUp(returnBytes = true, reprocessSlot = state.reprocessSlot)
+      await onCleanUp(reprocessSlot = state.reprocessSlot)
   except CancelledError as e:
     trace "SaleErrored.run was cancelled", error = e.msgDetail
   except CatchableError as e:

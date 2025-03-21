@@ -22,16 +22,14 @@ asyncchecksuite "sales state 'cancelled'":
   var market: MockMarket
   var state: SaleCancelled
   var agent: SalesAgent
-  var returnBytesWas = bool.none
   var reprocessSlotWas = bool.none
   var returnedCollateralValue = UInt256.none
 
   setup:
     market = MockMarket.new()
     let onCleanUp = proc(
-        returnBytes = false, reprocessSlot = false, returnedCollateral = UInt256.none
+        reprocessSlot = false, returnedCollateral = UInt256.none
     ) {.async.} =
-      returnBytesWas = some returnBytes
       reprocessSlotWas = some reprocessSlot
       returnedCollateralValue = returnedCollateral
 
@@ -40,7 +38,7 @@ asyncchecksuite "sales state 'cancelled'":
     agent.onCleanUp = onCleanUp
     state = SaleCancelled.new()
 
-  test "calls onCleanUp with returnBytes = false, reprocessSlot = true, and returnedCollateral = currentCollateral":
+  test "calls onCleanUp with reprocessSlot = true, and returnedCollateral = currentCollateral":
     market.fillSlot(
       requestId = request.id,
       slotIndex = slotIndex,
@@ -49,6 +47,5 @@ asyncchecksuite "sales state 'cancelled'":
       collateral = currentCollateral,
     )
     discard await state.run(agent)
-    check eventually returnBytesWas == some true
     check eventually reprocessSlotWas == some false
     check eventually returnedCollateralValue == some currentCollateral
