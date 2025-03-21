@@ -81,7 +81,11 @@ proc captureOutput(
 
   try:
     while node.process.running.option == some true:
-      while (let line = await node.process.stdoutStream.readLine(0, node.outputLineEndings); line != ""):
+      while (
+        let line = await node.process.stdoutStream.readLine(0, node.outputLineEndings)
+        line != ""
+      )
+      :
         if node.debug:
           # would be nice if chronicles could parse and display with colors
           echo line
@@ -151,11 +155,14 @@ method stop*(
         if node.name.contains("hardhat"):
           trace "killing process by id", processId
           try:
-            let cmdResult = await execCommandEx(&"wmic process where processid={processid} delete")
+            let cmdResult =
+              await execCommandEx(&"wmic process where processid={processid} delete")
             if cmdResult.status > 0:
-              error "failed to kill process by id", processId, exitCode = cmdResult.status, error = cmdResult.stdError
+              error "failed to kill process by id",
+                processId, exitCode = cmdResult.status, error = cmdResult.stdError
             else:
-              error "successfully killed process by id", processId, exitCode = cmdResult.status, output = cmdResult.stdOutput
+              error "successfully killed process by id",
+                processId, exitCode = cmdResult.status, output = cmdResult.stdOutput
           except CancelledError as e:
             discard
           except AsyncProcessError as e:
@@ -166,7 +173,7 @@ method stop*(
         await closeProcessStreams()
 
       node.process = nil
-        
+
       trace "node stopped"
 
 proc waitUntilOutput*(
