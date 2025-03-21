@@ -8,6 +8,7 @@ import ../../contracts/time
 import ../codexconfig
 import ../codexclient
 import ../nodeconfigs
+from ../../helpers import safeEventually
 import ../marketplacesuite
 
 proc findItem[T](items: seq[T], item: T): ?!T =
