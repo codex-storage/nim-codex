@@ -469,7 +469,7 @@ proc captureOutput(
       while (let line = await stream.readLine(0, "\n"); line != ""):
         try:
           output.add line
-          filePath.appendFile(line.stripAnsi)
+          filePath.appendFile(line & "\n".stripAnsi)
           await sleepAsync(1.nanos)
         except IOError as e:
           warn "Failed to write test stdout and/or stderr to file", error = e.msg
