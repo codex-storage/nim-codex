@@ -122,8 +122,9 @@ method stop*(
   await node.trackedFutures.cancelTracked()
   if not node.process.isNil:
     trace "terminating node process..."
+    var exitCode = -1
     try:
-      let exitCode = await noCancel node.process.terminateAndWaitForExit(2.seconds)
+      exitCode = await noCancel node.process.terminateAndWaitForExit(2.seconds)
       if exitCode > 0 and exitCode != 143 and # 143 = SIGTERM (initiated above)
       exitCode != expectedErrCode:
         warn "process exited with a non-zero exit code", exitCode
