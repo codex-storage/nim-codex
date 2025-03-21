@@ -82,7 +82,7 @@ template multinodesuite*(name: string, body: untyped) =
     #         .withEthProvider("ws://localhost:8545")
     #         .some,
     #     ...
-    let jsonRpcProviderUrl = "http://127.0.0.1:8545"
+    let jsonRpcProviderUrl = "ws://localhost:8545"
     var running {.inject, used.}: seq[RunningNode]
     var bootstrapNodes: seq[string]
     let starttime = now().format("yyyy-MM-dd'_'HH:mm:ss")
@@ -261,6 +261,8 @@ template multinodesuite*(name: string, body: untyped) =
       else:
         discard await send(ethProvider, "evm_revert", @[snapshot])
 
+        await ethProvider.close()
+
       running = @[]
 
     template failAndTeardownOnError(message: string, tryBody: untyped) =
@@ -298,9 +300,7 @@ template multinodesuite*(name: string, body: untyped) =
         # Workaround for https://github.com/NomicFoundation/hardhat/issues/2053
         # Do not use websockets, but use http and polling to stop subscriptions
         # from being removed after 5 minutes
-        ethProvider = JsonRpcProvider.new(
-          jsonRpcProviderUrl, pollingInterval = chronos.milliseconds(100)
-        )
+        ethProvider = JsonRpcProvider.new(jsonRpcProviderUrl)
         # if hardhat was NOT started by the test, take a snapshot so it can be
         # reverted in the test teardown
         if nodeConfigs.hardhat.isNone:
