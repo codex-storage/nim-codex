@@ -127,7 +127,6 @@ method stop*(
       if exitCode > 0 and exitCode != 143 and # 143 = SIGTERM (initiated above)
       exitCode != expectedErrCode:
         warn "process exited with a non-zero exit code", exitCode
-      trace "node stopped", exitCode
     except CatchableError:
       try:
         let forcedExitCode = await noCancel node.process.killAndWaitForExit(3.seconds)
@@ -150,6 +149,7 @@ method stop*(
         asyncSpawn closeProcessStreams()
       else:
         await closeProcessStreams()
+      trace "node stopped", exitCode
 
 proc waitUntilOutput*(
     node: NodeProcess, output: string

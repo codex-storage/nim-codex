@@ -113,9 +113,9 @@ method stop*(node: CodexProcess) {.async: (raises: []).} =
   logScope:
     nodeName = node.name
 
+  trace "stopping codex client"
   await procCall NodeProcess(node).stop()
 
-  trace "stopping codex client"
   if client =? node.client:
     await client.close()
     node.client = none CodexClient

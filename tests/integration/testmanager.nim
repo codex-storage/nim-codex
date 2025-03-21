@@ -415,6 +415,7 @@ proc teardownTest(test: IntegrationTest) {.async: (raises: []).} =
   if not test.process.isNil:
     var output = test.output.expect("should have output value")
     if test.process.running |? false:
+      trace "Test process still running, terminating..."
       try:
         output.exitCode =
           some (await noCancel test.process.terminateAndWaitForExit(1.seconds))
@@ -422,25 +423,6 @@ proc teardownTest(test: IntegrationTest) {.async: (raises: []).} =
       except AsyncProcessError, AsyncProcessTimeoutError:
         let e = getCurrentException()
         warn "Test process failed to terminate, check for zombies", error = e.msg
-
-    try:
-      trace "Writing stdout and/or stderr streams to file",
-        stdoutFile = test.logFile("stdout.log"),
-        stdoutLines = output.stdOut.len,
-        stderrFile = test.logFile("stderr.log"),
-        stderrLines = output.stdErr.len
-      test.logFile("stdout.log").appendFile(output.stdOut.join("\n").stripAnsi)
-      if test.status == IntegrationTestStatus.Error or
-          (test.status == IntegrationTestStatus.Failed and test.output.isErrorLike):
-        test.logFile("stderr.log").appendFile(output.stdErr.join("\n").stripAnsi)
-    except AsyncTimeoutError:
-      error "Timeout waiting for stdout or stderr stream contents, nothing will be written to file"
-    except IOError as e:
-      warn "Failed to write test stdout and/or stderr to file", error = e.msg
-    except AsyncStreamError as e:
-      error "Failed to read test process output stream", error = e.msg
-      test.output = TestOutput.failure(e)
-      test.status = IntegrationTestStatus.Error
 
     await test.process.closeWait()
     trace "Test process output streams closed"
@@ -479,14 +461,18 @@ proc untilTimeout(
     raise newException(AsyncTimeoutError, "Timed out")
 
 proc captureOutput(
-    process: AsyncProcessRef, stream: AsyncStreamReader
+    process: AsyncProcessRef, stream: AsyncStreamReader, filePath: string
 ): Future[seq[string]] {.async: (raises: [CancelledError]).} =
   var output: seq[string] = @[]
   try:
     while process.running.option == some true:
       while (let line = await stream.readLine(0, "\n"); line != ""):
-        output.add line
-        await sleepAsync(1.nanos)
+        try:
+          output.add line
+          filePath.appendFile(line.stripAnsi)
+          await sleepAsync(1.nanos)
+        except IOError as e:
+          warn "Failed to write test stdout and/or stderr to file", error = e.msg
       await sleepAsync(1.nanos)
     return output
   except CancelledError as e:
@@ -502,8 +488,10 @@ proc captureProcessOutput(
 
   trace "Reading stdout and stderr streams from test process"
 
-  let futStdOut = test.process.captureOutput(test.process.stdoutStream)
-  let futStdErr = test.process.captureOutput(test.process.stderrStream)
+  let futStdOut =
+    test.process.captureOutput(test.process.stdoutStream, test.logFile("stdout.log"))
+  let futStdErr =
+    test.process.captureOutput(test.process.stderrStream, test.logFile("stderr.log"))
   await allFutures(futStdOut, futStdErr)
   return (await futStdOut, await futStdErr)
 
@@ -751,9 +739,7 @@ proc printResult(manager: TestManager) =
     timeSavedEst = &"{relativeTimeSaved}%",
     passing = &"{successes} / {manager.tests.len}"
 
-proc start*(
-    manager: TestManager
-) {.async: (raises: [CancelledError]).} =
+proc start*(manager: TestManager) {.async: (raises: [CancelledError]).} =
   if manager.config.showContinuousStatusUpdates:
     let fut = manager.continuallyShowUpdates()
     manager.trackedFutures.track fut
