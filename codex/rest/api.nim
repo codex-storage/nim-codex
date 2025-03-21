@@ -475,7 +475,7 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
 
       if restAv.totalSize == 0:
         return RestApiResponse.error(
-          Http400, "Total size must be larger then zero", headers = headers
+          Http422, "Total size must be larger then zero", headers = headers
         )
 
       if not reservations.hasAvailable(restAv.totalSize):
@@ -548,16 +548,22 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
         return RestApiResponse.error(Http500, error.msg)
 
       if isSome restAv.freeSize:
-        return RestApiResponse.error(Http400, "Updating freeSize is not allowed")
+        return RestApiResponse.error(Http422, "Updating freeSize is not allowed")
 
       if size =? restAv.totalSize:
+        if size == 0:
+          return RestApiResponse.error(Http422, "Total size must be larger then zero")
+
         # we don't allow lowering the totalSize bellow currently utilized size
         if size < (availability.totalSize - availability.freeSize):
           return RestApiResponse.error(
-            Http400,
+            Http422,
             "New totalSize must be larger then current totalSize - freeSize, which is currently: " &
               $(availability.totalSize - availability.freeSize),
           )
+
+        if not reservations.hasAvailable(size):
+          return RestApiResponse.error(Http422, "Not enough storage quota")
 
         availability.freeSize += size - availability.totalSize
         availability.totalSize = size

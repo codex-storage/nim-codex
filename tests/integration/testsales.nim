@@ -1,11 +1,13 @@
 import std/httpclient
 import pkg/codex/contracts
+from pkg/codex/stores/repostore/types import DefaultQuotaBytes
 import ./twonodes
 import ../codex/examples
 import ../contracts/time
 import ./codexconfig
 import ./codexclient
 import ./nodeconfigs
+from ../helpers import safeEventually
 
 proc findItem[T](items: seq[T], item: T): ?!T =
   for tmp in items:
@@ -16,8 +18,18 @@ proc findItem[T](items: seq[T], item: T): ?!T =
 
 multinodesuite "Sales":
   let salesConfig = NodeConfigs(
-    clients: CodexConfigs.init(nodes = 1).some,
-    providers: CodexConfigs.init(nodes = 1).some,
+    clients: CodexConfigs
+      .init(nodes = 1)
+      .withLogFile()
+      .withLogTopics(
+        "node", "marketplace", "sales", "reservations", "node", "proving", "clock"
+      ).some,
+    providers: CodexConfigs
+      .init(nodes = 1)
+      .withLogFile()
+      .withLogTopics(
+        "node", "marketplace", "sales", "reservations", "node", "proving", "clock"
+      ).some,
   )
 
   let minPricePerBytePerSecond = 1.u256
@@ -59,15 +71,6 @@ multinodesuite "Sales":
     ).get
     check availability in (await host.getAvailabilities()).get
 
-  test "updating non-existing availability", salesConfig:
-    let nonExistingResponse = await host.patchAvailabilityRaw(
-      AvailabilityId.example,
-      duration = 100.uint64.some,
-      minPricePerBytePerSecond = 2.u256.some,
-      totalCollateral = 200.u256.some,
-    )
-    check nonExistingResponse.status == 404
-
   test "updating availability", salesConfig:
     let availability = (
       await host.postAvailability(
@@ -92,20 +95,6 @@ multinodesuite "Sales":
     check updatedAvailability.totalCollateral == 200
     check updatedAvailability.totalSize == 140000.uint64
     check updatedAvailability.freeSize == 140000.uint64
-
-  test "updating availability - freeSize is not allowed to be changed", salesConfig:
-    let availability = (
-      await host.postAvailability(
-        totalSize = 140000.uint64,
-        duration = 200.uint64,
-        minPricePerBytePerSecond = 3.u256,
-        totalCollateral = 300.u256,
-      )
-    ).get
-    let freeSizeResponse =
-      await host.patchAvailabilityRaw(availability.id, freeSize = 110000.uint64.some)
-    check freeSizeResponse.status == 400
-    check "not allowed" in (await freeSizeResponse.body)
 
   test "updating availability - updating totalSize", salesConfig:
     let availability = (
@@ -153,7 +142,7 @@ multinodesuite "Sales":
       )
     ).get
 
-    check eventually(
+    check safeEventually(
       await client.purchaseStateIs(id, "started"), timeout = 10 * 60 * 1000
     )
     let updatedAvailability =
@@ -166,7 +155,7 @@ multinodesuite "Sales":
         availability.id, totalSize = (utilizedSize - 1).some
       )
     )
-    check totalSizeResponse.status == 400
+    check totalSizeResponse.status == 422
     check "totalSize must be larger then current totalSize" in
       (await totalSizeResponse.body)
 

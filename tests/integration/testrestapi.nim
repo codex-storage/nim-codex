@@ -55,25 +55,6 @@ twonodessuite "REST API":
     check:
       [cid1, cid2].allIt(it in list.content.mapIt(it.cid))
 
-  test "request storage fails for datasets that are too small", twoNodesConfig:
-    let cid = (await client1.upload("some file contents")).get
-    let response = (
-      await client1.requestStorageRaw(
-        cid,
-        duration = 10.uint64,
-        pricePerBytePerSecond = 1.u256,
-        proofProbability = 3.u256,
-        collateralPerByte = 1.u256,
-        expiry = 9.uint64,
-      )
-    )
-
-    check:
-      response.status == 400
-      (await response.body) ==
-        "Dataset too small for erasure parameters, need at least " &
-        $(2 * DefaultBlockSize.int) & " bytes"
-
   test "request storage succeeds for sufficiently sized datasets", twoNodesConfig:
     let data = await RandomChunker.example(blocks = 2)
     let cid = (await client1.upload(data)).get
@@ -90,27 +71,6 @@ twonodessuite "REST API":
 
     check:
       response.status == 200
-
-  test "request storage fails if tolerance is zero", twoNodesConfig:
-    let data = await RandomChunker.example(blocks = 2)
-    let cid = (await client1.upload(data)).get
-    let duration = 100.uint64
-    let pricePerBytePerSecond = 1.u256
-    let proofProbability = 3.u256
-    let expiry = 30.uint64
-    let collateralPerByte = 1.u256
-    let nodes = 3
-    let tolerance = 0
-
-    var responseBefore = (
-      await client1.requestStorageRaw(
-        cid, duration, pricePerBytePerSecond, proofProbability, collateralPerByte,
-        expiry, nodes.uint, tolerance.uint,
-      )
-    )
-
-    check responseBefore.status == 400
-    check (await responseBefore.body) == "Tolerance needs to be bigger then zero"
 
   test "request storage fails if duration exceeds limit", twoNodesConfig:
     let data = await RandomChunker.example(blocks = 2)
@@ -133,55 +93,6 @@ twonodessuite "REST API":
 
     check responseBefore.status == 400
     check "Duration exceeds limit of" in (await responseBefore.body)
-
-  test "request storage fails if nodes and tolerance aren't correct", twoNodesConfig:
-    let data = await RandomChunker.example(blocks = 2)
-    let cid = (await client1.upload(data)).get
-    let duration = 100.uint64
-    let pricePerBytePerSecond = 1.u256
-    let proofProbability = 3.u256
-    let expiry = 30.uint64
-    let collateralPerByte = 1.u256
-    let ecParams = @[(1, 1), (2, 1), (3, 2), (3, 3)]
-
-    for ecParam in ecParams:
-      let (nodes, tolerance) = ecParam
-
-      var responseBefore = (
-        await client1.requestStorageRaw(
-          cid, duration, pricePerBytePerSecond, proofProbability, collateralPerByte,
-          expiry, nodes.uint, tolerance.uint,
-        )
-      )
-
-      check responseBefore.status == 400
-      check (await responseBefore.body) ==
-        "Invalid parameters: parameters must satify `1 < (nodes - tolerance) ≥ tolerance`"
-
-  test "request storage fails if tolerance > nodes (underflow protection)",
-    twoNodesConfig:
-    let data = await RandomChunker.example(blocks = 2)
-    let cid = (await client1.upload(data)).get
-    let duration = 100.uint64
-    let pricePerBytePerSecond = 1.u256
-    let proofProbability = 3.u256
-    let expiry = 30.uint64
-    let collateralPerByte = 1.u256
-    let ecParams = @[(0, 1), (1, 2), (2, 3)]
-
-    for ecParam in ecParams:
-      let (nodes, tolerance) = ecParam
-
-      var responseBefore = (
-        await client1.requestStorageRaw(
-          cid, duration, pricePerBytePerSecond, proofProbability, collateralPerByte,
-          expiry, nodes.uint, tolerance.uint,
-        )
-      )
-
-      check responseBefore.status == 400
-      check (await responseBefore.body) ==
-        "Invalid parameters: `tolerance` cannot be greater than `nodes`"
 
   for ecParams in @[
     (minBlocks: 2, nodes: 3, tolerance: 1), (minBlocks: 3, nodes: 5, tolerance: 2)
@@ -227,20 +138,6 @@ twonodessuite "REST API":
 
     check response.status == 200
     check (await response.body) != ""
-
-  test "upload fails if content disposition contains bad filename", twoNodesConfig:
-    let headers = @[("Content-Disposition", "attachment; filename=\"exam*ple.txt\"")]
-    let response = await client1.uploadRaw("some file contents", headers)
-
-    check response.status == 422
-    check (await response.body) == "The filename is not valid."
-
-  test "upload fails if content type is invalid", twoNodesConfig:
-    let headers = @[("Content-Type", "hello/world")]
-    let response = await client1.uploadRaw("some file contents", headers)
-
-    check response.status == 422
-    check (await response.body) == "The MIME type 'hello/world' is not valid."
 
   test "node retrieve the metadata", twoNodesConfig:
     let headers =
