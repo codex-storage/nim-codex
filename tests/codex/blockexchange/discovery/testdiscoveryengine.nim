@@ -68,7 +68,7 @@ asyncchecksuite "Test Discovery Engine":
 
     blockDiscovery.findBlockProvidersHandler = proc(
         d: MockDiscovery, cid: Cid
-    ): Future[seq[SignedPeerRecord]] {.async, gcsafe.} =
+    ): Future[seq[SignedPeerRecord]] {.async: (raises: [CancelledError]).} =
       pendingBlocks.resolve(
         blocks.filterIt(it.cid == cid).mapIt(
           BlockDelivery(blk: it, address: it.address)
@@ -94,7 +94,7 @@ asyncchecksuite "Test Discovery Engine":
 
     blockDiscovery.findBlockProvidersHandler = proc(
         d: MockDiscovery, cid: Cid
-    ): Future[seq[SignedPeerRecord]] {.async, gcsafe.} =
+    ): Future[seq[SignedPeerRecord]] {.async: (raises: [CancelledError]).} =
       check cid == blocks[0].cid
       if not want.finished:
         want.complete()
@@ -122,7 +122,7 @@ asyncchecksuite "Test Discovery Engine":
     var pendingCids = newSeq[Cid]()
     blockDiscovery.findBlockProvidersHandler = proc(
         d: MockDiscovery, cid: Cid
-    ): Future[seq[SignedPeerRecord]] {.async, gcsafe.} =
+    ): Future[seq[SignedPeerRecord]] {.async: (raises: [CancelledError]).} =
       check cid in pendingCids
       pendingCids.keepItIf(it != cid)
       check peerStore.len < minPeers
@@ -159,12 +159,12 @@ asyncchecksuite "Test Discovery Engine":
         discoveryLoopSleep = 100.millis,
         concurrentDiscReqs = 2,
       )
-      reqs = newFuture[void]()
+      reqs = Future[void].Raising([CancelledError]).init()
       count = 0
 
     blockDiscovery.findBlockProvidersHandler = proc(
         d: MockDiscovery, cid: Cid
-    ): Future[seq[SignedPeerRecord]] {.gcsafe, async.} =
+    ): Future[seq[SignedPeerRecord]] {.async: (raises: [CancelledError]).} =
       check cid == blocks[0].cid
       if count > 0:
         check false

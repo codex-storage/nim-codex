@@ -53,6 +53,7 @@ type
   Proofs_ProofAlreadyMarkedMissing* = object of SolidityError
   Proofs_InvalidProbability* = object of SolidityError
   Periods_InvalidSecondsPerPeriod* = object of SolidityError
+  SlotReservations_ReservationNotAllowed* = object of SolidityError
 
 proc configuration*(marketplace: Marketplace): MarketplaceConfig {.contract, view.}
 proc token*(marketplace: Marketplace): Address {.contract, view.}

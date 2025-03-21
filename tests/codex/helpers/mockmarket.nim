@@ -46,7 +46,8 @@ type
     subscriptions: Subscriptions
     config*: MarketplaceConfig
     canReserveSlot*: bool
-    reserveSlotThrowError*: ?(ref MarketError)
+    errorOnReserveSlot*: ?(ref MarketError)
+    errorOnFillSlot*: ?(ref CatchableError)
     clock: ?Clock
 
   Fulfillment* = object
@@ -138,22 +139,35 @@ proc new*(_: type MockMarket, clock: ?Clock = Clock.none): MockMarket =
     signer: Address.example, config: config, canReserveSlot: true, clock: clock
   )
 
+method loadConfig*(
+    market: MockMarket
+): Future[?!void] {.async: (raises: [CancelledError]).} =
+  discard
+
 method getSigner*(market: MockMarket): Future[Address] {.async.} =
   return market.signer
 
-method periodicity*(mock: MockMarket): Future[Periodicity] {.async.} =
+method periodicity*(
+    mock: MockMarket
+): Future[Periodicity] {.async: (raises: [CancelledError, MarketError]).} =
   return Periodicity(seconds: mock.config.proofs.period)
 
-method proofTimeout*(market: MockMarket): Future[uint64] {.async.} =
+method proofTimeout*(
+    market: MockMarket
+): Future[uint64] {.async: (raises: [CancelledError, MarketError]).} =
   return market.config.proofs.timeout
 
 method requestDurationLimit*(market: MockMarket): Future[uint64] {.async.} =
   return market.config.requestDurationLimit
 
-method proofDowntime*(market: MockMarket): Future[uint8] {.async.} =
+method proofDowntime*(
+    market: MockMarket
+): Future[uint8] {.async: (raises: [CancelledError, MarketError]).} =
   return market.config.proofs.downtime
 
-method repairRewardPercentage*(market: MockMarket): Future[uint8] {.async.} =
+method repairRewardPercentage*(
+    market: MockMarket
+): Future[uint8] {.async: (raises: [CancelledError, MarketError]).} =
   return market.config.collateral.repairRewardPercentage
 
 method getPointer*(market: MockMarket, slotId: SlotId): Future[uint8] {.async.} =
@@ -173,7 +187,7 @@ method mySlots*(market: MockMarket): Future[seq[SlotId]] {.async.} =
 
 method getRequest*(
     market: MockMarket, id: RequestId
-): Future[?StorageRequest] {.async.} =
+): Future[?StorageRequest] {.async: (raises: [CancelledError]).} =
   for request in market.requested:
     if request.id == id:
       return some request
@@ -191,10 +205,16 @@ method requestState*(
 ): Future[?RequestState] {.async.} =
   return market.requestState .? [requestId]
 
-method slotState*(market: MockMarket, slotId: SlotId): Future[SlotState] {.async.} =
-  if not market.slotState.hasKey(slotId):
+method slotState*(
+    market: MockMarket, slotId: SlotId
+): Future[SlotState] {.async: (raises: [CancelledError, MarketError]).} =
+  if slotId notin market.slotState:
     return SlotState.Free
-  return market.slotState[slotId]
+
+  try:
+    return market.slotState[slotId]
+  except KeyError as e:
+    raiseAssert "SlotId not found in known slots (MockMarket.slotState)"
 
 method getRequestEnd*(
     market: MockMarket, id: RequestId
@@ -270,6 +290,9 @@ proc fillSlot*(
     host: Address,
     collateral = 0.u256,
 ) =
+  if error =? market.errorOnFillSlot:
+    raise error
+
   let slot = MockSlot(
     requestId: requestId,
     slotIndex: slotIndex,
@@ -351,7 +374,7 @@ method canProofBeMarkedAsMissing*(
 method reserveSlot*(
     market: MockMarket, requestId: RequestId, slotIndex: uint64
 ) {.async.} =
-  if error =? market.reserveSlotThrowError:
+  if error =? market.errorOnReserveSlot:
     raise error
 
 method canReserveSlot*(
@@ -362,8 +385,19 @@ method canReserveSlot*(
 func setCanReserveSlot*(market: MockMarket, canReserveSlot: bool) =
   market.canReserveSlot = canReserveSlot
 
-func setReserveSlotThrowError*(market: MockMarket, error: ?(ref MarketError)) =
-  market.reserveSlotThrowError = error
+func setErrorOnReserveSlot*(market: MockMarket, error: ref MarketError) =
+  market.errorOnReserveSlot =
+    if error.isNil:
+      none (ref MarketError)
+    else:
+      some error
+
+func setErrorOnFillSlot*(market: MockMarket, error: ref CatchableError) =
+  market.errorOnFillSlot =
+    if error.isNil:
+      none (ref CatchableError)
+    else:
+      some error
 
 method subscribeRequests*(
     market: MockMarket, callback: OnRequest
@@ -534,3 +568,33 @@ method unsubscribe*(subscription: ProofSubmittedSubscription) {.async.} =
 
 method unsubscribe*(subscription: SlotReservationsFullSubscription) {.async.} =
   subscription.market.subscriptions.onSlotReservationsFull.keepItIf(it != subscription)
+
+method slotCollateral*(
+    market: MockMarket, requestId: RequestId, slotIndex: uint64
+): Future[?!UInt256] {.async: (raises: [CancelledError]).} =
+  let slotid = slotId(requestId, slotIndex)
+
+  try:
+    let state = await slotState(market, slotid)
+
+    without request =? await market.getRequest(requestId):
+      return failure newException(
+        MarketError, "Failure calculating the slotCollateral, cannot get the request"
+      )
+
+    return market.slotCollateral(request.ask.collateralPerSlot, state)
+  except MarketError as error:
+    error "Error when trying to calculate the slotCollateral", error = error.msg
+    return failure error
+
+method slotCollateral*(
+    market: MockMarket, collateralPerSlot: UInt256, slotState: SlotState
+): ?!UInt256 {.raises: [].} =
+  if slotState == SlotState.Repair:
+    let repairRewardPercentage = market.config.collateral.repairRewardPercentage.u256
+
+    return success (
+      collateralPerSlot - (collateralPerSlot * repairRewardPercentage).div(100.u256)
+    )
+
+  return success collateralPerSlot

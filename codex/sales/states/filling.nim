@@ -30,6 +30,7 @@ method run*(
 ): Future[?State] {.async: (raises: []).} =
   let data = SalesAgent(machine).data
   let market = SalesAgent(machine).context.market
+
   without (request =? data.request):
     raiseAssert "Request not set"
 
@@ -38,28 +39,20 @@ method run*(
     slotIndex = data.slotIndex
 
   try:
-    let slotState = await market.slotState(slotId(data.requestId, data.slotIndex))
-    let requestedCollateral = request.ask.collateralPerSlot
-    var collateral: UInt256
-
-    if slotState == SlotState.Repair:
-      # When repairing the node gets "discount" on the collateral that it needs to
-      let repairRewardPercentage = (await market.repairRewardPercentage).u256
-      collateral =
-        requestedCollateral -
-        ((requestedCollateral * repairRewardPercentage)).div(100.u256)
-    else:
-      collateral = requestedCollateral
+    without collateral =? await market.slotCollateral(data.requestId, data.slotIndex),
+      err:
+      error "Failure attempting to fill slot: unable to calculate collateral",
+        error = err.msg
+      return some State(SaleErrored(error: err))
 
     debug "Filling slot"
     try:
       await market.fillSlot(data.requestId, data.slotIndex, state.proof, collateral)
+    except SlotStateMismatchError as e:
+      debug "Slot is already filled, ignoring slot"
+      return some State(SaleIgnored(reprocessSlot: false, returnBytes: true))
     except MarketError as e:
-      if e.msg.contains "Slot is not free":
-        debug "Slot is already filled, ignoring slot"
-        return some State(SaleIgnored(reprocessSlot: false, returnBytes: true))
-      else:
-        return some State(SaleErrored(error: e))
+      return some State(SaleErrored(error: e))
     # other CatchableErrors are handled "automatically" by the SaleState
 
     return some State(SaleFilled())
