@@ -137,8 +137,13 @@ proc uploadTorrent*(
       ]
   let response =
     await client.post(client.baseurl & "/torrent", body = contents, headers = headers)
-  assert response.status == 200
-  MultiHash.init((await response.body).hexToSeqByte).mapFailure
+  if not response.status == 200:
+    return failure($response.status)
+  let body = await response.body
+  let bytesRes = catch(body.hexToSeqByte)
+  without bytes =? bytesRes, err:
+    return failure(err)
+  MultiHash.init(bytes).mapFailure
 
 proc uploadTorrent*(
     client: CodexClient, bytes: seq[byte], filename = string.none
@@ -180,6 +185,17 @@ proc downloadNoStream*(
 
   success await response.body
 
+proc downloadTorrent*(
+    client: CodexClient, infoHash: MultiHash
+): Future[?!string] {.async: (raises: [CancelledError, HttpError]).} =
+  let response =
+    await client.get(client.baseurl & "/torrent/" & infoHash.hex & "/network/stream")
+
+  if response.status != 200:
+    return failure($response.status)
+
+  success await response.body
+
 proc downloadManifestOnly*(
     client: CodexClient, cid: Cid
 ): Future[?!string] {.async: (raises: [CancelledError, HttpError]).} =
@@ -193,7 +209,7 @@ proc downloadManifestOnly*(
 
 proc downloadTorrentManifestOnly*(
     client: CodexClient, infoHash: MultiHash
-): Future[?!RestTorrentContent] =
+): Future[?!RestTorrentContent] {.async: (raises: [CancelledError, HttpError]).} =
   let response =
     await client.get(client.baseurl & "/torrent/" & infoHash.hex & "/network/manifest")
 

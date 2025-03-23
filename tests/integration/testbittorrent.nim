@@ -57,8 +57,8 @@ proc createInfoDictionaryForContent(
 twonodessuite "BitTorrent API":
   test "uploading and downloading the content", twoNodesConfig:
     let exampleContent = exampleString(100)
-    let infoHash = client1.uploadTorrent(exampleContent).tryGet
-    let downloadedContent = client2.downloadTorrent(infoHash).tryGet
+    let infoHash = (await client1.uploadTorrent(exampleContent)).tryGet
+    let downloadedContent = (await client2.downloadTorrent(infoHash)).tryGet
     check downloadedContent == exampleContent
 
   test "uploading and downloading the content (exactly one piece long)", twoNodesConfig:
@@ -67,8 +67,8 @@ twonodessuite "BitTorrent API":
       blocks = numOfBlocksPerPiece, blockSize = BitTorrentBlockSize.int
     )
 
-    let infoHash = client1.uploadTorrent(bytes).tryGet
-    let downloadedContent = client2.downloadTorrent(infoHash).tryGet
+    let infoHash = (await client1.uploadTorrent(bytes)).tryGet
+    let downloadedContent = (await client2.downloadTorrent(infoHash)).tryGet
     check downloadedContent.toBytes == bytes
 
   test "uploading and downloading the content (exactly two pieces long)", twoNodesConfig:
@@ -77,8 +77,8 @@ twonodessuite "BitTorrent API":
       blocks = numOfBlocksPerPiece * 2, blockSize = BitTorrentBlockSize.int
     )
 
-    let infoHash = client1.uploadTorrent(bytes).tryGet
-    let downloadedContent = client2.downloadTorrent(infoHash).tryGet
+    let infoHash = (await client1.uploadTorrent(bytes)).tryGet
+    let downloadedContent = (await client2.downloadTorrent(infoHash)).tryGet
     check downloadedContent.toBytes == bytes
 
     # use with debugging to see the content
@@ -90,24 +90,28 @@ twonodessuite "BitTorrent API":
   test "retrieving torrent manifest for given info hash", twoNodesConfig:
     let exampleFileName = "example.txt"
     let exampleContent = exampleString(100)
-    let infoHash = client1.uploadTorrent(
-      contents = exampleContent,
-      filename = some exampleFileName,
-      contentType = "text/plain",
+    let infoHash = (
+      await client1.uploadTorrent(
+        contents = exampleContent,
+        filename = some exampleFileName,
+        contentType = "text/plain",
+      )
     ).tryGet
 
     let expectedInfo = createInfoDictionaryForContent(
       content = exampleContent.toBytes, name = some exampleFileName
     ).tryGet
 
-    let restTorrentContent = client2.downloadTorrentManifestOnly(infoHash).tryGet
+    let restTorrentContent =
+      (await client2.downloadTorrentManifestOnly(infoHash)).tryGet
     let torrentManifest = restTorrentContent.torrentManifest
     let info = torrentManifest.info
 
     check info == expectedInfo
 
-    let response =
-      client2.downloadManifestOnly(cid = torrentManifest.codexManifestCid).tryGet
+    let response = (
+      await client2.downloadManifestOnly(cid = torrentManifest.codexManifestCid)
+    ).tryGet
 
     let restContent = RestContent.fromJson(response).tryGet
 
