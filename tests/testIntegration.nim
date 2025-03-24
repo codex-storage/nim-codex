@@ -32,6 +32,7 @@ const TestConfigs =
 
 # Echoes stdout from Hardhat process
 const DebugHardhat {.booldefine.} = false
+# When true, shows all TRACE logs in Codex nodes' chronicles logs
 const NoCodexLogFilters {.booldefine.} = false
 # Shows test status updates at time intervals. Useful for running locally with
 # active terminal interaction. Set to false for unattended runs, eg CI.

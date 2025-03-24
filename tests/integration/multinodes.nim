@@ -186,9 +186,9 @@ template multinodesuite*(name: string, body: untyped) =
                 " because logfile path could not be obtained: " & e.msg,
               e,
             )
-        # TODO: uncomment once HttpClient has been asyncified
-        # when CodexLogLevel != "":
-        #   config.addCliOption("--log-level", CodexLogLevel)
+
+        when CodexLogLevel != "":
+          config.addCliOption("--log-level", CodexLogLevel)
 
         var apiPort, discPort: int
         withLock(codexPortLock):
