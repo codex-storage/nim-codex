@@ -8,7 +8,7 @@ import ../contracts/time
 import ./codexconfig
 import ./codexclient
 import ./nodeconfigs
-from ../helpers import safeEventually
+from ../helpers import eventuallySafe
 
 proc findItem[T](items: seq[T], item: T): ?!T =
   for tmp in items:
@@ -142,7 +142,7 @@ multinodesuite "Sales":
       )
     ).get
 
-    check safeEventually(
+    check eventuallySafe(
       await client.purchaseStateIs(id, "started"), timeout = 10 * 60 * 1000
     )
     let updatedAvailability =

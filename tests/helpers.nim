@@ -36,13 +36,13 @@ proc allFuturesThrowing*[T, E]( # https://github.com/nim-lang/Nim/issues/23432
 ): Future[void] =
   allFuturesThrowing(futs.mapIt(FutureBase(it)))
 
-template safeEventually*(expression: untyped, waitingTime = 250, timeout = 5000): bool =
-  proc safeEventually(): Future[bool] {.async.} =
+template eventuallySafe*(expression: untyped, timeout=5000, pollInterval=1000)): bool =
+  proc eventuallySafe(): Future[bool] {.async.} =
     let endTime = getTime() + initDuration(milliseconds = timeout)
     while not expression:
       if endTime < getTime():
         return false
-      await sleepAsync(waitingTime)
+      await sleepAsync(pollInterval)
     return true
 
-  await safeEventually()
+  await eventuallySafe()

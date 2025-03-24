@@ -6,7 +6,7 @@ import ../contracts/deployment
 import ./marketplacesuite
 import ./twonodes
 import ./nodeconfigs
-from ../helpers import safeEventually
+from ../helpers import eventuallySafe
 
 marketplacesuite "Marketplace":
   let marketplaceConfig = NodeConfigs(
@@ -62,7 +62,7 @@ marketplacesuite "Marketplace":
       tolerance = ecTolerance,
     )
 
-    check safeEventually(
+    check eventuallySafe(
       await client.purchaseStateIs(id, "started"), timeout = 10 * 60 * 1000
     )
     let purchase = (await client.getPurchase(id)).get
@@ -109,7 +109,7 @@ marketplacesuite "Marketplace":
       tolerance = ecTolerance,
     )
 
-    check safeEventually(
+    check eventuallySafe(
       await client.purchaseStateIs(id, "started"), timeout = 10 * 60 * 1000
     )
     let purchase = (await client.getPurchase(id)).get
@@ -125,11 +125,11 @@ marketplacesuite "Marketplace":
     # Checking that the hosting node received reward for at least the time between <expiry;end>
     let slotSize = slotSize(blocks, ecNodes, ecTolerance)
     let pricePerSlotPerSecond = minPricePerBytePerSecond * slotSize
-    check safeEventually (await token.balanceOf(hostAccount)) - startBalanceHost >=
+    check eventuallySafe (await token.balanceOf(hostAccount)) - startBalanceHost >=
       (duration - 5 * 60).u256 * pricePerSlotPerSecond * ecNodes.u256
 
     # Checking that client node receives some funds back that were not used for the host nodes
-    check safeEventually(
+    check eventuallySafe(
       (await token.balanceOf(clientAccount)) - clientBalanceBeforeFinished > 0,
       timeout = 10 * 1000, # give client a bit of time to withdraw its funds
     )
@@ -299,12 +299,12 @@ marketplacesuite "Marketplace payouts":
     let slotSize = slotSize(blocks, ecNodes, ecTolerance)
     let pricePerSlotPerSecond = minPricePerBytePerSecond * slotSize
 
-    check safeEventually (
+    check eventuallySafe (
       let endBalanceProvider = (await token.balanceOf(provider.ethAccount))
       endBalanceProvider > startBalanceProvider and
         endBalanceProvider < startBalanceProvider + expiry.u256 * pricePerSlotPerSecond
     )
-    check safeEventually(
+    check eventuallySafe(
       (
         let endBalanceClient = (await token.balanceOf(client.ethAccount))
         let endBalanceProvider = (await token.balanceOf(provider.ethAccount))
