@@ -116,6 +116,11 @@ method stop*(node: CodexProcess) {.async: (raises: []).} =
   trace "stopping codex client"
   await procCall NodeProcess(node).stop()
 
+  if not node.process.isNil:
+    trace "closing node process' streams"
+    await node.process.closeWait()
+    trace "node process' streams closed"
+
   if client =? node.client:
     await client.close()
     node.client = none CodexClient

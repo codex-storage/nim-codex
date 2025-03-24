@@ -140,39 +140,6 @@ method stop*(
         warn "failed to kill node process in time, it will be killed when the parent process exits",
           error = e.msg
         writeStackTrace()
-    finally:
-      proc closeProcessStreams() {.async: (raises: []).} =
-        trace "closing node process' streams"
-        await node.process.closeWait()
-        trace "node process' streams closed"
-
-      # Windows hangs when attempting to hardhat's process streams,
-      # so try to kill the process externally.
-      # TODO: Chronos gives us an msys2 processid, and this command is used
-      # to kill a windows processid, so we need to run a command to 
-      # get the windows pid from the msys pid first.
-      when defined(windows):
-        if node.name.contains("hardhat"):
-          trace "killing process by id", processId
-          try:
-            let cmdResult =
-              await execCommandEx(&"wmic process where processid={processid} delete")
-            if cmdResult.status > 0:
-              error "failed to kill process by id",
-                processId, exitCode = cmdResult.status, error = cmdResult.stdError
-            else:
-              error "successfully killed process by id",
-                processId, exitCode = cmdResult.status, output = cmdResult.stdOutput
-          except CancelledError as e:
-            discard
-          except AsyncProcessError as e:
-            error "Failed to kill process by id", processId, error = e.msg
-        else:
-          await closeProcessStreams()
-      else:
-        await closeProcessStreams()
-
-      node.process = nil
 
       trace "node stopped"
 
