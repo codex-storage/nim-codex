@@ -4,6 +4,8 @@ import helpers/templeveldb
 import std/times
 import std/sequtils, chronos
 
+import ./asynctest
+
 export multisetup, trackers, templeveldb
 
 ### taken from libp2p errorhelpers.nim
@@ -36,13 +38,7 @@ proc allFuturesThrowing*[T, E]( # https://github.com/nim-lang/Nim/issues/23432
 ): Future[void] =
   allFuturesThrowing(futs.mapIt(FutureBase(it)))
 
-template eventuallySafe*(expression: untyped, timeout=5000, pollInterval=1000)): bool =
-  proc eventuallySafe(): Future[bool] {.async.} =
-    let endTime = getTime() + initDuration(milliseconds = timeout)
-    while not expression:
-      if endTime < getTime():
-        return false
-      await sleepAsync(pollInterval)
-    return true
-
-  await eventuallySafe()
+template eventuallySafe*(
+    expression: untyped, timeout = 5000, pollInterval = 1000
+): bool =
+  eventually(expression, timeout, pollInterval)
