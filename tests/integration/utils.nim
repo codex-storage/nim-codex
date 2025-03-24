@@ -1,4 +1,5 @@
 import std/os
+import std/strformat
 import pkg/chronos
 import pkg/chronos/asyncproc
 import pkg/codex/logutils
@@ -67,12 +68,13 @@ proc appendFile*(filename: string, content: string) {.raises: [IOError].} =
     close(f)
 
 when defined(windows):
-  proc forceKillProcess(
+  proc forceKillProcess*(
       processName, matchingCriteria: string
   ): Future[CommandExResponse] {.
       async: (
         raises: [
-          AsyncProcessError, AsyncProcessTimeoutError, CancelledError, ValueError, OSError
+          AsyncProcessError, AsyncProcessTimeoutError, CancelledError, ValueError,
+          OSError,
         ]
       )
   .} =
