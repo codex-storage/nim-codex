@@ -8,7 +8,6 @@ import ../contracts/time
 import ./codexconfig
 import ./codexclient
 import ./nodeconfigs
-from ../helpers import eventuallySafe
 
 proc findItem[T](items: seq[T], item: T): ?!T =
   for tmp in items:
