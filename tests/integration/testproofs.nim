@@ -7,7 +7,6 @@ import ../codex/helpers
 import ../examples
 import ./marketplacesuite
 import ./nodeconfigs
-from ../helpers import eventuallySafe
 
 export logutils
 
