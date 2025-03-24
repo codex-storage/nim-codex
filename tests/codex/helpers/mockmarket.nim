@@ -47,7 +47,7 @@ type
     config*: MarketplaceConfig
     canReserveSlot*: bool
     errorOnReserveSlot*: ?(ref MarketError)
-    errorOnFillSlot*: ?(ref CatchableError)
+    errorOnFillSlot*: ?(ref MarketError)
     clock: ?Clock
 
   Fulfillment* = object
@@ -404,10 +404,10 @@ func setErrorOnReserveSlot*(market: MockMarket, error: ref MarketError) =
     else:
       some error
 
-func setErrorOnFillSlot*(market: MockMarket, error: ref CatchableError) =
+func setErrorOnFillSlot*(market: MockMarket, error: ref MarketError) =
   market.errorOnFillSlot =
     if error.isNil:
-      none (ref CatchableError)
+      none (ref MarketError)
     else:
       some error
 
