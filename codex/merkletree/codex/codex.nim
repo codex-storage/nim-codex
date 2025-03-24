@@ -20,6 +20,7 @@ import ../../utils
 import ../../rng
 import ../../errors
 import ../../blocktype
+import ../../codextypes
 
 from ../../utils/digest import digestBytes
 
