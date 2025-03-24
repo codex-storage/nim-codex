@@ -1,5 +1,6 @@
 import std/os
 import pkg/chronos
+import pkg/chronos/asyncproc
 import pkg/codex/logutils
 
 {.push raises: [].}
@@ -64,3 +65,18 @@ proc appendFile*(filename: string, content: string) {.raises: [IOError].} =
     raise newException(IOError, "cannot open and write " & filename & ": " & e.msg)
   finally:
     close(f)
+
+when defined(windows):
+  proc forceKillProcess(
+      processName, matchingCriteria: string
+  ): Future[CommandExResponse] {.
+      async: (
+        raises: [
+          AsyncProcessError, AsyncProcessTimeoutError, CancelledError, ValueError, OSError
+        ]
+      )
+  .} =
+    let path = splitFile(currentSourcePath()).dir / "scripts" / "winkillprocess.sh"
+    let cmd = &"{absolutePath(path)} kill {processName} \"{matchingCriteria}\""
+    trace "Forcefully killing windows process", processName, matchingCriteria, cmd
+    return await execCommandEx(cmd, timeout = 5.seconds)

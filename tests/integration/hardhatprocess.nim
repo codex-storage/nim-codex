@@ -14,6 +14,7 @@ import pkg/codex/conf
 import pkg/codex/utils/trackedfutures
 import ./codexclient
 import ./nodeprocess
+import ./utils
 
 export codexclient
 export chronicles
@@ -159,20 +160,6 @@ method onOutputLineCaptured(node: HardhatProcess, line: string) =
     discard logFile.closeFile()
     node.logFile = none IoHandle
 
-proc killHardhatByPort(
-    port: int
-): Future[CommandExResponse] {.
-    async: (
-      raises: [
-        AsyncProcessError, AsyncProcessTimeoutError, CancelledError, ValueError, OSError
-      ]
-    )
-.} =
-  let path = splitFile(currentSourcePath()).dir / "scripts" / "winkillhardhat.sh"
-  let cmd = &"{absolutePath(path)} killvendorport {port}"
-  trace "Forcefully killing windows hardhat process", port, cmd
-  return await execCommandEx(cmd, timeout = 5.seconds)
-
 proc closeProcessStreams(node: HardhatProcess) {.async: (raises: []).} =
   when not defined(windows):
     if not node.process.isNil:
@@ -186,7 +173,7 @@ proc closeProcessStreams(node: HardhatProcess) {.async: (raises: []).} =
       error "Failed to get port from Hardhat args"
       return
     try:
-      let cmdResult = await killHardhatByPort(port)
+      let cmdResult = await forceKillProcess("node.exe", &"--port {port}")
       if cmdResult.status > 0:
         error "Failed to forcefully kill windows hardhat process",
           port, exitCode = cmdResult.status, stderr = cmdResult.stdError
