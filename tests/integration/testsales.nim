@@ -4,7 +4,6 @@ import pkg/codex/contracts
 from pkg/codex/stores/repostore/types import DefaultQuotaBytes
 import ./twonodes
 import ../codex/examples
-import ../contracts/time
 import ./codexconfig
 import ./codexclient
 import ./nodeconfigs
