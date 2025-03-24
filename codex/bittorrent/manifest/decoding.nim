@@ -1,4 +1,5 @@
 import pkg/libp2p/cid
+import pkg/libp2p/multihash
 import pkg/libp2p/protobuf/minprotobuf
 
 import pkg/questionable/results
@@ -29,7 +30,7 @@ func decode*(_: type BitTorrentManifest, data: openArray[byte]): ?!BitTorrentMan
     pbInfo: ProtoBuffer
     length: uint64
     pieceLength: uint32
-    pieces: seq[BitTorrentPiece]
+    pieces: seq[MultiHash]
     piecesBytes: seq[seq[byte]]
     name: string
     cidBuf = newSeq[byte]()
@@ -49,7 +50,7 @@ func decode*(_: type BitTorrentManifest, data: openArray[byte]): ?!BitTorrentMan
       var pbPiece = initProtoBuffer(piece)
       var dataBuf = newSeq[byte]()
       if pbPiece.getField(1, dataBuf).isErr:
-        return failure("Unable to decode `data` from BitTorrentPiece")
+        return failure("Unable to decode piece `data` to MultiHash")
       without mhash =? MultiHash.init(dataBuf).mapFailure, err:
         return failure(err.msg)
       pieces.add(mhash)
