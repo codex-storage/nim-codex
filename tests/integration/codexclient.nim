@@ -45,7 +45,7 @@ proc request(
   ).get
   .send()
 
-proc post(
+proc post*(
     self: CodexClient,
     url: string,
     body: string = "",
@@ -69,7 +69,7 @@ proc delete(
 .} =
   return self.request(MethodDelete, url, headers = headers)
 
-proc patch(
+proc patch*(
     self: CodexClient,
     url: string,
     body: string = "",
@@ -290,11 +290,11 @@ proc getSalesAgent*(
   except CatchableError as e:
     return failure e.msg
 
-proc postAvailability*(
+proc postAvailabilityRaw*(
     client: CodexClient,
     totalSize, duration: uint64,
     minPricePerBytePerSecond, totalCollateral: UInt256,
-): Future[?!Availability] {.async: (raises: [CancelledError, HttpError]).} =
+): Future[HttpClientResponseRef] {.async: (raises: [CancelledError, HttpError]).} =
   ## Post sales availability endpoint
   ##
   let url = client.baseurl & "/sales/availability"
@@ -305,7 +305,17 @@ proc postAvailability*(
       "minPricePerBytePerSecond": minPricePerBytePerSecond,
       "totalCollateral": totalCollateral,
     }
-  let response = await client.post(url, $json)
+
+  return await client.post(url, $json)
+
+proc postAvailability*(
+    client: CodexClient,
+    totalSize, duration: uint64,
+    minPricePerBytePerSecond, totalCollateral: UInt256,
+): Future[?!Availability] {.async: (raises: [CancelledError, HttpError]).} =
+  let response = await client.postAvailabilityRaw(
+    totalSize, duration, minPricePerBytePerSecond, totalCollateral
+  )
   let body = await response.body
 
   doAssert response.status == 201,
@@ -389,3 +399,6 @@ proc requestId*(
     client: CodexClient, id: PurchaseId
 ): Future[?RequestId] {.async: (raises: [CancelledError, HttpError]).} =
   return (await client.getPurchase(id)).option .? requestId
+
+proc buildUrl*(client: CodexClient, path: string): string =
+  return client.baseurl & path
