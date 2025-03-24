@@ -145,7 +145,7 @@ ifdef DEBUG
 	TEST_PARAMS := $(TEST_PARAMS) -d:DebugTestHarness=$(DEBUG)
   TEST_PARAMS := $(TEST_PARAMS) -d:NoCodexLogFilters=$(DEBUG)
   TEST_PARAMS := $(TEST_PARAMS) -d:ShowContinuousStatusUpdates=$(DEBUG)
-  TEST_PARAMS := $(TEST_PARAMS) -d:DebugHardhat=$(DEBUG_HARDHAT)
+  TEST_PARAMS := $(TEST_PARAMS) -d:DebugHardhat=$(DEBUG)
 endif
 ifdef TEST_TIMEOUT
   TEST_PARAMS := $(TEST_PARAMS) -d:TestTimeout=$(TEST_TIMEOUT)
