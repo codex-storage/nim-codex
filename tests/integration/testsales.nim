@@ -3,7 +3,6 @@ import pkg/codex/contracts
 from pkg/codex/stores/repostore/types import DefaultQuotaBytes
 import ./twonodes
 import ../codex/examples
-import ../contracts/time
 import ./codexconfig
 import ./codexclient
 import ./nodeconfigs
@@ -30,8 +29,6 @@ multinodesuite "Sales":
         "node", "marketplace", "sales", "reservations", "node", "proving", "clock"
       ).some,
   )
-
-  let minPricePerBytePerSecond = 1.u256
 
   var host: CodexClient
   var client: CodexClient
