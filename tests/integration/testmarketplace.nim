@@ -4,7 +4,6 @@ import ../contracts/deployment
 import ./marketplacesuite
 import ./twonodes
 import ./nodeconfigs
-from ../helpers import safeEventually
 
 marketplacesuite "Marketplace":
   let marketplaceConfig = NodeConfigs(
@@ -60,7 +59,7 @@ marketplacesuite "Marketplace":
       tolerance = ecTolerance,
     )
 
-    check safeEventually(
+    check eventually(
       await client.purchaseStateIs(id, "started"), timeout = 10 * 60 * 1000
     )
     let purchase = (await client.getPurchase(id)).get
@@ -107,7 +106,7 @@ marketplacesuite "Marketplace":
       tolerance = ecTolerance,
     )
 
-    check safeEventually(
+    check eventually(
       await client.purchaseStateIs(id, "started"), timeout = 10 * 60 * 1000
     )
     let purchase = (await client.getPurchase(id)).get
@@ -127,7 +126,7 @@ marketplacesuite "Marketplace":
       (duration - 5 * 60).u256 * pricePerSlotPerSecond * ecNodes.u256
 
     # Checking that client node receives some funds back that were not used for the host nodes
-    check safeEventually(
+    check eventually(
       (await token.balanceOf(clientAccount)) - clientBalanceBeforeFinished > 0,
       timeout = 10 * 1000, # give client a bit of time to withdraw its funds
     )
@@ -202,19 +201,19 @@ marketplacesuite "Marketplace payouts":
 
     # wait until sale is cancelled
     await ethProvider.advanceTime(expiry.u256)
-    check safeEventually await providerApi.saleStateIs(slotId, "SaleCancelled")
+    check eventually await providerApi.saleStateIs(slotId, "SaleCancelled")
 
     await advanceToNextPeriod()
 
     let slotSize = slotSize(blocks, ecNodes, ecTolerance)
     let pricePerSlotPerSecond = minPricePerBytePerSecond * slotSize
 
-    check safeEventually (
+    check eventually (
       let endBalanceProvider = (await token.balanceOf(provider.ethAccount))
       endBalanceProvider > startBalanceProvider and
         endBalanceProvider < startBalanceProvider + expiry.u256 * pricePerSlotPerSecond
     )
-    check safeEventually(
+    check eventually(
       (
         let endBalanceClient = (await token.balanceOf(client.ethAccount))
         let endBalanceProvider = (await token.balanceOf(provider.ethAccount))

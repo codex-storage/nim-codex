@@ -39,7 +39,7 @@ asyncchecksuite "Rest API validation":
 
   let client = node.client()
 
-  test "should return 400 when attempting delete of non-existing dataset":
+  test "should return 422 when attempting delete of non-existing dataset":
     let data = await RandomChunker.example(blocks = 2)
     let cid = (await client.upload(data)).get
     let duration = 100.uint64
@@ -55,7 +55,7 @@ asyncchecksuite "Rest API validation":
       nodes.uint, tolerance.uint,
     )
 
-    check responseBefore.status == 400
+    check responseBefore.status == 422
     check (await responseBefore.body) == "Tolerance needs to be bigger then zero"
 
   test "request storage fails for datasets that are too small":
@@ -72,7 +72,7 @@ asyncchecksuite "Rest API validation":
     )
 
     check:
-      response.status == 400
+      response.status == 422
       (await response.body) ==
         "Dataset too small for erasure parameters, need at least " &
         $(2 * DefaultBlockSize.int) & " bytes"
@@ -97,7 +97,7 @@ asyncchecksuite "Rest API validation":
         )
       )
 
-      check responseBefore.status == 400
+      check responseBefore.status == 422
       check (await responseBefore.body) ==
         "Invalid parameters: parameters must satify `1 < (nodes - tolerance) ≥ tolerance`"
 
@@ -119,7 +119,7 @@ asyncchecksuite "Rest API validation":
       )
     )
 
-    check responseBefore.status == 400
+    check responseBefore.status == 422
     check (await responseBefore.body) == "Tolerance needs to be bigger then zero"
 
   test "upload fails if content disposition contains bad filename":
@@ -243,12 +243,9 @@ asyncchecksuite "Rest API validation":
     check response.status == 400
     check (await response.body) == "Parsed integer outside of valid range"
 
-  waitFor node.stop()
-  node.removeDataDir()
-
-  test "request storage fails if tolerance is zero", twoNodesConfig:
+  test "request storage fails if tolerance is zero":
     let data = await RandomChunker.example(blocks = 2)
-    let cid = (await client1.upload(data)).get
+    let cid = (await client.upload(data)).get
     let duration = 100.uint64
     let pricePerBytePerSecond = 1.u256
     let proofProbability = 3.u256
@@ -258,7 +255,7 @@ asyncchecksuite "Rest API validation":
     let tolerance = 0
 
     var responseBefore = (
-      await client1.requestStorageRaw(
+      await client.requestStorageRaw(
         cid, duration, pricePerBytePerSecond, proofProbability, collateralPerByte,
         expiry, nodes.uint, tolerance.uint,
       )
@@ -267,9 +264,9 @@ asyncchecksuite "Rest API validation":
     check responseBefore.status == 422
     check (await responseBefore.body) == "Tolerance needs to be bigger then zero"
 
-  test "request storage fails if duration exceeds limit", twoNodesConfig:
+  test "request storage fails if duration exceeds limit":
     let data = await RandomChunker.example(blocks = 2)
-    let cid = (await client1.upload(data)).get
+    let cid = (await client.upload(data)).get
     let duration = (31 * 24 * 60 * 60).uint64
       # 31 days TODO: this should not be hardcoded, but waits for https://github.com/codex-storage/nim-codex/issues/1056
     let proofProbability = 3.u256
@@ -280,7 +277,7 @@ asyncchecksuite "Rest API validation":
     let pricePerBytePerSecond = 1.u256
 
     var responseBefore = (
-      await client1.requestStorageRaw(
+      await client.requestStorageRaw(
         cid, duration, pricePerBytePerSecond, proofProbability, collateralPerByte,
         expiry, nodes.uint, tolerance.uint,
       )
@@ -289,9 +286,9 @@ asyncchecksuite "Rest API validation":
     check responseBefore.status == 422
     check "Duration exceeds limit of" in (await responseBefore.body)
 
-  test "request storage fails if expiry is zero", twoNodesConfig:
+  test "request storage fails if expiry is zero":
     let data = await RandomChunker.example(blocks = 2)
-    let cid = (await client1.upload(data)).get
+    let cid = (await client.upload(data)).get
     let duration = 100.uint64
     let pricePerBytePerSecond = 1.u256
     let proofProbability = 3.u256
@@ -300,7 +297,7 @@ asyncchecksuite "Rest API validation":
     let nodes = 3
     let tolerance = 1
 
-    var responseBefore = await client1.requestStorageRaw(
+    var responseBefore = await client.requestStorageRaw(
       cid, duration, pricePerBytePerSecond, proofProbability, collateralPerByte, expiry,
       nodes.uint, tolerance.uint,
     )
@@ -309,9 +306,9 @@ asyncchecksuite "Rest API validation":
     check (await responseBefore.body) ==
       "Expiry must be greater than zero and less than the request's duration"
 
-  test "request storage fails if proof probability is zero", twoNodesConfig:
+  test "request storage fails if proof probability is zero":
     let data = await RandomChunker.example(blocks = 2)
-    let cid = (await client1.upload(data)).get
+    let cid = (await client.upload(data)).get
     let duration = 100.uint64
     let pricePerBytePerSecond = 1.u256
     let proofProbability = 0.u256
@@ -320,7 +317,7 @@ asyncchecksuite "Rest API validation":
     let nodes = 3
     let tolerance = 1
 
-    var responseBefore = await client1.requestStorageRaw(
+    var responseBefore = await client.requestStorageRaw(
       cid, duration, pricePerBytePerSecond, proofProbability, collateralPerByte, expiry,
       nodes.uint, tolerance.uint,
     )
@@ -328,9 +325,9 @@ asyncchecksuite "Rest API validation":
     check responseBefore.status == 422
     check (await responseBefore.body) == "Proof probability must be greater than zero"
 
-  test "request storage fails if price per byte per second is zero", twoNodesConfig:
+  test "request storage fails if price per byte per second is zero":
     let data = await RandomChunker.example(blocks = 2)
-    let cid = (await client1.upload(data)).get
+    let cid = (await client.upload(data)).get
     let duration = 100.uint64
     let pricePerBytePerSecond = 0.u256
     let proofProbability = 3.u256
@@ -339,7 +336,7 @@ asyncchecksuite "Rest API validation":
     let nodes = 3
     let tolerance = 1
 
-    var responseBefore = await client1.requestStorageRaw(
+    var responseBefore = await client.requestStorageRaw(
       cid, duration, pricePerBytePerSecond, proofProbability, collateralPerByte, expiry,
       nodes.uint, tolerance.uint,
     )
@@ -347,3 +344,25 @@ asyncchecksuite "Rest API validation":
     check responseBefore.status == 422
     check (await responseBefore.body) ==
       "Price per byte per second must be greater than zero"
+
+  test "request storage fails if collareral per byte is zero":
+    let data = await RandomChunker.example(blocks = 2)
+    let cid = (await client.upload(data)).get
+    let duration = 100.uint64
+    let pricePerBytePerSecond = 1.u256
+    let proofProbability = 3.u256
+    let expiry = 30.uint64
+    let collateralPerByte = 0.u256
+    let nodes = 3
+    let tolerance = 1
+
+    var responseBefore = await client.requestStorageRaw(
+      cid, duration, pricePerBytePerSecond, proofProbability, collateralPerByte, expiry,
+      nodes.uint, tolerance.uint,
+    )
+
+    check responseBefore.status == 422
+    check (await responseBefore.body) == "Collateral per byte must be greater than zero"
+
+  waitFor node.stop()
+  node.removeDataDir()
