@@ -38,7 +38,3 @@ proc allFuturesThrowing*[T, E]( # https://github.com/nim-lang/Nim/issues/23432
 ): Future[void] =
   allFuturesThrowing(futs.mapIt(FutureBase(it)))
 
-template eventuallySafe*(
-    expression: untyped, timeout = 5000, pollInterval = 1000
-): bool =
-  eventually(expression, timeout, pollInterval)
