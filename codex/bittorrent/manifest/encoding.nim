@@ -1,11 +1,12 @@
 import pkg/libp2p/cid
+import pkg/libp2p/multihash
 import pkg/libp2p/protobuf/minprotobuf
 
 import pkg/questionable/results
 
 import ./manifest
 
-proc write(pb: var ProtoBuffer, field: int, value: BitTorrentPiece) =
+proc write(pb: var ProtoBuffer, field: int, value: MultiHash) =
   var ipb = initProtoBuffer()
   ipb.write(1, value.data.buffer)
   ipb.finish()

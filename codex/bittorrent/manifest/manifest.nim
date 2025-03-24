@@ -11,11 +11,10 @@ import ../../codextypes
 import ../bencoding
 
 type
-  BitTorrentPiece* = MultiHash
   BitTorrentInfo* = ref object
     length* {.serialize.}: uint64
     pieceLength* {.serialize.}: uint32
-    pieces* {.serialize.}: seq[BitTorrentPiece]
+    pieces* {.serialize.}: seq[MultiHash]
     name* {.serialize.}: ?string
 
   BitTorrentManifest* = ref object
