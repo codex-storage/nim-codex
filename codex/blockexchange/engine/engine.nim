@@ -23,7 +23,6 @@ import ../../rng
 import ../../stores/blockstore
 import ../../blocktype
 import ../../utils
-import ../../utils/exceptions
 import ../../utils/trackedfutures
 import ../../merkletree
 import ../../logutils
@@ -202,7 +201,7 @@ proc downloadInternal(
     trace "Block download cancelled"
     if not handle.finished:
       await handle.cancelAndWait()
-  except CatchableError as exc:
+  except RetriesExhaustedError as exc:
     warn "Error downloadloading block", exc = exc.msg
     if not handle.finished:
       handle.fail(exc)
