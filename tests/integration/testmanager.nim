@@ -3,7 +3,6 @@ import std/strformat
 import std/terminal
 from std/times import fromUnix, format, now
 from std/unicode import toUpper
-import std/unittest
 import pkg/chronos
 import pkg/chronos/asyncproc
 import pkg/codex/conf
@@ -389,6 +388,38 @@ proc teardownHardhat(test: IntegrationTest, hardhat: Hardhat) {.async: (raises: 
 
   test.manager.hardhats.keepItIf(it != hardhat)
 
+proc closeProcessStreams(test: IntegrationTest) {.async: (raises: []).} =
+  logScope:
+    name = test.config.name
+
+  when not defined(windows):
+    if not test.process.isNil:
+      trace "Closing test process' streams"
+      await test.process.closeWait()
+      trace "Test process' streams closed"
+  else:
+    # Windows hangs when attempting to close the test's process streams, so try
+    # to kill the process externally.
+    try:
+      let cmdResult = await test.forceKillProcess("nim.exe", &"-d:TestId {test.testId}")
+      if cmdResult.status > 0:
+        error "Failed to forcefully kill windows test process",
+          port, exitCode = cmdResult.status, stderr = cmdResult.stdError
+      else:
+        trace "Successfully killed windows test process by force",
+          port, exitCode = cmdResult.status, stdout = cmdResult.stdOutput
+    except ValueError, OSError:
+      let eMsg = getCurrentExceptionMsg()
+      error "Failed to forcefully kill windows test process, bad path to command",
+        error = eMsg
+    except CancelledError as e:
+      discard
+    except AsyncProcessError as e:
+      error "Failed to forcefully kill windows test process", port, error = e.msg
+    except AsyncProcessTimeoutError as e:
+      error "Timeout while forcefully killing windows test process",
+        port, error = e.msg
+
 proc teardownTest(test: IntegrationTest) {.async: (raises: []).} =
   logScope:
     test = test.config.name
@@ -409,8 +440,8 @@ proc teardownTest(test: IntegrationTest) {.async: (raises: []).} =
         let e = getCurrentException()
         warn "Test process failed to terminate, check for zombies", error = e.msg
 
-    await test.process.closeWait()
-    trace "Test process output streams closed"
+    await test.closeProcessStreams()
+    test.process = nil
 
 proc teardown(test: IntegrationTest, hardhat: ?Hardhat) {.async: (raises: []).} =
   if test.config.startHardhat and hardhat =? hardhat and not hardhat.process.isNil:
