@@ -7,7 +7,7 @@ import ../codex/helpers
 import ../examples
 import ./marketplacesuite
 import ./nodeconfigs
-from ../helpers import safeEventually
+from ../helpers import eventuallySafe
 
 export logutils
 
@@ -65,7 +65,7 @@ marketplacesuite "Hosts submit regular proofs":
 
     let slotSize = slotSize(blocks, ecNodes, ecTolerance)
 
-    check safeEventually(
+    check eventuallySafe(
       await client0.purchaseStateIs(purchaseId, "started"), timeout = expiry.int * 1000
     )
 
@@ -141,7 +141,7 @@ marketplacesuite "Simulate invalid proofs":
     )
     let requestId = (await client0.requestId(purchaseId)).get
 
-    check safeEventually(
+    check eventuallySafe(
       await client0.purchaseStateIs(purchaseId, "started"), timeout = expiry.int * 1000
     )
 
