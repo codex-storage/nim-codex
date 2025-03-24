@@ -23,7 +23,6 @@ import ../../rng
 import ../../stores/blockstore
 import ../../blocktype
 import ../../utils
-import ../../utils/exceptions
 import ../../utils/trackedfutures
 import ../../merkletree
 import ../../logutils
