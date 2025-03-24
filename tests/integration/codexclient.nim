@@ -45,7 +45,7 @@ proc request(
   ).get
   .send()
 
-proc post(
+proc post*(
     self: CodexClient,
     url: string,
     body: string = "",
@@ -69,7 +69,7 @@ proc delete(
 .} =
   return self.request(MethodDelete, url, headers = headers)
 
-proc patch(
+proc patch*(
     self: CodexClient,
     url: string,
     body: string = "",
@@ -422,3 +422,6 @@ proc requestId*(
     client: CodexClient, id: PurchaseId
 ): Future[?RequestId] {.async: (raises: [CancelledError, HttpError]).} =
   return (await client.getPurchase(id)).option .? requestId
+
+proc buildUrl*(client: CodexClient, path: string): string =
+  return client.baseurl & path

@@ -97,7 +97,7 @@ proc write*(pb: var ProtoBuffer, field: int, value: WantList) =
   pb.write(field, ipb)
 
 proc write*(pb: var ProtoBuffer, field: int, value: BlockDelivery) =
-  var ipb = initProtoBuffer(maxSize = MaxBlockSize)
+  var ipb = initProtoBuffer()
   ipb.write(1, value.blk.cid.data.buffer)
   ipb.write(2, value.blk.data)
   ipb.write(3, value.address)
@@ -128,7 +128,7 @@ proc write*(pb: var ProtoBuffer, field: int, value: StateChannelUpdate) =
   pb.write(field, ipb)
 
 proc protobufEncode*(value: Message): seq[byte] =
-  var ipb = initProtoBuffer(maxSize = MaxMessageSize)
+  var ipb = initProtoBuffer()
   ipb.write(1, value.wantList)
   for v in value.payload:
     ipb.write(3, v)
@@ -254,16 +254,14 @@ proc decode*(
 proc protobufDecode*(_: type Message, msg: seq[byte]): ProtoResult[Message] =
   var
     value = Message()
-    pb = initProtoBuffer(msg, maxSize = MaxMessageSize)
+    pb = initProtoBuffer(msg)
     ipb: ProtoBuffer
     sublist: seq[seq[byte]]
   if ?pb.getField(1, ipb):
     value.wantList = ?WantList.decode(ipb)
   if ?pb.getRepeatedField(3, sublist):
     for item in sublist:
-      value.payload.add(
-        ?BlockDelivery.decode(initProtoBuffer(item, maxSize = MaxBlockSize))
-      )
+      value.payload.add(?BlockDelivery.decode(initProtoBuffer(item)))
   if ?pb.getRepeatedField(4, sublist):
     for item in sublist:
       value.blockPresences.add(?BlockPresence.decode(initProtoBuffer(item)))

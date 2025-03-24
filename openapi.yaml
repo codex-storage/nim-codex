@@ -748,7 +748,7 @@ paths:
         "404":
           description: Availability not found
         "422":
-          description: Not enough node's storage quota available
+          description: The provided parameters did not pass validation
         "500":
           description: Error reserving availability
         "503":
@@ -811,6 +811,8 @@ paths:
                 type: string
         "400":
           description: Invalid or missing Request ID
+        "422":
+          description: The storage request parameters are not valid
         "404":
           description: Request ID not found
         "503":

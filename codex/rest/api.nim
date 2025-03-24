@@ -475,7 +475,7 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
 
       if restAv.totalSize == 0:
         return RestApiResponse.error(
-          Http400, "Total size must be larger then zero", headers = headers
+          Http422, "Total size must be larger then zero", headers = headers
         )
 
       if not reservations.hasAvailable(restAv.totalSize):
@@ -558,16 +558,22 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
         return RestApiResponse.error(Http500, error.msg)
 
       if isSome restAv.freeSize:
-        return RestApiResponse.error(Http400, "Updating freeSize is not allowed")
+        return RestApiResponse.error(Http422, "Updating freeSize is not allowed")
 
       if size =? restAv.totalSize:
+        if size == 0:
+          return RestApiResponse.error(Http422, "Total size must be larger then zero")
+
         # we don't allow lowering the totalSize bellow currently utilized size
         if size < (availability.totalSize - availability.freeSize):
           return RestApiResponse.error(
-            Http400,
+            Http422,
             "New totalSize must be larger then current totalSize - freeSize, which is currently: " &
               $(availability.totalSize - availability.freeSize),
           )
+
+        if not reservations.hasAvailable(size):
+          return RestApiResponse.error(Http422, "Not enough storage quota")
 
         availability.freeSize += size - availability.totalSize
         availability.totalSize = size
@@ -673,10 +679,36 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
       without params =? StorageRequestParams.fromJson(body), error:
         return RestApiResponse.error(Http400, error.msg, headers = headers)
 
+      let expiry = params.expiry
+
+      if expiry <= 0 or expiry >= params.duration:
+        return RestApiResponse.error(
+          Http422,
+          "Expiry must be greater than zero and less than the request's duration",
+          headers = headers,
+        )
+
+      if params.proofProbability <= 0:
+        return RestApiResponse.error(
+          Http422, "Proof probability must be greater than zero", headers = headers
+        )
+
+      if params.collateralPerByte <= 0:
+        return RestApiResponse.error(
+          Http422, "Collateral per byte must be greater than zero", headers = headers
+        )
+
+      if params.pricePerBytePerSecond <= 0:
+        return RestApiResponse.error(
+          Http422,
+          "Price per byte per second must be greater than zero",
+          headers = headers,
+        )
+
       let requestDurationLimit = await contracts.purchasing.market.requestDurationLimit
       if params.duration > requestDurationLimit:
         return RestApiResponse.error(
-          Http400,
+          Http422,
           "Duration exceeds limit of " & $requestDurationLimit & " seconds",
           headers = headers,
         )
@@ -686,13 +718,13 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
 
       if tolerance == 0:
         return RestApiResponse.error(
-          Http400, "Tolerance needs to be bigger then zero", headers = headers
+          Http422, "Tolerance needs to be bigger then zero", headers = headers
         )
 
       # prevent underflow
       if tolerance > nodes:
         return RestApiResponse.error(
-          Http400,
+          Http422,
           "Invalid parameters: `tolerance` cannot be greater than `nodes`",
           headers = headers,
         )
@@ -703,18 +735,8 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
       # ensure leopard constrainst of 1 < K ≥ M
       if ecK <= 1 or ecK < ecM:
         return RestApiResponse.error(
-          Http400,
+          Http422,
           "Invalid parameters: parameters must satify `1 < (nodes - tolerance) ≥ tolerance`",
-          headers = headers,
-        )
-
-      without expiry =? params.expiry:
-        return RestApiResponse.error(Http400, "Expiry required", headers = headers)
-
-      if expiry <= 0 or expiry >= params.duration:
-        return RestApiResponse.error(
-          Http400,
-          "Expiry needs value bigger then zero and smaller then the request's duration",
           headers = headers,
         )
 
@@ -725,7 +747,7 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
         ), error:
         if error of InsufficientBlocksError:
           return RestApiResponse.error(
-            Http400,
+            Http422,
             "Dataset too small for erasure parameters, need at least " &
               $(ref InsufficientBlocksError)(error).minSize.int & " bytes",
             headers = headers,

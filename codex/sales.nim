@@ -375,13 +375,13 @@ proc onSlotFreed(sales: Sales, requestId: RequestId, slotIndex: uint64) =
 
       if err =? queue.push(slotQueueItem).errorOption:
         if err of SlotQueueItemExistsError:
-          error "Failed to push item to queue becaue it already exists",
+          error "Failed to push item to queue because it already exists",
             error = err.msgDetail
         elif err of QueueNotRunningError:
-          warn "Failed to push item to queue becaue queue is not running",
+          warn "Failed to push item to queue because queue is not running",
             error = err.msgDetail
-    except CatchableError as e:
-      warn "Failed to add slot to queue", error = e.msg
+    except CancelledError as e:
+      trace "sales.addSlotToQueue was cancelled"
 
   # We could get rid of this by adding the storage ask in the SlotFreed event,
   # so we would not need to call getRequest to get the collateralPerSlot.
