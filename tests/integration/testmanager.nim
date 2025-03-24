@@ -18,7 +18,6 @@ import ../examples
 type
   Hardhat = ref object
     process: HardhatProcess
-    output: seq[string]
     port: int
 
   TestManagerConfig* = object # Echoes stdout from Hardhat process
@@ -199,9 +198,6 @@ proc startHardhat(
 
   let hardhat = Hardhat.new()
 
-  proc onOutputLineCaptured(line: string) {.raises: [].} =
-    hardhat.output.add line
-
   withLock(test.manager.hardhatPortLock):
     port = await nextFreePort(test.manager.lastHardhatPort + 1)
     test.manager.lastHardhatPort = port
@@ -215,7 +211,7 @@ proc startHardhat(
   try:
     withLock(test.manager.hardhatProcessLock):
       let node = await HardhatProcess.startNode(
-        args, false, "hardhat for '" & test.config.name & "'", onOutputLineCaptured
+        args, false, "hardhat for '" & test.config.name & "'"
       )
       hardhat.process = node
       hardhat.port = port
@@ -224,11 +220,6 @@ proc startHardhat(
   except CancelledError as e:
     raise e
   except CatchableError as e:
-    if not hardhat.isNil:
-      test.printOutputMarker(MarkerPosition.Start, "hardhat stdout")
-      for line in hardhat.output:
-        echo line
-      test.printOutputMarker(MarkerPosition.Finish, "hardhat stdout")
     raiseTestManagerError "hardhat node failed to start: " & e.msg, e
 
 proc printResult(test: IntegrationTest, colour: ForegroundColor) =
@@ -395,12 +386,6 @@ proc teardownHardhat(test: IntegrationTest, hardhat: Hardhat) {.async: (raises: 
   except CatchableError as e: # CancelledError not raised due to noCancel
     warn "Failed to stop hardhat node, continuing",
       error = e.msg, test = test.config.name
-
-  if test.manager.config.debugHardhat:
-    test.printOutputMarker(MarkerPosition.Start, "Hardhat stdout")
-    for line in hardhat.output:
-      echo line
-    test.printOutputMarker(MarkerPosition.Finish, "Hardhat stdout")
 
   test.manager.hardhats.keepItIf(it != hardhat)
 
