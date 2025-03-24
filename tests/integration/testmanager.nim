@@ -401,13 +401,15 @@ proc closeProcessStreams(test: IntegrationTest) {.async: (raises: []).} =
     # Windows hangs when attempting to close the test's process streams, so try
     # to kill the process externally.
     try:
-      let cmdResult = await test.forceKillProcess("nim.exe", &"-d:TestId {test.testId}")
+      let cmdResult = await forceKillProcess("nim.exe", &"-d:TestId {test.testId}")
       if cmdResult.status > 0:
         error "Failed to forcefully kill windows test process",
-          port, exitCode = cmdResult.status, stderr = cmdResult.stdError
+          testId = test.testId, exitCode = cmdResult.status, stderr = cmdResult.stdError
       else:
         trace "Successfully killed windows test process by force",
-          port, exitCode = cmdResult.status, stdout = cmdResult.stdOutput
+          testId = test.testId,
+          exitCode = cmdResult.status,
+          stdout = cmdResult.stdOutput
     except ValueError, OSError:
       let eMsg = getCurrentExceptionMsg()
       error "Failed to forcefully kill windows test process, bad path to command",
@@ -415,10 +417,11 @@ proc closeProcessStreams(test: IntegrationTest) {.async: (raises: []).} =
     except CancelledError as e:
       discard
     except AsyncProcessError as e:
-      error "Failed to forcefully kill windows test process", port, error = e.msg
+      error "Failed to forcefully kill windows test process",
+        testId = test.testId, error = e.msg
     except AsyncProcessTimeoutError as e:
       error "Timeout while forcefully killing windows test process",
-        port, error = e.msg
+        testId = test.testId, error = e.msg
 
 proc teardownTest(test: IntegrationTest) {.async: (raises: []).} =
   logScope:
