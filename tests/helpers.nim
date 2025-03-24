@@ -37,4 +37,3 @@ proc allFuturesThrowing*[T, E]( # https://github.com/nim-lang/Nim/issues/23432
     futs: varargs[InternalRaisesFuture[T, E]]
 ): Future[void] =
   allFuturesThrowing(futs.mapIt(FutureBase(it)))
-
