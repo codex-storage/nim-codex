@@ -427,10 +427,14 @@ proc fetchPieces*(
           let address = BlockAddress.init(cid, blockIter.next())
           self.networkStore.getBlock(address)
 
-    without blocks =? await allFinishedValues(blockFutures), err:
+    without blockResults =? await allFinishedValues(blockFutures), err:
       return failure(err)
 
-    if err =? self.validatePiece(pieceValidator, blocks).errorOption:
+    let numOfFailedBlocks = blockResults.countIt(it.isFailure)
+    if numOfFailedBlocks > 0:
+      return failure("Some blocks failed to fetch")
+
+    if err =? self.validatePiece(pieceValidator, blockResults.mapIt(it.get)).errorOption:
       return failure(err)
 
     await sleepAsync(1.millis)
