@@ -94,6 +94,17 @@ method start*(
       HardhatProcessError, "failed to start hardhat process: " & parent.msg, parent
     )
 
+proc port(node: HardhatProcess): ?int =
+  var next = false
+  for arg in node.arguments:
+    # TODO: move to constructor
+    if next:
+      return parseInt(arg).catch.option
+    if arg.contains "--port":
+      next = true
+
+  return none int
+
 proc startNode*(
     _: type HardhatProcess,
     args: seq[string],
@@ -108,6 +119,7 @@ proc startNode*(
 
   var arguments = newSeq[string]()
   for arg in args:
+    # TODO: move to constructor
     if arg.contains "--log-file=":
       logFilePath = arg.split("=")[1]
     else:
@@ -126,6 +138,7 @@ proc startNode*(
 
   await hardhat.start()
 
+  # TODO: move to constructor
   if logFilePath != "":
     hardhat.logFile = some hardhat.openLogFile(logFilePath)
 
@@ -146,13 +159,63 @@ method onOutputLineCaptured(node: HardhatProcess, line: string) =
     discard logFile.closeFile()
     node.logFile = none IoHandle
 
+proc killHardhatByPort(
+    port: int
+): Future[CommandExResponse] {.
+    async: (
+      raises: [
+        AsyncProcessError, AsyncProcessTimeoutError, CancelledError, ValueError, OSError
+      ]
+    )
+.} =
+  let path = splitFile(currentSourcePath()).dir / "scripts" / "winkillhardhat.sh"
+  let cmd = &"{absolutePath(path)} killvendorport {port}"
+  trace "Forcefully killing windows hardhat process", port, cmd
+  return await execCommandEx(cmd, timeout = 5.seconds)
+
+proc closeProcessStreams(node: HardhatProcess) {.async: (raises: []).} =
+  when not defined(windows):
+    if not node.process.isNil:
+      trace "closing node process' streams"
+      await node.process.closeWait()
+      trace "node process' streams closed"
+  else:
+    # Windows hangs when attempting to close hardhat's process streams, so try
+    # to kill the process externally.
+    without port =? node.port:
+      error "Failed to get port from Hardhat args"
+      return
+    try:
+      let cmdResult = await killHardhatByPort(port)
+      if cmdResult.status > 0:
+        error "Failed to forcefully kill windows hardhat process",
+          port, exitCode = cmdResult.status, stderr = cmdResult.stdError
+      else:
+        trace "Successfully killed windows hardhat process by force",
+          port, exitCode = cmdResult.status, stdout = cmdResult.stdOutput
+    except ValueError, OSError:
+      let eMsg = getCurrentExceptionMsg()
+      error "Failed to forcefully kill windows hardhat process, bad path to command",
+        error = eMsg
+    except CancelledError as e:
+      discard
+    except AsyncProcessError as e:
+      error "Failed to forcefully kill windows hardhat process", port, error = e.msg
+    except AsyncProcessTimeoutError as e:
+      error "Timeout while forcefully killing windows hardhat process",
+        port, error = e.msg
+
 method stop*(node: HardhatProcess) {.async: (raises: []).} =
   # terminate the process
   await procCall NodeProcess(node).stop()
 
+  await node.closeProcessStreams()
+
   if logFile =? node.logFile:
     trace "closing hardhat log file"
     discard logFile.closeFile()
+
+  node.process = nil
 
 method removeDataDir*(node: HardhatProcess) =
   discard
