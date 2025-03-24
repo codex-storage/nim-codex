@@ -16,8 +16,18 @@ proc findItem[T](items: seq[T], item: T): ?!T =
 
 multinodesuite "Sales":
   let salesConfig = NodeConfigs(
-    clients: CodexConfigs.init(nodes = 1).some,
-    providers: CodexConfigs.init(nodes = 1).some,
+    clients: CodexConfigs
+      .init(nodes = 1)
+      .withLogFile()
+      .withLogTopics(
+        "node", "marketplace", "sales", "reservations", "node", "proving", "clock"
+      ).some,
+    providers: CodexConfigs
+      .init(nodes = 1)
+      .withLogFile()
+      .withLogTopics(
+        "node", "marketplace", "sales", "reservations", "node", "proving", "clock"
+      ).some,
   )
 
   let minPricePerBytePerSecond = 1.u256

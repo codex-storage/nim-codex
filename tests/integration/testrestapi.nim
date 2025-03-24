@@ -69,7 +69,7 @@ twonodessuite "REST API":
     )
 
     check:
-      response.status == 400
+      response.status == 422
       (await response.body) ==
         "Dataset too small for erasure parameters, need at least " &
         $(2 * DefaultBlockSize.int) & " bytes"
@@ -109,7 +109,7 @@ twonodessuite "REST API":
       )
     )
 
-    check responseBefore.status == 400
+    check responseBefore.status == 422
     check (await responseBefore.body) == "Tolerance needs to be bigger then zero"
 
   test "request storage fails if duration exceeds limit", twoNodesConfig:
@@ -131,7 +131,7 @@ twonodessuite "REST API":
       )
     )
 
-    check responseBefore.status == 400
+    check responseBefore.status == 422
     check "Duration exceeds limit of" in (await responseBefore.body)
 
   test "request storage fails if nodes and tolerance aren't correct", twoNodesConfig:
@@ -154,7 +154,7 @@ twonodessuite "REST API":
         )
       )
 
-      check responseBefore.status == 400
+      check responseBefore.status == 422
       check (await responseBefore.body) ==
         "Invalid parameters: parameters must satify `1 < (nodes - tolerance) ≥ tolerance`"
 
@@ -179,9 +179,87 @@ twonodessuite "REST API":
         )
       )
 
-      check responseBefore.status == 400
+      check responseBefore.status == 422
       check (await responseBefore.body) ==
         "Invalid parameters: `tolerance` cannot be greater than `nodes`"
+
+  test "request storage fails if expiry is zero", twoNodesConfig:
+    let data = await RandomChunker.example(blocks = 2)
+    let cid = (await client1.upload(data)).get
+    let duration = 100.uint64
+    let pricePerBytePerSecond = 1.u256
+    let proofProbability = 3.u256
+    let expiry = 0.uint64
+    let collateralPerByte = 1.u256
+    let nodes = 3
+    let tolerance = 1
+
+    var responseBefore = await client1.requestStorageRaw(
+      cid, duration, pricePerBytePerSecond, proofProbability, collateralPerByte, expiry,
+      nodes.uint, tolerance.uint,
+    )
+
+    check responseBefore.status == 422
+    check (await responseBefore.body) ==
+      "Expiry must be greater than zero and less than the request's duration"
+
+  test "request storage fails if proof probability is zero", twoNodesConfig:
+    let data = await RandomChunker.example(blocks = 2)
+    let cid = (await client1.upload(data)).get
+    let duration = 100.uint64
+    let pricePerBytePerSecond = 1.u256
+    let proofProbability = 0.u256
+    let expiry = 30.uint64
+    let collateralPerByte = 1.u256
+    let nodes = 3
+    let tolerance = 1
+
+    var responseBefore = await client1.requestStorageRaw(
+      cid, duration, pricePerBytePerSecond, proofProbability, collateralPerByte, expiry,
+      nodes.uint, tolerance.uint,
+    )
+
+    check responseBefore.status == 422
+    check (await responseBefore.body) == "Proof probability must be greater than zero"
+
+  test "request storage fails if collareral per byte is zero", twoNodesConfig:
+    let data = await RandomChunker.example(blocks = 2)
+    let cid = (await client1.upload(data)).get
+    let duration = 100.uint64
+    let pricePerBytePerSecond = 1.u256
+    let proofProbability = 3.u256
+    let expiry = 30.uint64
+    let collateralPerByte = 0.u256
+    let nodes = 3
+    let tolerance = 1
+
+    var responseBefore = await client1.requestStorageRaw(
+      cid, duration, pricePerBytePerSecond, proofProbability, collateralPerByte, expiry,
+      nodes.uint, tolerance.uint,
+    )
+
+    check responseBefore.status == 422
+    check (await responseBefore.body) == "Collateral per byte must be greater than zero"
+
+  test "request storage fails if price per byte per second is zero", twoNodesConfig:
+    let data = await RandomChunker.example(blocks = 2)
+    let cid = (await client1.upload(data)).get
+    let duration = 100.uint64
+    let pricePerBytePerSecond = 0.u256
+    let proofProbability = 3.u256
+    let expiry = 30.uint64
+    let collateralPerByte = 1.u256
+    let nodes = 3
+    let tolerance = 1
+
+    var responseBefore = await client1.requestStorageRaw(
+      cid, duration, pricePerBytePerSecond, proofProbability, collateralPerByte, expiry,
+      nodes.uint, tolerance.uint,
+    )
+
+    check responseBefore.status == 422
+    check (await responseBefore.body) ==
+      "Price per byte per second must be greater than zero"
 
   for ecParams in @[
     (minBlocks: 2, nodes: 3, tolerance: 1), (minBlocks: 3, nodes: 5, tolerance: 2)
