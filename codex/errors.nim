@@ -63,7 +63,7 @@ proc allFinishedFailed*[T](
 
 proc allFinishedValues*[T](
     futs: seq[Future[?!T]]
-): Future[?!seq[T]] {.async: (raises: [CancelledError]).} =
+): Future[?!seq[?!T]] {.async: (raises: [CancelledError]).} =
   ## If all futures have finished, return corresponding values,
   ## otherwise return failure
   ##
@@ -77,7 +77,7 @@ proc allFinishedValues*[T](
     let values = collect:
       for b in futs:
         if b.finished:
-          b.read.get
+          b.read
     return success values
   except CatchableError as e:
     raiseAssert e.msg
