@@ -82,3 +82,11 @@ when defined(windows):
     let cmd = &"{absolutePath(path)} kill {processName} \"{matchingCriteria}\""
     trace "Forcefully killing windows process", processName, matchingCriteria, cmd
     return await execCommandEx(cmd, timeout = 5.seconds)
+
+proc getDataDir*(testId, testName, startTime, role: string, index = int.none): string =
+  var suffix = role
+  if idx =? index:
+    suffix &= "_" & $idx
+
+  getTempDir() / "Codex" / sanitize(testId) / sanitize(testName) / sanitize(startTime) /
+    sanitize(suffix)

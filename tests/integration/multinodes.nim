@@ -68,8 +68,6 @@ template withLock(lock: AsyncLock, body: untyped) =
     except AsyncLockError as parent:
       raiseMultiNodeSuiteError "lock error", parent
 
-
-
 template multinodesuite*(name: string, body: untyped) =
   asyncchecksuite name:
     # Following the problem described here:
@@ -163,9 +161,7 @@ template multinodesuite*(name: string, body: untyped) =
         raiseMultiNodeSuiteError "Cannot start node at nodeIdx " & $nodeIdx &
           ", not enough eth accounts."
 
-      let datadir =
-        getTempDir() / "Codex" / sanitize(TestId) / sanitize(currentTestName) /
-        sanitize($starttime) / sanitize($role & "_" & $roleIdx)
+      let datadir = getDataDir(TestId, currentTestName, $starttime, $role, some roleIdx)
 
       try:
         if config.logFile.isSome or CodexLogToFile:
