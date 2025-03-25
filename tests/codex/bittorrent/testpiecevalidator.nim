@@ -10,7 +10,7 @@ import pkg/codex/manifest
 import pkg/codex/bittorrent/manifest
 import pkg/codex/bittorrent/piecevalidator
 
-suite "Torrent PieceValidator":
+template createExampleTorrentData() {.dirty.} =
   const numOfPieces = 10
   const pieceLength = 65536
   const contentLength = pieceLength * numOfPieces
@@ -33,6 +33,9 @@ suite "Torrent PieceValidator":
     filename = exampleInfo.name,
     mimetype = "application/octet-stream".some,
   )
+
+suite "Torrent PieceValidator":
+  createExampleTorrentData()
 
   var pieceValidator: TorrentPieceValidator
 
