@@ -8,6 +8,7 @@
 ## those terms.
 
 import std/options
+import std/sugar
 
 import pkg/results
 import pkg/chronos
@@ -42,7 +43,9 @@ func toFailure*[T](exp: Option[T]): Result[T, ref CatchableError] {.inline.} =
   else:
     T.failure("Option is None")
 
-proc allFinishedFailed*[T](futs: seq[Future[T]]): Future[FinishedFailed[T]] {.async.} =
+proc allFinishedFailed*[T](
+    futs: seq[Future[T]]
+): Future[FinishedFailed[T]] {.async: (raises: [CancelledError]).} =
   ## Check if all futures have finished or failed
   ##
   ## TODO: wip, not sure if we want this - at the minimum,
@@ -57,3 +60,24 @@ proc allFinishedFailed*[T](futs: seq[Future[T]]): Future[FinishedFailed[T]] {.as
       res.success.add f
 
   return res
+
+proc allFinishedValues*[T](
+    futs: seq[Future[T]]
+): Future[?!seq[T]] {.async: (raises: [CancelledError]).} =
+  ## If all futures have finished, return corresponding values,
+  ## otherwise return failure
+  ##
+
+  let finishedFailed = await allFinishedFailed(futs)
+
+  if finishedFailed.failure.len > 0:
+    return failure "Some futures failed (" & $finishedFailed.failure.len & ")"
+
+  try:
+    let values = collect:
+      for b in futs:
+        if b.finished:
+          b.read
+    return success values
+  except CatchableError as e:
+    raiseAssert e.msg

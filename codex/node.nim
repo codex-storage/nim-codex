@@ -183,20 +183,24 @@ proc fetchBatched*(
   #   )
 
   while not iter.finished:
-    let blocks = collect:
+    let blockFutures = collect:
       for i in 0 ..< batchSize:
         if not iter.finished:
           let address = BlockAddress.init(cid, iter.next())
           if not (await address in self.networkStore) or fetchLocal:
             self.networkStore.getBlock(address)
 
-    let res = await allFinishedFailed(blocks)
-    if res.failure.len > 0:
-      trace "Some blocks failed to fetch", len = res.failure.len
-      return failure("Some blocks failed to fetch (" & $res.failure.len & " )")
+    without blockResults =? await allFinishedValues(blockFutures), err:
+      trace "Some blocks failed to fetch", err = err.msg
+      return failure(err)
+
+    let numOfFailedBlocks = blockResults.countIt(it.isFailure)
+    if numOfFailedBlocks > 0:
+      return
+        failure("Some blocks failed (Result) to fetch (" & $numOfFailedBlocks & ")")
 
     if not onBatch.isNil and
-        batchErr =? (await onBatch(blocks.mapIt(it.read.get))).errorOption:
+        batchErr =? (await onBatch(blockResults.mapIt(it.get))).errorOption:
       return failure(batchErr)
 
     await sleepAsync(1.millis)
