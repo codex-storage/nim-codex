@@ -73,11 +73,11 @@ proc newTorrentDownloader*(
 
   let queue = newAsyncQueue[TorrentPiece](maxsize = numOfPieces)
 
-  # optional: randomize the order of pieces
-  # not sure if this is such a great idea when streaming content
   let iter = Iter.new(0 ..< numOfPieces)
   var pieceDownloadSequence = newSeqWith(numOfPieces, iter.next())
-  Rng.instance.shuffle(pieceDownloadSequence)
+  # optional: randomize the order of pieces
+  # not sure if this is such a great idea when streaming content
+  # Rng.instance.shuffle(pieceDownloadSequence)
 
   trace "Piece download sequence", pieceDownloadSequence
 
