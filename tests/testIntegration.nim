@@ -124,3 +124,4 @@ when isMainModule:
     import ./integration/testproofs
     import ./integration/testvalidator
     import ./integration/testecbug
+    import ./integration/testrestapivalidation
