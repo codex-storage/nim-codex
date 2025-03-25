@@ -1,3 +1,5 @@
+{.push raises: [].}
+
 import pkg/libp2p/cid
 import pkg/libp2p/multihash
 import pkg/libp2p/protobuf/minprotobuf

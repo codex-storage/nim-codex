@@ -1,3 +1,5 @@
+{.push raises: [].}
+
 import pkg/libp2p
 import pkg/stew/byteutils
 import pkg/questionable
