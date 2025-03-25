@@ -62,8 +62,8 @@ proc allFinishedFailed*[T](
   return res
 
 proc allFinishedValues*[T](
-    futs: seq[Future[?!T]]
-): Future[?!seq[?!T]] {.async: (raises: [CancelledError]).} =
+    futs: seq[Future[T]]
+): Future[?!seq[T]] {.async: (raises: [CancelledError]).} =
   ## If all futures have finished, return corresponding values,
   ## otherwise return failure
   ##
@@ -71,7 +71,7 @@ proc allFinishedValues*[T](
   let finishedFailed = await allFinishedFailed(futs)
 
   if finishedFailed.failure.len > 0:
-    return failure "Some futures failed"
+    return failure "Some futures failed (" & $finishedFailed.failure.len & "))"
 
   try:
     let values = collect:
