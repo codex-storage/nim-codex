@@ -35,10 +35,10 @@ method run*(
     let slot = Slot(request: request, slotIndex: data.slotIndex)
     debug "Collecting finished slot's reward",
       requestId = data.requestId, slotIndex = data.slotIndex
+    let currentCollateral = await market.currentCollateral(slot.id)
     await market.freeSlot(slot.id)
 
-    let collateral = request.ask.collateralPerSlot.stuint(256)
-    return some State(SaleFinished(returnedCollateral: some collateral))
+    return some State(SaleFinished(returnedCollateral: some currentCollateral.stuint(256)))
   except CancelledError as e:
     trace "SalePayout.run onCleanUp was cancelled", error = e.msgDetail
   except CatchableError as e:

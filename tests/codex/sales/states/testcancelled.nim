@@ -17,6 +17,8 @@ asyncchecksuite "sales state 'cancelled'":
   let slotIndex = request.ask.slots div 2
   let clock = MockClock.new()
 
+  let currentCollateral = UInt128.example
+
   var market: MockMarket
   var state: SaleCancelled
   var agent: SalesAgent
@@ -38,16 +40,15 @@ asyncchecksuite "sales state 'cancelled'":
     agent.onCleanUp = onCleanUp
     state = SaleCancelled.new()
 
-  test "calls onCleanUp":
-    let collateral = request.ask.collateralPerSlot
+  test "calls onCleanUp with returnBytes = false, reprocessSlot = true, and returnedCollateral = currentCollateral":
     market.fillSlot(
       requestId = request.id,
       slotIndex = slotIndex,
       proof = Groth16Proof.default,
       host = Address.example,
-      collateral = collateral,
+      collateral = currentCollateral,
     )
     discard await state.run(agent)
     check eventually returnBytesWas == some true
     check eventually reprocessSlotWas == some false
-    check eventually returnedCollateralValue == some collateral.stuint(256)
+    check eventually returnedCollateralValue == some currentCollateral.stuint(256)
