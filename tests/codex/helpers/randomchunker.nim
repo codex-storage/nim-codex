@@ -33,10 +33,10 @@ proc new*(
       return 0
 
     var read = 0
-    while read < len:
+    while read < len and (pad or read < size - consumed):
       rng.shuffle(alpha)
       for a in alpha:
-        if read >= len:
+        if read >= len or (not pad and read >= size - consumed):
           break
 
         data[read] = a
