@@ -1,3 +1,5 @@
+{.push raises: [].}
+
 import std/strformat
 
 import pkg/stew/byteutils
