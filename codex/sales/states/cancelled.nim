@@ -26,6 +26,7 @@ method run*(
     let slot = Slot(request: request, slotIndex: data.slotIndex)
     debug "Collecting collateral and partial payout",
       requestId = data.requestId, slotIndex = data.slotIndex
+    let currentCollateral = await market.currentCollateral(slot.id)
     await market.freeSlot(slot.id)
 
     if onClear =? agent.context.onClear and request =? data.request:
@@ -35,7 +36,7 @@ method run*(
       await onCleanUp(
         returnBytes = true,
         reprocessSlot = false,
-        returnedCollateral = some request.ask.collateralPerSlot.stuint(256),
+        returnedCollateral = some currentCollateral.stuint(256),
       )
 
     warn "Sale cancelled due to timeout",
