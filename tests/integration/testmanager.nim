@@ -350,6 +350,7 @@ proc buildCommand(
             # colours, and loglevel = TRACE).
             "-d:chronicles_log_level=TRACE " &
             "-d:chronicles_sinks=textlines[nocolors,file] " &
+            "-d:nimUnittestOutputLevel:VERBOSE " &
             "--verbosity:0 " &
             "--hints:off " &
             "-d:release " &
