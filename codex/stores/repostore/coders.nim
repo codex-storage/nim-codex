@@ -19,10 +19,10 @@ import ../../errors
 import ../../merkletree
 import ../../utils/json
 
-proc encode*(t: QuotaUsage): seq[byte] =
+proc encode*(t: StorageStats): seq[byte] =
   t.toJson().toBytes()
 
-proc decode*(T: type QuotaUsage, bytes: seq[byte]): ?!T =
+proc decode*(T: type StorageStats, bytes: seq[byte]): ?!T =
   T.fromJson(bytes)
 
 proc encode*(t: BlockMetadata): seq[byte] =

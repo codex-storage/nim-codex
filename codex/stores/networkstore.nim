@@ -69,6 +69,11 @@ method putBlock*(
   await self.engine.resolveBlocks(@[blk])
   return success()
 
+method putCidAndProofBatch*(
+    self: NetworkStore, treeCid: Cid, blkCids: seq[Cid], proofs: seq[CodexProof]
+): Future[?!void] =
+  self.localStore.putCidAndProofBatch(treeCid, blkCids, proofs)
+
 method putCidAndProof*(
     self: NetworkStore, treeCid: Cid, index: Natural, blockCid: Cid, proof: CodexProof
 ): Future[?!void] =

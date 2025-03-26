@@ -82,56 +82,96 @@ proc getLeafMetadata*(
 
   success(leafMd)
 
-proc updateTotalBlocksCount*(
-    self: RepoStore, plusCount: Natural = 0, minusCount: Natural = 0
-): Future[?!void] {.async.} =
-  await self.metaDs.modify(
-    CodexTotalBlocksKey,
-    proc(maybeCurrCount: ?Natural): Future[?Natural] {.async.} =
-      let count: Natural =
-        if currCount =? maybeCurrCount:
-          currCount + plusCount - minusCount
-        else:
-          plusCount - minusCount
-
-      self.totalBlocks = count
-      codex_repostore_blocks.set(count.int64)
-      count.some,
-  )
-
-proc updateQuotaUsage*(
+proc updateQuotaAndBlockCount*(
     self: RepoStore,
+    plusCount: Natural = 0,
+    minusCount: Natural = 0,
     plusUsed: NBytes = 0.NBytes,
     minusUsed: NBytes = 0.NBytes,
     plusReserved: NBytes = 0.NBytes,
     minusReserved: NBytes = 0.NBytes,
 ): Future[?!void] {.async.} =
   await self.metaDs.modify(
-    QuotaUsedKey,
-    proc(maybeCurrUsage: ?QuotaUsage): Future[?QuotaUsage] {.async.} =
-      var usage: QuotaUsage
-
-      if currUsage =? maybeCurrUsage:
-        usage = QuotaUsage(
-          used: currUsage.used + plusUsed - minusUsed,
-          reserved: currUsage.reserved + plusReserved - minusReserved,
+    CodexTotalBlocksKey,
+    proc(maybeCurrStats: ?StorageStats): Future[?StorageStats] {.async.} =
+      var stats: StorageStats
+      if currStats =? maybeCurrStats:
+        stats = StorageStats(
+          quotaUsed: currStats.quotaUsed + plusUsed - minusUsed,
+          quotaReserved: currStats.quotaReserved + plusReserved - minusReserved,
+          totalBlocks: currStats.totalBlocks + plusCount - minusCount,
         )
       else:
-        usage =
-          QuotaUsage(used: plusUsed - minusUsed, reserved: plusReserved - minusReserved)
+        stats = StorageStats(
+          quotaUsed: plusUsed - minusUsed,
+          quotaReserved: plusReserved - minusReserved,
+          totalBlocks: plusCount - minusCount,
+        )
 
-      if usage.used + usage.reserved > self.quotaMaxBytes:
+      if stats.quotaUsed + stats.quotaReserved > self.quotaMaxBytes:
         raise newException(
           QuotaNotEnoughError,
-          "Quota usage would exceed the limit. Used: " & $usage.used & ", reserved: " &
-            $usage.reserved & ", limit: " & $self.quotaMaxBytes,
+          "Quota usage would exceed the limit. Used: " & $stats.quotaUsed &
+            ", reserved: " & $stats.quotaReserved & ", limit: " & $self.quotaMaxBytes,
         )
       else:
-        self.quotaUsage = usage
-        codex_repostore_bytes_used.set(usage.used.int64)
-        codex_repostore_bytes_reserved.set(usage.reserved.int64)
-        return usage.some,
+        self.storageStats = stats
+        codex_repostore_bytes_used.set(stats.quotaUsed.int64)
+        codex_repostore_bytes_reserved.set(stats.quotaReserved.int64)
+        codex_repostore_blocks.set(stats.totalBlocks.int64)
+        return stats.some,
   )
+
+# proc updateTotalBlocksCount*(
+#     self: RepoStore, plusCount: Natural = 0, minusCount: Natural = 0
+# ): Future[?!void] {.async.} =
+#   await self.metaDs.modify(
+#     CodexTotalBlocksKey,
+#     proc(maybeCurrCount: ?Natural): Future[?Natural] {.async.} =
+#       let count: Natural =
+#         if currCount =? maybeCurrCount:
+#           currCount + plusCount - minusCount
+#         else:
+#           plusCount - minusCount
+
+#       self.totalBlocks = count
+#       codex_repostore_blocks.set(count.int64)
+#       count.some,
+#   )
+
+# proc updateQuotaUsage*(
+#     self: RepoStore,
+#     plusUsed: NBytes = 0.NBytes,
+#     minusUsed: NBytes = 0.NBytes,
+#     plusReserved: NBytes = 0.NBytes,
+#     minusReserved: NBytes = 0.NBytes,
+# ): Future[?!void] {.async.} =
+#   await self.metaDs.modify(
+#     QuotaUsedKey,
+#     proc(maybeCurrUsage: ?QuotaUsage): Future[?QuotaUsage] {.async.} =
+#       var usage: QuotaUsage
+
+#       if currUsage =? maybeCurrUsage:
+#         usage = QuotaUsage(
+#           used: currUsage.used + plusUsed - minusUsed,
+#           reserved: currUsage.reserved + plusReserved - minusReserved,
+#         )
+#       else:
+#         usage =
+#           QuotaUsage(used: plusUsed - minusUsed, reserved: plusReserved - minusReserved)
+
+#       if usage.used + usage.reserved > self.quotaMaxBytes:
+#         raise newException(
+#           QuotaNotEnoughError,
+#           "Quota usage would exceed the limit. Used: " & $usage.used & ", reserved: " &
+#             $usage.reserved & ", limit: " & $self.quotaMaxBytes,
+#         )
+#       else:
+#         self.quotaUsage = usage
+#         codex_repostore_bytes_used.set(usage.used.int64)
+#         codex_repostore_bytes_reserved.set(usage.reserved.int64)
+#         return usage.some,
+#   )
 
 proc updateBlockMetadata*(
     self: RepoStore,

@@ -366,7 +366,7 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
   router.api(MethodGet, "/api/codex/v1/space") do() -> RestApiResponse:
     let json =
       %RestRepoStore(
-        totalBlocks: repoStore.totalBlocks,
+        totalBlocks: repoStore.storageStats.totalBlocks,
         quotaMaxBytes: repoStore.quotaMaxBytes,
         quotaUsedBytes: repoStore.quotaUsedBytes,
         quotaReservedBytes: repoStore.quotaReservedBytes,

@@ -114,12 +114,64 @@ method ensureExpiry*(
 
   await self.ensureExpiry(leafMd.blkCid, expiry)
 
+method putCidAndProofBatch*(
+    self: RepoStore, treeCid: Cid, blkCids: seq[Cid], proofs: seq[CodexProof]
+): Future[?!void] {.async.} =
+  var
+    batch = newSeq[BatchEntry]()
+    results = newSeq[StoreResult](blkCids.len)
+    lock = self.locks.mgetOrPut(treeCid, newAsyncLock())
+    batchSize = 50
+  try:
+    await lock.acquire()
+    for i, cid in blkCids:
+      without key =? createBlockCidAndProofMetadataKey(treeCid, i), err:
+        return failure(err)
+
+      # Check existence before adding to batch
+      if exists =? await self.metaDs.has(key):
+        results[i] = StoreResult(kind: AlreadyInStore)
+      else:
+        results[i] = StoreResult(kind: Stored)
+
+      let metadata = LeafMetadata(blkCid: cid, proof: proofs[i])
+      batch.add((key: key, data: metadata.encode))
+
+      if batch.len >= batchSize:
+        try:
+          if err =? (await self.metaDs.ds.put(batch)).errorOption:
+            return failure(err)
+        except CatchableError as e:
+          return failure(e.msg)
+        batch = newSeq[BatchEntry]()
+
+    if batch.len > 0:
+      try:
+        if err =? (await self.metaDs.ds.put(batch)).errorOption:
+          return failure(err)
+      except CatchableError as e:
+        return failure(e.msg)
+  finally:
+    lock.release()
+    if not lock.locked:
+      self.locks.del(treeCid)
+
+  for i, res in results:
+    if res.kind == Stored:
+      if err =?
+          (await self.updateBlockMetadata(blkCids[i], plusRefCount = 1)).errorOption:
+        return failure(err)
+      trace "Leaf metadata stored, block refCount incremented"
+    else:
+      trace "Leaf metadata already exists"
+  return success()
+
 method putCidAndProof*(
     self: RepoStore, treeCid: Cid, index: Natural, blkCid: Cid, proof: CodexProof
 ): Future[?!void] {.async.} =
   ## Put a block to the blockstore
   ##
-
+  # TODO: Add locking for treeCid
   logScope:
     treeCid = treeCid
     index = index
@@ -170,13 +222,19 @@ method putBlock*(
 
   if res.kind == Stored:
     trace "Block Stored"
-    if err =? (await self.updateQuotaUsage(plusUsed = res.used)).errorOption:
-      # rollback changes
+    # if err =? (await self.updateQuotaUsage(plusUsed = res.used)).errorOption:
+    #   # rollback changes
+    #   without delRes =? await self.tryDeleteBlock(blk.cid), err:
+    #     return failure(err)
+    #   return failure(err)
+
+    # if err =? (await self.updateTotalBlocksCount(plusCount = 1)).errorOption:
+    #   return failure(err)
+
+    if err =? (await self.updateQuotaAndBlockCount(plusCount = 1, plusUsed = res.used)).errorOption:
       without delRes =? await self.tryDeleteBlock(blk.cid), err:
         return failure(err)
-      return failure(err)
 
-    if err =? (await self.updateTotalBlocksCount(plusCount = 1)).errorOption:
       return failure(err)
 
     if onBlock =? self.onBlockStored:
@@ -200,10 +258,15 @@ proc delBlockInternal(self: RepoStore, cid: Cid): Future[?!DeleteResultKind] {.a
 
   if res.kind == Deleted:
     trace "Block deleted"
-    if err =? (await self.updateTotalBlocksCount(minusCount = 1)).errorOption:
-      return failure(err)
+    # if err =? (await self.updateTotalBlocksCount(minusCount = 1)).errorOption:
+    #   return failure(err)
 
-    if err =? (await self.updateQuotaUsage(minusUsed = res.released)).errorOption:
+    # if err =? (await self.updateQuotaUsage(minusUsed = res.released)).errorOption:
+    #   return failure(err)
+
+    if err =? (
+      await self.updateQuotaAndBlockCount(minusCount = 1, minusUsed = res.released)
+    ).errorOption:
       return failure(err)
 
   success(res.kind)
@@ -386,7 +449,7 @@ proc reserve*(self: RepoStore, bytes: NBytes): Future[?!void] {.async.} =
 
   trace "Reserving bytes", bytes
 
-  await self.updateQuotaUsage(plusReserved = bytes)
+  await self.updateQuotaAndBlockCount(plusReserved = bytes)
 
 proc release*(self: RepoStore, bytes: NBytes): Future[?!void] {.async.} =
   ## Release bytes
@@ -394,7 +457,7 @@ proc release*(self: RepoStore, bytes: NBytes): Future[?!void] {.async.} =
 
   trace "Releasing bytes", bytes
 
-  await self.updateQuotaUsage(minusReserved = bytes)
+  await self.updateQuotaAndBlockCount(minusReserved = bytes)
 
 proc start*(self: RepoStore): Future[void] {.async.} =
   ## Start repo
@@ -405,10 +468,7 @@ proc start*(self: RepoStore): Future[void] {.async.} =
     return
 
   trace "Starting rep"
-  if err =? (await self.updateTotalBlocksCount()).errorOption:
-    raise newException(CodexError, err.msg)
-
-  if err =? (await self.updateQuotaUsage()).errorOption:
+  if err =? (await self.updateQuotaAndBlockCount()).errorOption:
     raise newException(CodexError, err.msg)
 
   self.started = true
