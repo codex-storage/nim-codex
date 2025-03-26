@@ -16,7 +16,7 @@ import ../stores/networkstore
 import ./manifest
 
 logScope:
-  topics = "codex piecedownloader"
+  topics = "codex node torrentdownloader"
 
 type
   PieceHandle* = Future[void].Raising([CancelledError])
@@ -26,7 +26,6 @@ type
     blockIndexStart: int
     blockIndexEnd: int
     handle: PieceHandle
-    randomIndex: int
 
   TorrentDownloader* = ref object
     torrentManifest: BitTorrentManifest
@@ -49,25 +48,30 @@ proc newTorrentPiece*(
     handle: cast[PieceHandle](newFuture[void]("PieceValidator.newTorrentPiece")),
   )
 
-proc randomize(self: TorrentPiece, numberOfPieces: int): void =
-  self.randomIndex = Rng.instance.rand(max = numberOfPieces * 10)
-
 proc newTorrentDownloader*(
     torrentManifest: BitTorrentManifest,
     codexManifest: Manifest,
     networkStore: NetworkStore,
 ): ?!TorrentDownloader =
-  let numOfPieces = torrentManifest.info.pieces.len
-  let numOfBlocksPerPiece =
-    torrentManifest.info.pieceLength.int div codexManifest.blockSize.int
+  let
+    blocksCount = codexManifest.blocksCount
+    numOfPieces = torrentManifest.info.pieces.len
+    numOfBlocksPerPiece =
+      torrentManifest.info.pieceLength.int div codexManifest.blockSize.int
+    numOfBlocksInLastPiece = blocksCount - (numOfBlocksPerPiece * (numOfPieces - 1))
 
   let pieces = collect:
     for i in 0 ..< numOfPieces:
+      var blockIndexEnd = ((i + 1) * numOfBlocksPerPiece) - 1
+      if i == numOfPieces - 1:
+        # last piece can have less blocks than numOfBlocksPerPiece
+        blockIndexEnd = i * numOfBlocksPerPiece + numOfBlocksInLastPiece - 1
+
       let piece = newTorrentPiece(
         pieceIndex = i,
         pieceHash = torrentManifest.info.pieces[i],
         blockIndexStart = i * numOfBlocksPerPiece,
-        blockIndexEnd = ((i + 1) * numOfBlocksPerPiece) - 1,
+        blockIndexEnd = blockIndexEnd,
       )
       piece
 
@@ -98,17 +102,31 @@ proc newTorrentDownloader*(
     queue: queue,
   ).success
 
-func numberOfBlocksPerPiece*(self: TorrentDownloader): int =
-  self.numberOfBlocksPerPiece
+proc getNewBlockIterator(piece: TorrentPiece): Iter[int] =
+  Iter[int].new(piece.blockIndexStart .. piece.blockIndexEnd)
+
+func numberOfBlocks(piece: TorrentPiece): int =
+  piece.blockIndexEnd - piece.blockIndexStart + 1
+
+func numberOfBlocksInPiece*(self: TorrentDownloader, pieceIndex: int): ?!int =
+  if pieceIndex < 0 or pieceIndex >= self.numberOfPieces:
+    return failure("Invalid piece index")
+  let piece = self.pieces[pieceIndex]
+  success(piece.numberOfBlocks)
+
+proc getNewBlocksInPieceIterator*(
+    self: TorrentDownloader, pieceIndex: int
+): ?!Iter[int] =
+  if pieceIndex < 0 or pieceIndex >= self.numberOfPieces:
+    return failure("Invalid piece index")
+  let piece = self.pieces[pieceIndex]
+  success(piece.getNewBlockIterator())
 
 proc getNewPieceIterator*(self: TorrentDownloader): Iter[int] =
   Iter[int].new(0 ..< self.numberOfPieces)
 
-proc getNewBlocksPerPieceIterator*(self: TorrentDownloader): Iter[int] =
-  Iter[int].new(0 ..< self.numberOfBlocksPerPiece)
-
-proc getBlockIterator(self: TorrentPiece): Iter[int] =
-  Iter[int].new(self.blockIndexStart .. self.blockIndexEnd)
+# proc getNewBlocksPerPieceIterator*(self: TorrentDownloader): Iter[int] =
+#   Iter[int].new(0 ..< self.numberOfBlocksPerPiece)
 
 proc waitForNextPiece*(
     self: TorrentDownloader
@@ -122,7 +140,7 @@ proc waitForNextPiece*(
 proc cancel*(self: TorrentDownloader): Future[void] {.async: (raises: []).} =
   await noCancel allFutures(self.pieces.mapIt(it.handle.cancelAndWait))
 
-proc validate*(piece: TorrentPiece, blocks: seq[Block]): ?!void {.raises: [].} =
+proc validate(piece: TorrentPiece, blocks: seq[Block]): ?!void {.raises: [].} =
   var pieceHashCtx: sha1
   pieceHashCtx.init()
 
@@ -136,7 +154,7 @@ proc validate*(piece: TorrentPiece, blocks: seq[Block]): ?!void {.raises: [].} =
 
   success()
 
-proc allBlocksFinished*(futs: seq[Future[?!Block]]): seq[?!Block] {.raises: [].} =
+proc allBlocksFinished(futs: seq[Future[?!Block]]): seq[?!Block] {.raises: [].} =
   ## If all futures have finished, return corresponding values,
   ## otherwise return failure
   ##
@@ -154,7 +172,7 @@ proc deleteBlocks(
     self: TorrentDownloader, piece: TorrentPiece
 ): Future[void] {.async: (raises: [CancelledError]).} =
   let treeCid = self.codexManifest.treeCid
-  let blockIter = piece.getBlockIterator()
+  let blockIter = piece.getNewBlockIterator()
   while not blockIter.finished:
     # deleting a block that is not in localStore is harmless
     # blocks that are in localStore and in use will not be deleted
@@ -172,11 +190,11 @@ proc getSuccessfulBlocks(futs: seq[Future[?!Block]]): ?!seq[Block] {.raises: [].
     return failure("Some blocks failed to fetch")
   success blockResults.mapIt(it.get)
 
-proc fetchPiece*(
+proc fetchPiece(
     self: TorrentDownloader, piece: TorrentPiece
 ): Future[?!void] {.async: (raises: [CancelledError]).} =
   let treeCid = self.codexManifest.treeCid
-  let blockIter = piece.getBlockIterator()
+  let blockIter = piece.getNewBlockIterator()
   var blockFutures = newSeq[Future[?!Block]]()
   for blockIndex in blockIter:
     let address = BlockAddress.init(treeCid, blockIndex)
