@@ -76,7 +76,9 @@ proc config(
 
   return resolvedConfig
 
-proc approveFunds(market: OnChainMarket, amount: UInt256) {.async.} =
+proc approveFunds(
+    market: OnChainMarket, amount: UInt256
+) {.async: (raises: [CancelledError, MarketError]).} =
   debug "Approving tokens", amount
   convertEthersError("Failed to approve funds"):
     let tokenAddress = await market.contract.token()
@@ -105,7 +107,9 @@ method getZkeyHash*(
   let config = await market.config()
   return some config.proofs.zkeyHash
 
-method getSigner*(market: OnChainMarket): Future[Address] {.async.} =
+method getSigner*(
+    market: OnChainMarket
+): Future[Address] {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError("Failed to get signer address"):
     return await market.signer.getAddress()
 
@@ -159,7 +163,9 @@ method mySlots*(market: OnChainMarket): Future[seq[SlotId]] {.async.} =
 
     return slots
 
-method requestStorage(market: OnChainMarket, request: StorageRequest) {.async.} =
+method requestStorage(
+    market: OnChainMarket, request: StorageRequest
+) {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError("Failed to request storage"):
     debug "Requesting storage"
     await market.approveFunds(request.totalPrice())
@@ -243,7 +249,7 @@ method fillSlot(
     slotIndex: uint64,
     proof: Groth16Proof,
     collateral: UInt256,
-) {.async.} =
+) {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError("Failed to fill slot"):
     logScope:
       requestId
@@ -260,7 +266,9 @@ method fillSlot(
         parent,
       )
 
-method freeSlot*(market: OnChainMarket, slotId: SlotId) {.async.} =
+method freeSlot*(
+    market: OnChainMarket, slotId: SlotId
+) {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError("Failed to free slot"):
     var freeSlot: Future[Confirmable]
     if rewardRecipient =? market.rewardRecipient:
@@ -279,7 +287,9 @@ method freeSlot*(market: OnChainMarket, slotId: SlotId) {.async.} =
 
     discard await freeSlot.confirm(1)
 
-method withdrawFunds(market: OnChainMarket, requestId: RequestId) {.async.} =
+method withdrawFunds(
+    market: OnChainMarket, requestId: RequestId
+) {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError("Failed to withdraw funds"):
     discard await market.contract.withdrawFunds(requestId).confirm(1)
 
@@ -306,13 +316,15 @@ method getChallenge*(
     let overrides = CallOverrides(blockTag: some BlockTag.pending)
     return await market.contract.getChallenge(id, overrides)
 
-method submitProof*(market: OnChainMarket, id: SlotId, proof: Groth16Proof) {.async.} =
+method submitProof*(
+    market: OnChainMarket, id: SlotId, proof: Groth16Proof
+) {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError("Failed to submit proof"):
     discard await market.contract.submitProof(id, proof).confirm(1)
 
 method markProofAsMissing*(
     market: OnChainMarket, id: SlotId, period: Period
-) {.async.} =
+) {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError("Failed to mark proof as missing"):
     discard await market.contract.markProofAsMissing(id, period).confirm(1)
 
@@ -331,7 +343,7 @@ method canProofBeMarkedAsMissing*(
 
 method reserveSlot*(
     market: OnChainMarket, requestId: RequestId, slotIndex: uint64
-) {.async.} =
+) {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError("Failed to reserve slot"):
     try:
       discard await market.contract
