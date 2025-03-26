@@ -334,9 +334,6 @@ proc buildCommand(
       else:
         "TRACE;disabled:libp2p,websock,JSONRPC-HTTP-CLIENT,JSONRPC-WS-CLIENT,discv5"
 
-    let unittestVerbosity =
-      when not defined(windows): "-d:nimUnittestOutputLevel:VERBOSE" else: ""
-
     withLock(test.manager.hardhatPortLock):
       try:
         return
@@ -353,7 +350,7 @@ proc buildCommand(
             # colours, and loglevel = TRACE).
             "-d:chronicles_log_level=TRACE " &
             "-d:chronicles_sinks=textlines[nocolors,file] " &
-            &"{unittestVerbosity} " &
+            "-d:nimUnittestOutputLevel:VERBOSE " &
             "--verbosity:0 " &
             "--hints:off " &
             "-d:release " &
