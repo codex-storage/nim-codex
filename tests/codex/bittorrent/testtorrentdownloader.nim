@@ -103,32 +103,45 @@ asyncchecksuite "Torrent Downloader":
     torrentManifestBlock =
       (await storeTorrentManifest(torrentManifest, localStore)).tryGet()
 
-  # setup:
-  #   await createTestData(datasetSize = 40.KiBs.int)
+  proc validatePiece(torrentDownloader: TorrentDownloader, pieceIndex: int) {.async.} =
+    let treeCid = codexManifest.treeCid
+    var pieceHashCtx: sha1
+    pieceHashCtx.init()
+    let blockIter = torrentDownloader.getNewBlocksInPieceIterator(pieceIndex).tryGet
+    let blks = newSeq[Block]()
+    while not blockIter.finished:
+      let blockIndex = blockIter.next()
+      let address = BlockAddress.init(treeCid, blockIndex)
+      let blk = (await localStore.getBlock(address)).tryGet()
+      trace "got block from local store", treeCid, blockIndex, cid = blk.cid
+      pieceHashCtx.update(blk.data)
+    let computedPieceHash = pieceHashCtx.finish()
+    let expectedPieceHash = torrentDownloader.pieces[pieceIndex].pieceHash
+    trace "comparing piece hashes", expectedPieceHash, computedPieceHash
+    check expectedPieceHash == computedPieceHash
+    trace "piece validated", treeCid, pieceIndex
 
-  #   torrentDownloader =
-  #     newTorrentDownloader(torrentManifest, codexManifest, networkStore).tryGet()
-
-  test "correctly sets up the pieces":
+  setup:
     await createTestData(datasetSize = 72.KiBs.int)
+
+    torrentDownloader =
+      newTorrentDownloader(torrentManifest, codexManifest, networkStore).tryGet()
 
     assert torrentInfo.pieces.len == 2
     assert codexManifest.blocksCount == 5
 
+  test "correctly sets up the pieces":
     let blocksCount = codexManifest.blocksCount
     let numOfPieces = torrentInfo.pieces.len
     # last piece can have less blocks than numOfBlocksPerPiece
     # we know how many blocks we have:
     let numOfBlocksInLastPiece = blocksCount - (numOfBlocksPerPiece * (numOfPieces - 1))
 
-    torrentDownloader =
-      newTorrentDownloader(torrentManifest, codexManifest, networkStore).tryGet()
-
-    echo "codeManifest: ", $codexManifest
-    echo "torrentInfo: ", $torrentInfo
-    echo "torrentManifest: ", $torrentManifest
-    echo "codexManifestBlockCid: ", $(codexManifestBlock.cid)
-    echo "torrentManifestBlockCid: ", $(torrentManifestBlock.cid)
+    # echo "codeManifest: ", $codexManifest
+    # echo "torrentInfo: ", $torrentInfo
+    # echo "torrentManifest: ", $torrentManifest
+    # echo "codexManifestBlockCid: ", $(codexManifestBlock.cid)
+    # echo "torrentManifestBlockCid: ", $(torrentManifestBlock.cid)
 
     check torrentDownloader.pieces.len == torrentInfo.pieces.len
     check torrentDownloader.numberOfBlocksPerPiece == numOfBlocksPerPiece
@@ -155,35 +168,8 @@ asyncchecksuite "Torrent Downloader":
       check blockIterator.finished == true
       check piece.handle.finished == false
 
-  proc validatePiece(torrentDownloader: TorrentDownloader, pieceIndex: int) {.async.} =
-    let treeCid = codexManifest.treeCid
-    var pieceHashCtx: sha1
-    pieceHashCtx.init()
-    let blockIter = torrentDownloader.getNewBlocksInPieceIterator(pieceIndex).tryGet
-    let blks = newSeq[Block]()
-    while not blockIter.finished:
-      let blockIndex = blockIter.next()
-      let address = BlockAddress.init(treeCid, blockIndex)
-      let blk = (await localStore.getBlock(address)).tryGet()
-      trace "got block from local store", treeCid, blockIndex, cid = blk.cid
-      pieceHashCtx.update(blk.data)
-    let computedPieceHash = pieceHashCtx.finish()
-    let expectedPieceHash = torrentDownloader.pieces[pieceIndex].pieceHash
-    trace "comparing piece hashes", expectedPieceHash, computedPieceHash
-    check expectedPieceHash == computedPieceHash
-    trace "piece validated", treeCid, pieceIndex
-
-  test "downloading pieces":
-    await createTestData(datasetSize = 72.KiBs.int)
-
-    assert torrentInfo.pieces.len == 2
-    assert codexManifest.blocksCount == 5
-
-    torrentDownloader =
-      newTorrentDownloader(torrentManifest, codexManifest, networkStore).tryGet()
-
-    # start background task
-    let downloadFut = torrentDownloader.downloadPieces()
+  test "pieces are validated":
+    torrentDownloader.start()
 
     let pieceIter = torrentDownloader.getNewPieceIterator()
 
@@ -200,3 +186,55 @@ asyncchecksuite "Torrent Downloader":
 
     check (await torrentDownloader.waitForNextPiece()) == -1
     check torrentDownloader.queue.empty
+
+  test "get downloaded blocks":
+    torrentDownloader.start()
+
+    let blockIter = Iter.new(0 ..< codexManifest.blocksCount)
+
+    while not torrentDownloader.finished:
+      let dataFut = torrentDownloader.getNext()
+      let status = await dataFut.withTimeout(1.seconds)
+      assert status == true
+      let (blockIndex, data) = (await dataFut).tryGet()
+      trace "got data", blockIndex, len = data.len
+      let expectedBlockIndex = blockIter.next()
+      check blockIndex == expectedBlockIndex
+      let treeCid = codexManifest.treeCid
+      let address = BlockAddress.init(treeCid, expectedBlockIndex)
+      let blk = (await localStore.getBlock(address)).tryGet()
+      check blk.data == data
+
+    check blockIter.finished
+    await torrentDownloader.stop()
+
+  test "canceling download":
+    torrentDownloader.start()
+
+    let blockIter = Iter.new(0 ..< codexManifest.blocksCount)
+
+    var (blockIndex, data) = (await torrentDownloader.getNext()).tryGet()
+
+    check blockIndex == 0
+    check data.len > 0
+
+    await torrentDownloader.stop()
+
+    (blockIndex, data) = (await torrentDownloader.getNext()).tryGet()
+    check blockIndex == -1
+    check data.len == 0
+
+  test "stoping before starting (simulate cancellation)":
+    let blockIter = Iter.new(0 ..< codexManifest.blocksCount)
+
+    # download did not even start, thus this one will not complete
+    let dataFut = torrentDownloader.getNext()
+
+    # calling stop will cancel awaiting for the next block
+    await torrentDownloader.stop()
+
+    assert dataFut.finished
+
+    let (blockIndex, data) = dataFut.read.tryGet()
+    check blockIndex == -1
+    check data.len == 0
