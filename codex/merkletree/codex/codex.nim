@@ -15,7 +15,7 @@ import std/sequtils
 import pkg/questionable
 import pkg/questionable/results
 import pkg/libp2p/[cid, multicodec, multihash]
-
+import pkg/constantine/hashes
 import ../../utils
 import ../../rng
 import ../../errors
@@ -132,9 +132,13 @@ func compress*(x, y: openArray[byte], key: ByteTreeKey, mhash: MHash): ?!ByteHas
   ## Compress two hashes
   ##
 
-  var digest = newSeq[byte](mhash.size)
-  mhash.coder(@x & @y & @[key.byte], digest)
-  success digest
+  # Using Constantine's SHA256 instead of mhash for optimal performance on 32-byte merkle node hashing
+  # See: https://github.com/codex-storage/nim-codex/issues/1162
+
+  let input = @x & @y & @[key.byte]
+  var digest = hashes.sha256.hash(input)
+
+  success @digest
 
 func init*(
     _: type CodexTree, mcodec: MultiCodec = Sha256HashCodec, leaves: openArray[ByteHash]
