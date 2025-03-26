@@ -39,12 +39,11 @@ suite "Test coders":
     for val in newSeqWith[Natural](100, rand(Natural)) & @[Natural.low, Natural.high]:
       check:
         success(val) == Natural.decode(encode(val))
-  
-  test "StorageStats encode/decode":
-  for val in newSeqWith[StorageStats](100, rand(StorageStats)):
-    check:
-      success(val) == StorageStats.decode(encode(val))
 
+  test "StorageStats encode/decode":
+    for val in newSeqWith[StorageStats](100, rand(StorageStats)):
+      check:
+        success(val) == StorageStats.decode(encode(val))
 
   test "BlockMetadata encode/decode":
     for val in newSeqWith[BlockMetadata](100, rand(BlockMetadata)):
