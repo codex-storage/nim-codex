@@ -68,8 +68,8 @@ template withLock(lock: AsyncLock, body: untyped) =
     except AsyncLockError as parent:
       raiseMultiNodeSuiteError "lock error", parent
 
-template multinodesuite*(name: string, body: untyped) =
-  asyncchecksuite name:
+template multinodesuite*(suiteName: string, body: untyped) =
+  asyncchecksuite suiteName:
     # Following the problem described here:
     # https://github.com/NomicFoundation/hardhat/issues/2053
     # It may be desirable to use http RPC provider.
@@ -108,7 +108,6 @@ template multinodesuite*(name: string, body: untyped) =
       currentTestName = tname
       nodeConfigs = startNodeConfigs
       test tname:
-        trace "Starting test", name = tname, nodeConfigs
         tbody
 
     proc updatePort(url: var string, port: int) =
@@ -121,8 +120,9 @@ template multinodesuite*(name: string, body: untyped) =
       var args: seq[string] = @[]
       if config.logFile:
         try:
-          let updatedLogFile =
-            getLogFile(CodexLogsDir, starttime, name, currentTestName, $role, none int)
+          let updatedLogFile = getLogFile(
+            CodexLogsDir, starttime, suiteName, currentTestName, $role, none int
+          )
           args.add "--log-file=" & updatedLogFile
         except IOError as e:
           raiseMultiNodeSuiteError(
@@ -167,7 +167,7 @@ template multinodesuite*(name: string, body: untyped) =
         if config.logFile.isSome or CodexLogToFile:
           try:
             let updatedLogFile = getLogFile(
-              CodexLogsDir, starttime, name, currentTestName, $role, some roleIdx
+              CodexLogsDir, starttime, suiteName, currentTestName, $role, some roleIdx
             )
             config.withLogFile(updatedLogFile)
           except IOError as e:
@@ -304,6 +304,7 @@ template multinodesuite*(name: string, body: untyped) =
           e.msg, e
 
     proc teardownImpl() {.async: (raises: []).} =
+      trace "Tearing down test", suite = suiteName, test = currentTestName
       for nodes in @[validators(), clients(), providers()]:
         for node in nodes:
           await node.stop() # also stops rest client
@@ -368,6 +369,8 @@ template multinodesuite*(name: string, body: untyped) =
         doAssert success, "Failed to open log file: " & logFile
 
     setup:
+      trace "Setting up test", suite = suiteName, test = currentTestName, nodeConfigs
+
       if var conf =? nodeConfigs.hardhat:
         try:
           let node = await noCancel startHardhatNode(conf)
@@ -420,7 +423,10 @@ template multinodesuite*(name: string, body: untyped) =
       # ensure that we have a recent block with a fresh timestamp
       discard await send(ethProvider, "evm_mine")
 
+      trace "Starting test", suite = suiteName, test = currentTestName
+
     teardown:
       await teardownImpl()
+      trace "Test completed", suite = suiteName, test = currentTestName
 
     body
