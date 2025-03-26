@@ -1,14 +1,16 @@
 {.push raises: [].}
 
+# import std/asyncstreams
 import std/sequtils
 import std/sugar
 import pkg/chronos
 import pkg/libp2p/multihash
 import pkg/questionable/results
 
-import ../rng
+# import ../rng
 import ../logutils
 import ../utils/iter
+import ../utils/trackedfutures
 import ../errors
 import ../manifest
 import ../blocktype
@@ -35,7 +37,10 @@ type
     numberOfBlocksPerPiece: int
     pieces: seq[TorrentPiece]
     waitIter: Iter[int]
+    blockIter: Iter[int]
+    pieceIndex: int
     queue: AsyncQueue[TorrentPiece]
+    trackedFutures: TrackedFutures
 
 proc newTorrentPiece*(
     pieceIndex: int, pieceHash: MultiHash, blockIndexStart: int, blockIndexEnd: int
@@ -99,7 +104,10 @@ proc newTorrentDownloader*(
     numberOfBlocksPerPiece: numOfBlocksPerPiece,
     pieces: pieces,
     waitIter: Iter[int].new(0 ..< numOfPieces),
+    blockIter: Iter[int].empty(),
+    pieceIndex: 0,
     queue: queue,
+    trackedFutures: TrackedFutures(),
   ).success
 
 proc getNewBlockIterator(piece: TorrentPiece): Iter[int] =
@@ -215,10 +223,11 @@ proc fetchPiece(
 
   success()
 
-proc downloadPieces*(self: TorrentDownloader): Future[?!void] {.async: (raises: []).} =
+proc downloadPieces*(self: TorrentDownloader): Future[void] {.async: (raises: []).} =
   try:
     while not self.queue.empty:
       let piece = self.queue.popFirstNoWait()
+      trace "Downloading piece", pieceIndex = piece.pieceIndex
       if err =? (await self.fetchPiece(piece)).errorOption:
         error "Could not fetch piece", err = err.msg
         # add the piece to the end of the queue
@@ -228,19 +237,85 @@ proc downloadPieces*(self: TorrentDownloader): Future[?!void] {.async: (raises: 
       else:
         # piece fetched and validated successfully
         # mark it as ready
+        trace "Piece fetched and validated", pieceIndex = piece.pieceIndex
         piece.handle.complete()
       await sleepAsync(1.millis)
   except CancelledError:
     trace "Downloading pieces cancelled"
   except AsyncQueueFullError as e:
     error "Queue is full", error = e.msg
-    return failure e
   except AsyncQueueEmptyError as e:
     error "Trying to pop from empty queue", error = e.msg
-    return failure e
   finally:
     await noCancel self.cancel()
-  success()
+
+# proc downloadPieces*(self: TorrentDownloader): Future[?!void] {.async: (raises: []).} =
+#   try:
+#     while not self.queue.empty:
+#       let piece = self.queue.popFirstNoWait()
+#       if err =? (await self.fetchPiece(piece)).errorOption:
+#         error "Could not fetch piece", err = err.msg
+#         # add the piece to the end of the queue
+#         # to try to fetch the piece again
+#         self.queue.addLastNoWait(piece)
+#         continue
+#       else:
+#         # piece fetched and validated successfully
+#         # mark it as ready
+#         piece.handle.complete()
+#       await sleepAsync(1.millis)
+#   except CancelledError:
+#     trace "Downloading pieces cancelled"
+#   except AsyncQueueFullError as e:
+#     error "Queue is full", error = e.msg
+#     return failure e
+#   except AsyncQueueEmptyError as e:
+#     error "Trying to pop from empty queue", error = e.msg
+#     return failure e
+#   finally:
+#     await noCancel self.cancel()
+#   success()
+
+proc getNext*(
+    self: TorrentDownloader
+): Future[?!(int, seq[byte])] {.async: (raises: []).} =
+  try:
+    if self.pieceIndex == -1:
+      return success((-1, newSeq[byte]()))
+    if self.blockIter.finished:
+      trace "Waiting for piece", pieceIndex = self.pieceIndex
+      self.pieceIndex = await self.waitForNextPiece()
+      trace "Got piece", pieceIndex = self.pieceIndex
+      if self.pieceIndex == -1:
+        return success((-1, newSeq[byte]()))
+      else:
+        let piece = self.pieces[self.pieceIndex]
+        self.blockIter = piece.getNewBlockIterator()
+    let blockIndex = self.blockIter.next()
+    if blockIndex == self.codexManifest.blocksCount - 1:
+      self.pieceIndex = -1
+    let address = BlockAddress.init(self.codexManifest.treeCid, blockIndex)
+    without blk =? (await self.networkStore.localStore.getBlock(address)), err:
+      error "Could not get block from local store", error = err.msg
+      return failure("Could not get block from local store: " & err.msg)
+    success((blockIndex, blk.data))
+  except CancelledError:
+    trace "Getting next block from downloader cancelled"
+    return success((-1, newSeq[byte]()))
+  except CatchableError as e:
+    warn "Could not get block from local store", error = e.msg
+    return failure("Could not get block from local store: " & e.msg)
+
+proc finished*(self: TorrentDownloader): bool =
+  self.pieceIndex == -1
+
+proc start*(self: TorrentDownloader) =
+  self.trackedFutures.track(self.downloadPieces())
+
+proc stop*(self: TorrentDownloader) {.async.} =
+  self.pieceIndex = -1
+  await noCancel self.cancel()
+  await noCancel self.trackedFutures.cancelTracked()
 
 #################################################################
 # Previous API, keeping it for now, probably will not be needed
