@@ -49,7 +49,7 @@ type
     canReserveSlot*: bool
     errorOnReserveSlot*: ?(ref MarketError)
     errorOnFillSlot*: ?(ref MarketError)
-    errorOnFreeSlot*: ?(ref CatchableError)
+    errorOnFreeSlot*: ?(ref MarketError)
     errorOnGetHost*: ?(ref MarketError)
     clock: ?Clock
 
@@ -420,10 +420,10 @@ func setErrorOnFillSlot*(market: MockMarket, error: ref MarketError) =
     else:
       some error
 
-func setErrorOnFreeSlot*(market: MockMarket, error: ref CatchableError) =
+func setErrorOnFreeSlot*(market: MockMarket, error: ref MarketError) =
   market.errorOnFreeSlot =
     if error.isNil:
-      none (ref CatchableError)
+      none (ref MarketError)
     else:
       some error
 
