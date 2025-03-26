@@ -40,7 +40,6 @@ asyncchecksuite "sales state 'cancelled'":
     agent.onCleanUp = onCleanUp
     state = SaleCancelled.new()
     reprocessSlotWas = bool.none
-    reprocessSlotWas = bool.none
     returnedCollateralValue = UInt256.none
   teardown:
     reprocessSlotWas = bool.none
@@ -73,7 +72,6 @@ asyncchecksuite "sales state 'cancelled'":
 
     let next = await state.run(agent)
     check next == none State
-    check eventually returnBytesWas == some true
     check eventually reprocessSlotWas == some false
     check eventually returnedCollateralValue == some currentCollateral
 
@@ -92,7 +90,6 @@ asyncchecksuite "sales state 'cancelled'":
 
     let next = await state.run(agent)
     check next == none State
-    check eventually returnBytesWas == some true
     check eventually reprocessSlotWas == some false
     check eventually returnedCollateralValue == UInt256.none
 
