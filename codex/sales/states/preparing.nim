@@ -56,7 +56,7 @@ method run*(
     let slotId = slotId(data.requestId, data.slotIndex)
     let state = await market.slotState(slotId)
     if state != SlotState.Free and state != SlotState.Repair:
-      return some State(SaleIgnored(reprocessSlot: false, returnBytes: false))
+      return some State(SaleIgnored(reprocessSlot: false))
 
     # TODO: Once implemented, check to ensure the host is allowed to fill the slot,
     # due to the [sliding window mechanism](https://github.com/codex-storage/codex-research/blob/master/design/marketplace.md#dispersal)
@@ -68,10 +68,12 @@ method run*(
       pricePerBytePerSecond = request.ask.pricePerBytePerSecond
       collateralPerByte = request.ask.collateralPerByte
 
+    let requestEnd = await market.getRequestEnd(data.requestId)
+
     without availability =?
       await reservations.findAvailability(
         request.ask.slotSize, request.ask.duration, request.ask.pricePerBytePerSecond,
-        request.ask.collateralPerByte,
+        request.ask.collateralPerByte, requestEnd,
       ):
       debug "No availability found for request, ignoring"
 
@@ -82,7 +84,7 @@ method run*(
     without reservation =?
       await reservations.createReservation(
         availability.id, request.ask.slotSize, request.id, data.slotIndex,
-        request.ask.collateralPerByte,
+        request.ask.collateralPerByte, requestEnd,
       ), error:
       trace "Creation of reservation failed"
       # Race condition:

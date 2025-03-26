@@ -484,10 +484,19 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
 
       without availability =? (
         await reservations.createAvailability(
-          restAv.totalSize, restAv.duration, restAv.minPricePerBytePerSecond,
+          restAv.totalSize,
+          restAv.duration,
+          restAv.minPricePerBytePerSecond,
           restAv.totalCollateral,
+          enabled = restAv.enabled |? true,
+          until = restAv.until |? 0,
         )
       ), error:
+        if error of CancelledError:
+          raise error
+        if error of UntilOutOfBoundsError:
+          return RestApiResponse.error(Http422, error.msg)
+
         return RestApiResponse.error(Http500, error.msg, headers = headers)
 
       return RestApiResponse.response(
@@ -524,6 +533,7 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
     ##   tokens) to be matched against the request's pricePerBytePerSecond
     ## totalCollateral - total collateral (in amount of
     ##   tokens) that can be distributed among matching requests
+
     try:
       without contracts =? node.contracts.host:
         return RestApiResponse.error(Http503, "Persistence is not enabled")
@@ -577,10 +587,21 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
       if totalCollateral =? restAv.totalCollateral:
         availability.totalCollateral = totalCollateral
 
-      if err =? (await reservations.update(availability)).errorOption:
-        return RestApiResponse.error(Http500, err.msg)
+      if until =? restAv.until:
+        availability.until = until
 
-      return RestApiResponse.response(Http200)
+      if enabled =? restAv.enabled:
+        availability.enabled = enabled
+
+      if err =? (await reservations.update(availability)).errorOption:
+        if err of CancelledError:
+          raise err
+        if err of UntilOutOfBoundsError:
+          return RestApiResponse.error(Http422, err.msg)
+        else:
+          return RestApiResponse.error(Http500, err.msg)
+
+      return RestApiResponse.response(Http204)
     except CatchableError as exc:
       trace "Excepting processing request", exc = exc.msg
       return RestApiResponse.error(Http500)

@@ -67,4 +67,3 @@ asyncchecksuite "sales state 'SlotReserving'":
     let next = !(await state.run(agent))
     check next of SaleIgnored
     check SaleIgnored(next).reprocessSlot == false
-    check SaleIgnored(next).returnBytes

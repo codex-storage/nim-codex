@@ -14,6 +14,7 @@ import pkg/codex/stores/repostore
 import pkg/codex/blocktype as bt
 import pkg/codex/node
 import pkg/codex/utils/asyncstatemachine
+import times
 import ../../asynctest
 import ../helpers
 import ../helpers/mockmarket
@@ -152,6 +153,8 @@ asyncchecksuite "Sales":
       duration = 60.uint64,
       minPricePerBytePerSecond = minPricePerBytePerSecond,
       totalCollateral = totalCollateral,
+      enabled = true,
+      until = 0.SecondsSince1970,
     )
     request = StorageRequest(
       ask: StorageAsk(
@@ -221,10 +224,11 @@ asyncchecksuite "Sales":
     let key = availability.id.key.get
     (waitFor reservations.get(key, Availability)).get
 
-  proc createAvailability() =
+  proc createAvailability(enabled = true, until = 0.SecondsSince1970) =
     let a = waitFor reservations.createAvailability(
       availability.totalSize, availability.duration,
-      availability.minPricePerBytePerSecond, availability.totalCollateral,
+      availability.minPricePerBytePerSecond, availability.totalCollateral, enabled,
+      until,
     )
     availability = a.get # update id
 
@@ -380,14 +384,14 @@ asyncchecksuite "Sales":
     check eventually getAvailability().freeSize ==
       availability.freeSize - request.ask.slotSize
 
-  test "non-downloaded bytes are returned to availability once finished":
+  test "bytes are returned to availability once finished":
     var slotIndex = 0.uint64
     sales.onStore = proc(
         request: StorageRequest, slot: uint64, onBatch: BatchProc, isRepairing = false
     ): Future[?!void] {.async.} =
       slotIndex = slot
       let blk = bt.Block.new(@[1.byte]).get
-      await onBatch(@[blk])
+      await onBatch(blk.repeat(request.ask.slotSize))
 
     let sold = newFuture[void]()
     sales.onSale = proc(request: StorageRequest, slotIndex: uint64) =
@@ -403,7 +407,7 @@ asyncchecksuite "Sales":
     market.slotState[request.slotId(slotIndex)] = SlotState.Finished
     clock.advance(request.ask.duration.int64)
 
-    check eventually getAvailability().freeSize == origSize - 1
+    check eventually getAvailability().freeSize == origSize
 
   test "ignores download when duration not long enough":
     availability.duration = request.ask.duration - 1
@@ -438,6 +442,34 @@ asyncchecksuite "Sales":
     market.slotState[request.slotId(2.uint64)] = SlotState.Filled
     market.slotState[request.slotId(3.uint64)] = SlotState.Filled
     check wasIgnored()
+
+  test "ignores request when availability is not enabled":
+    createAvailability(enabled = false)
+    await market.requestStorage(request)
+    check wasIgnored()
+
+  test "ignores request when availability until terminates before the duration":
+    let until = getTime().toUnix()
+    createAvailability(until = until)
+    await market.requestStorage(request)
+
+    check wasIgnored()
+
+  test "retrieves request when availability until terminates after the duration":
+    let requestEnd = getTime().toUnix() + cast[int64](request.ask.duration)
+    let until = requestEnd + 1
+    createAvailability(until = until)
+
+    var storingRequest: StorageRequest
+    sales.onStore = proc(
+        request: StorageRequest, slot: uint64, onBatch: BatchProc, isRepairing = false
+    ): Future[?!void] {.async.} =
+      storingRequest = request
+      return success()
+
+    market.requestEnds[request.id] = requestEnd
+    await market.requestStorage(request)
+    check eventually storingRequest == request
 
   test "retrieves and stores data locally":
     var storingRequest: StorageRequest
@@ -563,6 +595,8 @@ asyncchecksuite "Sales":
     # by other slots
     request.ask.slots = 1
     market.requestExpiry[request.id] = expiry
+    market.requestEnds[request.id] =
+      getTime().toUnix() + cast[int64](request.ask.duration)
 
     let origSize = availability.freeSize
     sales.onStore = proc(
@@ -621,10 +655,28 @@ asyncchecksuite "Sales":
 
   test "deletes inactive reservations on load":
     createAvailability()
+    let validUntil = getTime().toUnix() + 30.SecondsSince1970
     discard await reservations.createReservation(
-      availability.id, 100.uint64, RequestId.example, 0.uint64, UInt256.example
+      availability.id, 100.uint64, RequestId.example, 0.uint64, UInt256.example,
+      validUntil,
     )
     check (await reservations.all(Reservation)).get.len == 1
     await sales.load()
     check (await reservations.all(Reservation)).get.len == 0
     check getAvailability().freeSize == availability.freeSize # was restored
+
+  test "update an availability fails when trying change the until date before an existing reservation":
+    let until = getTime().toUnix() + 300.SecondsSince1970
+    createAvailability(until = until)
+
+    market.requestEnds[request.id] =
+      getTime().toUnix() + cast[int64](request.ask.duration)
+
+    await market.requestStorage(request)
+    await allowRequestToStart()
+
+    availability.until = getTime().toUnix()
+
+    let result = await reservations.update(availability)
+    check result.isErr
+    check result.error of UntilOutOfBoundsError

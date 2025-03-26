@@ -163,6 +163,14 @@ components:
         totalCollateral:
           type: string
           description: Total collateral (in amount of tokens) that can be used for matching requests
+        enabled:
+          type: boolean
+          description: Enable the ability to receive sales on this availability.
+          default: true
+        until:
+          type: integer
+          description: Specifies the latest timestamp, after which the availability will no longer host any slots. If set to 0, there will be no restrictions.
+          default: 0
 
     SalesAvailabilityREAD:
       allOf:
@@ -239,6 +247,9 @@ components:
         slotIndex:
           type: string
           description: Slot Index as decimal string
+        validUntil:
+          type: integer
+          description: Timestamp after which the reservation will no longer be valid.
 
     StorageRequestCreation:
       type: object
@@ -704,7 +715,7 @@ paths:
         "400":
           description: Invalid data input
         "422":
-          description: The provided parameters did not pass validation
+          description: Not enough node's storage quota available or the provided parameters did not pass validation
         "500":
           description: Error reserving availability
         "503":

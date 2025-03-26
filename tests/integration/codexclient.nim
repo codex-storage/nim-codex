@@ -294,6 +294,8 @@ proc postAvailabilityRaw*(
     client: CodexClient,
     totalSize, duration: uint64,
     minPricePerBytePerSecond, totalCollateral: UInt256,
+    enabled: ?bool = bool.none,
+    until: ?SecondsSince1970 = SecondsSince1970.none,
 ): Future[HttpClientResponseRef] {.async: (raises: [CancelledError, HttpError]).} =
   ## Post sales availability endpoint
   ##
@@ -304,18 +306,27 @@ proc postAvailabilityRaw*(
       "duration": duration,
       "minPricePerBytePerSecond": minPricePerBytePerSecond,
       "totalCollateral": totalCollateral,
+      "enabled": enabled,
+      "until": until,
     }
-
   return await client.post(url, $json)
 
 proc postAvailability*(
     client: CodexClient,
     totalSize, duration: uint64,
     minPricePerBytePerSecond, totalCollateral: UInt256,
+    enabled: ?bool = bool.none,
+    until: ?SecondsSince1970 = SecondsSince1970.none,
 ): Future[?!Availability] {.async: (raises: [CancelledError, HttpError]).} =
   let response = await client.postAvailabilityRaw(
-    totalSize, duration, minPricePerBytePerSecond, totalCollateral
+    totalSize = totalSize,
+    duration = duration,
+    minPricePerBytePerSecond = minPricePerBytePerSecond,
+    totalCollateral = totalCollateral,
+    enabled = enabled,
+    until = until,
   )
+
   let body = await response.body
 
   doAssert response.status == 201,
@@ -327,6 +338,8 @@ proc patchAvailabilityRaw*(
     availabilityId: AvailabilityId,
     totalSize, freeSize, duration: ?uint64 = uint64.none,
     minPricePerBytePerSecond, totalCollateral: ?UInt256 = UInt256.none,
+    enabled: ?bool = bool.none,
+    until: ?SecondsSince1970 = SecondsSince1970.none,
 ): Future[HttpClientResponseRef] {.
     async: (raw: true, raises: [CancelledError, HttpError])
 .} =
@@ -352,6 +365,12 @@ proc patchAvailabilityRaw*(
   if totalCollateral =? totalCollateral:
     json["totalCollateral"] = %totalCollateral
 
+  if enabled =? enabled:
+    json["enabled"] = %enabled
+
+  if until =? until:
+    json["until"] = %until
+
   client.patch(url, $json)
 
 proc patchAvailability*(
@@ -359,6 +378,8 @@ proc patchAvailability*(
     availabilityId: AvailabilityId,
     totalSize, duration: ?uint64 = uint64.none,
     minPricePerBytePerSecond, totalCollateral: ?UInt256 = UInt256.none,
+    enabled: ?bool = bool.none,
+    until: ?SecondsSince1970 = SecondsSince1970.none,
 ): Future[void] {.async: (raises: [CancelledError, HttpError]).} =
   let response = await client.patchAvailabilityRaw(
     availabilityId,
@@ -366,8 +387,10 @@ proc patchAvailability*(
     duration = duration,
     minPricePerBytePerSecond = minPricePerBytePerSecond,
     totalCollateral = totalCollateral,
+    enabled = enabled,
+    until = until,
   )
-  doAssert response.status == 200, "expected 200 OK, got " & $response.status
+  doAssert response.status == 204, "expected No Content, got " & $response.status
 
 proc getAvailabilities*(
     client: CodexClient

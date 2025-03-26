@@ -35,6 +35,7 @@ import std/sequtils
 import std/sugar
 import std/typetraits
 import std/sequtils
+import std/times
 import pkg/chronos
 import pkg/datastore
 import pkg/nimcrypto
@@ -70,6 +71,12 @@ type
     minPricePerBytePerSecond* {.serialize.}: UInt256
     totalCollateral {.serialize.}: UInt256
     totalRemainingCollateral* {.serialize.}: UInt256
+    # If set to false, the availability will not accept new slots.
+    # If enabled, it will not impact any existing slots that are already being hosted.
+    enabled* {.serialize.}: bool
+    # Specifies the latest timestamp after which the availability will no longer host any slots.
+    # If set to 0, there will be no restrictions.
+    until* {.serialize.}: SecondsSince1970
 
   Reservation* = ref object
     id* {.serialize.}: ReservationId
@@ -77,6 +84,7 @@ type
     size* {.serialize.}: uint64
     requestId* {.serialize.}: RequestId
     slotIndex* {.serialize.}: uint64
+    validUntil* {.serialize.}: SecondsSince1970
 
   Reservations* = ref object of RootObj
     availabilityLock: AsyncLock
@@ -84,10 +92,14 @@ type
     repo: RepoStore
     OnAvailabilitySaved: ?OnAvailabilitySaved
 
-  GetNext* = proc(): Future[?seq[byte]] {.upraises: [], gcsafe, closure.}
-  IterDispose* = proc(): Future[?!void] {.gcsafe, closure.}
-  OnAvailabilitySaved* =
-    proc(availability: Availability): Future[void] {.upraises: [], gcsafe.}
+  GetNext* = proc(): Future[?seq[byte]] {.
+    upraises: [], gcsafe, async: (raises: [CancelledError]), closure
+  .}
+  IterDispose* =
+    proc(): Future[?!void] {.gcsafe, async: (raises: [CancelledError]), closure.}
+  OnAvailabilitySaved* = proc(availability: Availability): Future[void] {.
+    upraises: [], gcsafe, async: (raises: [])
+  .}
   StorableIter* = ref object
     finished*: bool
     next*: GetNext
@@ -102,13 +114,20 @@ type
   SerializationError* = object of ReservationsError
   UpdateFailedError* = object of ReservationsError
   BytesOutOfBoundsError* = object of ReservationsError
+  UntilOutOfBoundsError* = object of ReservationsError
 
 const
   SalesKey = (CodexMetaKey / "sales").tryGet # TODO: move to sales module
   ReservationsKey = (SalesKey / "reservations").tryGet
 
 proc hash*(x: AvailabilityId): Hash {.borrow.}
-proc all*(self: Reservations, T: type SomeStorableObject): Future[?!seq[T]] {.async.}
+proc all*(
+  self: Reservations, T: type SomeStorableObject
+): Future[?!seq[T]] {.async: (raises: [CancelledError]).}
+
+proc all*(
+  self: Reservations, T: type SomeStorableObject, availabilityId: AvailabilityId
+): Future[?!seq[T]] {.async: (raises: [CancelledError]).}
 
 template withLock(lock, body) =
   try:
@@ -128,6 +147,8 @@ proc init*(
     duration: uint64,
     minPricePerBytePerSecond: UInt256,
     totalCollateral: UInt256,
+    enabled: bool,
+    until: SecondsSince1970,
 ): Availability =
   var id: array[32, byte]
   doAssert randomBytes(id) == 32
@@ -139,6 +160,8 @@ proc init*(
     minPricePerBytePerSecond: minPricePerBytePerSecond,
     totalCollateral: totalCollateral,
     totalRemainingCollateral: totalCollateral,
+    enabled: enabled,
+    until: until,
   )
 
 func totalCollateral*(self: Availability): UInt256 {.inline.} =
@@ -154,6 +177,7 @@ proc init*(
     size: uint64,
     requestId: RequestId,
     slotIndex: uint64,
+    validUntil: SecondsSince1970,
 ): Reservation =
   var id: array[32, byte]
   doAssert randomBytes(id) == 32
@@ -163,6 +187,7 @@ proc init*(
     size: size,
     requestId: requestId,
     slotIndex: slotIndex,
+    validUntil: validUntil,
   )
 
 func toArray(id: SomeStorableId): array[32, byte] =
@@ -217,11 +242,19 @@ func available*(self: Reservations): uint =
 func hasAvailable*(self: Reservations, bytes: uint): bool =
   self.repo.available(bytes.NBytes)
 
-proc exists*(self: Reservations, key: Key): Future[bool] {.async.} =
+proc exists*(
+    self: Reservations, key: Key
+): Future[bool] {.async: (raises: [CancelledError]).} =
   let exists = await self.repo.metaDs.ds.contains(key)
   return exists
 
-proc getImpl(self: Reservations, key: Key): Future[?!seq[byte]] {.async.} =
+iterator items(self: StorableIter): Future[?seq[byte]] =
+  while not self.finished:
+    yield self.next()
+
+proc getImpl(
+    self: Reservations, key: Key
+): Future[?!seq[byte]] {.async: (raises: [CancelledError]).} =
   if not await self.exists(key):
     let err =
       newException(NotExistsError, "object with key " & $key & " does not exist")
@@ -234,7 +267,7 @@ proc getImpl(self: Reservations, key: Key): Future[?!seq[byte]] {.async.} =
 
 proc get*(
     self: Reservations, key: Key, T: type SomeStorableObject
-): Future[?!T] {.async.} =
+): Future[?!T] {.async: (raises: [CancelledError]).} =
   without serialized =? await self.getImpl(key), error:
     return failure(error)
 
@@ -243,7 +276,9 @@ proc get*(
 
   return success obj
 
-proc updateImpl(self: Reservations, obj: SomeStorableObject): Future[?!void] {.async.} =
+proc updateImpl(
+    self: Reservations, obj: SomeStorableObject
+): Future[?!void] {.async: (raises: [CancelledError]).} =
   trace "updating " & $(obj.type), id = obj.id
 
   without key =? obj.key, error:
@@ -256,9 +291,14 @@ proc updateImpl(self: Reservations, obj: SomeStorableObject): Future[?!void] {.a
 
 proc updateAvailability(
     self: Reservations, obj: Availability
-): Future[?!void] {.async.} =
+): Future[?!void] {.async: (raises: [CancelledError]).} =
   logScope:
     availabilityId = obj.id
+
+  if obj.until < 0:
+    let error =
+      newException(UntilOutOfBoundsError, "Cannot set until to a negative value")
+    return failure(error)
 
   without key =? obj.key, error:
     return failure(error)
@@ -269,20 +309,24 @@ proc updateAvailability(
       let res = await self.updateImpl(obj)
       # inform subscribers that Availability has been added
       if OnAvailabilitySaved =? self.OnAvailabilitySaved:
-        # when chronos v4 is implemented, and OnAvailabilitySaved is annotated
-        # with async:(raises:[]), we can remove this try/catch as we know, with
-        # certainty, that nothing will be raised
-        try:
-          await OnAvailabilitySaved(obj)
-        except CancelledError as e:
-          raise e
-        except CatchableError as e:
-          # we don't have any insight into types of exceptions that
-          # `OnAvailabilitySaved` can raise because it is caller-defined
-          warn "Unknown error during 'OnAvailabilitySaved' callback", error = e.msg
+        await OnAvailabilitySaved(obj)
       return res
     else:
       return failure(err)
+
+  if obj.until > 0:
+    without allReservations =? await self.all(Reservation, obj.id), error:
+      error.msg = "Error updating reservation: " & error.msg
+      return failure(error)
+
+    let requestEnds = allReservations.mapIt(it.validUntil)
+
+    if requestEnds.len > 0 and requestEnds.max > obj.until:
+      let error = newException(
+        UntilOutOfBoundsError,
+        "Until parameter must be greater or equal to the longest currently hosted slot",
+      )
+      return failure(error)
 
   # Sizing of the availability changed, we need to adjust the repo reservation accordingly
   if oldAvailability.totalSize != obj.totalSize:
@@ -306,26 +350,23 @@ proc updateAvailability(
     # inform subscribers that Availability has been modified (with increased
     # size)
     if OnAvailabilitySaved =? self.OnAvailabilitySaved:
-      # when chronos v4 is implemented, and OnAvailabilitySaved is annotated
-      # with async:(raises:[]), we can remove this try/catch as we know, with
-      # certainty, that nothing will be raised
-      try:
-        await OnAvailabilitySaved(obj)
-      except CancelledError as e:
-        raise e
-      except CatchableError as e:
-        # we don't have any insight into types of exceptions that
-        # `OnAvailabilitySaved` can raise because it is caller-defined
-        warn "Unknown error during 'OnAvailabilitySaved' callback", error = e.msg
-
+      await OnAvailabilitySaved(obj)
   return res
 
-proc update*(self: Reservations, obj: Reservation): Future[?!void] {.async.} =
+proc update*(
+    self: Reservations, obj: Reservation
+): Future[?!void] {.async: (raises: [CancelledError]).} =
   return await self.updateImpl(obj)
 
-proc update*(self: Reservations, obj: Availability): Future[?!void] {.async.} =
-  withLock(self.availabilityLock):
-    return await self.updateAvailability(obj)
+proc update*(
+    self: Reservations, obj: Availability
+): Future[?!void] {.async: (raises: [CancelledError]).} =
+  try:
+    withLock(self.availabilityLock):
+      return await self.updateAvailability(obj)
+  except AsyncLockError as e:
+    error "Lock error when trying to update the availability", err = e.msg
+    return failure(e)
 
 proc delete(self: Reservations, key: Key): Future[?!void] {.async.} =
   trace "deleting object", key
@@ -391,12 +432,20 @@ proc createAvailability*(
     duration: uint64,
     minPricePerBytePerSecond: UInt256,
     totalCollateral: UInt256,
+    enabled: bool,
+    until: SecondsSince1970,
 ): Future[?!Availability] {.async.} =
   trace "creating availability",
-    size, duration, minPricePerBytePerSecond, totalCollateral
+    size, duration, minPricePerBytePerSecond, totalCollateral, enabled, until
 
-  let availability =
-    Availability.init(size, size, duration, minPricePerBytePerSecond, totalCollateral)
+  if until < 0:
+    let error =
+      newException(UntilOutOfBoundsError, "Cannot set until to a negative value")
+    return failure(error)
+
+  let availability = Availability.init(
+    size, size, duration, minPricePerBytePerSecond, totalCollateral, enabled, until
+  )
   let bytes = availability.freeSize
 
   if reserveErr =? (await self.repo.reserve(bytes.NBytes)).errorOption:
@@ -420,6 +469,7 @@ method createReservation*(
     requestId: RequestId,
     slotIndex: uint64,
     collateralPerByte: UInt256,
+    validUntil: SecondsSince1970,
 ): Future[?!Reservation] {.async, base.} =
   withLock(self.availabilityLock):
     without availabilityKey =? availabilityId.key, error:
@@ -436,9 +486,11 @@ method createReservation*(
       )
       return failure(error)
 
-    trace "Creating reservation", availabilityId, slotSize, requestId, slotIndex
+    trace "Creating reservation",
+      availabilityId, slotSize, requestId, slotIndex, validUntil = validUntil
 
-    let reservation = Reservation.init(availabilityId, slotSize, requestId, slotIndex)
+    let reservation =
+      Reservation.init(availabilityId, slotSize, requestId, slotIndex, validUntil)
 
     if createResErr =? (await self.update(reservation)).errorOption:
       return failure(createResErr)
@@ -448,7 +500,7 @@ method createReservation*(
     availability.freeSize -= slotSize
 
     # adjust the remaining totalRemainingCollateral
-    availability.totalRemainingCollateral -= slotSize.stuint(256) * collateralPerByte
+    availability.totalRemainingCollateral -= slotSize.u256 * collateralPerByte
 
     # update availability with reduced size
     trace "Updating availability with reduced size"
@@ -527,7 +579,7 @@ proc release*(
     reservationId: ReservationId,
     availabilityId: AvailabilityId,
     bytes: uint,
-): Future[?!void] {.async.} =
+): Future[?!void] {.async: (raises: [CancelledError]).} =
   logScope:
     topics = "release"
     bytes
@@ -565,13 +617,9 @@ proc release*(
 
   return success()
 
-iterator items(self: StorableIter): Future[?seq[byte]] =
-  while not self.finished:
-    yield self.next()
-
 proc storables(
     self: Reservations, T: type SomeStorableObject, queryKey: Key = ReservationsKey
-): Future[?!StorableIter] {.async.} =
+): Future[?!StorableIter] {.async: (raises: [CancelledError]).} =
   var iter = StorableIter()
   let query = Query.init(queryKey)
   when T is Availability:
@@ -589,7 +637,7 @@ proc storables(
     return failure(error)
 
   # /sales/reservations
-  proc next(): Future[?seq[byte]] {.async.} =
+  proc next(): Future[?seq[byte]] {.async: (raises: [CancelledError]).} =
     await idleAsync()
     iter.finished = results.finished
     if not results.finished and res =? (await results.next()) and res.data.len > 0 and
@@ -598,7 +646,7 @@ proc storables(
 
     return none seq[byte]
 
-  proc dispose(): Future[?!void] {.async.} =
+  proc dispose(): Future[?!void] {.async: (raises: [CancelledError]).} =
     return await results.dispose()
 
   iter.next = next
@@ -607,32 +655,40 @@ proc storables(
 
 proc allImpl(
     self: Reservations, T: type SomeStorableObject, queryKey: Key = ReservationsKey
-): Future[?!seq[T]] {.async.} =
+): Future[?!seq[T]] {.async: (raises: [CancelledError]).} =
   var ret: seq[T] = @[]
 
   without storables =? (await self.storables(T, queryKey)), error:
     return failure(error)
 
   for storable in storables.items:
-    without bytes =? (await storable):
-      continue
+    try:
+      without bytes =? (await storable):
+        continue
 
-    without obj =? T.fromJson(bytes), error:
-      error "json deserialization error",
-        json = string.fromBytes(bytes), error = error.msg
-      continue
+      without obj =? T.fromJson(bytes), error:
+        error "json deserialization error",
+          json = string.fromBytes(bytes), error = error.msg
+        continue
 
-    ret.add obj
+      ret.add obj
+    except CancelledError as err:
+      raise err
+    except CatchableError as err:
+      error "Error when retrieving storable", error = err.msg
+      continue
 
   return success(ret)
 
-proc all*(self: Reservations, T: type SomeStorableObject): Future[?!seq[T]] {.async.} =
+proc all*(
+    self: Reservations, T: type SomeStorableObject
+): Future[?!seq[T]] {.async: (raises: [CancelledError]).} =
   return await self.allImpl(T)
 
 proc all*(
     self: Reservations, T: type SomeStorableObject, availabilityId: AvailabilityId
-): Future[?!seq[T]] {.async.} =
-  without key =? (ReservationsKey / $availabilityId):
+): Future[?!seq[T]] {.async: (raises: [CancelledError]).} =
+  without key =? key(availabilityId):
     return failure("no key")
 
   return await self.allImpl(T, key)
@@ -641,6 +697,7 @@ proc findAvailability*(
     self: Reservations,
     size, duration: uint64,
     pricePerBytePerSecond, collateralPerByte: UInt256,
+    validUntil: SecondsSince1970,
 ): Future[?Availability] {.async.} =
   without storables =? (await self.storables(Availability)), e:
     error "failed to get all storables", error = e.msg
@@ -648,11 +705,14 @@ proc findAvailability*(
 
   for item in storables.items:
     if bytes =? (await item) and availability =? Availability.fromJson(bytes):
-      if size <= availability.freeSize and duration <= availability.duration and
+      if availability.enabled and size <= availability.freeSize and
+          duration <= availability.duration and
           collateralPerByte <= availability.maxCollateralPerByte and
-          pricePerBytePerSecond >= availability.minPricePerBytePerSecond:
+          pricePerBytePerSecond >= availability.minPricePerBytePerSecond and
+          (availability.until == 0 or availability.until >= validUntil):
         trace "availability matched",
           id = availability.id,
+          enabled = availability.enabled,
           size,
           availFreeSize = availability.freeSize,
           duration,
@@ -660,7 +720,8 @@ proc findAvailability*(
           pricePerBytePerSecond,
           availMinPricePerBytePerSecond = availability.minPricePerBytePerSecond,
           collateralPerByte,
-          availMaxCollateralPerByte = availability.maxCollateralPerByte
+          availMaxCollateralPerByte = availability.maxCollateralPerByte,
+          until = availability.until
 
         # TODO: As soon as we're on ARC-ORC, we can use destructors
         # to automatically dispose our iterators when they fall out of scope.
@@ -672,6 +733,7 @@ proc findAvailability*(
 
       trace "availability did not match",
         id = availability.id,
+        enabled = availability.enabled,
         size,
         availFreeSize = availability.freeSize,
         duration,
@@ -679,4 +741,5 @@ proc findAvailability*(
         pricePerBytePerSecond,
         availMinPricePerBytePerSecond = availability.minPricePerBytePerSecond,
         collateralPerByte,
-        availMaxCollateralPerByte = availability.maxCollateralPerByte
+        availMaxCollateralPerByte = availability.maxCollateralPerByte,
+        until = availability.until

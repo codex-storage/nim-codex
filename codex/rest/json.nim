@@ -33,6 +33,8 @@ type
     minPricePerBytePerSecond* {.serialize.}: UInt256
     totalCollateral* {.serialize.}: UInt256
     freeSize* {.serialize.}: ?uint64
+    enabled* {.serialize.}: ?bool
+    until* {.serialize.}: ?SecondsSince1970
 
   RestSalesAgent* = object
     state* {.serialize.}: string

@@ -50,7 +50,7 @@ method run*(
       await market.fillSlot(data.requestId, data.slotIndex, state.proof, collateral)
     except SlotStateMismatchError as e:
       debug "Slot is already filled, ignoring slot"
-      return some State(SaleIgnored(reprocessSlot: false, returnBytes: true))
+      return some State(SaleIgnored(reprocessSlot: false))
     except MarketError as e:
       return some State(SaleErrored(error: e))
     # other CatchableErrors are handled "automatically" by the SaleState

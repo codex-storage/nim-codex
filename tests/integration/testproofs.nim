@@ -275,7 +275,9 @@ marketplacesuite "Simulate invalid proofs":
   #     totalSize=slotSize, # should match 1 slot only
   #     duration=totalPeriods.periods.u256,
   #     minPricePerBytePerSecond=minPricePerBytePerSecond,
-  #     totalCollateral=slotSize * minPricePerBytePerSecond
+  #     totalCollateral=slotSize * minPricePerBytePerSecond,
+  #     enabled = true.some,
+  #     until = 0.SecondsSince1970.some,
   #   )
 
   #   let cid = client0.upload(data).get
