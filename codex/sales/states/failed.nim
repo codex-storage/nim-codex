@@ -28,6 +28,7 @@ method run*(
     let slot = Slot(request: request, slotIndex: data.slotIndex)
     debug "Removing slot from mySlots",
       requestId = data.requestId, slotIndex = data.slotIndex
+
     await market.freeSlot(slot.id)
 
     let error = newException(SaleFailedError, "Sale failed")

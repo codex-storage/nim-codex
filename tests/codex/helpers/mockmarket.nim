@@ -8,6 +8,7 @@ import pkg/codex/market
 import pkg/codex/contracts/requests
 import pkg/codex/contracts/proofs
 import pkg/codex/contracts/config
+import pkg/questionable/results
 
 from pkg/ethers import BlockTag
 import codex/clock
@@ -48,6 +49,8 @@ type
     canReserveSlot*: bool
     errorOnReserveSlot*: ?(ref MarketError)
     errorOnFillSlot*: ?(ref MarketError)
+    errorOnFreeSlot*: ?(ref MarketError)
+    errorOnGetHost*: ?(ref MarketError)
     clock: ?Clock
 
   Fulfillment* = object
@@ -232,7 +235,10 @@ method requestExpiresAt*(
 
 method getHost*(
     market: MockMarket, requestId: RequestId, slotIndex: uint64
-): Future[?Address] {.async.} =
+): Future[?Address] {.async: (raises: [CancelledError, MarketError]).} =
+  if error =? market.errorOnGetHost:
+    raise error
+
   for slot in market.filled:
     if slot.requestId == requestId and slot.slotIndex == slotIndex:
       return some slot.host
@@ -240,7 +246,7 @@ method getHost*(
 
 method currentCollateral*(
     market: MockMarket, slotId: SlotId
-): Future[UInt256] {.async.} =
+): Future[UInt256] {.async: (raises: [MarketError, CancelledError]).} =
   for slot in market.filled:
     if slotId == slotId(slot.requestId, slot.slotIndex):
       return slot.collateral
@@ -321,6 +327,9 @@ method fillSlot*(
 method freeSlot*(
     market: MockMarket, slotId: SlotId
 ) {.async: (raises: [CancelledError, MarketError]).} =
+  if error =? market.errorOnFreeSlot:
+    raise error
+
   market.freed.add(slotId)
   for s in market.filled:
     if slotId(s.requestId, s.slotIndex) == slotId:
@@ -406,6 +415,20 @@ func setErrorOnReserveSlot*(market: MockMarket, error: ref MarketError) =
 
 func setErrorOnFillSlot*(market: MockMarket, error: ref MarketError) =
   market.errorOnFillSlot =
+    if error.isNil:
+      none (ref MarketError)
+    else:
+      some error
+
+func setErrorOnFreeSlot*(market: MockMarket, error: ref MarketError) =
+  market.errorOnFreeSlot =
+    if error.isNil:
+      none (ref MarketError)
+    else:
+      some error
+
+func setErrorOnGetHost*(market: MockMarket, error: ref MarketError) =
+  market.errorOnGetHost =
     if error.isNil:
       none (ref MarketError)
     else:

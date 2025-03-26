@@ -221,7 +221,7 @@ method requestExpiresAt*(
 
 method getHost(
     market: OnChainMarket, requestId: RequestId, slotIndex: uint64
-): Future[?Address] {.async.} =
+): Future[?Address] {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError("Failed to get slot's host"):
     let slotId = slotId(requestId, slotIndex)
     let address = await market.contract.getHost(slotId)
@@ -232,7 +232,7 @@ method getHost(
 
 method currentCollateral*(
     market: OnChainMarket, slotId: SlotId
-): Future[UInt256] {.async.} =
+): Future[UInt256] {.async: (raises: [MarketError, CancelledError]).} =
   convertEthersError("Failed to get slot's current collateral"):
     return await market.contract.currentCollateral(slotId)
 
@@ -270,22 +270,27 @@ method freeSlot*(
     market: OnChainMarket, slotId: SlotId
 ) {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError("Failed to free slot"):
-    var freeSlot: Future[Confirmable]
-    if rewardRecipient =? market.rewardRecipient:
-      # If --reward-recipient specified, use it as the reward recipient, and use
-      # the SP's address as the collateral recipient
-      let collateralRecipient = await market.getSigner()
-      freeSlot = market.contract.freeSlot(
-        slotId,
-        rewardRecipient, # --reward-recipient
-        collateralRecipient,
-      ) # SP's address
-    else:
-      # Otherwise, use the SP's address as both the reward and collateral
-      # recipient (the contract will use msg.sender for both)
-      freeSlot = market.contract.freeSlot(slotId)
+    try:
+      var freeSlot: Future[Confirmable]
+      if rewardRecipient =? market.rewardRecipient:
+        # If --reward-recipient specified, use it as the reward recipient, and use
+        # the SP's address as the collateral recipient
+        let collateralRecipient = await market.getSigner()
+        freeSlot = market.contract.freeSlot(
+          slotId,
+          rewardRecipient, # --reward-recipient
+          collateralRecipient,
+        ) # SP's address
+      else:
+        # Otherwise, use the SP's address as both the reward and collateral
+        # recipient (the contract will use msg.sender for both)
+        freeSlot = market.contract.freeSlot(slotId)
 
-    discard await freeSlot.confirm(1)
+      discard await freeSlot.confirm(1)
+    except Marketplace_SlotIsFree as parent:
+      raise newException(
+        SlotStateMismatchError, "Failed to free slot, slot is already free", parent
+      )
 
 method withdrawFunds(
     market: OnChainMarket, requestId: RequestId
