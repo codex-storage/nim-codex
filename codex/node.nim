@@ -399,6 +399,8 @@ proc store*(
     dataCodec = BlockCodec
     chunker = LPStreamChunker.new(stream, chunkSize = blockSize)
 
+  var proofs = newSeq[CodexProof]()
+
   var cids: seq[Cid]
 
   try:
@@ -433,10 +435,12 @@ proc store*(
   for index, cid in cids:
     without proof =? tree.getProof(index), err:
       return failure(err)
-    if err =?
-        (await self.networkStore.putCidAndProof(treeCid, index, cid, proof)).errorOption:
-      # TODO add log here
-      return failure(err)
+    proofs.add(proof)
+
+  if err =?
+      (await self.networkStore.putCidAndProofBatch(treeCid, cids, proofs)).errorOption:
+    # TODO add log here
+    return failure(err)
 
   let manifest = Manifest.new(
     treeCid = treeCid,

@@ -33,14 +33,15 @@ type
     metaDs*: TypedDatastore
     clock*: Clock
     quotaMaxBytes*: NBytes
-    quotaUsage*: QuotaUsage
-    totalBlocks*: Natural
+    storageStats*: StorageStats
     blockTtl*: Duration
     started*: bool
+    locks*: TableRef[Cid, AsyncLock]
 
-  QuotaUsage* {.serialize.} = object
-    used*: NBytes
-    reserved*: NBytes
+  StorageStats* {.serialize.} = object
+    quotaUsed*: NBytes
+    quotaReserved*: NBytes
+    totalBlocks*: Natural
 
   BlockMetadata* {.serialize.} = object
     expiry*: SecondsSince1970
@@ -73,10 +74,10 @@ type
     used*: NBytes
 
 func quotaUsedBytes*(self: RepoStore): NBytes =
-  self.quotaUsage.used
+  self.storageStats.quotaUsed
 
 func quotaReservedBytes*(self: RepoStore): NBytes =
-  self.quotaUsage.reserved
+  self.storageStats.quotaReserved
 
 func totalUsed*(self: RepoStore): NBytes =
   (self.quotaUsedBytes + self.quotaReservedBytes)
@@ -106,4 +107,5 @@ func new*(
     quotaMaxBytes: quotaMaxBytes,
     blockTtl: blockTtl,
     onBlockStored: CidCallback.none,
+    locks: newTable[Cid, AsyncLock](),
   )

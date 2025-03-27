@@ -19,8 +19,10 @@ suite "Test coders":
     let ordinals = enumRangeInt64(E)
     E(ordinals[rand(ordinals.len - 1)])
 
-  proc rand(T: type QuotaUsage): T =
-    QuotaUsage(used: rand(NBytes), reserved: rand(NBytes))
+  proc rand(T: type StorageStats): T =
+    StorageStats(
+      quotaUsed: rand(NBytes), quotaReserved: rand(NBytes), totalBlocks: rand(Natural)
+    )
 
   proc rand(T: type BlockMetadata): T =
     BlockMetadata(
@@ -38,10 +40,10 @@ suite "Test coders":
       check:
         success(val) == Natural.decode(encode(val))
 
-  test "QuotaUsage encode/decode":
-    for val in newSeqWith[QuotaUsage](100, rand(QuotaUsage)):
+  test "StorageStats encode/decode":
+    for val in newSeqWith[StorageStats](100, rand(StorageStats)):
       check:
-        success(val) == QuotaUsage.decode(encode(val))
+        success(val) == StorageStats.decode(encode(val))
 
   test "BlockMetadata encode/decode":
     for val in newSeqWith[BlockMetadata](100, rand(BlockMetadata)):
