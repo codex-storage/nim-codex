@@ -41,7 +41,7 @@ import ../stores
 import ../utils/iter
 import ../utils/options
 import ../bittorrent/manifest
-import ../bittorrent/piecevalidator
+import ../bittorrent/torrentdownloader
 
 import ./coders
 import ./json
@@ -163,7 +163,7 @@ proc retrieveInfoHash(
   ## Download torrent from the node in a streaming
   ## manner
   ##
-  var stream: LPStream
+  var torrentDownloader: TorrentDownloader
 
   var bytes = 0
   try:
@@ -187,37 +187,31 @@ proc retrieveInfoHash(
     else:
       resp.setHeader("Content-Disposition", "attachment")
 
-    await resp.prepareChunked()
+    let contentLength = codexManifest.datasetSize
+    resp.setHeader("Content-Length", $(contentLength.int))
 
-    let torrentPieceValidator = newTorrentPieceValidator(torrentManifest, codexManifest)
+    await resp.prepare(HttpResponseStreamType.Plain)
 
-    let stream =
-      await node.streamTorrent(torrentManifest, codexManifest, torrentPieceValidator)
+    without torrentDownloader =?
+      node.getTorrentDownloader(torrentManifest, codexManifest), err:
+      error "Unable to stream torrent", err = err.msg
+      resp.status = Http500
+      await resp.sendBody(err.msg)
+      return
 
-    while not stream.atEof:
-      trace "Waiting for piece..."
-      let pieceIndex = await torrentPieceValidator.waitForNextPiece()
+    torrentDownloader.start()
 
-      if -1 == pieceIndex:
-        warn "No more torrent pieces expected. TorrentPieceValidator might be out of sync!"
-        break
+    while not torrentDownloader.finished:
+      without (blockIndex, data) =? (await torrentDownloader.getNext()), err:
+        error "Error streaming blocks", err = err.msg
+        resp.status = Http500
+        if resp.isPending():
+          await resp.sendBody(err.msg)
+        return
+      trace "streaming block", blockIndex, len = data.len
+      bytes += data.len
+      await resp.sendChunk(addr data[0], data.len)
 
-      trace "Got piece", pieceIndex
-
-      let blocksPerPieceIter = torrentPieceValidator.getNewBlocksPerPieceIterator()
-      while not blocksPerPieceIter.finished and not stream.atEof:
-        var buff = newSeqUninitialized[byte](BitTorrentBlockSize.int)
-        # wait for the next the piece to prefetch
-        let len = await stream.readOnce(addr buff[0], buff.len)
-
-        buff.setLen(len)
-        if buff.len <= 0:
-          break
-
-        bytes += buff.len
-
-        await resp.sendChunk(addr buff[0], buff.len)
-        discard blocksPerPieceIter.next()
     await resp.finish()
     codex_api_downloads.inc()
   except CancelledError as exc:
@@ -230,8 +224,7 @@ proc retrieveInfoHash(
       await resp.sendBody(exc.msg)
   finally:
     info "Sent bytes for torrent", infoHash = $infoHash, bytes
-    if not stream.isNil:
-      await stream.close()
+    await torrentDownloader.stop()
 
 proc buildCorsHeaders(
     httpMethod: string, allowedOrigin: Option[string]

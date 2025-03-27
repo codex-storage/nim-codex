@@ -50,7 +50,7 @@ import ./utils/trackedfutures
 # bittorrent
 from ./codextypes import InfoHashV1Codec
 import ./bittorrent/manifest
-import ./bittorrent/piecevalidator
+import ./bittorrent/torrentdownloader
 
 export logutils
 
@@ -390,90 +390,10 @@ proc retrieve*(
 
   await self.streamEntireDataset(manifest, cid)
 
-proc validatePiece(
-    self: CodexNodeRef, pieceValidator: TorrentPieceValidator, blocks: seq[bt.Block]
-): ?!void {.raises: [].} =
-  trace "Fetched complete torrent piece - verifying..."
-  let pieceIndex = pieceValidator.validatePiece(blocks)
-
-  if pieceIndex < 0:
-    error "Piece verification failed", pieceIndex = pieceIndex
-    return failure(fmt"Piece verification failed for {pieceIndex=}")
-
-  trace "Piece successfully verified", pieceIndex
-
-  let confirmedPieceIndex = pieceValidator.confirmCurrentPiece()
-
-  if pieceIndex != confirmedPieceIndex:
-    error "Piece confirmation failed",
-      pieceIndex = pieceIndex, confirmedPieceIndex = confirmedPieceIndex
-    return
-      failure(fmt"Piece confirmation failed for {pieceIndex=}, {confirmedPieceIndex=}")
-  success()
-
-proc fetchPieces*(
-    self: CodexNodeRef,
-    torrentManifest: BitTorrentManifest,
-    codexManifest: Manifest,
-    pieceValidator: TorrentPieceValidator,
-): Future[?!void] {.async: (raises: [CancelledError]).} =
-  let cid = codexManifest.treeCid
-  let numOfBlocksPerPiece = pieceValidator.numberOfBlocksPerPiece
-  let blockIter = Iter[int].new(0 ..< codexManifest.blocksCount)
-  while not blockIter.finished:
-    let blockFutures = collect:
-      for i in 0 ..< numOfBlocksPerPiece:
-        if not blockIter.finished:
-          let address = BlockAddress.init(cid, blockIter.next())
-          self.networkStore.getBlock(address)
-
-    without blockResults =? await allFinishedValues(blockFutures), err:
-      return failure(err)
-
-    let numOfFailedBlocks = blockResults.countIt(it.isFailure)
-    if numOfFailedBlocks > 0:
-      return failure("Some blocks failed to fetch")
-
-    if err =? self.validatePiece(pieceValidator, blockResults.mapIt(it.get)).errorOption:
-      return failure(err)
-
-    await sleepAsync(1.millis)
-
-  success()
-
-proc streamTorrent*(
-    self: CodexNodeRef,
-    torrentManifest: BitTorrentManifest,
-    codexManifest: Manifest,
-    pieceValidator: TorrentPieceValidator,
-): Future[LPStream] {.async: (raises: []).} =
-  trace "Retrieving pieces from torrent"
-  let stream = LPStream(StoreStream.new(self.networkStore, codexManifest, pad = false))
-
-  proc prefetch(): Future[void] {.async: (raises: []).} =
-    try:
-      if err =? (await self.fetchPieces(torrentManifest, codexManifest, pieceValidator)).errorOption:
-        error "Unable to fetch blocks", err = err.msg
-        await noCancel pieceValidator.cancel()
-        await noCancel stream.close()
-    except CancelledError:
-      trace "Prefetch cancelled"
-
-  let prefetchTask = prefetch()
-
-  # Monitor stream completion and cancel background jobs when done
-  proc monitorStream() {.async: (raises: []).} =
-    try:
-      await stream.join()
-    except CancelledError:
-      trace "Stream cancelled"
-    finally:
-      await noCancel prefetchTask.cancelAndWait
-
-  self.trackedFutures.track(monitorStream())
-
-  trace "Creating store stream for torrent manifest"
-  stream
+proc getTorrentDownloader*(
+    self: CodexNodeRef, torrentManifest: BitTorrentManifest, codexManifest: Manifest
+): ?!TorrentDownloader =
+  newTorrentDownloader(torrentManifest, codexManifest, self.networkStore)
 
 proc retrieveTorrent*(
     self: CodexNodeRef, infoHash: MultiHash
