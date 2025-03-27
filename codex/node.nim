@@ -194,13 +194,14 @@ proc fetchBatched*(
       trace "Some blocks failed to fetch", err = err.msg
       return failure(err)
 
-    let numOfFailedBlocks = blockResults.countIt(it.isFailure)
+    let blocks = blockResults.filterIt(it.isSuccess()).mapIt(it.value)
+
+    let numOfFailedBlocks = blockResults.len - blocks.len
     if numOfFailedBlocks > 0:
       return
         failure("Some blocks failed (Result) to fetch (" & $numOfFailedBlocks & ")")
 
-    if not onBatch.isNil and
-        batchErr =? (await onBatch(blockResults.mapIt(it.get))).errorOption:
+    if not onBatch.isNil and batchErr =? (await onBatch(blocks)).errorOption:
       return failure(batchErr)
 
     await sleepAsync(1.millis)
