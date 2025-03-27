@@ -27,11 +27,11 @@ const MaxMerkleTreeSize = 100.MiBs.uint
 const MaxMerkleProofSize = 1.MiBs.uint
 
 proc encode*(self: CodexTree): seq[byte] =
-  var pb = initProtoBuffer(maxSize = MaxMerkleTreeSize)
+  var pb = initProtoBuffer()
   pb.write(1, self.mcodec.uint64)
   pb.write(2, self.leavesCount.uint64)
   for node in self.nodes:
-    var nodesPb = initProtoBuffer(maxSize = MaxMerkleTreeSize)
+    var nodesPb = initProtoBuffer()
     nodesPb.write(1, node)
     nodesPb.finish()
     pb.write(3, nodesPb)
@@ -40,7 +40,7 @@ proc encode*(self: CodexTree): seq[byte] =
   pb.buffer
 
 proc decode*(_: type CodexTree, data: seq[byte]): ?!CodexTree =
-  var pb = initProtoBuffer(data, maxSize = MaxMerkleTreeSize)
+  var pb = initProtoBuffer(data)
   var mcodecCode: uint64
   var leavesCount: uint64
   discard ?pb.getField(1, mcodecCode).mapFailure
@@ -63,13 +63,13 @@ proc decode*(_: type CodexTree, data: seq[byte]): ?!CodexTree =
   CodexTree.fromNodes(mcodec, nodes, leavesCount.int)
 
 proc encode*(self: CodexProof): seq[byte] =
-  var pb = initProtoBuffer(maxSize = MaxMerkleProofSize)
+  var pb = initProtoBuffer()
   pb.write(1, self.mcodec.uint64)
   pb.write(2, self.index.uint64)
   pb.write(3, self.nleaves.uint64)
 
   for node in self.path:
-    var nodesPb = initProtoBuffer(maxSize = MaxMerkleTreeSize)
+    var nodesPb = initProtoBuffer()
     nodesPb.write(1, node)
     nodesPb.finish()
     pb.write(4, nodesPb)
@@ -78,7 +78,7 @@ proc encode*(self: CodexProof): seq[byte] =
   pb.buffer
 
 proc decode*(_: type CodexProof, data: seq[byte]): ?!CodexProof =
-  var pb = initProtoBuffer(data, maxSize = MaxMerkleProofSize)
+  var pb = initProtoBuffer(data)
   var mcodecCode: uint64
   var index: uint64
   var nleaves: uint64

@@ -7,14 +7,12 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+{.push raises: [].}
+
 import std/sequtils
 import std/tables
 import std/algorithm
-
-import pkg/upraises
-
-push:
-  {.upraises: [].}
+import std/sequtils
 
 import pkg/chronos
 import pkg/libp2p
@@ -33,9 +31,7 @@ type
   PeerCtxStore* = ref object of RootObj
     peers*: OrderedTable[PeerId, BlockExcPeerCtx]
 
-  PeersForBlock* = object of RootObj
-    with*: seq[BlockExcPeerCtx]
-    without*: seq[BlockExcPeerCtx]
+  PeersForBlock* = tuple[with: seq[BlockExcPeerCtx], without: seq[BlockExcPeerCtx]]
 
 iterator items*(self: PeerCtxStore): BlockExcPeerCtx =
   for p in self.peers.values:
@@ -46,6 +42,9 @@ proc contains*(a: openArray[BlockExcPeerCtx], b: PeerId): bool =
   ##
 
   a.anyIt(it.id == b)
+
+func peerIds*(self: PeerCtxStore): seq[PeerId] =
+  toSeq(self.peers.keys)
 
 func contains*(self: PeerCtxStore, peerId: PeerId): bool =
   peerId in self.peers
@@ -75,7 +74,7 @@ func peersWant*(self: PeerCtxStore, cid: Cid): seq[BlockExcPeerCtx] =
   toSeq(self.peers.values).filterIt(it.peerWants.anyIt(it.address.cidOrTreeCid == cid))
 
 proc getPeersForBlock*(self: PeerCtxStore, address: BlockAddress): PeersForBlock =
-  var res = PeersForBlock()
+  var res: PeersForBlock = (@[], @[])
   for peer in self:
     if peer.peerHave.anyIt(it == address):
       res.with.add(peer)

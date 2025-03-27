@@ -7,9 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import pkg/upraises
-push:
-  {.upraises: [].}
+{.push raises: [].}
 
 import pkg/chronos
 import pkg/libp2p
@@ -18,66 +16,80 @@ import ../protobuf/blockexc
 import ../protobuf/message
 import ../../errors
 import ../../logutils
+import ../../utils/trackedfutures
 
 logScope:
   topics = "codex blockexcnetworkpeer"
 
-type
-  ConnProvider* = proc(): Future[Connection] {.gcsafe, closure.}
+const DefaultYieldInterval = 50.millis
 
-  RPCHandler* = proc(peer: NetworkPeer, msg: Message): Future[void] {.gcsafe.}
+type
+  ConnProvider* =
+    proc(): Future[Connection] {.gcsafe, async: (raises: [CancelledError]).}
+
+  RPCHandler* = proc(peer: NetworkPeer, msg: Message) {.gcsafe, async: (raises: []).}
 
   NetworkPeer* = ref object of RootObj
     id*: PeerId
     handler*: RPCHandler
     sendConn: Connection
     getConn: ConnProvider
+    yieldInterval*: Duration = DefaultYieldInterval
+    trackedFutures: TrackedFutures
 
-proc connected*(b: NetworkPeer): bool =
-  not (isNil(b.sendConn)) and not (b.sendConn.closed or b.sendConn.atEof)
+proc connected*(self: NetworkPeer): bool =
+  not (isNil(self.sendConn)) and not (self.sendConn.closed or self.sendConn.atEof)
 
-proc readLoop*(b: NetworkPeer, conn: Connection) {.async.} =
+proc readLoop*(self: NetworkPeer, conn: Connection) {.async: (raises: []).} =
   if isNil(conn):
+    trace "No connection to read from", peer = self.id
     return
 
+  trace "Attaching read loop", peer = self.id, connId = conn.oid
   try:
+    var nextYield = Moment.now() + self.yieldInterval
     while not conn.atEof or not conn.closed:
+      if Moment.now() > nextYield:
+        nextYield = Moment.now() + self.yieldInterval
+        trace "Yielding in read loop",
+          peer = self.id, nextYield = nextYield, interval = self.yieldInterval
+        await sleepAsync(10.millis)
+
       let
         data = await conn.readLp(MaxMessageSize.int)
         msg = Message.protobufDecode(data).mapFailure().tryGet()
-      await b.handler(b, msg)
+      trace "Received message", peer = self.id, connId = conn.oid
+      await self.handler(self, msg)
   except CancelledError:
     trace "Read loop cancelled"
   except CatchableError as err:
     warn "Exception in blockexc read loop", msg = err.msg
   finally:
+    trace "Detaching read loop", peer = self.id, connId = conn.oid
     await conn.close()
 
-proc connect*(b: NetworkPeer): Future[Connection] {.async.} =
-  if b.connected:
-    return b.sendConn
+proc connect*(
+    self: NetworkPeer
+): Future[Connection] {.async: (raises: [CancelledError]).} =
+  if self.connected:
+    trace "Already connected", peer = self.id, connId = self.sendConn.oid
+    return self.sendConn
 
-  b.sendConn = await b.getConn()
-  asyncSpawn b.readLoop(b.sendConn)
-  return b.sendConn
+  self.sendConn = await self.getConn()
+  self.trackedFutures.track(self.readLoop(self.sendConn))
+  return self.sendConn
 
-proc send*(b: NetworkPeer, msg: Message) {.async.} =
-  let conn = await b.connect()
+proc send*(
+    self: NetworkPeer, msg: Message
+) {.async: (raises: [CancelledError, LPStreamError]).} =
+  let conn = await self.connect()
 
   if isNil(conn):
-    warn "Unable to get send connection for peer message not sent", peer = b.id
+    warn "Unable to get send connection for peer message not sent", peer = self.id
     return
 
+  trace "Sending message", peer = self.id, connId = conn.oid
   await conn.writeLp(protobufEncode(msg))
-
-proc broadcast*(b: NetworkPeer, msg: Message) =
-  proc sendAwaiter() {.async.} =
-    try:
-      await b.send(msg)
-    except CatchableError as exc:
-      warn "Exception broadcasting message to peer", peer = b.id, exc = exc.msg
-
-  asyncSpawn sendAwaiter()
 
 func new*(
     T: type NetworkPeer,
@@ -87,4 +99,9 @@ func new*(
 ): NetworkPeer =
   doAssert(not isNil(connProvider), "should supply connection provider")
 
-  NetworkPeer(id: peer, getConn: connProvider, handler: rpcHandler)
+  NetworkPeer(
+    id: peer,
+    getConn: connProvider,
+    handler: rpcHandler,
+    trackedFutures: TrackedFutures(),
+  )

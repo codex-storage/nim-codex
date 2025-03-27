@@ -13,11 +13,11 @@ export json
 
 type
   StorageRequestParams* = object
-    duration* {.serialize.}: UInt256
+    duration* {.serialize.}: uint64
     proofProbability* {.serialize.}: UInt256
     pricePerBytePerSecond* {.serialize.}: UInt256
     collateralPerByte* {.serialize.}: UInt256
-    expiry* {.serialize.}: ?UInt256
+    expiry* {.serialize.}: uint64
     nodes* {.serialize.}: ?uint
     tolerance* {.serialize.}: ?uint
 
@@ -28,16 +28,18 @@ type
     error* {.serialize.}: ?string
 
   RestAvailability* = object
-    totalSize* {.serialize.}: UInt256
-    duration* {.serialize.}: UInt256
+    totalSize* {.serialize.}: uint64
+    duration* {.serialize.}: uint64
     minPricePerBytePerSecond* {.serialize.}: UInt256
     totalCollateral* {.serialize.}: UInt256
-    freeSize* {.serialize.}: ?UInt256
+    freeSize* {.serialize.}: ?uint64
+    enabled* {.serialize.}: ?bool
+    until* {.serialize.}: ?SecondsSince1970
 
   RestSalesAgent* = object
     state* {.serialize.}: string
     requestId* {.serialize.}: RequestId
-    slotIndex* {.serialize.}: UInt256
+    slotIndex* {.serialize.}: uint64
     request* {.serialize.}: ?StorageRequest
     reservation* {.serialize.}: ?Reservation
 

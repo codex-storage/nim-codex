@@ -2,6 +2,7 @@ import std/sets
 import std/sequtils
 import pkg/chronos
 import pkg/questionable/results
+import pkg/stew/endians2
 
 import ./validationconfig
 import ./market
@@ -19,10 +20,8 @@ type Validation* = ref object
   subscriptions: seq[Subscription]
   running: Future[void]
   periodicity: Periodicity
-  proofTimeout: UInt256
+  proofTimeout: uint64
   config: ValidationConfig
-
-const MaxStorageRequestDuration = 30.days
 
 logScope:
   topics = "codex validator"
@@ -35,18 +34,19 @@ proc new*(
 proc slots*(validation: Validation): seq[SlotId] =
   validation.slots.toSeq
 
-proc getCurrentPeriod(validation: Validation): UInt256 =
-  return validation.periodicity.periodOf(validation.clock.now().u256)
+proc getCurrentPeriod(validation: Validation): Period =
+  return validation.periodicity.periodOf(validation.clock.now().Timestamp)
 
 proc waitUntilNextPeriod(validation: Validation) {.async.} =
   let period = validation.getCurrentPeriod()
   let periodEnd = validation.periodicity.periodEnd(period)
   trace "Waiting until next period", currentPeriod = period
-  await validation.clock.waitUntil(periodEnd.truncate(int64) + 1)
+  await validation.clock.waitUntil((periodEnd + 1).toSecondsSince1970)
 
 func groupIndexForSlotId*(slotId: SlotId, validationGroups: ValidationGroups): uint16 =
-  let slotIdUInt256 = UInt256.fromBytesBE(slotId.toArray)
-  (slotIdUInt256 mod validationGroups.u256).truncate(uint16)
+  let a = slotId.toArray
+  let slotIdInt64 = uint64.fromBytesBE(a)
+  (slotIdInt64 mod uint64(validationGroups)).uint16
 
 func maxSlotsConstraintRespected(validation: Validation): bool =
   validation.config.maxSlots == 0 or validation.slots.len < validation.config.maxSlots
@@ -57,7 +57,7 @@ func shouldValidateSlot(validation: Validation, slotId: SlotId): bool =
   groupIndexForSlotId(slotId, validationGroups) == validation.config.groupIndex
 
 proc subscribeSlotFilled(validation: Validation) {.async.} =
-  proc onSlotFilled(requestId: RequestId, slotIndex: UInt256) =
+  proc onSlotFilled(requestId: RequestId, slotIndex: uint64) =
     if not validation.maxSlotsConstraintRespected:
       return
     let slotId = slotId(requestId, slotIndex)
@@ -115,14 +115,13 @@ proc run(validation: Validation) {.async: (raises: []).} =
   except CatchableError as e:
     error "Validation failed", msg = e.msg
 
-proc epochForDurationBackFromNow(
-    validation: Validation, duration: Duration
-): SecondsSince1970 =
-  return validation.clock.now - duration.secs
+proc findEpoch(validation: Validation, secondsAgo: uint64): SecondsSince1970 =
+  return validation.clock.now - secondsAgo.int64
 
 proc restoreHistoricalState(validation: Validation) {.async.} =
   trace "Restoring historical state..."
-  let startTimeEpoch = validation.epochForDurationBackFromNow(MaxStorageRequestDuration)
+  let requestDurationLimit = await validation.market.requestDurationLimit
+  let startTimeEpoch = validation.findEpoch(secondsAgo = requestDurationLimit)
   let slotFilledEvents =
     await validation.market.queryPastSlotFilledEvents(fromTime = startTimeEpoch)
   for event in slotFilledEvents:
@@ -143,7 +142,6 @@ proc start*(validation: Validation) {.async.} =
   await validation.subscribeSlotFilled()
   await validation.restoreHistoricalState()
   validation.running = validation.run()
-  asyncSpawn validation.running
 
 proc stop*(validation: Validation) {.async.} =
   if not validation.running.isNil and not validation.running.finished:

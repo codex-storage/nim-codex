@@ -7,6 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+{.push raises: [].}
+
 import std/algorithm
 import std/sequtils
 
@@ -54,70 +56,122 @@ proc toNodeId*(host: ca.Address): NodeId =
 
   readUintBE[256](keccak256.digest(host.toArray).data)
 
-proc findPeer*(d: Discovery, peerId: PeerId): Future[?PeerRecord] {.async.} =
+proc findPeer*(
+    d: Discovery, peerId: PeerId
+): Future[?PeerRecord] {.async: (raises: [CancelledError]).} =
   trace "protocol.resolve..."
   ## Find peer using the given Discovery object
   ##
-  let node = await d.protocol.resolve(toNodeId(peerId))
 
-  return
-    if node.isSome():
-      node.get().record.data.some
-    else:
-      PeerRecord.none
+  try:
+    let node = await d.protocol.resolve(toNodeId(peerId))
 
-method find*(d: Discovery, cid: Cid): Future[seq[SignedPeerRecord]] {.async, base.} =
+    return
+      if node.isSome():
+        node.get().record.data.some
+      else:
+        PeerRecord.none
+  except CancelledError as exc:
+    warn "Error finding peer", peerId = peerId, exc = exc.msg
+    raise exc
+  except CatchableError as exc:
+    warn "Error finding peer", peerId = peerId, exc = exc.msg
+
+  return PeerRecord.none
+
+method find*(
+    d: Discovery, cid: Cid
+): Future[seq[SignedPeerRecord]] {.async: (raises: [CancelledError]), base.} =
   ## Find block providers
   ##
-  without providers =? (await d.protocol.getProviders(cid.toNodeId())).mapFailure, error:
-    warn "Error finding providers for block", cid, error = error.msg
 
-  return providers.filterIt(not (it.data.peerId == d.peerId))
+  try:
+    without providers =? (await d.protocol.getProviders(cid.toNodeId())).mapFailure,
+      error:
+      warn "Error finding providers for block", cid, error = error.msg
 
-method provide*(d: Discovery, cid: Cid) {.async, base.} =
+    return providers.filterIt(not (it.data.peerId == d.peerId))
+  except CancelledError as exc:
+    warn "Error finding providers for block", cid, exc = exc.msg
+    raise exc
+  except CatchableError as exc:
+    warn "Error finding providers for block", cid, exc = exc.msg
+
+method provide*(d: Discovery, cid: Cid) {.async: (raises: [CancelledError]), base.} =
   ## Provide a block Cid
   ##
-  let nodes = await d.protocol.addProvider(cid.toNodeId(), d.providerRecord.get)
+  try:
+    let nodes = await d.protocol.addProvider(cid.toNodeId(), d.providerRecord.get)
 
-  if nodes.len <= 0:
-    warn "Couldn't provide to any nodes!"
+    if nodes.len <= 0:
+      warn "Couldn't provide to any nodes!"
+  except CancelledError as exc:
+    warn "Error providing block", cid, exc = exc.msg
+    raise exc
+  except CatchableError as exc:
+    warn "Error providing block", cid, exc = exc.msg
 
 method find*(
     d: Discovery, host: ca.Address
-): Future[seq[SignedPeerRecord]] {.async, base.} =
+): Future[seq[SignedPeerRecord]] {.async: (raises: [CancelledError]), base.} =
   ## Find host providers
   ##
 
-  trace "Finding providers for host", host = $host
-  without var providers =? (await d.protocol.getProviders(host.toNodeId())).mapFailure,
-    error:
-    trace "Error finding providers for host", host = $host, exc = error.msg
-    return
+  try:
+    trace "Finding providers for host", host = $host
+    without var providers =? (await d.protocol.getProviders(host.toNodeId())).mapFailure,
+      error:
+      trace "Error finding providers for host", host = $host, exc = error.msg
+      return
 
-  if providers.len <= 0:
-    trace "No providers found", host = $host
-    return
+    if providers.len <= 0:
+      trace "No providers found", host = $host
+      return
 
-  providers.sort do(a, b: SignedPeerRecord) -> int:
-    system.cmp[uint64](a.data.seqNo, b.data.seqNo)
+    providers.sort do(a, b: SignedPeerRecord) -> int:
+      system.cmp[uint64](a.data.seqNo, b.data.seqNo)
 
-  return providers
+    return providers
+  except CancelledError as exc:
+    warn "Error finding providers for host", host = $host, exc = exc.msg
+    raise exc
+  except CatchableError as exc:
+    warn "Error finding providers for host", host = $host, exc = exc.msg
 
-method provide*(d: Discovery, host: ca.Address) {.async, base.} =
+method provide*(
+    d: Discovery, host: ca.Address
+) {.async: (raises: [CancelledError]), base.} =
   ## Provide hosts
   ##
 
-  trace "Providing host", host = $host
-  let nodes = await d.protocol.addProvider(host.toNodeId(), d.providerRecord.get)
-  if nodes.len > 0:
-    trace "Provided to nodes", nodes = nodes.len
+  try:
+    trace "Providing host", host = $host
+    let nodes = await d.protocol.addProvider(host.toNodeId(), d.providerRecord.get)
+    if nodes.len > 0:
+      trace "Provided to nodes", nodes = nodes.len
+  except CancelledError as exc:
+    warn "Error providing host", host = $host, exc = exc.msg
+    raise exc
+  except CatchableError as exc:
+    warn "Error providing host", host = $host, exc = exc.msg
 
-method removeProvider*(d: Discovery, peerId: PeerId): Future[void] {.base, gcsafe.} =
+method removeProvider*(
+    d: Discovery, peerId: PeerId
+): Future[void] {.base, gcsafe, async: (raises: [CancelledError]).} =
   ## Remove provider from providers table
   ##
 
   trace "Removing provider", peerId
-  d.protocol.removeProvidersLocal(peerId)
+  try:
+    await d.protocol.removeProvidersLocal(peerId)
+  except CancelledError as exc:
+    warn "Error removing provider", peerId = peerId, exc = exc.msg
+    raise exc
+  except CatchableError as exc:
+    warn "Error removing provider", peerId = peerId, exc = exc.msg
+  except Exception as exc: # Something in discv5 is raising Exception
+    warn "Error removing provider", peerId = peerId, exc = exc.msg
+    raiseAssert("Unexpected Exception in removeProvider")
 
 proc updateAnnounceRecord*(d: Discovery, addrs: openArray[MultiAddress]) =
   ## Update providers record
@@ -125,7 +179,7 @@ proc updateAnnounceRecord*(d: Discovery, addrs: openArray[MultiAddress]) =
 
   d.announceAddrs = @addrs
 
-  trace "Updating announce record", addrs = d.announceAddrs
+  info "Updating announce record", addrs = d.announceAddrs
   d.providerRecord = SignedPeerRecord
     .init(d.key, PeerRecord.init(d.peerId, d.announceAddrs))
     .expect("Should construct signed record").some
@@ -137,7 +191,7 @@ proc updateDhtRecord*(d: Discovery, addrs: openArray[MultiAddress]) =
   ## Update providers record
   ##
 
-  trace "Updating Dht record", addrs = addrs
+  info "Updating Dht record", addrs = addrs
   d.dhtRecord = SignedPeerRecord
     .init(d.key, PeerRecord.init(d.peerId, @addrs))
     .expect("Should construct signed record").some
@@ -145,12 +199,18 @@ proc updateDhtRecord*(d: Discovery, addrs: openArray[MultiAddress]) =
   if not d.protocol.isNil:
     d.protocol.updateRecord(d.dhtRecord).expect("Should update SPR")
 
-proc start*(d: Discovery) {.async.} =
-  d.protocol.open()
-  await d.protocol.start()
+proc start*(d: Discovery) {.async: (raises: []).} =
+  try:
+    d.protocol.open()
+    await d.protocol.start()
+  except CatchableError as exc:
+    error "Error starting discovery", exc = exc.msg
 
-proc stop*(d: Discovery) {.async.} =
-  await d.protocol.closeWait()
+proc stop*(d: Discovery) {.async: (raises: []).} =
+  try:
+    await noCancel d.protocol.closeWait()
+  except CatchableError as exc:
+    error "Error stopping discovery", exc = exc.msg
 
 proc new*(
     T: type Discovery,

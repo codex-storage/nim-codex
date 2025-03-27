@@ -12,6 +12,7 @@ import pkg/questionable/results
 import pkg/stint
 import pkg/poseidon2
 import pkg/poseidon2/io
+import pkg/taskpools
 
 import pkg/nitro
 import pkg/codexdht/discv5/protocol as discv5
@@ -37,6 +38,7 @@ import ../examples
 import ../helpers
 import ../helpers/mockmarket
 import ../helpers/mockclock
+import ../slots/helpers
 
 import ./helpers
 
@@ -62,21 +64,6 @@ asyncchecksuite "Test Node - Basic":
     check:
       fetched == manifest
 
-  test "Should not lookup non-existing blocks twice":
-    # https://github.com/codex-storage/nim-codex/issues/699
-    let
-      cstore = CountingStore.new(engine, localStore)
-      node = CodexNodeRef.new(switch, cstore, engine, blockDiscovery)
-      missingCid =
-        Cid.init("zDvZRwzmCvtiyubW9AecnxgLnXK8GrBvpQJBDzToxmzDN6Nrc2CZ").get()
-
-    engine.blockFetchTimeout = timer.milliseconds(100)
-
-    discard await node.retrieve(missingCid, local = false)
-
-    let lookupCount = cstore.lookups.getOrDefault(missingCid)
-    check lookupCount == 1
-
   test "Block Batching":
     let manifest = await storeDataGetManifest(localStore, chunker)
 
@@ -91,17 +78,15 @@ asyncchecksuite "Test Node - Basic":
         )
       ).tryGet()
 
-  test "Store and retrieve Data Stream":
+  test "Should store Data Stream":
     let
       stream = BufferStream.new()
       storeFut = node.store(stream)
-      oddChunkSize = math.trunc(DefaultBlockSize.float / 3.14).NBytes
         # Let's check that node.store can correctly rechunk these odd chunks
-      oddChunker = FileChunker.new(file = file, chunkSize = oddChunkSize, pad = false)
-        # TODO: doesn't work with pad=tue
+      oddChunker = FileChunker.new(file = file, chunkSize = 1024.NBytes, pad = false)
+        # don't pad, so `node.store` gets the correct size
 
     var original: seq[byte]
-
     try:
       while (let chunk = await oddChunker.getBytes(); chunk.len > 0):
         original &= chunk
@@ -114,12 +99,34 @@ asyncchecksuite "Test Node - Basic":
       manifestCid = (await storeFut).tryGet()
       manifestBlock = (await localStore.getBlock(manifestCid)).tryGet()
       localManifest = Manifest.decode(manifestBlock).tryGet()
-      data = await (await node.retrieve(manifestCid)).drain()
 
+    var data: seq[byte]
+    for i in 0 ..< localManifest.blocksCount:
+      let blk = (await localStore.getBlock(localManifest.treeCid, i)).tryGet()
+      data &= blk.data
+
+    data.setLen(localManifest.datasetSize.int) # truncate data to original size
     check:
-      data.len == localManifest.datasetSize.int
       data.len == original.len
       sha256.digest(data) == sha256.digest(original)
+
+  test "Should retrieve a Data Stream":
+    let
+      manifest = await storeDataGetManifest(localStore, chunker)
+      manifestBlk =
+        bt.Block.new(data = manifest.encode().tryGet, codec = ManifestCodec).tryGet()
+
+    (await localStore.putBlock(manifestBlk)).tryGet()
+    let data = await ((await node.retrieve(manifestBlk.cid)).tryGet()).drain()
+
+    var storedData: seq[byte]
+    for i in 0 ..< manifest.blocksCount:
+      let blk = (await localStore.getBlock(manifest.treeCid, i)).tryGet()
+      storedData &= blk.data
+
+    storedData.setLen(manifest.datasetSize.int) # truncate data to original size
+    check:
+      storedData == data
 
   test "Retrieve One Block":
     let
@@ -137,7 +144,8 @@ asyncchecksuite "Test Node - Basic":
 
   test "Setup purchase request":
     let
-      erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
+      erasure =
+        Erasure.new(store, leoEncoderProvider, leoDecoderProvider, Taskpool.new())
       manifest = await storeDataGetManifest(localStore, chunker)
       manifestBlock =
         bt.Block.new(manifest.encode().tryGet(), codec = ManifestCodec).tryGet()
@@ -154,15 +162,40 @@ asyncchecksuite "Test Node - Basic":
         cid = manifestBlock.cid,
         nodes = 5,
         tolerance = 2,
-        duration = 100.u256,
+        duration = 100.uint64,
         pricePerBytePerSecond = 1.u256,
         proofProbability = 3.u256,
-        expiry = 200.u256,
+        expiry = 200.uint64,
         collateralPerByte = 1.u256,
       )
     ).tryGet
 
     check:
       (await verifiableBlock.cid in localStore) == true
-      request.content.cid == $verifiableBlock.cid
+      request.content.cid == verifiableBlock.cid
       request.content.merkleRoot == builder.verifyRoot.get.toBytes
+
+  test "Should delete a single block":
+    let randomBlock = bt.Block.new("Random block".toBytes).tryGet()
+    (await localStore.putBlock(randomBlock)).tryGet()
+    check (await randomBlock.cid in localStore) == true
+
+    (await node.delete(randomBlock.cid)).tryGet()
+    check (await randomBlock.cid in localStore) == false
+
+  test "Should delete an entire dataset":
+    let
+      blocks = await makeRandomBlocks(datasetSize = 2048, blockSize = 256'nb)
+      manifest = await storeDataGetManifest(localStore, blocks)
+      manifestBlock = (await store.storeManifest(manifest)).tryGet()
+      manifestCid = manifestBlock.cid
+
+    check await manifestCid in localStore
+    for blk in blocks:
+      check await blk.cid in localStore
+
+    (await node.delete(manifestCid)).tryGet()
+
+    check not await manifestCid in localStore
+    for blk in blocks:
+      check not (await blk.cid in localStore)

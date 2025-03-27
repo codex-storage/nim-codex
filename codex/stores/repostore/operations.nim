@@ -57,6 +57,17 @@ proc putLeafMetadata*(
       (md.some, res),
   )
 
+proc delLeafMetadata*(
+    self: RepoStore, treeCid: Cid, index: Natural
+): Future[?!void] {.async.} =
+  without key =? createBlockCidAndProofMetadataKey(treeCid, index), err:
+    return failure(err)
+
+  if err =? (await self.metaDs.delete(key)).errorOption:
+    return failure(err)
+
+  success()
+
 proc getLeafMetadata*(
     self: RepoStore, treeCid: Cid, index: Natural
 ): Future[?!LeafMetadata] {.async.} =
@@ -94,7 +105,7 @@ proc updateQuotaUsage*(
     minusUsed: NBytes = 0.NBytes,
     plusReserved: NBytes = 0.NBytes,
     minusReserved: NBytes = 0.NBytes,
-): Future[?!void] {.async.} =
+): Future[?!void] {.async: (raises: [CancelledError]).} =
   await self.metaDs.modify(
     QuotaUsedKey,
     proc(maybeCurrUsage: ?QuotaUsage): Future[?QuotaUsage] {.async.} =
@@ -205,9 +216,6 @@ proc storeBlock*(
 proc tryDeleteBlock*(
     self: RepoStore, cid: Cid, expiryLimit = SecondsSince1970.low
 ): Future[?!DeleteResult] {.async.} =
-  if cid.isEmpty:
-    return success(DeleteResult(kind: InUse))
-
   without metaKey =? createBlockExpirationMetadataKey(cid), err:
     return failure(err)
 

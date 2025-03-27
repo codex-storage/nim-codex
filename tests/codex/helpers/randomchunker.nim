@@ -26,7 +26,7 @@ proc new*(
   var consumed = 0
   proc reader(
       data: ChunkBuffer, len: int
-  ): Future[int] {.async, gcsafe, raises: [Defect].} =
+  ): Future[int] {.async: (raises: [ChunkerError, CancelledError]), gcsafe.} =
     var alpha = toSeq(byte('A') .. byte('z'))
 
     if consumed >= size:

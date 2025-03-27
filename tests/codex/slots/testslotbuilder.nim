@@ -133,7 +133,7 @@ suite "Slot builder":
 
     check:
       Poseidon2Builder.new(localStore, mismatchManifest, cellSize = cellSize).error.msg ==
-        "Number of blocks must be divisable by number of slots."
+        "Number of blocks must be divisible by number of slots."
 
   test "Block size must be divisable by cell size":
     let mismatchManifest = Manifest.new(
@@ -151,7 +151,7 @@ suite "Slot builder":
 
     check:
       Poseidon2Builder.new(localStore, mismatchManifest, cellSize = cellSize).error.msg ==
-        "Block size must be divisable by cell size."
+        "Block size must be divisible by cell size."
 
   test "Should build correct slot builder":
     builder =

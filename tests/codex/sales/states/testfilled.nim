@@ -14,9 +14,9 @@ import ../../helpers/mockmarket
 import ../../examples
 import ../../helpers
 
-checksuite "sales state 'filled'":
+suite "sales state 'filled'":
   let request = StorageRequest.example
-  let slotIndex = (request.ask.slots div 2).u256
+  let slotIndex = request.ask.slots div 2
 
   var market: MockMarket
   var slot: MockSlot
@@ -36,7 +36,7 @@ checksuite "sales state 'filled'":
     market.requestEnds[request.id] = 321
     onExpiryUpdatePassedExpiry = -1
     let onExpiryUpdate = proc(
-        rootCid: string, expiry: SecondsSince1970
+        rootCid: Cid, expiry: SecondsSince1970
     ): Future[?!void] {.async.} =
       onExpiryUpdatePassedExpiry = expiry
       return success()

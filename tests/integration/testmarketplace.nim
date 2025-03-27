@@ -1,3 +1,5 @@
+import std/times
+import std/httpclient
 import ../examples
 import ../contracts/time
 import ../contracts/deployment
@@ -34,74 +36,82 @@ marketplacesuite "Marketplace":
     await ethProvider.advanceTime(1.u256)
 
   test "nodes negotiate contracts on the marketplace", marketplaceConfig:
-    let size = 0xFFFFFF.u256
+    let size = 0xFFFFFF.uint64
     let data = await RandomChunker.example(blocks = blocks)
     # host makes storage available
-    let availability = host.postAvailability(
-      totalSize = size,
-      duration = 20 * 60.u256,
-      minPricePerBytePerSecond = minPricePerBytePerSecond,
-      totalCollateral = size * minPricePerBytePerSecond,
+    let availability = (
+      await host.postAvailability(
+        totalSize = size,
+        duration = 20 * 60.uint64,
+        minPricePerBytePerSecond = minPricePerBytePerSecond,
+        totalCollateral = size.u256 * minPricePerBytePerSecond,
+      )
     ).get
 
     # client requests storage
-    let cid = client.upload(data).get
-    let id = client.requestStorage(
+    let cid = (await client.upload(data)).get
+    let id = await client.requestStorage(
       cid,
-      duration = 20 * 60.u256,
+      duration = 20 * 60.uint64,
       pricePerBytePerSecond = minPricePerBytePerSecond,
       proofProbability = 3.u256,
-      expiry = 10 * 60,
+      expiry = 10 * 60.uint64,
       collateralPerByte = collateralPerByte,
       nodes = ecNodes,
       tolerance = ecTolerance,
-    ).get
+    )
 
-    check eventually(client.purchaseStateIs(id, "started"), timeout = 10 * 60 * 1000)
-    let purchase = client.getPurchase(id).get
+    check eventually(
+      await client.purchaseStateIs(id, "started"), timeout = 10 * 60 * 1000
+    )
+    let purchase = (await client.getPurchase(id)).get
     check purchase.error == none string
-    let availabilities = host.getAvailabilities().get
+    let availabilities = (await host.getAvailabilities()).get
     check availabilities.len == 1
     let newSize = availabilities[0].freeSize
     check newSize > 0 and newSize < size
 
-    let reservations = host.getAvailabilityReservations(availability.id).get
+    let reservations = (await host.getAvailabilityReservations(availability.id)).get
     check reservations.len == 3
     check reservations[0].requestId == purchase.requestId
 
   test "node slots gets paid out and rest of tokens are returned to client",
     marketplaceConfig:
-    let size = 0xFFFFFF.u256
+    let size = 0xFFFFFF.uint64
     let data = await RandomChunker.example(blocks = blocks)
     let marketplace = Marketplace.new(Marketplace.address, ethProvider.getSigner())
     let tokenAddress = await marketplace.token()
     let token = Erc20Token.new(tokenAddress, ethProvider.getSigner())
-    let duration = 20 * 60.u256
+    let duration = 20 * 60.uint64
 
     # host makes storage available
     let startBalanceHost = await token.balanceOf(hostAccount)
-    discard host.postAvailability(
-      totalSize = size,
-      duration = 20 * 60.u256,
-      minPricePerBytePerSecond = minPricePerBytePerSecond,
-      totalCollateral = size * minPricePerBytePerSecond,
+    discard (
+      await host.postAvailability(
+        totalSize = size,
+        duration = 20 * 60.uint64,
+        minPricePerBytePerSecond = minPricePerBytePerSecond,
+        totalCollateral = size.u256 * minPricePerBytePerSecond,
+      )
     ).get
 
     # client requests storage
-    let cid = client.upload(data).get
-    let id = client.requestStorage(
+    let cid = (await client.upload(data)).get
+    let id = await client.requestStorage(
       cid,
       duration = duration,
       pricePerBytePerSecond = minPricePerBytePerSecond,
       proofProbability = 3.u256,
-      expiry = 10 * 60,
+      expiry = 10 * 60.uint64,
       collateralPerByte = collateralPerByte,
       nodes = ecNodes,
       tolerance = ecTolerance,
-    ).get
+    )
 
-    check eventually(client.purchaseStateIs(id, "started"), timeout = 10 * 60 * 1000)
-    let purchase = client.getPurchase(id).get
+    check eventually(
+      await client.purchaseStateIs(id, "started"), timeout = 10 * 60 * 1000
+    )
+    let purchase = (await client.getPurchase(id)).get
     check purchase.error == none string
 
     let clientBalanceBeforeFinished = await token.balanceOf(clientAccount)
@@ -109,13 +119,13 @@ marketplacesuite "Marketplace":
     # Proving mechanism uses blockchain clock to do proving/collect/cleanup round
     # hence we must use `advanceTime` over `sleepAsync` as Hardhat does mine new blocks
     # only with new transaction
-    await ethProvider.advanceTime(duration)
+    await ethProvider.advanceTime(duration.u256)
 
     # Checking that the hosting node received reward for at least the time between <expiry;end>
     let slotSize = slotSize(blocks, ecNodes, ecTolerance)
     let pricePerSlotPerSecond = minPricePerBytePerSecond * slotSize
     check eventually (await token.balanceOf(hostAccount)) - startBalanceHost >=
-      (duration - 5 * 60) * pricePerSlotPerSecond * ecNodes.u256
+      (duration - 5 * 60).u256 * pricePerSlotPerSecond * ecNodes.u256
 
     # Checking that client node receives some funds back that were not used for the host nodes
     check eventually(
@@ -157,19 +167,19 @@ marketplacesuite "Marketplace payouts":
 
     # provider makes storage available
     let datasetSize = datasetSize(blocks, ecNodes, ecTolerance)
-    let totalAvailabilitySize = datasetSize div 2
-    discard providerApi.postAvailability(
+    let totalAvailabilitySize = (datasetSize div 2).truncate(uint64)
+    discard await providerApi.postAvailability(
       # make availability size small enough that we can't fill all the slots,
       # thus causing a cancellation
       totalSize = totalAvailabilitySize,
-      duration = duration.u256,
+      duration = duration.uint64,
       minPricePerBytePerSecond = minPricePerBytePerSecond,
-      totalCollateral = collateralPerByte * totalAvailabilitySize,
+      totalCollateral = collateralPerByte * totalAvailabilitySize.u256,
     )
 
-    let cid = clientApi.upload(data).get
+    let cid = (await clientApi.upload(data)).get
 
-    var slotIdxFilled = none UInt256
+    var slotIdxFilled = none uint64
     proc onSlotFilled(eventResult: ?!SlotFilled) =
       assert not eventResult.isErr
       slotIdxFilled = some (!eventResult).slotIndex
@@ -189,11 +199,11 @@ marketplacesuite "Marketplace payouts":
 
     # wait until one slot is filled
     check eventually(slotIdxFilled.isSome, timeout = expiry.int * 1000)
-    let slotId = slotId(!clientApi.requestId(id), !slotIdxFilled)
+    let slotId = slotId(!(await clientApi.requestId(id)), !slotIdxFilled)
 
     # wait until sale is cancelled
     await ethProvider.advanceTime(expiry.u256)
-    check eventually providerApi.saleStateIs(slotId, "SaleCancelled")
+    check eventually await providerApi.saleStateIs(slotId, "SaleCancelled")
 
     await advanceToNextPeriod()
 

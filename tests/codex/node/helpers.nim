@@ -6,6 +6,7 @@ import pkg/chronos
 import pkg/codex/codextypes
 import pkg/codex/chunker
 import pkg/codex/stores
+import pkg/taskpools
 
 import ../../asynctest
 
@@ -118,10 +119,11 @@ template setupAndTearDown*() {.dirty.} =
       engine = engine,
       prover = Prover.none,
       discovery = blockDiscovery,
+      taskpool = Taskpool.new(),
     )
 
   teardown:
-    close(file)
+    file.close()
     await node.stop()
     await metaTmp.destroyDb()
     await repoTmp.destroyDb()

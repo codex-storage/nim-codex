@@ -22,8 +22,8 @@ import ../logutils
 import ../systemclock
 
 const
-  DefaultBlockMaintenanceInterval* = 10.minutes
-  DefaultNumberOfBlocksToMaintainPerInterval* = 1000
+  DefaultBlockInterval* = 10.minutes
+  DefaultNumBlocksPerInterval* = 1000
 
 type BlockMaintainer* = ref object of RootObj
   repoStore: RepoStore

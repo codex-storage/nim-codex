@@ -1,5 +1,6 @@
 import std/sequtils
 import std/sugar
+import std/times
 
 import pkg/chronos
 import pkg/questionable/results
@@ -11,6 +12,8 @@ import pkg/codex/blocktype as bt
 import pkg/codex/rng
 import pkg/codex/utils
 import pkg/codex/indexingstrategy
+import pkg/taskpools
+import pkg/codex/utils/arrayutils
 
 import ../asynctest
 import ./helpers
@@ -27,6 +30,7 @@ suite "Erasure encode/decode":
   var erasure: Erasure
   let repoTmp = TempLevelDb.new()
   let metaTmp = TempLevelDb.new()
+  var taskpool: Taskpool
 
   setup:
     let
@@ -35,12 +39,14 @@ suite "Erasure encode/decode":
     rng = Rng.instance()
     chunker = RandomChunker.new(rng, size = dataSetSize, chunkSize = BlockSize)
     store = RepoStore.new(repoDs, metaDs)
-    erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider)
+    taskpool = Taskpool.new()
+    erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider, taskpool)
     manifest = await storeDataGetManifest(store, chunker)
 
   teardown:
     await repoTmp.destroyDb()
     await metaTmp.destroyDb()
+    taskpool.shutdown()
 
   proc encode(buffers, parity: int): Future[Manifest] {.async.} =
     let encoded =
@@ -212,7 +218,7 @@ suite "Erasure encode/decode":
       let present = await store.hasBlock(manifest.treeCid, d)
       check present.tryGet()
 
-  test "handles edge case of 0 parity blocks":
+  test "Handles edge case of 0 parity blocks":
     const
       buffers = 20
       parity = 0
@@ -220,6 +226,43 @@ suite "Erasure encode/decode":
     let encoded = await encode(buffers, parity)
 
     discard (await erasure.decode(encoded)).tryGet()
+
+  test "Should concurrently encode/decode multiple datasets":
+    const iterations = 5
+
+    let
+      datasetSize = 1.MiBs
+      ecK = 10.Natural
+      ecM = 10.Natural
+
+    var encodeTasks = newSeq[Future[?!Manifest]]()
+    var decodeTasks = newSeq[Future[?!Manifest]]()
+    var manifests = newSeq[Manifest]()
+    for i in 0 ..< iterations:
+      let
+        # create random data and store it
+        blockSize = rng.sample(@[1, 2, 4, 8, 16, 32, 64].mapIt(it.KiBs))
+        chunker = RandomChunker.new(rng, size = datasetSize, chunkSize = blockSize)
+        manifest = await storeDataGetManifest(store, chunker)
+      manifests.add(manifest)
+      # encode the data concurrently
+      encodeTasks.add(erasure.encode(manifest, ecK, ecM))
+    # wait for all encoding tasks to finish
+    let encodeResults = await allFinished(encodeTasks)
+    # decode the data concurrently
+    for i in 0 ..< encodeResults.len:
+      decodeTasks.add(erasure.decode(encodeResults[i].read().tryGet()))
+    # wait for all decoding tasks to finish
+    let decodeResults = await allFinished(decodeTasks) # TODO: use allFutures 
+
+    for j in 0 ..< decodeTasks.len:
+      let
+        decoded = decodeResults[j].read().tryGet()
+        encoded = encodeResults[j].read().tryGet()
+      check:
+        decoded.treeCid == manifests[j].treeCid
+        decoded.treeCid == encoded.originalTreeCid
+        decoded.blocksCount == encoded.originalBlocksCount
 
   test "Should handle verifiable manifests":
     const
@@ -259,3 +302,73 @@ suite "Erasure encode/decode":
         decoded.treeCid == manifest.treeCid
         decoded.treeCid == encoded.originalTreeCid
         decoded.blocksCount == encoded.originalBlocksCount
+
+  test "Should complete encode/decode task when cancelled":
+    let
+      blocksLen = 10000
+      parityLen = 10
+      data = seq[seq[byte]].new()
+      chunker = RandomChunker.new(
+        rng, size = (blocksLen * BlockSize.int), chunkSize = BlockSize
+      )
+
+    data[].setLen(blocksLen)
+
+    for i in 0 ..< blocksLen:
+      let chunk = await chunker.getBytes()
+      shallowCopy(data[i], @(chunk))
+
+    let
+      parity = createDoubleArray(parityLen, BlockSize.int)
+      paritySeq = seq[seq[byte]].new()
+      recovered = createDoubleArray(blocksLen, BlockSize.int)
+      cancelledTaskParity = createDoubleArray(parityLen, BlockSize.int)
+      cancelledTaskRecovered = createDoubleArray(blocksLen, BlockSize.int)
+
+    paritySeq[].setLen(parityLen)
+    defer:
+      freeDoubleArray(parity, parityLen)
+      freeDoubleArray(cancelledTaskParity, parityLen)
+      freeDoubleArray(recovered, blocksLen)
+      freeDoubleArray(cancelledTaskRecovered, blocksLen)
+
+    for i in 0 ..< parityLen:
+      paritySeq[i] = cast[seq[byte]](parity[i])
+
+    # call asyncEncode to get the parity
+    let encFut =
+      await erasure.asyncEncode(BlockSize.int, blocksLen, parityLen, data, parity)
+    check encFut.isOk
+
+    let decFut = await erasure.asyncDecode(
+      BlockSize.int, blocksLen, parityLen, data, paritySeq, recovered
+    )
+    check decFut.isOk
+
+    # call asyncEncode and cancel the task
+    let encodeFut = erasure.asyncEncode(
+      BlockSize.int, blocksLen, parityLen, data, cancelledTaskParity
+    )
+    encodeFut.cancel()
+
+    try:
+      discard await encodeFut
+    except CatchableError as exc:
+      check exc of CancelledError
+    finally:
+      for i in 0 ..< parityLen:
+        check equalMem(parity[i], cancelledTaskParity[i], BlockSize.int)
+
+    # call asyncDecode and cancel the task
+    let decodeFut = erasure.asyncDecode(
+      BlockSize.int, blocksLen, parityLen, data, paritySeq, cancelledTaskRecovered
+    )
+    decodeFut.cancel()
+
+    try:
+      discard await decodeFut
+    except CatchableError as exc:
+      check exc of CancelledError
+    finally:
+      for i in 0 ..< blocksLen:
+        check equalMem(recovered[i], cancelledTaskRecovered[i], BlockSize.int)

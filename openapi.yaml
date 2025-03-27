@@ -163,6 +163,14 @@ components:
         totalCollateral:
           type: string
           description: Total collateral (in amount of tokens) that can be used for matching requests
+        enabled:
+          type: boolean
+          description: Enable the ability to receive sales on this availability.
+          default: true
+        until:
+          type: integer
+          description: Specifies the latest timestamp, after which the availability will no longer host any slots. If set to 0, there will be no restrictions.
+          default: 0
 
     SalesAvailabilityREAD:
       allOf:
@@ -239,6 +247,9 @@ components:
         slotIndex:
           type: string
           description: Slot Index as decimal string
+        validUntil:
+          type: integer
+          description: Timestamp after which the reservation will no longer be valid.
 
     StorageRequestCreation:
       type: object
@@ -325,6 +336,7 @@ components:
             - unknown
         error:
           type: string
+          nullable: true
           description: If Request failed, then here is presented the error message
         request:
           $ref: "#/components/schemas/StorageRequest"
@@ -371,12 +383,6 @@ components:
           nullable: true
           description: "The original mimetype of the uploaded content (optional)"
           example: image/png
-        uploadedAt:
-          type: integer
-          format: int64
-          nullable: true
-          description: "The UTC upload timestamp in seconds"
-          example: 1729244192
 
     Space:
       type: object
@@ -709,7 +715,7 @@ paths:
         "400":
           description: Invalid data input
         "422":
-          description: Not enough node's storage quota available
+          description: Not enough node's storage quota available or the provided parameters did not pass validation
         "500":
           description: Error reserving availability
         "503":
@@ -742,7 +748,7 @@ paths:
         "404":
           description: Availability not found
         "422":
-          description: Not enough node's storage quota available
+          description: The provided parameters did not pass validation
         "500":
           description: Error reserving availability
         "503":
@@ -805,6 +811,8 @@ paths:
                 type: string
         "400":
           description: Invalid or missing Request ID
+        "422":
+          description: The storage request parameters are not valid
         "404":
           description: Request ID not found
         "503":

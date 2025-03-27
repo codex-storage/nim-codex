@@ -5,9 +5,11 @@ import ../logutils
 
 {.push raises: [].}
 
-type TrackedFutures* = ref object
-  futures: Table[uint, FutureBase]
-  cancelling: bool
+type
+  TrackedFuture = Future[void].Raising([])
+  TrackedFutures* = ref object
+    futures: Table[uint, TrackedFuture]
+    cancelling: bool
 
 logScope:
   topics = "trackable futures"
@@ -15,15 +17,18 @@ logScope:
 proc len*(self: TrackedFutures): int =
   self.futures.len
 
-proc removeFuture(self: TrackedFutures, future: FutureBase) =
+proc removeFuture(self: TrackedFutures, future: TrackedFuture) =
   if not self.cancelling and not future.isNil:
     self.futures.del(future.id)
 
-proc track*[T](self: TrackedFutures, fut: Future[T]) =
+proc track*(self: TrackedFutures, fut: TrackedFuture) =
   if self.cancelling:
     return
 
-  self.futures[fut.id] = FutureBase(fut)
+  if fut.finished:
+    return
+
+  self.futures[fut.id] = fut
 
   proc cb(udata: pointer) =
     self.removeFuture(fut)
@@ -33,13 +38,8 @@ proc track*[T](self: TrackedFutures, fut: Future[T]) =
 proc cancelTracked*(self: TrackedFutures) {.async: (raises: []).} =
   self.cancelling = true
 
-  trace "cancelling tracked futures"
-
-  var cancellations: seq[FutureBase]
-  for future in self.futures.values:
-    if not future.isNil and not future.finished:
-      cancellations.add future.cancelAndWait()
-
+  trace "cancelling tracked futures", len = self.futures.len
+  let cancellations = self.futures.values.toSeq.mapIt(it.cancelAndWait())
   await noCancel allFutures cancellations
 
   self.futures.clear()

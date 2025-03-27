@@ -37,7 +37,7 @@ marketplacesuite "Validation":
   const blocks = 8
   const ecNodes = 3
   const ecTolerance = 1
-  const proofProbability = 1
+  const proofProbability = 1.u256
 
   const collateralPerByte = 1.u256
   const minPricePerBytePerSecond = 1.u256
@@ -99,11 +99,14 @@ marketplacesuite "Validation":
     let data = await RandomChunker.example(blocks = blocks)
     let datasetSize =
       datasetSize(blocks = blocks, nodes = ecNodes, tolerance = ecTolerance)
-    createAvailabilities(
-      datasetSize, duration, collateralPerByte, minPricePerBytePerSecond
+    await createAvailabilities(
+      datasetSize.truncate(uint64),
+      duration,
+      collateralPerByte,
+      minPricePerBytePerSecond,
     )
 
-    let cid = client0.upload(data).get
+    let cid = (await client0.upload(data)).get
     let purchaseId = await client0.requestStorage(
       cid,
       expiry = expiry,
@@ -112,12 +115,12 @@ marketplacesuite "Validation":
       tolerance = ecTolerance,
       proofProbability = proofProbability,
     )
-    let requestId = client0.requestId(purchaseId).get
+    let requestId = (await client0.requestId(purchaseId)).get
 
     debug "validation suite", purchaseId = purchaseId.toHex, requestId = requestId
 
     if not eventuallyS(
-      client0.purchaseStateIs(purchaseId, "started"),
+      await client0.purchaseStateIs(purchaseId, "started"),
       timeout = (expiry + 60).int,
       step = 5,
     ):
@@ -166,11 +169,14 @@ marketplacesuite "Validation":
     let data = await RandomChunker.example(blocks = blocks)
     let datasetSize =
       datasetSize(blocks = blocks, nodes = ecNodes, tolerance = ecTolerance)
-    createAvailabilities(
-      datasetSize, duration, collateralPerByte, minPricePerBytePerSecond
+    await createAvailabilities(
+      datasetSize.truncate(uint64),
+      duration,
+      collateralPerByte,
+      minPricePerBytePerSecond,
     )
 
-    let cid = client0.upload(data).get
+    let cid = (await client0.upload(data)).get
     let purchaseId = await client0.requestStorage(
       cid,
       expiry = expiry,
@@ -179,12 +185,12 @@ marketplacesuite "Validation":
       tolerance = ecTolerance,
       proofProbability = proofProbability,
     )
-    let requestId = client0.requestId(purchaseId).get
+    let requestId = (await client0.requestId(purchaseId)).get
 
     debug "validation suite", purchaseId = purchaseId.toHex, requestId = requestId
 
     if not eventuallyS(
-      client0.purchaseStateIs(purchaseId, "started"),
+      await client0.purchaseStateIs(purchaseId, "started"),
       timeout = (expiry + 60).int,
       step = 5,
     ):

@@ -1,9 +1,9 @@
 import pkg/questionable/results
 import ../../clock
 import ../../logutils
+import ../../utils/exceptions
 import ../statemachine
 import ../salesagent
-import ./errorhandling
 import ./filling
 import ./cancelled
 import ./errored
@@ -12,7 +12,7 @@ import ./failed
 logScope:
   topics = "marketplace sales initial-proving"
 
-type SaleInitialProving* = ref object of ErrorHandlingState
+type SaleInitialProving* = ref object of SaleState
 
 method `$`*(state: SaleInitialProving): string =
   "SaleInitialProving"
@@ -25,9 +25,9 @@ method onFailed*(state: SaleInitialProving, request: StorageRequest): ?State =
 
 proc waitUntilNextPeriod(clock: Clock, periodicity: Periodicity) {.async.} =
   trace "Waiting until next period"
-  let period = periodicity.periodOf(clock.now().u256)
-  let periodEnd = periodicity.periodEnd(period).truncate(int64)
-  await clock.waitUntil(periodEnd + 1)
+  let period = periodicity.periodOf(clock.now().Timestamp)
+  let periodEnd = periodicity.periodEnd(period)
+  await clock.waitUntil((periodEnd + 1).toSecondsSince1970)
 
 proc waitForStableChallenge(market: Market, clock: Clock, slotId: SlotId) {.async.} =
   let periodicity = await market.periodicity()
@@ -36,7 +36,9 @@ proc waitForStableChallenge(market: Market, clock: Clock, slotId: SlotId) {.asyn
   while (await market.getPointer(slotId)) > (256 - downtime):
     await clock.waitUntilNextPeriod(periodicity)
 
-method run*(state: SaleInitialProving, machine: Machine): Future[?State] {.async.} =
+method run*(
+    state: SaleInitialProving, machine: Machine
+): Future[?State] {.async: (raises: []).} =
   let data = SalesAgent(machine).data
   let context = SalesAgent(machine).context
   let market = context.market
@@ -48,16 +50,22 @@ method run*(state: SaleInitialProving, machine: Machine): Future[?State] {.async
   without onProve =? context.onProve:
     raiseAssert "onProve callback not set"
 
-  debug "Waiting for a proof challenge that is valid for the entire period"
-  let slot = Slot(request: request, slotIndex: data.slotIndex)
-  await waitForStableChallenge(market, clock, slot.id)
+  try:
+    debug "Waiting for a proof challenge that is valid for the entire period"
+    let slot = Slot(request: request, slotIndex: data.slotIndex)
+    await waitForStableChallenge(market, clock, slot.id)
 
-  debug "Generating initial proof", requestId = data.requestId
-  let challenge = await context.market.getChallenge(slot.id)
-  without proof =? (await onProve(slot, challenge)), err:
-    error "Failed to generate initial proof", error = err.msg
-    return some State(SaleErrored(error: err))
+    debug "Generating initial proof", requestId = data.requestId
+    let challenge = await context.market.getChallenge(slot.id)
+    without proof =? (await onProve(slot, challenge)), err:
+      error "Failed to generate initial proof", error = err.msg
+      return some State(SaleErrored(error: err))
 
-  debug "Finished proof calculation", requestId = data.requestId
+    debug "Finished proof calculation", requestId = data.requestId
 
-  return some State(SaleFilling(proof: proof))
+    return some State(SaleFilling(proof: proof))
+  except CancelledError as e:
+    trace "SaleInitialProving.run onCleanUp was cancelled", error = e.msgDetail
+  except CatchableError as e:
+    error "Error during SaleInitialProving.run", error = e.msgDetail
+    return some State(SaleErrored(error: e))

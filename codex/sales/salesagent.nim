@@ -6,6 +6,7 @@ import pkg/upraises
 import ../contracts/requests
 import ../errors
 import ../logutils
+import ../utils/exceptions
 import ./statemachine
 import ./salescontext
 import ./salesdata
@@ -26,9 +27,9 @@ type
     onFilled*: ?OnFilled
 
   OnCleanUp* = proc(
-    returnBytes = false, reprocessSlot = false, returnedCollateral = UInt256.none
+    reprocessSlot = false, returnedCollateral = UInt256.none
   ): Future[void] {.gcsafe, upraises: [].}
-  OnFilled* = proc(request: StorageRequest, slotIndex: UInt256) {.gcsafe, upraises: [].}
+  OnFilled* = proc(request: StorageRequest, slotIndex: uint64) {.gcsafe, upraises: [].}
 
   SalesAgentError = object of CodexError
   AllSlotsFilledError* = object of SalesAgentError
@@ -39,7 +40,7 @@ func `==`*(a, b: SalesAgent): bool =
 proc newSalesAgent*(
     context: SalesContext,
     requestId: RequestId,
-    slotIndex: UInt256,
+    slotIndex: uint64,
     request: ?StorageRequest,
 ): SalesAgent =
   var agent = SalesAgent.new()
@@ -68,41 +69,47 @@ proc subscribeCancellation(agent: SalesAgent) {.async.} =
   let data = agent.data
   let clock = agent.context.clock
 
-  proc onCancelled() {.async.} =
+  proc onCancelled() {.async: (raises: []).} =
     without request =? data.request:
       return
 
-    let market = agent.context.market
-    let expiry = await market.requestExpiresAt(data.requestId)
+    try:
+      let market = agent.context.market
+      let expiry = await market.requestExpiresAt(data.requestId)
 
-    while true:
-      let deadline = max(clock.now, expiry) + 1
-      trace "Waiting for request to be cancelled", now = clock.now, expiry = deadline
-      await clock.waitUntil(deadline)
+      while true:
+        let deadline = max(clock.now, expiry) + 1
+        trace "Waiting for request to be cancelled", now = clock.now, expiry = deadline
+        await clock.waitUntil(deadline)
 
-      without state =? await agent.retrieveRequestState():
-        error "Uknown request", requestId = data.requestId
-        return
+        without state =? await agent.retrieveRequestState():
+          error "Unknown request", requestId = data.requestId
+          return
 
-      case state
-      of New:
-        discard
-      of RequestState.Cancelled:
-        agent.schedule(cancelledEvent(request))
-        break
-      of RequestState.Started, RequestState.Finished, RequestState.Failed:
-        break
+        case state
+        of New:
+          discard
+        of RequestState.Cancelled:
+          agent.schedule(cancelledEvent(request))
+          break
+        of RequestState.Started, RequestState.Finished, RequestState.Failed:
+          break
 
-      debug "The request is not yet canceled, even though it should be. Waiting for some more time.",
-        currentState = state, now = clock.now
+        debug "The request is not yet canceled, even though it should be. Waiting for some more time.",
+          currentState = state, now = clock.now
+    except CancelledError:
+      trace "Waiting for expiry to lapse was cancelled", requestId = data.requestId
+    except CatchableError as e:
+      error "Error while waiting for expiry to lapse", error = e.msgDetail
 
   data.cancelled = onCancelled()
 
 method onFulfilled*(
     agent: SalesAgent, requestId: RequestId
 ) {.base, gcsafe, upraises: [].} =
-  if agent.data.requestId == requestId and not agent.data.cancelled.isNil:
-    agent.data.cancelled.cancelSoon()
+  let cancelled = agent.data.cancelled
+  if agent.data.requestId == requestId and not cancelled.isNil and not cancelled.finished:
+    cancelled.cancelSoon()
 
 method onFailed*(
     agent: SalesAgent, requestId: RequestId
@@ -113,7 +120,7 @@ method onFailed*(
     agent.schedule(failedEvent(request))
 
 method onSlotFilled*(
-    agent: SalesAgent, requestId: RequestId, slotIndex: UInt256
+    agent: SalesAgent, requestId: RequestId, slotIndex: uint64
 ) {.base, gcsafe, upraises: [].} =
   if agent.data.requestId == requestId and agent.data.slotIndex == slotIndex:
     agent.schedule(slotFilledEvent(requestId, slotIndex))

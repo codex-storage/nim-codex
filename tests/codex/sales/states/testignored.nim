@@ -14,20 +14,18 @@ import ../../helpers/mockclock
 
 asyncchecksuite "sales state 'ignored'":
   let request = StorageRequest.example
-  let slotIndex = (request.ask.slots div 2).u256
+  let slotIndex = request.ask.slots div 2
   let market = MockMarket.new()
   let clock = MockClock.new()
 
   var state: SaleIgnored
   var agent: SalesAgent
-  var returnBytesWas = false
   var reprocessSlotWas = false
 
   setup:
     let onCleanUp = proc(
-        returnBytes = false, reprocessSlot = false, returnedCollateral = UInt256.none
+        reprocessSlot = false, returnedCollateral = UInt256.none
     ) {.async.} =
-      returnBytesWas = returnBytes
       reprocessSlotWas = reprocessSlot
 
     let context = SalesContext(market: market, clock: clock)
@@ -36,7 +34,6 @@ asyncchecksuite "sales state 'ignored'":
     state = SaleIgnored.new()
 
   test "calls onCleanUp with values assigned to SaleIgnored":
-    state = SaleIgnored(reprocessSlot: true, returnBytes: true)
+    state = SaleIgnored(reprocessSlot: true)
     discard await state.run(agent)
-    check eventually returnBytesWas == true
     check eventually reprocessSlotWas == true

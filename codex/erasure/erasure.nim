@@ -12,12 +12,14 @@ import pkg/upraises
 push:
   {.upraises: [].}
 
-import std/sequtils
-import std/sugar
+import std/[sugar, atomics, sequtils]
 
 import pkg/chronos
+import pkg/chronos/threadsync
+import pkg/chronicles
 import pkg/libp2p/[multicodec, cid, multihash]
 import pkg/libp2p/protobuf/minprotobuf
+import pkg/taskpools
 
 import ../logutils
 import ../manifest
@@ -28,6 +30,7 @@ import ../utils
 import ../utils/asynciter
 import ../indexingstrategy
 import ../errors
+import ../utils/arrayutils
 
 import pkg/stew/byteutils
 
@@ -68,6 +71,7 @@ type
     proc(size, blocks, parity: int): DecoderBackend {.raises: [Defect], noSideEffect.}
 
   Erasure* = ref object
+    taskPool: Taskpool
     encoderProvider*: EncoderProvider
     decoderProvider*: DecoderProvider
     store*: BlockStore
@@ -86,6 +90,24 @@ type
     # for the encoding request to have succeeded with the parameters
     # provided.
     minSize*: NBytes
+
+  EncodeTask = object
+    success: Atomic[bool]
+    erasure: ptr Erasure
+    blocks: ptr UncheckedArray[ptr UncheckedArray[byte]]
+    parity: ptr UncheckedArray[ptr UncheckedArray[byte]]
+    blockSize, blocksLen, parityLen: int
+    signal: ThreadSignalPtr
+
+  DecodeTask = object
+    success: Atomic[bool]
+    erasure: ptr Erasure
+    blocks: ptr UncheckedArray[ptr UncheckedArray[byte]]
+    parity: ptr UncheckedArray[ptr UncheckedArray[byte]]
+    recovered: ptr UncheckedArray[ptr UncheckedArray[byte]]
+    blockSize, blocksLen: int
+    parityLen, recoveredLen: int
+    signal: ThreadSignalPtr
 
 func indexToPos(steps, idx, step: int): int {.inline.} =
   ## Convert an index to a position in the encoded
@@ -269,6 +291,73 @@ proc init*(
     strategy: strategy,
   )
 
+proc leopardEncodeTask(tp: Taskpool, task: ptr EncodeTask) {.gcsafe.} =
+  # Task suitable for running in taskpools - look, no GC!
+  let encoder =
+    task[].erasure.encoderProvider(task[].blockSize, task[].blocksLen, task[].parityLen)
+  defer:
+    encoder.release()
+    discard task[].signal.fireSync()
+
+  if (
+    let res =
+      encoder.encode(task[].blocks, task[].parity, task[].blocksLen, task[].parityLen)
+    res.isErr
+  ):
+    warn "Error from leopard encoder backend!", error = $res.error
+
+    task[].success.store(false)
+  else:
+    task[].success.store(true)
+
+proc asyncEncode*(
+    self: Erasure,
+    blockSize, blocksLen, parityLen: int,
+    blocks: ref seq[seq[byte]],
+    parity: ptr UncheckedArray[ptr UncheckedArray[byte]],
+): Future[?!void] {.async: (raises: [CancelledError]).} =
+  without threadPtr =? ThreadSignalPtr.new():
+    return failure("Unable to create thread signal")
+
+  defer:
+    threadPtr.close().expect("closing once works")
+
+  var data = makeUncheckedArray(blocks)
+
+  defer:
+    dealloc(data)
+
+  ## Create an ecode task with block data
+  var task = EncodeTask(
+    erasure: addr self,
+    blockSize: blockSize,
+    blocksLen: blocksLen,
+    parityLen: parityLen,
+    blocks: data,
+    parity: parity,
+    signal: threadPtr,
+  )
+
+  let t = addr task
+
+  doAssert self.taskPool.numThreads > 1,
+    "Must have at least one separate thread or signal will never be fired"
+  self.taskPool.spawn leopardEncodeTask(self.taskPool, t)
+  let threadFut = threadPtr.wait()
+
+  if joinErr =? catch(await threadFut.join()).errorOption:
+    if err =? catch(await noCancel threadFut).errorOption:
+      return failure(err)
+    if joinErr of CancelledError:
+      raise (ref CancelledError) joinErr
+    else:
+      return failure(joinErr)
+
+  if not t.success.load():
+    return failure("Leopard encoding failed")
+
+  success()
+
 proc encodeData(
     self: Erasure, manifest: Manifest, params: EncodingParams
 ): Future[?!Manifest] {.async.} =
@@ -276,7 +365,6 @@ proc encodeData(
   ##
   ## `manifest` - the manifest to encode
   ##
-
   logScope:
     steps = params.steps
     rounded_blocks = params.rounded
@@ -286,7 +374,6 @@ proc encodeData(
 
   var
     cids = seq[Cid].new()
-    encoder = self.encoderProvider(manifest.blockSize.int, params.ecK, params.ecM)
     emptyBlock = newSeq[byte](manifest.blockSize.int)
 
   cids[].setLen(params.blocksCount)
@@ -296,8 +383,7 @@ proc encodeData(
       # TODO: Don't allocate a new seq every time, allocate once and zero out
       var
         data = seq[seq[byte]].new() # number of blocks to encode
-        parityData =
-          newSeqWith[seq[byte]](params.ecM, newSeq[byte](manifest.blockSize.int))
+        parity = createDoubleArray(params.ecM, manifest.blockSize.int)
 
       data[].setLen(params.ecK)
       # TODO: this is a tight blocking loop so we sleep here to allow
@@ -311,15 +397,25 @@ proc encodeData(
         trace "Unable to prepare data", error = err.msg
         return failure(err)
 
-      trace "Erasure coding data", data = data[].len, parity = parityData.len
+      trace "Erasure coding data", data = data[].len
 
-      if (let res = encoder.encode(data[], parityData); res.isErr):
-        trace "Unable to encode manifest!", error = $res.error
-        return failure($res.error)
+      try:
+        if err =? (
+          await self.asyncEncode(
+            manifest.blockSize.int, params.ecK, params.ecM, data, parity
+          )
+        ).errorOption:
+          return failure(err)
+      except CancelledError as exc:
+        raise exc
+      finally:
+        freeDoubleArray(parity, params.ecM)
 
       var idx = params.rounded + step
       for j in 0 ..< params.ecM:
-        without blk =? bt.Block.new(parityData[j]), error:
+        var innerPtr: ptr UncheckedArray[byte] = parity[][j]
+        without blk =? bt.Block.new(innerPtr.toOpenArray(0, manifest.blockSize.int - 1)),
+          error:
           trace "Unable to create parity block", err = error.msg
           return failure(error)
 
@@ -356,8 +452,6 @@ proc encodeData(
   except CatchableError as exc:
     trace "Erasure coding encoding error", exc = exc.msg
     return failure(exc)
-  finally:
-    encoder.release()
 
 proc encode*(
     self: Erasure,
@@ -381,6 +475,83 @@ proc encode*(
 
   return success encodedManifest
 
+proc leopardDecodeTask(tp: Taskpool, task: ptr DecodeTask) {.gcsafe.} =
+  # Task suitable for running in taskpools - look, no GC!
+  let decoder =
+    task[].erasure.decoderProvider(task[].blockSize, task[].blocksLen, task[].parityLen)
+  defer:
+    decoder.release()
+    discard task[].signal.fireSync()
+
+  if (
+    let res = decoder.decode(
+      task[].blocks,
+      task[].parity,
+      task[].recovered,
+      task[].blocksLen,
+      task[].parityLen,
+      task[].recoveredLen,
+    )
+    res.isErr
+  ):
+    warn "Error from leopard decoder backend!", error = $res.error
+    task[].success.store(false)
+  else:
+    task[].success.store(true)
+
+proc asyncDecode*(
+    self: Erasure,
+    blockSize, blocksLen, parityLen: int,
+    blocks, parity: ref seq[seq[byte]],
+    recovered: ptr UncheckedArray[ptr UncheckedArray[byte]],
+): Future[?!void] {.async: (raises: [CancelledError]).} =
+  without threadPtr =? ThreadSignalPtr.new():
+    return failure("Unable to create thread signal")
+
+  defer:
+    threadPtr.close().expect("closing once works")
+
+  var
+    blockData = makeUncheckedArray(blocks)
+    parityData = makeUncheckedArray(parity)
+
+  defer:
+    dealloc(blockData)
+    dealloc(parityData)
+
+  ## Create an decode task with block data
+  var task = DecodeTask(
+    erasure: addr self,
+    blockSize: blockSize,
+    blocksLen: blocksLen,
+    parityLen: parityLen,
+    recoveredLen: blocksLen,
+    blocks: blockData,
+    parity: parityData,
+    recovered: recovered,
+    signal: threadPtr,
+  )
+
+  # Hold the task pointer until the signal is received
+  let t = addr task
+  doAssert self.taskPool.numThreads > 1,
+    "Must have at least one separate thread or signal will never be fired"
+  self.taskPool.spawn leopardDecodeTask(self.taskPool, t)
+  let threadFut = threadPtr.wait()
+
+  if joinErr =? catch(await threadFut.join()).errorOption:
+    if err =? catch(await noCancel threadFut).errorOption:
+      return failure(err)
+    if joinErr of CancelledError:
+      raise (ref CancelledError) joinErr
+    else:
+      return failure(joinErr)
+
+  if not t.success.load():
+    return failure("Leopard encoding failed")
+
+  success()
+
 proc decode*(self: Erasure, encoded: Manifest): Future[?!Manifest] {.async.} =
   ## Decode a protected manifest into it's original
   ## manifest
@@ -388,7 +559,6 @@ proc decode*(self: Erasure, encoded: Manifest): Future[?!Manifest] {.async.} =
   ## `encoded` - the encoded (protected) manifest to
   ##             be recovered
   ##
-
   logScope:
     steps = encoded.steps
     rounded_blocks = encoded.rounded
@@ -411,8 +581,7 @@ proc decode*(self: Erasure, encoded: Manifest): Future[?!Manifest] {.async.} =
       var
         data = seq[seq[byte]].new()
         parityData = seq[seq[byte]].new()
-        recovered =
-          newSeqWith[seq[byte]](encoded.ecK, newSeq[byte](encoded.blockSize.int))
+        recovered = createDoubleArray(encoded.ecK, encoded.blockSize.int)
 
       data[].setLen(encoded.ecK) # set len to K
       parityData[].setLen(encoded.ecM) # set len to M
@@ -430,15 +599,26 @@ proc decode*(self: Erasure, encoded: Manifest): Future[?!Manifest] {.async.} =
         continue
 
       trace "Erasure decoding data"
-
-      if (let err = decoder.decode(data[], parityData[], recovered); err.isErr):
-        trace "Unable to decode data!", err = $err.error
-        return failure($err.error)
+      try:
+        if err =? (
+          await self.asyncDecode(
+            encoded.blockSize.int, encoded.ecK, encoded.ecM, data, parityData, recovered
+          )
+        ).errorOption:
+          return failure(err)
+      except CancelledError as exc:
+        raise exc
+      finally:
+        freeDoubleArray(recovered, encoded.ecK)
 
       for i in 0 ..< encoded.ecK:
         let idx = i * encoded.steps + step
         if data[i].len <= 0 and not cids[idx].isEmpty:
-          without blk =? bt.Block.new(recovered[i]), error:
+          var innerPtr: ptr UncheckedArray[byte] = recovered[][i]
+
+          without blk =? bt.Block.new(
+            innerPtr.toOpenArray(0, encoded.blockSize.int - 1)
+          ), error:
             trace "Unable to create block!", exc = error.msg
             return failure(error)
 
@@ -490,10 +670,13 @@ proc new*(
     store: BlockStore,
     encoderProvider: EncoderProvider,
     decoderProvider: DecoderProvider,
+    taskPool: Taskpool,
 ): Erasure =
   ## Create a new Erasure instance for encoding and decoding manifests
   ##
-
   Erasure(
-    store: store, encoderProvider: encoderProvider, decoderProvider: decoderProvider
+    store: store,
+    encoderProvider: encoderProvider,
+    decoderProvider: decoderProvider,
+    taskPool: taskPool,
   )

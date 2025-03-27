@@ -9,7 +9,7 @@
 
 import std/options
 
-import pkg/stew/results
+import pkg/results
 import pkg/chronos
 import pkg/questionable/results
 
@@ -18,6 +18,8 @@ export results
 type
   CodexError* = object of CatchableError # base codex error
   CodexResult*[T] = Result[T, ref CodexError]
+
+  FinishedFailed*[T] = tuple[success: seq[Future[T]], failure: seq[Future[T]]]
 
 template mapFailure*[T, V, E](
     exp: Result[T, V], exc: typedesc[E]
@@ -40,35 +42,18 @@ func toFailure*[T](exp: Option[T]): Result[T, ref CatchableError] {.inline.} =
   else:
     T.failure("Option is None")
 
-# allFuturesThrowing was moved to the tests in libp2p
-proc allFuturesThrowing*[T](args: varargs[Future[T]]): Future[void] =
-  var futs: seq[Future[T]]
-  for fut in args:
-    futs &= fut
-  proc call() {.async.} =
-    var first: ref CatchableError = nil
-    futs = await allFinished(futs)
-    for fut in futs:
-      if fut.failed:
-        let err = fut.readError()
-        if err of Defect:
-          raise err
-        else:
-          if err of CancelledError:
-            raise err
-          if isNil(first):
-            first = err
-    if not isNil(first):
-      raise first
+proc allFinishedFailed*[T](futs: seq[Future[T]]): Future[FinishedFailed[T]] {.async.} =
+  ## Check if all futures have finished or failed
+  ##
+  ## TODO: wip, not sure if we want this - at the minimum,
+  ## we should probably avoid the async transform
 
-  return call()
+  var res: FinishedFailed[T] = (@[], @[])
+  await allFutures(futs)
+  for f in futs:
+    if f.failed:
+      res.failure.add f
+    else:
+      res.success.add f
 
-proc allFutureResult*[T](fut: seq[Future[T]]): Future[?!void] {.async.} =
-  try:
-    await allFuturesThrowing(fut)
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as exc:
-    return failure(exc.msg)
-
-  return success()
+  return res

@@ -3,8 +3,8 @@ import std/tables
 import pkg/chronos
 import pkg/questionable
 import pkg/questionable/results
-import pkg/upraises
 import ../errors
+import ../clock
 import ../logutils
 import ../rng
 import ../utils
@@ -16,8 +16,9 @@ logScope:
   topics = "marketplace slotqueue"
 
 type
-  OnProcessSlot* =
-    proc(item: SlotQueueItem, done: Future[void]): Future[void] {.gcsafe, upraises: [].}
+  OnProcessSlot* = proc(item: SlotQueueItem, done: Future[void]): Future[void] {.
+    gcsafe, async: (raises: [])
+  .}
 
   # Non-ref obj copies value when assigned, preventing accidental modification
   # of values which could cause an incorrect order (eg
@@ -25,16 +26,16 @@ type
   # but the heap invariant would no longer be honoured. When non-ref, the
   # compiler can ensure that statement will fail).
   SlotQueueWorker = object
-    doneProcessing*: Future[void]
+    doneProcessing*: Future[void].Raising([])
 
   SlotQueueItem* = object
     requestId: RequestId
     slotIndex: uint16
-    slotSize: UInt256
-    duration: UInt256
+    slotSize: uint64
+    duration: uint64
     pricePerBytePerSecond: UInt256
-    collateralPerByte: UInt256
-    expiry: UInt256
+    collateral: UInt256 # Collateral computed
+    expiry: uint64
     seen: bool
 
   # don't need to -1 to prevent overflow when adding 1 (to always allow push)
@@ -75,9 +76,6 @@ proc profitability(item: SlotQueueItem): UInt256 =
     slotSize: item.slotSize,
   ).pricePerSlot
 
-proc collateralPerSlot(item: SlotQueueItem): UInt256 =
-  StorageAsk(collateralPerByte: item.collateralPerByte, slotSize: item.slotSize).collateralPerSlot
-
 proc `<`*(a, b: SlotQueueItem): bool =
   # for A to have a higher priority than B (in a min queue), A must be less than
   # B.
@@ -94,8 +92,8 @@ proc `<`*(a, b: SlotQueueItem): bool =
   scoreA.addIf(a.profitability > b.profitability, 3)
   scoreB.addIf(a.profitability < b.profitability, 3)
 
-  scoreA.addIf(a.collateralPerSlot < b.collateralPerSlot, 2)
-  scoreB.addIf(a.collateralPerSlot > b.collateralPerSlot, 2)
+  scoreA.addIf(a.collateral < b.collateral, 2)
+  scoreB.addIf(a.collateral > b.collateral, 2)
 
   scoreA.addIf(a.expiry > b.expiry, 1)
   scoreB.addIf(a.expiry < b.expiry, 1)
@@ -128,14 +126,25 @@ proc new*(
   # `newAsyncQueue` procedure
 
 proc init(_: type SlotQueueWorker): SlotQueueWorker =
-  SlotQueueWorker(doneProcessing: newFuture[void]("slotqueue.worker.processing"))
+  let workerFut = Future[void].Raising([]).init(
+      "slotqueue.worker.processing", {FutureFlag.OwnCancelSchedule}
+    )
+
+  workerFut.cancelCallback = proc(data: pointer) {.raises: [].} =
+    # this is equivalent to try: ... except CatchableError: ...
+    if not workerFut.finished:
+      workerFut.complete()
+    trace "Cancelling `SlotQueue` worker processing future"
+
+  SlotQueueWorker(doneProcessing: workerFut)
 
 proc init*(
     _: type SlotQueueItem,
     requestId: RequestId,
     slotIndex: uint16,
     ask: StorageAsk,
-    expiry: UInt256,
+    expiry: uint64,
+    collateral: UInt256,
     seen = false,
 ): SlotQueueItem =
   SlotQueueItem(
@@ -144,25 +153,32 @@ proc init*(
     slotSize: ask.slotSize,
     duration: ask.duration,
     pricePerBytePerSecond: ask.pricePerBytePerSecond,
-    collateralPerByte: ask.collateralPerByte,
+    collateral: collateral,
     expiry: expiry,
     seen: seen,
   )
 
 proc init*(
-    _: type SlotQueueItem, request: StorageRequest, slotIndex: uint16
+    _: type SlotQueueItem,
+    request: StorageRequest,
+    slotIndex: uint16,
+    collateral: UInt256,
 ): SlotQueueItem =
-  SlotQueueItem.init(request.id, slotIndex, request.ask, request.expiry)
+  SlotQueueItem.init(request.id, slotIndex, request.ask, request.expiry, collateral)
 
 proc init*(
-    _: type SlotQueueItem, requestId: RequestId, ask: StorageAsk, expiry: UInt256
-): seq[SlotQueueItem] =
+    _: type SlotQueueItem,
+    requestId: RequestId,
+    ask: StorageAsk,
+    expiry: uint64,
+    collateral: UInt256,
+): seq[SlotQueueItem] {.raises: [SlotsOutOfRangeError].} =
   if not ask.slots.inRange:
     raise newException(SlotsOutOfRangeError, "Too many slots")
 
   var i = 0'u16
   proc initSlotQueueItem(): SlotQueueItem =
-    let item = SlotQueueItem.init(requestId, i, ask, expiry)
+    let item = SlotQueueItem.init(requestId, i, ask, expiry, collateral)
     inc i
     return item
 
@@ -170,8 +186,10 @@ proc init*(
   Rng.instance.shuffle(items)
   return items
 
-proc init*(_: type SlotQueueItem, request: StorageRequest): seq[SlotQueueItem] =
-  return SlotQueueItem.init(request.id, request.ask, request.expiry)
+proc init*(
+    _: type SlotQueueItem, request: StorageRequest, collateral: UInt256
+): seq[SlotQueueItem] =
+  return SlotQueueItem.init(request.id, request.ask, request.expiry, collateral)
 
 proc inRange*(val: SomeUnsignedInt): bool =
   val.uint16 in SlotQueueSize.low .. SlotQueueSize.high
@@ -182,10 +200,10 @@ proc requestId*(self: SlotQueueItem): RequestId =
 proc slotIndex*(self: SlotQueueItem): uint16 =
   self.slotIndex
 
-proc slotSize*(self: SlotQueueItem): UInt256 =
+proc slotSize*(self: SlotQueueItem): uint64 =
   self.slotSize
 
-proc duration*(self: SlotQueueItem): UInt256 =
+proc duration*(self: SlotQueueItem): uint64 =
   self.duration
 
 proc pricePerBytePerSecond*(self: SlotQueueItem): UInt256 =
@@ -233,25 +251,7 @@ proc unpause*(self: SlotQueue) =
   # set unpaused flag to true -- unblocks coroutines waiting on unpaused.wait()
   self.unpaused.fire()
 
-proc populateItem*(
-    self: SlotQueue, requestId: RequestId, slotIndex: uint16
-): ?SlotQueueItem =
-  trace "populate item, items in queue", len = self.queue.len
-  for item in self.queue.items:
-    trace "populate item search", itemRequestId = item.requestId, requestId
-    if item.requestId == requestId:
-      return some SlotQueueItem(
-        requestId: requestId,
-        slotIndex: slotIndex,
-        slotSize: item.slotSize,
-        duration: item.duration,
-        pricePerBytePerSecond: item.pricePerBytePerSecond,
-        collateralPerByte: item.collateralPerByte,
-        expiry: item.expiry,
-      )
-  return none SlotQueueItem
-
-proc push*(self: SlotQueue, item: SlotQueueItem): ?!void =
+proc push*(self: SlotQueue, item: SlotQueueItem): ?!void {.raises: [].} =
   logScope:
     requestId = item.requestId
     slotIndex = item.slotIndex
@@ -429,7 +429,6 @@ proc run(self: SlotQueue) {.async: (raises: []).} =
 
       let fut = self.dispatch(worker, item)
       self.trackedFutures.track(fut)
-      asyncSpawn fut
 
       await sleepAsync(1.millis) # poll
     except CancelledError:
@@ -457,7 +456,6 @@ proc start*(self: SlotQueue) =
 
   let fut = self.run()
   self.trackedFutures.track(fut)
-  asyncSpawn fut
 
 proc stop*(self: SlotQueue) {.async.} =
   if not self.running:
