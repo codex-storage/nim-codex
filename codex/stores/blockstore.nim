@@ -135,6 +135,14 @@ method delBlock*(
 
   raiseAssert("delBlock not implemented!")
 
+method delBlocks*(
+    self: BlockStore, treeCid: Cid, count: int
+): Future[?!void] {.base, gcsafe.} =
+  ## Delete a block from the blockstore
+  ##
+
+  raiseAssert("delBlock not implemented!")
+
 method hasBlock*(self: BlockStore, cid: Cid): Future[?!bool] {.base, gcsafe.} =
   ## Check if the block exists in the blockstore
   ##

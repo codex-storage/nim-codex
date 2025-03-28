@@ -133,6 +133,13 @@ method delBlock*(self: NetworkStore, cid: Cid): Future[?!void] =
   trace "Deleting block from network store", cid
   return self.localStore.delBlock(cid)
 
+method delBlocks*(self: NetworkStore, treeCid: Cid, count: int): Future[?!void] =
+  ## Delete a block from the blockstore
+  ##
+
+  trace "Deleting blocks from network store", treeCid
+  return self.localStore.delBlocks(treeCid, count)
+
 {.pop.}
 
 method hasBlock*(self: NetworkStore, cid: Cid): Future[?!bool] {.async.} =

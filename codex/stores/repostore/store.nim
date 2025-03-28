@@ -15,6 +15,8 @@ import pkg/libp2p/[cid, multicodec]
 import pkg/questionable
 import pkg/questionable/results
 
+import times
+
 import ./coders
 import ./types
 import ./operations
@@ -139,27 +141,20 @@ method putCidAndProofBatch*(
         var metadata = LeafMetadata(blkCid: cid, proof: proofs[i])
         batch.add((key: key, data: metadata.encode))
 
-      if batch.len >= batchSize:
+      if batch.len >= batchSize or i == blkCids.len - 1:
         try:
           if err =? (await self.metaDs.ds.put(batch)).errorOption:
             return failure(err)
         except CatchableError as e:
           return failure(e.msg)
         batch = newSeq[BatchEntry]()
-
-    if batch.len > 0:
-      try:
-        if err =? (await self.metaDs.ds.put(batch)).errorOption:
-          return failure(err)
-      except CatchableError as e:
-        return failure(e.msg)
   finally:
     lock.release()
     if not lock.locked:
       self.locks.del(treeCid)
 
   for i, res in results:
-    if res.kind == Stored:
+    if res.kind == Stored and blkCids[i].mcodec == BlockCodec:
       if err =?
           (await self.updateBlockMetadata(blkCids[i], plusRefCount = 1)).errorOption:
         return failure(err)
@@ -225,7 +220,7 @@ method getCid*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!Cid] {.a
   success(leafMd.blkCid)
 
 method putBlock*(
-    self: RepoStore, blk: Block, ttl = Duration.none
+    self: RepoStore, blk: Block, ttl = timer.Duration.none
 ): Future[?!void] {.async.} =
   ## Put a block to the blockstore
   ##
@@ -239,15 +234,6 @@ method putBlock*(
 
   if res.kind == Stored:
     trace "Block Stored"
-    # if err =? (await self.updateQuotaUsage(plusUsed = res.used)).errorOption:
-    #   # rollback changes
-    #   without delRes =? await self.tryDeleteBlock(blk.cid), err:
-    #     return failure(err)
-    #   return failure(err)
-
-    # if err =? (await self.updateTotalBlocksCount(plusCount = 1)).errorOption:
-    #   return failure(err)
-
     if err =? (await self.updateQuotaAndBlockCount(plusCount = 1, plusUsed = res.used)).errorOption:
       without delRes =? await self.tryDeleteBlock(blk.cid), err:
         return failure(err)
@@ -307,6 +293,54 @@ method delBlock*(self: RepoStore, cid: Cid): Future[?!void] {.async.} =
   of Deleted:
     trace "Block already deleted"
     success()
+
+method delBlocks*(
+    self: RepoStore, treeCid: Cid, blocksCount: int
+): Future[?!void] {.async.} =
+  let runtimeQuota = initDuration(milliseconds = 100)
+  var
+    lastIdle = getTime()
+    batch = newSeq[Key]()
+    blckCids = newSeq[Cid]()
+    batchSize = 100
+
+  for i in 0 ..< blocksCount:
+    if (getTime() - lastIdle) >= runtimeQuota:
+      await idleAsync()
+      lastIdle = getTime()
+
+    without key =? createBlockCidAndProofMetadataKey(treeCid, i), err:
+      return failure(err)
+
+    without leafMd =? await get[LeafMetadata](self.metaDs, key), err:
+      if err of DatastoreKeyNotFound:
+        continue
+      else:
+        return failure(err)
+
+    blckCids.add(leafMd.blkCid)
+    batch.add(key)
+
+    if batch.len >= batchSize or i == blocksCount - 1:
+      try:
+        if err =? (await self.metaDs.ds.delete(batch)).errorOption:
+          return failure(err)
+      except CatchableError as e:
+        return failure(e.msg)
+      batch = newSeq[Key]()
+
+  for i, cid in blckCids:
+    if (getTime() - lastIdle) >= runtimeQuota:
+      await idleAsync()
+      lastIdle = getTime()
+
+    if err =? (await self.updateBlockMetadata(cid, minusRefCount = 1)).errorOption:
+      return failure(err)
+
+    if err =? (await self.delBlockInternal(cid)).errorOption:
+      return failure(err)
+
+  success()
 
 method delBlock*(
     self: RepoStore, treeCid: Cid, index: Natural

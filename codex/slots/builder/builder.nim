@@ -224,6 +224,9 @@ proc buildSlot*[T, H](
     slotIndex = slotIndex
 
   trace "Building slot tree"
+  var
+    cids = newSeq[Cid]()
+    proofs = newSeq[CodexProof]()
 
   without tree =? (await self.buildSlotTree(slotIndex)) and
     treeCid =? tree.root .? toSlotCid, err:
@@ -240,10 +243,12 @@ proc buildSlot*[T, H](
       error "Failed to get proof for slot tree", err = err.msg
       return failure(err)
 
-    if err =?
-        (await self.store.putCidAndProof(treeCid, i, cellCid, encodableProof)).errorOption:
-      error "Failed to store slot tree", err = err.msg
-      return failure(err)
+    cids.add(cellCid)
+    proofs.add(encodableProof)
+
+  if err =? (await self.store.putCidAndProofBatch(treeCid, cids, proofs)).errorOption:
+    error "Failed to store slot tree", err = err.msg
+    return failure(err)
 
   tree.root()
 

@@ -345,19 +345,9 @@ proc deleteEntireDataset(self: CodexNodeRef, cid: Cid): Future[?!void] {.async.}
   without manifest =? Manifest.decode(manifestBlock), err:
     return failure(err)
 
-  let runtimeQuota = initDuration(milliseconds = 100)
-  var lastIdle = getTime()
-  for i in 0 ..< manifest.blocksCount:
-    if (getTime() - lastIdle) >= runtimeQuota:
-      await idleAsync()
-      lastIdle = getTime()
-
-    if err =? (await store.delBlock(manifest.treeCid, i)).errorOption:
-      # The contract for delBlock is fuzzy, but we assume that if the block is
-      # simply missing we won't get an error. This is a best effort operation and
-      # can simply be retried.
-      error "Failed to delete block within dataset", index = i, err = err.msg
-      return failure(err)
+  if err =? (await store.delBlocks(manifest.treeCid, manifest.blocksCount)).errorOption:
+    error "Error deleting blocks", err = err.msg
+    return failure(err)
 
   if err =? (await store.delBlock(cid)).errorOption:
     error "Error deleting manifest block", err = err.msg
