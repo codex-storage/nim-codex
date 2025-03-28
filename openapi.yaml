@@ -73,6 +73,8 @@ components:
 
     SPRRead:
       type: object
+      required:
+        - spr
       properties:
         spr:
           $ref: "#/components/schemas/SPR"
@@ -85,6 +87,8 @@ components:
 
     Content:
       type: object
+      required:
+       - cid
       description: Parameters specifying the content
       properties:
         cid:
@@ -92,6 +96,12 @@ components:
 
     Node:
       type: object
+      required:
+       - nodeId
+       - peerId
+       - record
+       - address
+       - seen
       properties:
         nodeId:
           type: string
@@ -116,6 +126,9 @@ components:
 
     PeersTable:
       type: object
+      required:
+       - localNode
+       - nodes
       properties:
         localNode:
           $ref: "#/components/schemas/Node"
@@ -126,6 +139,14 @@ components:
 
     DebugInfo:
       type: object
+      required:
+        - id
+        - addrs
+        - repo
+        - spr
+        - announceAddresses
+        - table
+        - codex
       properties:
         id:
           $ref: "#/components/schemas/PeerId"
@@ -149,9 +170,12 @@ components:
 
     SalesAvailability:
       type: object
+      required:
+        - totalSize
+        - duration
+        - minPricePerBytePerSecond
+        - totalCollateral
       properties:
-        id:
-          $ref: "#/components/schemas/Id"
         totalSize:
           type: string
           description: Total size of availability's storage in bytes as decimal string
@@ -173,25 +197,35 @@ components:
           default: 0
 
     SalesAvailabilityREAD:
+      required:
+        - id
+        - totalRemainingCollateral
       allOf:
         - $ref: "#/components/schemas/SalesAvailability"
         - type: object
           properties:
+            id:
+              $ref: "#/components/schemas/Id"
+              readonly: true
             freeSize:
               type: string
               description: Unused size of availability's storage in bytes as decimal string
+              readonly: true
+            totalRemainingCollateral:
+              type: string
+              description: Total collateral effective (in amount of tokens) that can be used for matching requests
+              readonly: true
 
     SalesAvailabilityCREATE:
       allOf:
         - $ref: "#/components/schemas/SalesAvailability"
-        - required:
-            - totalSize
-            - minPricePerBytePerSecond
-            - totalCollateral
-            - duration
 
     Slot:
       type: object
+      required:
+        - id
+        - request
+        - slotIndex
       properties:
         id:
           $ref: "#/components/schemas/SlotId"
@@ -203,9 +237,11 @@ components:
 
     SlotAgent:
       type: object
+      required:
+        - state
+        - requestId
+        - slotIndex
       properties:
-        id:
-          $ref: "#/components/schemas/SlotId"
         slotIndex:
           type: string
           description: Slot Index as decimal string
@@ -235,6 +271,13 @@ components:
 
     Reservation:
       type: object
+      required:
+        - id
+        - availabilityId
+        - size
+        - requestId
+        - slotIndex
+        - validUntil
       properties:
         id:
           $ref: "#/components/schemas/Id"
@@ -283,7 +326,12 @@ components:
     StorageAsk:
       type: object
       required:
+        - slots
+        - slotSize
+        - duration
+        - proofProbability
         - pricePerBytePerSecond
+        - maxSlotLoss
       properties:
         slots:
           description: Number of slots (eq. hosts) that the Request want to have the content spread over
@@ -303,6 +351,13 @@ components:
 
     StorageRequest:
       type: object
+      required:
+       - id
+       - client
+       - ask
+       - content
+       - expiry
+       - nonce
       properties:
         id:
           type: string
@@ -321,6 +376,9 @@ components:
 
     Purchase:
       type: object
+      required:
+        - state
+        - requestId
       properties:
         state:
           type: string
@@ -340,9 +398,13 @@ components:
           description: If Request failed, then here is presented the error message
         request:
           $ref: "#/components/schemas/StorageRequest"
+        requestId:
+          $ref: "#/components/schemas/Id"
 
     DataList:
       type: object
+      required:
+        - content
       properties:
         content:
           type: array
@@ -351,6 +413,9 @@ components:
 
     DataItem:
       type: object
+      required:
+        - cid
+        - manifest
       properties:
         cid:
           $ref: "#/components/schemas/Cid"
@@ -359,6 +424,11 @@ components:
 
     ManifestItem:
       type: object
+      required:
+        - treeCid
+        - datasetSize
+        - blockSize
+        - protected
       properties:
         treeCid:
           $ref: "#/components/schemas/Cid"
@@ -386,6 +456,11 @@ components:
 
     Space:
       type: object
+      required:
+        - totalBlocks
+        - quotaMaxBytes
+        - quotaUsedBytes
+        - quotaReservedBytes
       properties:
         totalBlocks:
           description: "Number of blocks stored by the node"
@@ -739,7 +814,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/SalesAvailability"
+              $ref: "#/components/schemas/SalesAvailabilityCREATE"
       responses:
         "204":
           description: Availability successfully updated
@@ -870,7 +945,7 @@ paths:
         "200":
           description: Node's SPR
           content:
-            plain/text:
+            text/plain:
               schema:
                 $ref: "#/components/schemas/SPR"
             application/json:
@@ -888,7 +963,7 @@ paths:
         "200":
           description: Node's Peer ID
           content:
-            plain/text:
+            text/plain:
               schema:
                 $ref: "#/components/schemas/PeerId"
             application/json:
