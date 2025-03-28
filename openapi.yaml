@@ -210,11 +210,11 @@ components:
             freeSize:
               type: string
               description: Unused size of availability's storage in bytes as decimal string
-              readonly: true
+              readOnly: true
             totalRemainingCollateral:
               type: string
               description: Total collateral effective (in amount of tokens) that can be used for matching requests
-              readonly: true
+              readOnly: true
 
     SalesAvailabilityCREATE:
       allOf:
