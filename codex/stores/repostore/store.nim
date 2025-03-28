@@ -124,7 +124,7 @@ method putCidAndProofBatch*(
     results = newSeq[StoreResult](entries.len)
     lock = self.locks.mgetOrPut(treeCid, newAsyncLock())
     treeIndex = startIndex
-  echo "Adding cid and proofs", entries.len
+
   try:
     await lock.acquire()
     for i, entry in entries:
