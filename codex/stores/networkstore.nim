@@ -70,9 +70,9 @@ method putBlock*(
   return success()
 
 method putCidAndProofBatch*(
-    self: NetworkStore, treeCid: Cid, blkCids: seq[Cid], proofs: seq[CodexProof]
+    self: NetworkStore, treeCid: Cid, startIndex: int, entries: seq[(Cid, CodexProof)]
 ): Future[?!void] =
-  self.localStore.putCidAndProofBatch(treeCid, blkCids, proofs)
+  self.localStore.putCidAndProofBatch(treeCid, startIndex, entries)
 
 method putCidAndProof*(
     self: NetworkStore, treeCid: Cid, index: Natural, blockCid: Cid, proof: CodexProof

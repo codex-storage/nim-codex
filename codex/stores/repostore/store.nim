@@ -117,18 +117,18 @@ method ensureExpiry*(
   await self.ensureExpiry(leafMd.blkCid, expiry)
 
 method putCidAndProofBatch*(
-    self: RepoStore, treeCid: Cid, blkCids: seq[Cid], proofs: seq[CodexProof]
+    self: RepoStore, treeCid: Cid, startIndex: int, entries: seq[(Cid, CodexProof)]
 ): Future[?!void] {.async.} =
   var
     batch = newSeq[BatchEntry]()
-    results = newSeq[StoreResult](blkCids.len)
+    results = newSeq[StoreResult](entries.len)
     lock = self.locks.mgetOrPut(treeCid, newAsyncLock())
-    batchSize = 50
-
+    treeIndex = startIndex
+  echo "Adding cid and proofs", entries.len
   try:
     await lock.acquire()
-    for i, cid in blkCids:
-      without key =? createBlockCidAndProofMetadataKey(treeCid, i), err:
+    for i, entry in entries:
+      without key =? createBlockCidAndProofMetadataKey(treeCid, treeIndex), err:
         return failure(err)
 
       # Check existence before adding to batch
@@ -138,29 +138,29 @@ method putCidAndProofBatch*(
         results[i] = StoreResult(kind: AlreadyInStore)
       else:
         results[i] = StoreResult(kind: Stored)
-        var metadata = LeafMetadata(blkCid: cid, proof: proofs[i])
+        var metadata = LeafMetadata(blkCid: entry[0], proof: entry[1])
         batch.add((key: key, data: metadata.encode))
+      treeIndex += 1
 
-      if batch.len >= batchSize or i == blkCids.len - 1:
-        try:
-          if err =? (await self.metaDs.ds.put(batch)).errorOption:
-            return failure(err)
-        except CatchableError as e:
-          return failure(e.msg)
-        batch = newSeq[BatchEntry]()
+    try:
+      if err =? (await self.metaDs.ds.put(batch)).errorOption:
+        return failure(err)
+    except CatchableError as e:
+      return failure(e.msg)
   finally:
     lock.release()
     if not lock.locked:
       self.locks.del(treeCid)
 
-  for i, res in results:
-    if res.kind == Stored and blkCids[i].mcodec == BlockCodec:
-      if err =?
-          (await self.updateBlockMetadata(blkCids[i], plusRefCount = 1)).errorOption:
+  # Update reference counts for blocks that were stored
+  for i, entry in entries:
+    if results[i].kind == Stored and entry[0].mcodec == BlockCodec:
+      if err =? (await self.updateBlockMetadata(entry[0], plusRefCount = 1)).errorOption:
         return failure(err)
       trace "Leaf metadata stored, block refCount incremented"
     else:
       trace "Leaf metadata already exists"
+
   return success()
 
 method putCidAndProof*(
@@ -169,6 +169,7 @@ method putCidAndProof*(
   ## Put a block to the blockstore
   ##
   # TODO: Add locking for treeCid
+
   logScope:
     treeCid = treeCid
     index = index
@@ -302,7 +303,7 @@ method delBlocks*(
     lastIdle = getTime()
     batch = newSeq[Key]()
     blckCids = newSeq[Cid]()
-    batchSize = 100
+    batchSize = 1000
 
   for i in 0 ..< blocksCount:
     if (getTime() - lastIdle) >= runtimeQuota:

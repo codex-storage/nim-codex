@@ -53,6 +53,7 @@ logScope:
   topics = "codex node"
 
 const DefaultFetchBatch = 10
+const DefaultLeafBatch = 100
 
 type
   Contracts* =
@@ -422,15 +423,23 @@ proc store*(
   without treeCid =? tree.rootCid(CIDv1, dataCodec), err:
     return failure(err)
 
+  var
+    batch = newSeq[(Cid, CodexProof)]()
+    batchStartIndex = 0
+
   for index, cid in cids:
     without proof =? tree.getProof(index), err:
       return failure(err)
-    proofs.add(proof)
+    batch.add((cid, proof))
 
-  if err =?
-      (await self.networkStore.putCidAndProofBatch(treeCid, cids, proofs)).errorOption:
-    # TODO add log here
-    return failure(err)
+    if batch.len >= DefaultLeafBatch or index == cids.len - 1:
+      if err =? (
+        await self.networkStore.putCidAndProofBatch(treeCid, batchStartIndex, batch)
+      ).errorOption:
+        # TODO add log here
+        return failure(err)
+      batch.setLen(0)
+      batchStartIndex = index + 1
 
   let manifest = Manifest.new(
     treeCid = treeCid,

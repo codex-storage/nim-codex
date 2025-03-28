@@ -225,8 +225,8 @@ proc buildSlot*[T, H](
 
   trace "Building slot tree"
   var
-    cids = newSeq[Cid]()
-    proofs = newSeq[CodexProof]()
+    batch = newSeq[(Cid, CodexProof)]()
+    batchStartIndex = 0
 
   without tree =? (await self.buildSlotTree(slotIndex)) and
     treeCid =? tree.root .? toSlotCid, err:
@@ -243,12 +243,14 @@ proc buildSlot*[T, H](
       error "Failed to get proof for slot tree", err = err.msg
       return failure(err)
 
-    cids.add(cellCid)
-    proofs.add(encodableProof)
+    batch.add((cellCid, encodableProof))
 
-  if err =? (await self.store.putCidAndProofBatch(treeCid, cids, proofs)).errorOption:
-    error "Failed to store slot tree", err = err.msg
-    return failure(err)
+    if batch.len >= 50 or i == tree.leaves.len - 1:
+      if err =? (await self.store.putCidAndProofBatch(treeCid, batchStartIndex, batch)).errorOption:
+        error "Failed to store slot tree", err = err.msg
+        return failure(err)
+      batch.setLen(0)
+      batchStartIndex = i + 1
 
   tree.root()
 

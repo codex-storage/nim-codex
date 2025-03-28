@@ -88,7 +88,7 @@ method putCidAndProof*(
   raiseAssert("putCidAndProof not implemented!")
 
 method putCidAndProofBatch*(
-    self: BlockStore, treeCid: Cid, blkCids: seq[Cid], proofs: seq[CodexProof]
+    self: BlockStore, treeCid: Cid, startIndex: int, entries: seq[(Cid, CodexProof)]
 ): Future[?!void] {.base, gcsafe.} =
   ## Put a batch of block proofs to the blockstore
   ##
