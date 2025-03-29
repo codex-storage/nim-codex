@@ -78,7 +78,9 @@ type
   CodexNodeRef* = ref CodexNode
 
   OnManifest* = proc(cid: Cid, manifest: Manifest): void {.gcsafe, raises: [].}
-  BatchProc* = proc(blocks: seq[bt.Block]): Future[?!void] {.gcsafe, raises: [].}
+  BatchProc* = proc(blocks: seq[bt.Block]): Future[?!void] {.
+    gcsafe, async: (raises: [CancelledError])
+  .}
 
 func switch*(self: CodexNodeRef): Switch =
   return self.switch
@@ -109,7 +111,9 @@ proc storeManifest*(
 
   success blk
 
-proc fetchManifest*(self: CodexNodeRef, cid: Cid): Future[?!Manifest] {.async.} =
+proc fetchManifest*(
+    self: CodexNodeRef, cid: Cid
+): Future[?!Manifest] {.async: (raises: [CancelledError]).} =
   ## Fetch and decode a manifest block
   ##
 
@@ -144,7 +148,7 @@ proc connect*(
 
 proc updateExpiry*(
     self: CodexNodeRef, manifestCid: Cid, expiry: SecondsSince1970
-): Future[?!void] {.async.} =
+): Future[?!void] {.async: (raises: [CancelledError]).} =
   without manifest =? await self.fetchManifest(manifestCid), error:
     trace "Unable to fetch manifest for cid", manifestCid
     return failure(error)
@@ -154,7 +158,7 @@ proc updateExpiry*(
         self.networkStore.localStore.ensureExpiry(manifest.treeCid, it, expiry)
       )
 
-    let res = await allFinishedFailed(ensuringFutures)
+    let res = await allFinishedFailed(cast[seq[Future[?!void]]](ensuringFutures))
     if res.failure.len > 0:
       trace "Some blocks failed to update expiry", len = res.failure.len
       return failure("Some blocks failed to update expiry (" & $res.failure.len & " )")
@@ -172,7 +176,7 @@ proc fetchBatched*(
     batchSize = DefaultFetchBatch,
     onBatch: BatchProc = nil,
     fetchLocal = true,
-): Future[?!void] {.async, gcsafe.} =
+): Future[?!void] {.async: (raises: [CancelledError]), gcsafe.} =
   ## Fetch blocks in batches of `batchSize`
   ##
 
@@ -183,14 +187,18 @@ proc fetchBatched*(
   #   )
 
   while not iter.finished:
-    let blockFutures = collect:
+    let blockFutures: seq[Future[?!blocktype.Block].Raising([CancelledError])] = collect:
       for i in 0 ..< batchSize:
         if not iter.finished:
           let address = BlockAddress.init(cid, iter.next())
           if not (await address in self.networkStore) or fetchLocal:
             self.networkStore.getBlock(address)
 
-    without blockResults =? await allFinishedValues(blockFutures), err:
+    if blockFutures.len == 0:
+      continue
+
+    without blockResults =?
+      await allFinishedValues(cast[seq[Future[?!blocktype.Block]]](blockFutures)), err:
       trace "Some blocks failed to fetch", err = err.msg
       return failure(err)
 
@@ -215,7 +223,7 @@ proc fetchBatched*(
     batchSize = DefaultFetchBatch,
     onBatch: BatchProc = nil,
     fetchLocal = true,
-): Future[?!void] =
+): Future[?!void] {.async: (raw: true, raises: [CancelledError]).} =
   ## Fetch manifest in batches of `batchSize`
   ##
 
@@ -240,8 +248,6 @@ proc fetchDatasetAsync*(
       error "Unable to fetch blocks", err = err.msg
   except CancelledError as exc:
     trace "Cancelled fetching blocks", exc = exc.msg
-  except CatchableError as exc:
-    error "Error fetching blocks", exc = exc.msg
 
 proc fetchDatasetAsyncTask*(self: CodexNodeRef, manifest: Manifest) =
   ## Start fetching a dataset in the background.
@@ -249,7 +255,9 @@ proc fetchDatasetAsyncTask*(self: CodexNodeRef, manifest: Manifest) =
   ##
   self.trackedFutures.track(self.fetchDatasetAsync(manifest, fetchLocal = false))
 
-proc streamSingleBlock(self: CodexNodeRef, cid: Cid): Future[?!LPStream] {.async.} =
+proc streamSingleBlock(
+    self: CodexNodeRef, cid: Cid
+): Future[?!LPStream] {.async: (raises: [CancelledError]).} =
   ## Streams the contents of a single block.
   ##
   trace "Streaming single block", cid = cid
@@ -264,7 +272,9 @@ proc streamSingleBlock(self: CodexNodeRef, cid: Cid): Future[?!LPStream] {.async
       defer:
         await stream.pushEof()
       await stream.pushData(blk.data)
-    except CatchableError as exc:
+    except CancelledError as exc:
+      trace "Streaming block cancelled", cid, exc = exc.msg
+    except LPStreamError as exc:
       trace "Unable to send block", cid, exc = exc.msg
 
   self.trackedFutures.track(streamOneBlock())
@@ -272,7 +282,7 @@ proc streamSingleBlock(self: CodexNodeRef, cid: Cid): Future[?!LPStream] {.async
 
 proc streamEntireDataset(
     self: CodexNodeRef, manifest: Manifest, manifestCid: Cid
-): Future[?!LPStream] {.async.} =
+): Future[?!LPStream] {.async: (raises: [CancelledError]).} =
   ## Streams the contents of the entire dataset described by the manifest.
   ##
   trace "Retrieving blocks from manifest", manifestCid
@@ -294,14 +304,14 @@ proc streamEntireDataset(
 
     jobs.add(erasureJob())
 
-  jobs.add(self.fetchDatasetAsync(manifest))
+  jobs.add(self.fetchDatasetAsync(manifest, fetchLocal = false))
 
   # Monitor stream completion and cancel background jobs when done
   proc monitorStream() {.async: (raises: []).} =
     try:
       await stream.join()
-    except CatchableError as exc:
-      warn "Stream failed", exc = exc.msg
+    except CancelledError as exc:
+      warn "Stream cancelled", exc = exc.msg
     finally:
       await noCancel allFutures(jobs.mapIt(it.cancelAndWait))
 
@@ -314,7 +324,7 @@ proc streamEntireDataset(
 
 proc retrieve*(
     self: CodexNodeRef, cid: Cid, local: bool = true
-): Future[?!LPStream] {.async.} =
+): Future[?!LPStream] {.async: (raises: [CancelledError]).} =
   ## Retrieve by Cid a single block or an entire dataset described by manifest
   ##
 
@@ -470,11 +480,11 @@ proc store*(
   return manifestBlk.cid.success
 
 proc iterateManifests*(self: CodexNodeRef, onManifest: OnManifest) {.async.} =
-  without cids =? await self.networkStore.listBlocks(BlockType.Manifest):
+  without cidsIter =? await self.networkStore.listBlocks(BlockType.Manifest):
     warn "Failed to listBlocks"
     return
 
-  for c in cids:
+  for c in cidsIter:
     if cid =? await c:
       without blk =? await self.networkStore.getBlock(cid):
         warn "Failed to get manifest block by cid", cid
@@ -617,7 +627,7 @@ proc onStore(
     slotIdx: uint64,
     blocksCb: BlocksCb,
     isRepairing: bool = false,
-): Future[?!void] {.async.} =
+): Future[?!void] {.async: (raises: [CancelledError]).} =
   ## store data in local storage
   ##
 
@@ -648,13 +658,15 @@ proc onStore(
     trace "Slot index not in manifest", slotIdx
     return failure(newException(CodexError, "Slot index not in manifest"))
 
-  proc updateExpiry(blocks: seq[bt.Block]): Future[?!void] {.async.} =
+  proc updateExpiry(
+      blocks: seq[bt.Block]
+  ): Future[?!void] {.async: (raises: [CancelledError]).} =
     trace "Updating expiry for blocks", blocks = blocks.len
 
     let ensureExpiryFutures =
       blocks.mapIt(self.networkStore.ensureExpiry(it.cid, expiry.toSecondsSince1970))
 
-    let res = await allFinishedFailed(ensureExpiryFutures)
+    let res = await allFinishedFailed(cast[seq[Future[?!void]]](ensureExpiryFutures))
     if res.failure.len > 0:
       trace "Some blocks failed to update expiry", len = res.failure.len
       return failure("Some blocks failed to update expiry (" & $res.failure.len & " )")
@@ -702,7 +714,7 @@ proc onStore(
 
 proc onProve(
     self: CodexNodeRef, slot: Slot, challenge: ProofChallenge
-): Future[?!Groth16Proof] {.async.} =
+): Future[?!Groth16Proof] {.async: (raises: [CancelledError]).} =
   ## Generats a proof for a given slot and challenge
   ##
 
@@ -758,7 +770,7 @@ proc onProve(
 
 proc onExpiryUpdate(
     self: CodexNodeRef, rootCid: Cid, expiry: SecondsSince1970
-): Future[?!void] {.async.} =
+): Future[?!void] {.async: (raises: [CancelledError]).} =
   return await self.updateExpiry(rootCid, expiry)
 
 proc onClear(self: CodexNodeRef, request: StorageRequest, slotIndex: uint64) =
@@ -781,12 +793,12 @@ proc start*(self: CodexNodeRef) {.async.} =
         slot: uint64,
         onBatch: BatchProc,
         isRepairing: bool = false,
-    ): Future[?!void] =
+    ): Future[?!void] {.async: (raw: true, raises: [CancelledError]).} =
       self.onStore(request, slot, onBatch, isRepairing)
 
     hostContracts.sales.onExpiryUpdate = proc(
         rootCid: Cid, expiry: SecondsSince1970
-    ): Future[?!void] =
+    ): Future[?!void] {.async: (raw: true, raises: [CancelledError]).} =
       self.onExpiryUpdate(rootCid, expiry)
 
     hostContracts.sales.onClear = proc(request: StorageRequest, slotIndex: uint64) =
@@ -795,7 +807,7 @@ proc start*(self: CodexNodeRef) {.async.} =
 
     hostContracts.sales.onProve = proc(
         slot: Slot, challenge: ProofChallenge
-    ): Future[?!Groth16Proof] =
+    ): Future[?!Groth16Proof] {.async: (raw: true, raises: [CancelledError]).} =
       # TODO: generate proof
       self.onProve(slot, challenge)
 

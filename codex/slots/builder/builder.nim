@@ -134,7 +134,7 @@ func manifest*[T, H](self: SlotsBuilder[T, H]): Manifest =
 
 proc buildBlockTree*[T, H](
     self: SlotsBuilder[T, H], blkIdx: Natural, slotPos: Natural
-): Future[?!(seq[byte], T)] {.async.} =
+): Future[?!(seq[byte], T)] {.async: (raises: [CancelledError]).} =
   ## Build the block digest tree and return a tuple with the
   ## block data and the tree.
   ##
@@ -167,7 +167,7 @@ proc buildBlockTree*[T, H](
 
 proc getCellHashes*[T, H](
     self: SlotsBuilder[T, H], slotIndex: Natural
-): Future[?!seq[H]] {.async.} =
+): Future[?!seq[H]] {.async: (raises: [CancelledError, IndexingError]).} =
   ## Collect all the cells from a block and return
   ## their hashes.
   ##
@@ -202,19 +202,23 @@ proc getCellHashes*[T, H](
 
 proc buildSlotTree*[T, H](
     self: SlotsBuilder[T, H], slotIndex: Natural
-): Future[?!T] {.async.} =
+): Future[?!T] {.async: (raises: [CancelledError]).} =
   ## Build the slot tree from the block digest hashes
   ## and return the tree.
 
-  without cellHashes =? (await self.getCellHashes(slotIndex)), err:
-    error "Failed to select slot blocks", err = err.msg
-    return failure(err)
+  try:
+    without cellHashes =? (await self.getCellHashes(slotIndex)), err:
+      error "Failed to select slot blocks", err = err.msg
+      return failure(err)
 
-  T.init(cellHashes)
+    T.init(cellHashes)
+  except IndexingError as err:
+    error "Failed to build slot tree", err = err.msg
+    return failure(err)
 
 proc buildSlot*[T, H](
     self: SlotsBuilder[T, H], slotIndex: Natural
-): Future[?!H] {.async.} =
+): Future[?!H] {.async: (raises: [CancelledError]).} =
   ## Build a slot tree and store the proofs in
   ## the block store.
   ##
@@ -250,7 +254,9 @@ proc buildSlot*[T, H](
 func buildVerifyTree*[T, H](self: SlotsBuilder[T, H], slotRoots: openArray[H]): ?!T =
   T.init(@slotRoots)
 
-proc buildSlots*[T, H](self: SlotsBuilder[T, H]): Future[?!void] {.async.} =
+proc buildSlots*[T, H](
+    self: SlotsBuilder[T, H]
+): Future[?!void] {.async: (raises: [CancelledError]).} =
   ## Build all slot trees and store them in the block store.
   ##
 
@@ -280,7 +286,9 @@ proc buildSlots*[T, H](self: SlotsBuilder[T, H]): Future[?!void] {.async.} =
 
   success()
 
-proc buildManifest*[T, H](self: SlotsBuilder[T, H]): Future[?!Manifest] {.async.} =
+proc buildManifest*[T, H](
+    self: SlotsBuilder[T, H]
+): Future[?!Manifest] {.async: (raises: [CancelledError]).} =
   if err =? (await self.buildSlots()).errorOption:
     error "Failed to build slot roots", err = err.msg
     return failure(err)

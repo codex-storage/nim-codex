@@ -20,7 +20,7 @@ import pkg/chronos
 import ../logutils
 
 type
-  TimerCallback* = proc(): Future[void] {.gcsafe, upraises: [].}
+  TimerCallback* = proc(): Future[void] {.gcsafe, raises: [].}
   Timer* = ref object of RootObj
     callback: TimerCallback
     interval: Duration

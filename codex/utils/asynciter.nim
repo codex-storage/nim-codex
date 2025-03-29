@@ -126,7 +126,7 @@ proc mapFilter*[T, U](
 ): Future[AsyncIter[U]] {.async.} =
   var nextFutU: Option[Future[U]]
 
-  proc tryFetch(): Future[void] {.async.} =
+  proc tryFetch(): Future[void] {.async: (raises: [CancelledError]).} =
     nextFutU = Future[U].none
     while not iter.finished:
       let futT = iter.next()

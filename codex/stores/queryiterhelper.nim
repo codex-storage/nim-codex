@@ -10,7 +10,7 @@ type KeyVal*[T] = tuple[key: Key, value: T]
 
 proc toAsyncIter*[T](
     queryIter: QueryIter[T], finishOnErr: bool = true
-): Future[?!AsyncIter[?!QueryResponse[T]]] {.async.} =
+): Future[?!AsyncIter[?!QueryResponse[T]]] {.async: (raises: [CancelledError]).} =
   ## Converts `QueryIter[T]` to `AsyncIter[?!QueryResponse[T]]` and automatically
   ## runs dispose whenever `QueryIter` finishes or whenever an error occurs (only
   ## if the flag finishOnErr is set to true)
@@ -44,7 +44,7 @@ proc toAsyncIter*[T](
 
 proc filterSuccess*[T](
     iter: AsyncIter[?!QueryResponse[T]]
-): Future[AsyncIter[tuple[key: Key, value: T]]] {.async.} =
+): Future[AsyncIter[tuple[key: Key, value: T]]] {.async: (raises: [CancelledError]).} =
   ## Filters out any items that are not success
 
   proc mapping(resOrErr: ?!QueryResponse[T]): Future[?KeyVal[T]] {.async.} =
@@ -62,4 +62,7 @@ proc filterSuccess*[T](
 
     (key: key, value: value).some
 
-  await mapFilter[?!QueryResponse[T], KeyVal[T]](iter, mapping)
+  try:
+    await mapFilter[?!QueryResponse[T], KeyVal[T]](iter, mapping)
+  except CatchableError as err:
+    raiseAssert err.msg

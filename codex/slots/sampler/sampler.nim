@@ -48,7 +48,7 @@ func getCell*[T, H](
 
 proc getSample*[T, H](
     self: DataSampler[T, H], cellIdx: int, slotTreeCid: Cid, slotRoot: H
-): Future[?!Sample[H]] {.async.} =
+): Future[?!Sample[H]] {.async: (raises: [CancelledError]).} =
   let
     cellsPerBlock = self.builder.numBlockCells
     blkCellIdx = cellIdx.toCellInBlk(cellsPerBlock) # block cell index
@@ -81,7 +81,7 @@ proc getSample*[T, H](
 
 proc getProofInput*[T, H](
     self: DataSampler[T, H], entropy: ProofChallenge, nSamples: Natural
-): Future[?!ProofInputs[H]] {.async.} =
+): Future[?!ProofInputs[H]] {.async: (raises: [CancelledError]).} =
   ## Generate proofs as input to the proving circuit.
   ##
 

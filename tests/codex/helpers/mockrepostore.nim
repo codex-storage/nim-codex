@@ -22,19 +22,17 @@ type MockRepoStore* = ref object of RepoStore
   getBeOffset*: int
 
   testBlockExpirations*: seq[BlockExpiration]
-  getBlockExpirationsThrows*: bool
 
-method delBlock*(self: MockRepoStore, cid: Cid): Future[?!void] {.async.} =
+method delBlock*(
+    self: MockRepoStore, cid: Cid
+): Future[?!void] {.async: (raises: [CancelledError]).} =
   self.delBlockCids.add(cid)
   self.testBlockExpirations = self.testBlockExpirations.filterIt(it.cid != cid)
   return success()
 
 method getBlockExpirations*(
     self: MockRepoStore, maxNumber: int, offset: int
-): Future[?!AsyncIter[BlockExpiration]] {.async.} =
-  if self.getBlockExpirationsThrows:
-    raise new CatchableError
-
+): Future[?!AsyncIter[BlockExpiration]] {.async: (raises: [CancelledError]).} =
   self.getBeMaxNumber = maxNumber
   self.getBeOffset = offset
 
