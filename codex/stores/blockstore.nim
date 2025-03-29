@@ -33,11 +33,13 @@ type
     Block
     Both
 
-  CidCallback* = proc(cid: Cid): Future[void] {.gcsafe, raises: [].}
+  CidCallback* = proc(cid: Cid): Future[void] {.gcsafe, async: (raises: []).}
   BlockStore* = ref object of RootObj
     onBlockStored*: ?CidCallback
 
-method getBlock*(self: BlockStore, cid: Cid): Future[?!Block] {.base, gcsafe.} =
+method getBlock*(
+    self: BlockStore, cid: Cid
+): Future[?!Block] {.base, async: (raises: [CancelledError]), gcsafe.} =
   ## Get a block from the blockstore
   ##
 
@@ -45,20 +47,23 @@ method getBlock*(self: BlockStore, cid: Cid): Future[?!Block] {.base, gcsafe.} =
 
 method getBlock*(
     self: BlockStore, treeCid: Cid, index: Natural
-): Future[?!Block] {.base, gcsafe.} =
+): Future[?!Block] {.base, async: (raises: [CancelledError]), gcsafe.} =
   ## Get a block from the blockstore
   ##
 
   raiseAssert("getBlock by treecid not implemented!")
 
-method getCid*(self: BlockStore, treeCid: Cid, index: Natural): Future[?!Cid] {.base.} =
+method getCid*(
+    self: BlockStore, treeCid: Cid, index: Natural
+): Future[?!Cid] {.base, async: (raises: [CancelledError]), gcsafe.} =
   ## Get a cid given a tree and index
   ##
+
   raiseAssert("getCid by treecid not implemented!")
 
 method getBlock*(
     self: BlockStore, address: BlockAddress
-): Future[?!Block] {.base, gcsafe.} =
+): Future[?!Block] {.base, async: (raises: [CancelledError]), gcsafe.} =
   ## Get a block from the blockstore
   ##
 
@@ -66,7 +71,7 @@ method getBlock*(
 
 method getBlockAndProof*(
     self: BlockStore, treeCid: Cid, index: Natural
-): Future[?!(Block, CodexProof)] {.base, gcsafe.} =
+): Future[?!(Block, CodexProof)] {.base, async: (raises: [CancelledError]), gcsafe.} =
   ## Get a block and associated inclusion proof by Cid of a merkle tree and an index of a leaf in a tree
   ##
 
@@ -74,7 +79,7 @@ method getBlockAndProof*(
 
 method putBlock*(
     self: BlockStore, blk: Block, ttl = Duration.none
-): Future[?!void] {.base, gcsafe.} =
+): Future[?!void] {.base, async: (raises: [CancelledError]), gcsafe.} =
   ## Put a block to the blockstore
   ##
 
@@ -82,7 +87,7 @@ method putBlock*(
 
 method putCidAndProof*(
     self: BlockStore, treeCid: Cid, index: Natural, blockCid: Cid, proof: CodexProof
-): Future[?!void] {.base, gcsafe.} =
+): Future[?!void] {.base, async: (raises: [CancelledError]), gcsafe.} =
   ## Put a block proof to the blockstore
   ##
 
@@ -90,7 +95,7 @@ method putCidAndProof*(
 
 method getCidAndProof*(
     self: BlockStore, treeCid: Cid, index: Natural
-): Future[?!(Cid, CodexProof)] {.base, gcsafe.} =
+): Future[?!(Cid, CodexProof)] {.base, async: (raises: [CancelledError]), gcsafe.} =
   ## Get a block proof from the blockstore
   ##
 
@@ -98,7 +103,7 @@ method getCidAndProof*(
 
 method ensureExpiry*(
     self: BlockStore, cid: Cid, expiry: SecondsSince1970
-): Future[?!void] {.base, gcsafe.} =
+): Future[?!void] {.base, async: (raises: [CancelledError]), gcsafe.} =
   ## Ensure that block's assosicated expiry is at least given timestamp
   ## If the current expiry is lower then it is updated to the given one, otherwise it is left intact
   ##
@@ -107,14 +112,16 @@ method ensureExpiry*(
 
 method ensureExpiry*(
     self: BlockStore, treeCid: Cid, index: Natural, expiry: SecondsSince1970
-): Future[?!void] {.base, gcsafe.} =
+): Future[?!void] {.base, async: (raises: [CancelledError]), gcsafe.} =
   ## Ensure that block's associated expiry is at least given timestamp
   ## If the current expiry is lower then it is updated to the given one, otherwise it is left intact
   ##
 
   raiseAssert("Not implemented!")
 
-method delBlock*(self: BlockStore, cid: Cid): Future[?!void] {.base, gcsafe.} =
+method delBlock*(
+    self: BlockStore, cid: Cid
+): Future[?!void] {.base, async: (raises: [CancelledError]), gcsafe.} =
   ## Delete a block from the blockstore
   ##
 
@@ -122,13 +129,15 @@ method delBlock*(self: BlockStore, cid: Cid): Future[?!void] {.base, gcsafe.} =
 
 method delBlock*(
     self: BlockStore, treeCid: Cid, index: Natural
-): Future[?!void] {.base, gcsafe.} =
+): Future[?!void] {.base, async: (raises: [CancelledError]), gcsafe.} =
   ## Delete a block from the blockstore
   ##
 
   raiseAssert("delBlock not implemented!")
 
-method hasBlock*(self: BlockStore, cid: Cid): Future[?!bool] {.base, gcsafe.} =
+method hasBlock*(
+    self: BlockStore, cid: Cid
+): Future[?!bool] {.base, async: (raises: [CancelledError]), gcsafe.} =
   ## Check if the block exists in the blockstore
   ##
 
@@ -136,7 +145,7 @@ method hasBlock*(self: BlockStore, cid: Cid): Future[?!bool] {.base, gcsafe.} =
 
 method hasBlock*(
     self: BlockStore, tree: Cid, index: Natural
-): Future[?!bool] {.base, gcsafe.} =
+): Future[?!bool] {.base, async: (raises: [CancelledError]), gcsafe.} =
   ## Check if the block exists in the blockstore
   ##
 
@@ -144,27 +153,31 @@ method hasBlock*(
 
 method listBlocks*(
     self: BlockStore, blockType = BlockType.Manifest
-): Future[?!AsyncIter[?Cid]] {.base, gcsafe.} =
+): Future[?!AsyncIter[?Cid]] {.base, async: (raises: [CancelledError]), gcsafe.} =
   ## Get the list of blocks in the BlockStore. This is an intensive operation
   ##
 
   raiseAssert("listBlocks not implemented!")
 
-method close*(self: BlockStore): Future[void] {.base, gcsafe.} =
+method close*(self: BlockStore): Future[void] {.base, async: (raises: []), gcsafe.} =
   ## Close the blockstore, cleaning up resources managed by it.
   ## For some implementations this may be a no-op
   ##
 
   raiseAssert("close not implemented!")
 
-proc contains*(self: BlockStore, blk: Cid): Future[bool] {.async.} =
+proc contains*(
+    self: BlockStore, blk: Cid
+): Future[bool] {.async: (raises: [CancelledError]), gcsafe.} =
   ## Check if the block exists in the blockstore.
   ## Return false if error encountered
   ##
 
   return (await self.hasBlock(blk)) |? false
 
-proc contains*(self: BlockStore, address: BlockAddress): Future[bool] {.async.} =
+proc contains*(
+    self: BlockStore, address: BlockAddress
+): Future[bool] {.async: (raises: [CancelledError]), gcsafe.} =
   return
     if address.leaf:
       (await self.hasBlock(address.treeCid, address.index)) |? false

@@ -24,15 +24,17 @@ type
     slotQueue*: SlotQueue
     simulateProofFailures*: int
 
-  BlocksCb* = proc(blocks: seq[bt.Block]): Future[?!void] {.gcsafe, raises: [].}
+  BlocksCb* = proc(blocks: seq[bt.Block]): Future[?!void] {.
+    gcsafe, async: (raises: [CancelledError])
+  .}
   OnStore* = proc(
     request: StorageRequest, slot: uint64, blocksCb: BlocksCb, isRepairing: bool
-  ): Future[?!void] {.gcsafe, upraises: [].}
+  ): Future[?!void] {.gcsafe, async: (raises: [CancelledError]).}
   OnProve* = proc(slot: Slot, challenge: ProofChallenge): Future[?!Groth16Proof] {.
-    gcsafe, upraises: []
+    gcsafe, async: (raises: [CancelledError])
   .}
   OnExpiryUpdate* = proc(rootCid: Cid, expiry: SecondsSince1970): Future[?!void] {.
-    gcsafe, upraises: []
+    gcsafe, async: (raises: [CancelledError])
   .}
-  OnClear* = proc(request: StorageRequest, slotIndex: uint64) {.gcsafe, upraises: [].}
-  OnSale* = proc(request: StorageRequest, slotIndex: uint64) {.gcsafe, upraises: [].}
+  OnClear* = proc(request: StorageRequest, slotIndex: uint64) {.gcsafe, raises: [].}
+  OnSale* = proc(request: StorageRequest, slotIndex: uint64) {.gcsafe, raises: [].}

@@ -64,18 +64,18 @@ asyncchecksuite "Sales - start":
     reservations = sales.context.reservations
     sales.onStore = proc(
         request: StorageRequest, slot: uint64, onBatch: BatchProc, isRepairing = false
-    ): Future[?!void] {.async.} =
+    ): Future[?!void] {.async: (raises: [CancelledError]).} =
       return success()
 
     sales.onExpiryUpdate = proc(
         rootCid: Cid, expiry: SecondsSince1970
-    ): Future[?!void] {.async.} =
+    ): Future[?!void] {.async: (raises: [CancelledError]).} =
       return success()
 
     queue = sales.context.slotQueue
     sales.onProve = proc(
         slot: Slot, challenge: ProofChallenge
-    ): Future[?!Groth16Proof] {.async.} =
+    ): Future[?!Groth16Proof] {.async: (raises: [CancelledError]).} =
       return success(proof)
     itemsProcessed = @[]
     expiry = (clock.now() + 42)
@@ -185,18 +185,18 @@ asyncchecksuite "Sales":
     reservations = sales.context.reservations
     sales.onStore = proc(
         request: StorageRequest, slot: uint64, onBatch: BatchProc, isRepairing = false
-    ): Future[?!void] {.async.} =
+    ): Future[?!void] {.async: (raises: [CancelledError]).} =
       return success()
 
     sales.onExpiryUpdate = proc(
         rootCid: Cid, expiry: SecondsSince1970
-    ): Future[?!void] {.async.} =
+    ): Future[?!void] {.async: (raises: [CancelledError]).} =
       return success()
 
     queue = sales.context.slotQueue
     sales.onProve = proc(
         slot: Slot, challenge: ProofChallenge
-    ): Future[?!Groth16Proof] {.async.} =
+    ): Future[?!Groth16Proof] {.async: (raises: [CancelledError]).} =
       return success(proof)
     await sales.start()
     itemsProcessed = @[]
@@ -375,7 +375,7 @@ asyncchecksuite "Sales":
   test "availability size is reduced by request slot size when fully downloaded":
     sales.onStore = proc(
         request: StorageRequest, slot: uint64, onBatch: BatchProc, isRepairing = false
-    ): Future[?!void] {.async.} =
+    ): Future[?!void] {.async: (raises: [CancelledError]).} =
       let blk = bt.Block.new(@[1.byte]).get
       await onBatch(blk.repeat(request.ask.slotSize.int))
 
@@ -388,7 +388,7 @@ asyncchecksuite "Sales":
     var slotIndex = 0.uint64
     sales.onStore = proc(
         request: StorageRequest, slot: uint64, onBatch: BatchProc, isRepairing = false
-    ): Future[?!void] {.async.} =
+    ): Future[?!void] {.async: (raises: [CancelledError]).} =
       slotIndex = slot
       let blk = bt.Block.new(@[1.byte]).get
       await onBatch(blk.repeat(request.ask.slotSize))
@@ -463,7 +463,7 @@ asyncchecksuite "Sales":
     var storingRequest: StorageRequest
     sales.onStore = proc(
         request: StorageRequest, slot: uint64, onBatch: BatchProc, isRepairing = false
-    ): Future[?!void] {.async.} =
+    ): Future[?!void] {.async: (raises: [CancelledError]).} =
       storingRequest = request
       return success()
 
@@ -476,7 +476,7 @@ asyncchecksuite "Sales":
     var storingSlot: uint64
     sales.onStore = proc(
         request: StorageRequest, slot: uint64, onBatch: BatchProc, isRepairing = false
-    ): Future[?!void] {.async.} =
+    ): Future[?!void] {.async: (raises: [CancelledError]).} =
       storingRequest = request
       storingSlot = slot
       return success()
@@ -489,7 +489,7 @@ asyncchecksuite "Sales":
     let error = newException(IOError, "data retrieval failed")
     sales.onStore = proc(
         request: StorageRequest, slot: uint64, onBatch: BatchProc, isRepairing = false
-    ): Future[?!void] {.async.} =
+    ): Future[?!void] {.async: (raises: [CancelledError]).} =
       return failure(error)
     createAvailability()
     await market.requestStorage(request)
@@ -500,7 +500,7 @@ asyncchecksuite "Sales":
     var provingSlot: uint64
     sales.onProve = proc(
         slot: Slot, challenge: ProofChallenge
-    ): Future[?!Groth16Proof] {.async.} =
+    ): Future[?!Groth16Proof] {.async: (raises: [CancelledError]).} =
       provingRequest = slot.request
       provingSlot = slot.slotIndex
       return success(Groth16Proof.example)
@@ -540,8 +540,8 @@ asyncchecksuite "Sales":
     # which then calls the onClear callback
     sales.onProve = proc(
         slot: Slot, challenge: ProofChallenge
-    ): Future[?!Groth16Proof] {.async.} =
-      raise newException(IOError, "proof failed")
+    ): Future[?!Groth16Proof] {.async: (raises: [CancelledError]).} =
+      return failure("proof failed")
     var clearedRequest: StorageRequest
     var clearedSlotIndex: uint64
     sales.onClear = proc(request: StorageRequest, slotIndex: uint64) =
@@ -558,7 +558,7 @@ asyncchecksuite "Sales":
     let otherHost = Address.example
     sales.onStore = proc(
         request: StorageRequest, slot: uint64, onBatch: BatchProc, isRepairing = false
-    ): Future[?!void] {.async.} =
+    ): Future[?!void] {.async: (raises: [CancelledError]).} =
       await sleepAsync(chronos.hours(1))
       return success()
     createAvailability()
@@ -574,7 +574,7 @@ asyncchecksuite "Sales":
     let origSize = availability.freeSize
     sales.onStore = proc(
         request: StorageRequest, slot: uint64, onBatch: BatchProc, isRepairing = false
-    ): Future[?!void] {.async.} =
+    ): Future[?!void] {.async: (raises: [CancelledError]).} =
       await sleepAsync(chronos.hours(1))
       return success()
     createAvailability()
@@ -601,7 +601,7 @@ asyncchecksuite "Sales":
     let origSize = availability.freeSize
     sales.onStore = proc(
         request: StorageRequest, slot: uint64, onBatch: BatchProc, isRepairing = false
-    ): Future[?!void] {.async.} =
+    ): Future[?!void] {.async: (raises: [CancelledError]).} =
       await sleepAsync(chronos.hours(1))
       return success()
     createAvailability()

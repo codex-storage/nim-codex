@@ -58,7 +58,7 @@ proc commonBlockStoreTests*(
 
     test "putBlock raises onBlockStored":
       var storedCid = Cid.example
-      proc onStored(cid: Cid) {.async.} =
+      proc onStored(cid: Cid) {.async: (raises: []).} =
         storedCid = cid
 
       store.onBlockStored = onStored.some()
