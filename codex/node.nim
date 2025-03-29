@@ -88,8 +88,6 @@ type
   BatchProc* = proc(blocks: seq[bt.Block]): Future[?!void] {.
     gcsafe, async: (raises: [CancelledError])
   .}
-  PieceProc* =
-    proc(blocks: seq[bt.Block], pieceIndex: int): ?!void {.gcsafe, raises: [].}
 
 func switch*(self: CodexNodeRef): Switch =
   return self.switch
@@ -167,12 +165,11 @@ proc fetchManifest*(
 
 proc fetchTorrentManifest*(
     self: CodexNodeRef, infoHashCid: Cid
-): Future[?!BitTorrentManifest] {.async.} =
+): Future[?!BitTorrentManifest] {.async: (raises: [CancelledError]).} =
   if err =? infoHashCid.isTorrentInfoHash.errorOption:
     return failure "CID has invalid content type for torrent info hash {$cid}"
 
   trace "Retrieving torrent manifest for infoHashCid", infoHashCid
-
   without blk =? await self.networkStore.getBlock(BlockAddress.init(infoHashCid)), err:
     trace "Error retrieve manifest block", infoHashCid, err = err.msg
     return failure err
@@ -248,7 +245,7 @@ proc fetchBatched*(
   #   )
 
   while not iter.finished:
-    let blockFutures = collect:
+    let blockFutures: seq[Future[?!bt.Block].Raising([CancelledError])] = collect:
       for i in 0 ..< batchSize:
         if not iter.finished:
           let address = BlockAddress.init(cid, iter.next())
@@ -406,7 +403,7 @@ proc getTorrentDownloader*(
 
 proc retrieveTorrent*(
     self: CodexNodeRef, infoHash: MultiHash
-): Future[?!Torrent] {.async.} =
+): Future[?!Torrent] {.async: (raises: [CancelledError]).} =
   without infoHashCid =? Cid.init(CIDv1, InfoHashV1Codec, infoHash).mapFailure, error:
     trace "Unable to create CID for BitTorrent info hash"
     return failure(error)
