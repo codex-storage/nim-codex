@@ -46,7 +46,9 @@ type
 
 const DefaultCacheSize*: NBytes = 5.MiBs
 
-method getBlock*(self: CacheStore, cid: Cid): Future[?!Block] {.async.} =
+method getBlock*(
+    self: CacheStore, cid: Cid
+): Future[?!Block] {.async: (raises: [CancelledError]).} =
   ## Get a block from the stores
   ##
 
@@ -69,7 +71,7 @@ method getBlock*(self: CacheStore, cid: Cid): Future[?!Block] {.async.} =
 
 method getCidAndProof*(
     self: CacheStore, treeCid: Cid, index: Natural
-): Future[?!(Cid, CodexProof)] {.async.} =
+): Future[?!(Cid, CodexProof)] {.async: (raises: [CancelledError]).} =
   if cidAndProof =? self.cidAndProofCache.getOption((treeCid, index)):
     success(cidAndProof)
   else:
@@ -81,7 +83,7 @@ method getCidAndProof*(
 
 method getBlock*(
     self: CacheStore, treeCid: Cid, index: Natural
-): Future[?!Block] {.async.} =
+): Future[?!Block] {.async: (raises: [CancelledError]).} =
   without cidAndProof =? (await self.getCidAndProof(treeCid, index)), err:
     return failure(err)
 
@@ -89,7 +91,7 @@ method getBlock*(
 
 method getBlockAndProof*(
     self: CacheStore, treeCid: Cid, index: Natural
-): Future[?!(Block, CodexProof)] {.async.} =
+): Future[?!(Block, CodexProof)] {.async: (raises: [CancelledError]).} =
   without cidAndProof =? (await self.getCidAndProof(treeCid, index)), err:
     return failure(err)
 
@@ -100,13 +102,17 @@ method getBlockAndProof*(
 
   success((blk, proof))
 
-method getBlock*(self: CacheStore, address: BlockAddress): Future[?!Block] =
+method getBlock*(
+    self: CacheStore, address: BlockAddress
+): Future[?!Block] {.async: (raw: true, raises: [CancelledError]).} =
   if address.leaf:
     self.getBlock(address.treeCid, address.index)
   else:
     self.getBlock(address.cid)
 
-method hasBlock*(self: CacheStore, cid: Cid): Future[?!bool] {.async.} =
+method hasBlock*(
+    self: CacheStore, cid: Cid
+): Future[?!bool] {.async: (raises: [CancelledError]).} =
   ## Check if the block exists in the blockstore
   ##
 
@@ -119,7 +125,7 @@ method hasBlock*(self: CacheStore, cid: Cid): Future[?!bool] {.async.} =
 
 method hasBlock*(
     self: CacheStore, treeCid: Cid, index: Natural
-): Future[?!bool] {.async.} =
+): Future[?!bool] {.async: (raises: [CancelledError]).} =
   without cidAndProof =? (await self.getCidAndProof(treeCid, index)), err:
     if err of BlockNotFoundError:
       return success(false)
@@ -136,7 +142,7 @@ func cids(self: CacheStore): (iterator (): Cid {.gcsafe.}) =
 
 method listBlocks*(
     self: CacheStore, blockType = BlockType.Manifest
-): Future[?!AsyncIter[?Cid]] {.async.} =
+): Future[?!AsyncIter[?Cid]] {.async: (raises: [CancelledError]).} =
   ## Get the list of blocks in the BlockStore. This is an intensive operation
   ##
 
@@ -148,35 +154,38 @@ method listBlocks*(
   proc genNext(): Future[Cid] {.async.} =
     cids()
 
-  let iter = await (
-    AsyncIter[Cid].new(genNext, isFinished).filter(
-      proc(cid: Cid): Future[bool] {.async.} =
-        without isTorrent =? cid.isTorrentInfoHash, err:
-          trace "Error checking if cid is a torrent info hash", err = err.msg
-          return false
-        without isManifest =? cid.isManifest, err:
-          trace "Error checking if cid is a manifest", err = err.msg
-          return false
+  try:
+    let iter = await (
+      AsyncIter[Cid].new(genNext, isFinished).filter(
+        proc(cid: Cid): Future[bool] {.async.} =
+          without isTorrent =? cid.isTorrentInfoHash, err:
+            trace "Error checking if cid is a torrent info hash", err = err.msg
+            return false
+          without isManifest =? cid.isManifest, err:
+            trace "Error checking if cid is a manifest", err = err.msg
+            return false
 
-        case blockType
-        of BlockType.Both:
-          return true
-        of BlockType.Manifest:
-          return isManifest
-        of BlockType.Torrent:
-          return isTorrent
-        of BlockType.Block:
-          return not (isManifest or isTorrent)
+          case blockType
+          of BlockType.Both:
+            return true
+          of BlockType.Manifest:
+            return isManifest
+          of BlockType.Torrent:
+            return isTorrent
+          of BlockType.Block:
+            return not (isManifest or isTorrent)
+      )
     )
-  )
 
-  return success(
-    map[Cid, ?Cid](
-      iter,
-      proc(cid: Cid): Future[?Cid] {.async.} =
-        some(cid),
+    return success(
+      map[Cid, ?Cid](
+        iter,
+        proc(cid: Cid): Future[?Cid] {.async.} =
+          some(cid),
+      )
     )
-  )
+  except CatchableError as err:
+    raiseAssert err.msg
 
 func putBlockSync(self: CacheStore, blk: Block): bool =
   let blkSize = blk.data.len.NBytes # in bytes
@@ -201,7 +210,7 @@ func putBlockSync(self: CacheStore, blk: Block): bool =
 
 method putBlock*(
     self: CacheStore, blk: Block, ttl = Duration.none
-): Future[?!void] {.async.} =
+): Future[?!void] {.async: (raises: [CancelledError]).} =
   ## Put a block to the blockstore
   ##
 
@@ -218,13 +227,13 @@ method putBlock*(
 
 method putCidAndProof*(
     self: CacheStore, treeCid: Cid, index: Natural, blockCid: Cid, proof: CodexProof
-): Future[?!void] {.async.} =
+): Future[?!void] {.async: (raises: [CancelledError]).} =
   self.cidAndProofCache[(treeCid, index)] = (blockCid, proof)
   success()
 
 method ensureExpiry*(
     self: CacheStore, cid: Cid, expiry: SecondsSince1970
-): Future[?!void] {.async.} =
+): Future[?!void] {.async: (raises: [CancelledError]).} =
   ## Updates block's assosicated TTL in store - not applicable for CacheStore
   ##
 
@@ -232,13 +241,15 @@ method ensureExpiry*(
 
 method ensureExpiry*(
     self: CacheStore, treeCid: Cid, index: Natural, expiry: SecondsSince1970
-): Future[?!void] {.async.} =
+): Future[?!void] {.async: (raises: [CancelledError]).} =
   ## Updates block's associated TTL in store - not applicable for CacheStore
   ##
 
   discard # CacheStore does not have notion of TTL
 
-method delBlock*(self: CacheStore, cid: Cid): Future[?!void] {.async.} =
+method delBlock*(
+    self: CacheStore, cid: Cid
+): Future[?!void] {.async: (raises: [CancelledError]).} =
   ## Delete a block from the blockstore
   ##
 
@@ -255,7 +266,7 @@ method delBlock*(self: CacheStore, cid: Cid): Future[?!void] {.async.} =
 
 method delBlock*(
     self: CacheStore, treeCid: Cid, index: Natural
-): Future[?!void] {.async.} =
+): Future[?!void] {.async: (raises: [CancelledError]).} =
   let maybeRemoved = self.cidAndProofCache.del((treeCid, index))
 
   if removed =? maybeRemoved:
@@ -263,7 +274,7 @@ method delBlock*(
 
   return success()
 
-method close*(self: CacheStore): Future[void] {.async.} =
+method close*(self: CacheStore): Future[void] {.async: (raises: []).} =
   ## Close the blockstore, a no-op for this implementation
   ##
 

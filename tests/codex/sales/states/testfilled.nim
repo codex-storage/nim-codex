@@ -37,7 +37,7 @@ suite "sales state 'filled'":
     onExpiryUpdatePassedExpiry = -1
     let onExpiryUpdate = proc(
         rootCid: Cid, expiry: SecondsSince1970
-    ): Future[?!void] {.async.} =
+    ): Future[?!void] {.async: (raises: [CancelledError]).} =
       onExpiryUpdatePassedExpiry = expiry
       return success()
     let context = SalesContext(market: market, onExpiryUpdate: some onExpiryUpdate)
