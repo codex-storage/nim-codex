@@ -161,7 +161,7 @@ proc retrieveCid(
 
 proc retrieveInfoHash(
     node: CodexNodeRef, infoHash: MultiHash, resp: HttpResponseRef
-): Future[void] {.async.} =
+): Future[void] {.async: (raises: [CancelledError, HttpWriteError]).} =
   ## Download torrent from the node in a streaming
   ## manner
   ##
@@ -194,13 +194,13 @@ proc retrieveInfoHash(
 
     await resp.prepare(HttpResponseStreamType.Plain)
 
-    without torrentDownloader =?
-      node.getTorrentDownloader(torrentManifest, codexManifest), err:
+    without downloader =? node.getTorrentDownloader(torrentManifest, codexManifest), err:
       error "Unable to stream torrent", err = err.msg
       resp.status = Http500
       await resp.sendBody(err.msg)
       return
 
+    torrentDownloader = downloader
     torrentDownloader.start()
 
     while not torrentDownloader.finished:
@@ -219,11 +219,6 @@ proc retrieveInfoHash(
   except CancelledError as exc:
     info "Stream cancelled", exc = exc.msg
     raise exc
-  except CatchableError as exc:
-    warn "Error streaming blocks", exc = exc.msg
-    resp.status = Http500
-    if resp.isPending():
-      await resp.sendBody(exc.msg)
   finally:
     info "Sent bytes for torrent", infoHash = $infoHash, bytes
     await torrentDownloader.stop()
