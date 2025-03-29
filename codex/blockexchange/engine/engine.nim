@@ -202,8 +202,8 @@ proc downloadInternal(
     trace "Block download cancelled"
     if not handle.finished:
       await handle.cancelAndWait()
-  except CatchableError as exc:
-    warn "Error downloadloading block", exc = exc.msg
+  except RetriesExhaustedError as exc:
+    warn "Retries exhausted for block", address, exc = exc.msg
     if not handle.finished:
       handle.fail(exc)
   finally:
