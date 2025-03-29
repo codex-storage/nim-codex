@@ -204,7 +204,8 @@ proc fetchBatched*(
     if not onBatch.isNil and batchErr =? (await onBatch(blocks)).errorOption:
       return failure(batchErr)
 
-    await sleepAsync(1.millis)
+    if not iter.finished:
+      await sleepAsync(1.millis)
 
   success()
 
