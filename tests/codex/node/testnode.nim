@@ -30,6 +30,7 @@ import pkg/codex/discovery
 import pkg/codex/erasure
 import pkg/codex/merkletree
 import pkg/codex/blocktype as bt
+import pkg/codex/rng
 
 import pkg/codex/node {.all.}
 
@@ -77,6 +78,31 @@ asyncchecksuite "Test Node - Basic":
             return success(),
         )
       ).tryGet()
+
+  test "Block Batching with corrupted blocks":
+    let blocks = await makeRandomBlocks(datasetSize = 64.KiBs.int, blockSize = 64.KiBs)
+    assert blocks.len == 1
+
+    let blk = blocks[0]
+
+    # corrupt block
+    let pos = rng.Rng.instance.rand(blk.data.len - 1)
+    blk.data[pos] = byte 0
+
+    let manifest = await storeDataGetManifest(localStore, blocks)
+
+    let batchSize = manifest.blocksCount
+    let res = (
+      await node.fetchBatched(
+        manifest,
+        batchSize = batchSize,
+        proc(blocks: seq[bt.Block]): Future[?!void] {.gcsafe, async.} =
+          return failure("Should not be called"),
+      )
+    )
+    check res.isFailure
+    check res.error of CatchableError
+    check res.error.msg == "Some blocks failed (Result) to fetch (1)"
 
   test "Should store Data Stream":
     let
