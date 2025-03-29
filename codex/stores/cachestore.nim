@@ -157,6 +157,9 @@ method listBlocks*(
         without cid =? cid, err:
           trace "Cannot get Cid from the iterator", err = err.msg
           return false
+        without isTorrent =? cid.isTorrentInfoHash, err:
+          trace "Error checking if cid is a torrent info hash", err = err.msg
+          return false
         without isManifest =? cid.isManifest, err:
           trace "Error checking if cid is a manifest", err = err.msg
           return false
