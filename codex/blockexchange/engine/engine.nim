@@ -202,7 +202,7 @@ proc downloadInternal(
     if not handle.finished:
       await handle.cancelAndWait()
   except RetriesExhaustedError as exc:
-    warn "Error downloadloading block", exc = exc.msg
+    warn "Retries exhausted for block", address, exc = exc.msg
     if not handle.finished:
       handle.fail(exc)
   finally:
