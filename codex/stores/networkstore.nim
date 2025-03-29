@@ -31,7 +31,9 @@ type NetworkStore* = ref object of BlockStore
   engine*: BlockExcEngine # blockexc decision engine
   localStore*: BlockStore # local block store
 
-method getBlock*(self: NetworkStore, address: BlockAddress): Future[?!Block] {.async.} =
+method getBlock*(
+    self: NetworkStore, address: BlockAddress
+): Future[?!Block] {.async: (raises: [CancelledError]).} =
   without blk =? (await self.localStore.getBlock(address)), err:
     if not (err of BlockNotFoundError):
       error "Error getting block from local store", address, err = err.msg
@@ -45,13 +47,17 @@ method getBlock*(self: NetworkStore, address: BlockAddress): Future[?!Block] {.a
 
   return success blk
 
-method getBlock*(self: NetworkStore, cid: Cid): Future[?!Block] =
+method getBlock*(
+    self: NetworkStore, cid: Cid
+): Future[?!Block] {.async: (raw: true, raises: [CancelledError]).} =
   ## Get a block from the blockstore
   ##
 
   self.getBlock(BlockAddress.init(cid))
 
-method getBlock*(self: NetworkStore, treeCid: Cid, index: Natural): Future[?!Block] =
+method getBlock*(
+    self: NetworkStore, treeCid: Cid, index: Natural
+): Future[?!Block] {.async: (raw: true, raises: [CancelledError]).} =
   ## Get a block from the blockstore
   ##
 
@@ -59,7 +65,7 @@ method getBlock*(self: NetworkStore, treeCid: Cid, index: Natural): Future[?!Blo
 
 method putBlock*(
     self: NetworkStore, blk: Block, ttl = Duration.none
-): Future[?!void] {.async.} =
+): Future[?!void] {.async: (raises: [CancelledError]).} =
   ## Store block locally and notify the network
   ##
   let res = await self.localStore.putBlock(blk, ttl)
@@ -71,12 +77,12 @@ method putBlock*(
 
 method putCidAndProof*(
     self: NetworkStore, treeCid: Cid, index: Natural, blockCid: Cid, proof: CodexProof
-): Future[?!void] =
+): Future[?!void] {.async: (raw: true, raises: [CancelledError]).} =
   self.localStore.putCidAndProof(treeCid, index, blockCid, proof)
 
 method getCidAndProof*(
     self: NetworkStore, treeCid: Cid, index: Natural
-): Future[?!(Cid, CodexProof)] =
+): Future[?!(Cid, CodexProof)] {.async: (raw: true, raises: [CancelledError]).} =
   ## Get a block proof from the blockstore
   ##
 
@@ -84,7 +90,7 @@ method getCidAndProof*(
 
 method ensureExpiry*(
     self: NetworkStore, cid: Cid, expiry: SecondsSince1970
-): Future[?!void] {.async.} =
+): Future[?!void] {.async: (raises: [CancelledError]).} =
   ## Ensure that block's assosicated expiry is at least given timestamp
   ## If the current expiry is lower then it is updated to the given one, otherwise it is left intact
   ##
@@ -101,7 +107,7 @@ method ensureExpiry*(
 
 method ensureExpiry*(
     self: NetworkStore, treeCid: Cid, index: Natural, expiry: SecondsSince1970
-): Future[?!void] {.async.} =
+): Future[?!void] {.async: (raises: [CancelledError]).} =
   ## Ensure that block's associated expiry is at least given timestamp
   ## If the current expiry is lower then it is updated to the given one, otherwise it is left intact
   ##
@@ -118,10 +124,12 @@ method ensureExpiry*(
 
 method listBlocks*(
     self: NetworkStore, blockType = BlockType.Manifest
-): Future[?!AsyncIter[?Cid]] =
+): Future[?!AsyncIter[?Cid]] {.async: (raw: true, raises: [CancelledError]).} =
   self.localStore.listBlocks(blockType)
 
-method delBlock*(self: NetworkStore, cid: Cid): Future[?!void] =
+method delBlock*(
+    self: NetworkStore, cid: Cid
+): Future[?!void] {.async: (raw: true, raises: [CancelledError]).} =
   ## Delete a block from the blockstore
   ##
 
@@ -130,7 +138,9 @@ method delBlock*(self: NetworkStore, cid: Cid): Future[?!void] =
 
 {.pop.}
 
-method hasBlock*(self: NetworkStore, cid: Cid): Future[?!bool] {.async.} =
+method hasBlock*(
+    self: NetworkStore, cid: Cid
+): Future[?!bool] {.async: (raises: [CancelledError]).} =
   ## Check if the block exists in the blockstore
   ##
 
@@ -139,13 +149,13 @@ method hasBlock*(self: NetworkStore, cid: Cid): Future[?!bool] {.async.} =
 
 method hasBlock*(
     self: NetworkStore, tree: Cid, index: Natural
-): Future[?!bool] {.async.} =
+): Future[?!bool] {.async: (raises: [CancelledError]).} =
   ## Check if the block exists in the blockstore
   ##
   trace "Checking network store for block existence", tree, index
   return await self.localStore.hasBlock(tree, index)
 
-method close*(self: NetworkStore): Future[void] {.async.} =
+method close*(self: NetworkStore): Future[void] {.async: (raises: []).} =
   ## Close the underlying local blockstore
   ##
 

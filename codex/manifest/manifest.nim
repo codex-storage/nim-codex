@@ -134,6 +134,12 @@ func mimetype*(self: Manifest): ?string =
 # Operations on block list
 ############################################################
 
+func isTorrentInfoHash*(cid: Cid): ?!bool =
+  success (InfoHashV1Codec == ?cid.contentType().mapFailure(CodexError))
+
+func isTorrentInfoHash*(mc: MultiCodec): ?!bool =
+  success (mc == InfoHashV1Codec)
+
 func isManifest*(cid: Cid): ?!bool =
   success (ManifestCodec == ?cid.contentType().mapFailure(CodexError))
 
@@ -360,9 +366,3 @@ func new*(
     filename: manifest.filename,
     mimetype: manifest.mimetype,
   )
-
-func new*(T: type Manifest, data: openArray[byte]): ?!Manifest =
-  ## Create a manifest instance from given data
-  ##
-
-  Manifest.decode(data)
