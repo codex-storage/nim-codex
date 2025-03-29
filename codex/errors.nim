@@ -9,6 +9,7 @@
 
 import std/options
 import std/sugar
+import std/sequtils
 
 import pkg/results
 import pkg/chronos
@@ -68,16 +69,18 @@ proc allFinishedValues*[T](
   ## otherwise return failure
   ##
 
-  let finishedFailed = await allFinishedFailed(futs)
+  # wait for all futures to be either completed, failed or canceled
+  await allFutures(futs)
 
-  if finishedFailed.failure.len > 0:
-    return failure "Some futures failed (" & $finishedFailed.failure.len & ")"
+  let numOfFailed = futs.countIt(it.failed)
 
-  try:
-    let values = collect:
-      for b in futs:
-        if b.finished:
-          b.read
-    return success values
-  except CatchableError as e:
-    raiseAssert e.msg
+  if numOfFailed > 0:
+    return failure "Some futures failed (" & $numOfFailed & "))"
+
+  # here, we know there are no failed futures in "futs"
+  # and we are only interested in those that completed successfully
+  let values = collect:
+    for b in futs:
+      if b.finished:
+        b.value
+  return success values
