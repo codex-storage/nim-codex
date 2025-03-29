@@ -145,8 +145,11 @@ proc start*(b: Advertiser) {.async: (raises: []).} =
 
   trace "Advertiser start"
 
-  proc onBlock(cid: Cid) {.async.} =
-    await b.advertiseBlock(cid)
+  proc onBlock(cid: Cid) {.async: (raises: []).} =
+    try:
+      await b.advertiseBlock(cid)
+    except CancelledError:
+      trace "Cancelled advertise block", cid
 
   doAssert(b.localStore.onBlockStored.isNone())
   b.localStore.onBlockStored = onBlock.some

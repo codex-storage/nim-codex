@@ -55,7 +55,9 @@ method run*(
     reservationId = reservation.id
     availabilityId = reservation.availabilityId
 
-  proc onBlocks(blocks: seq[bt.Block]): Future[?!void] {.async.} =
+  proc onBlocks(
+      blocks: seq[bt.Block]
+  ): Future[?!void] {.async: (raises: [CancelledError]).} =
     # release batches of blocks as they are written to disk and
     # update availability size
     var bytes: uint = 0

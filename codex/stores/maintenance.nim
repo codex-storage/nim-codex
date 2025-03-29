@@ -54,19 +54,23 @@ proc new*(
     offset: 0,
   )
 
-proc deleteExpiredBlock(self: BlockMaintainer, cid: Cid): Future[void] {.async.} =
+proc deleteExpiredBlock(
+    self: BlockMaintainer, cid: Cid
+): Future[void] {.async: (raises: [CancelledError]).} =
   if isErr (await self.repoStore.delBlock(cid)):
     trace "Unable to delete block from repoStore"
 
 proc processBlockExpiration(
     self: BlockMaintainer, be: BlockExpiration
-): Future[void] {.async.} =
+): Future[void] {.async: (raises: [CancelledError]).} =
   if be.expiry < self.clock.now:
     await self.deleteExpiredBlock(be.cid)
   else:
     inc self.offset
 
-proc runBlockCheck(self: BlockMaintainer): Future[void] {.async.} =
+proc runBlockCheck(
+    self: BlockMaintainer
+): Future[void] {.async: (raises: [CancelledError]).} =
   let expirations = await self.repoStore.getBlockExpirations(
     maxNumber = self.numberOfBlocksPerInterval, offset = self.offset
   )
@@ -77,10 +81,13 @@ proc runBlockCheck(self: BlockMaintainer): Future[void] {.async.} =
 
   var numberReceived = 0
   for beFut in iter:
-    let be = await beFut
-    inc numberReceived
-    await self.processBlockExpiration(be)
-    await sleepAsync(1.millis) # cooperative scheduling
+    try:
+      let be = await beFut
+      inc numberReceived
+      await self.processBlockExpiration(be)
+      await sleepAsync(1.millis) # cooperative scheduling
+    except CatchableError as err:
+      raiseAssert err.msg
 
   # If we received fewer blockExpirations from the iterator than we asked for,
   # We're at the end of the dataset and should start from 0 next time.
