@@ -123,7 +123,7 @@ proc map*[T, U](iter: AsyncIter[T], fn: Function[T, Future[U]]): AsyncIter[U] =
 
 proc mapFilter*[T, U](
     iter: AsyncIter[T], mapPredicate: Function[T, Future[Option[U]]]
-): Future[AsyncIter[U]] {.async.} =
+): Future[AsyncIter[U]] {.async: (raises: [CancelledError]).} =
   var nextFutU: Option[Future[U]]
 
   proc tryFetch(): Future[void] {.async: (raises: [CancelledError]).} =
@@ -157,7 +157,7 @@ proc mapFilter*[T, U](
 
 proc filter*[T](
     iter: AsyncIter[T], predicate: Function[T, Future[bool]]
-): Future[AsyncIter[T]] {.async.} =
+): Future[AsyncIter[T]] {.async: (raises: [CancelledError]).} =
   proc wrappedPredicate(t: T): Future[Option[T]] {.async.} =
     if await predicate(t):
       some(t)
