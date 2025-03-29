@@ -177,7 +177,8 @@ proc downloadPieces*(self: TorrentDownloader): Future[void] {.async: (raises: []
         # mark it as ready
         trace "Piece fetched and validated", pieceIndex = piece.pieceIndex
         piece.handle.complete()
-      await sleepAsync(1.millis)
+      if not self.queue.empty:
+        await sleepAsync(1.millis)
   except CancelledError:
     trace "Downloading pieces cancelled"
   except AsyncQueueFullError as e:
@@ -223,7 +224,7 @@ proc finished*(self: TorrentDownloader): bool =
 proc start*(self: TorrentDownloader) =
   self.trackedFutures.track(self.downloadPieces())
 
-proc stop*(self: TorrentDownloader) {.async.} =
+proc stop*(self: TorrentDownloader) {.async: (raises: []).} =
   self.pieceIndex = -1
   await noCancel self.cancel()
   await noCancel self.trackedFutures.cancelTracked()
