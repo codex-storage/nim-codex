@@ -296,7 +296,9 @@ asyncchecksuite "RepoStore":
         beIter: Future[?!SafeAsyncIter[BlockExpiration]]
     ): Future[seq[BlockExpiration]] {.async: (raises: [CatchableError]).} =
       var expirations = newSeq[BlockExpiration](0)
-      without iter =? (await beIter), err:
+      without iter =? (
+        await cast[Future[?!SafeAsyncIter[BlockExpiration]].Raising([CancelledError])](beIter)
+      ), err:
         return expirations
       for beFut in toSeq(iter):
         if value =? (await beFut):
