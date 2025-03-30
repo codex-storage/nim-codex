@@ -15,6 +15,7 @@ import pkg/questionable/results
 
 import pkg/codex/stores/repostore
 import pkg/codex/utils/asynciter
+import pkg/codex/utils/safeasynciter
 
 type MockRepoStore* = ref object of RepoStore
   delBlockCids*: seq[Cid]
@@ -32,7 +33,7 @@ method delBlock*(
 
 method getBlockExpirations*(
     self: MockRepoStore, maxNumber: int, offset: int
-): Future[?!AsyncIter[BlockExpiration]] {.async: (raises: [CancelledError]).} =
+): Future[?!SafeAsyncIter[BlockExpiration]] {.async: (raises: [CancelledError]).} =
   self.getBeMaxNumber = maxNumber
   self.getBeOffset = offset
 
@@ -41,11 +42,13 @@ method getBlockExpirations*(
     limit = min(offset + maxNumber, len(testBlockExpirationsCpy))
 
   let
-    iter1 = AsyncIter[int].new(offset ..< limit)
+    iter1 = SafeAsyncIter[int].new(offset ..< limit)
     iter2 = map[int, BlockExpiration](
       iter1,
-      proc(i: int): Future[BlockExpiration] {.async.} =
-        testBlockExpirationsCpy[i],
+      proc(i: ?!int): Future[?!BlockExpiration] {.async: (raises: [CancelledError]).} =
+        if i =? i:
+          return success(testBlockExpirationsCpy[i])
+        return failure("Unexpected error!"),
     )
 
   success(iter2)
