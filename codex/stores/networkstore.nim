@@ -19,7 +19,7 @@ import ../blockexchange
 import ../logutils
 import ../merkletree
 import ../utils/asyncheapqueue
-import ../utils/asynciter
+import ../utils/safeasynciter
 import ./blockstore
 
 export blockstore, blockexchange, asyncheapqueue
@@ -124,7 +124,7 @@ method ensureExpiry*(
 
 method listBlocks*(
     self: NetworkStore, blockType = BlockType.Manifest
-): Future[?!AsyncIter[?Cid]] {.async: (raw: true, raises: [CancelledError]).} =
+): Future[?!SafeAsyncIter[Cid]] {.async: (raw: true, raises: [CancelledError]).} =
   self.localStore.listBlocks(blockType)
 
 method delBlock*(

@@ -723,12 +723,12 @@ proc storeTorrent*(
   success infoHash
 
 proc iterateManifests*(self: CodexNodeRef, onManifest: OnManifest) {.async.} =
-  without cids =? await self.networkStore.listBlocks(BlockType.Manifest):
+  without cidsIter =? await self.networkStore.listBlocks(BlockType.Manifest):
     warn "Failed to listBlocks"
     return
 
-  for c in cids:
-    if cid =? await c:
+  for c in cidsIter:
+    if cid =? (await cast[Future[?!Cid].Raising([CancelledError])](c)):
       without blk =? await self.networkStore.getBlock(cid):
         warn "Failed to get manifest block by cid", cid
         return

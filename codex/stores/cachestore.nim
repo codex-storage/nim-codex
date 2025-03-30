@@ -7,10 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import pkg/upraises
-
-push:
-  {.upraises: [].}
+{.push raises: [].}
 
 import std/options
 
@@ -142,7 +139,7 @@ func cids(self: CacheStore): (iterator (): Cid {.gcsafe.}) =
 
 method listBlocks*(
     self: CacheStore, blockType = BlockType.Manifest
-): Future[?!AsyncIter[?Cid]] {.async: (raises: [CancelledError]).} =
+): Future[?!SafeAsyncIter[Cid]] {.async: (raises: [CancelledError]).} =
   ## Get the list of blocks in the BlockStore. This is an intensive operation
   ##
 
@@ -151,41 +148,38 @@ method listBlocks*(
   proc isFinished(): bool =
     return finished(cids)
 
-  proc genNext(): Future[Cid] {.async.} =
-    cids()
+  proc genNext(): Future[?!Cid] {.async: (raises: [CancelledError]).} =
+    try:
+      let cid = cids()
+      success(cid)
+    except Exception as err:
+      failure(err.msg)
 
-  try:
-    let iter = await (
-      AsyncIter[Cid].new(genNext, isFinished).filter(
-        proc(cid: Cid): Future[bool] {.async.} =
-          without isTorrent =? cid.isTorrentInfoHash, err:
-            trace "Error checking if cid is a torrent info hash", err = err.msg
-            return false
-          without isManifest =? cid.isManifest, err:
-            trace "Error checking if cid is a manifest", err = err.msg
-            return false
+  let iter = await (
+    SafeAsyncIter[Cid].new(genNext, isFinished).filter(
+      proc(cid: ?!Cid): Future[bool] {.async: (raises: [CancelledError]).} =
+        without cid =? cid, err:
+          trace "Cannot get Cid from the iterator", err = err.msg
+          return false
+        without isTorrent =? cid.isTorrentInfoHash, err:
+          trace "Error checking if cid is a torrent info hash", err = err.msg
+          return false
+        without isManifest =? cid.isManifest, err:
+          trace "Error checking if cid is a manifest", err = err.msg
+          return false
 
-          case blockType
-          of BlockType.Both:
-            return true
-          of BlockType.Manifest:
-            return isManifest
-          of BlockType.Torrent:
-            return isTorrent
-          of BlockType.Block:
-            return not (isManifest or isTorrent)
-      )
+        case blockType
+        of BlockType.Both:
+          return true
+        of BlockType.Manifest:
+          return isManifest
+        of BlockType.Torrent:
+          return isTorrent
+        of BlockType.Block:
+          return not (isManifest or isTorrent)
     )
-
-    return success(
-      map[Cid, ?Cid](
-        iter,
-        proc(cid: Cid): Future[?Cid] {.async.} =
-          some(cid),
-      )
-    )
-  except CatchableError as err:
-    raiseAssert err.msg
+  )
+  success(iter)
 
 func putBlockSync(self: CacheStore, blk: Block): bool =
   let blkSize = blk.data.len.NBytes # in bytes

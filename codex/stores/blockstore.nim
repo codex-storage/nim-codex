@@ -7,10 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import pkg/upraises
-
-push:
-  {.upraises: [].}
+{.push raises: [].}
 
 import pkg/chronos
 import pkg/libp2p
@@ -153,7 +150,7 @@ method hasBlock*(
 
 method listBlocks*(
     self: BlockStore, blockType = BlockType.Manifest
-): Future[?!AsyncIter[?Cid]] {.base, async: (raises: [CancelledError]), gcsafe.} =
+): Future[?!SafeAsyncIter[Cid]] {.base, async: (raises: [CancelledError]), gcsafe.} =
   ## Get the list of blocks in the BlockStore. This is an intensive operation
   ##
 

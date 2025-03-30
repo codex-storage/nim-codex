@@ -7,6 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+{.push raises: [].}
+
 import pkg/chronos
 import pkg/chronos/futures
 import pkg/datastore
@@ -293,12 +295,12 @@ method hasBlock*(
 
 method listBlocks*(
     self: RepoStore, blockType = BlockType.Manifest
-): Future[?!AsyncIter[?Cid]] {.async: (raises: [CancelledError]).} =
+): Future[?!SafeAsyncIter[Cid]] {.async: (raises: [CancelledError]).} =
   ## Get the list of blocks in the RepoStore.
   ## This is an intensive operation
   ##
 
-  var iter = AsyncIter[?Cid]()
+  var iter = SafeAsyncIter[Cid]()
 
   let key =
     case blockType
@@ -312,7 +314,7 @@ method listBlocks*(
     trace "Error querying cids in repo", blockType, err = err.msg
     return failure(err)
 
-  proc next(): Future[?Cid] {.async.} =
+  proc next(): Future[?!Cid] {.async: (raises: [CancelledError]).} =
     await idleAsync()
     if queryIter.finished:
       iter.finish
@@ -320,9 +322,9 @@ method listBlocks*(
       if pair =? (await queryIter.next()) and cid =? pair.key:
         doAssert pair.data.len == 0
         trace "Retrieved record from repo", cid
-        return Cid.init(cid.value).option
+        return Cid.init(cid.value).mapFailure
       else:
-        return Cid.none
+        return Cid.failure("No or invalid Cid")
 
   iter.next = next
   return success iter
@@ -345,7 +347,7 @@ proc blockRefCount*(self: RepoStore, cid: Cid): Future[?!Natural] {.async.} =
 
 method getBlockExpirations*(
     self: RepoStore, maxNumber: int, offset: int
-): Future[?!AsyncIter[BlockExpiration]] {.
+): Future[?!SafeAsyncIter[BlockExpiration]] {.
     async: (raises: [CancelledError]), base, gcsafe
 .} =
   ## Get iterator with block expirations
@@ -359,26 +361,28 @@ method getBlockExpirations*(
     error "Unable to execute block expirations query", err = err.msg
     return failure(err)
 
-  without asyncQueryIter =? await queryIter.toAsyncIter(), err:
+  without asyncQueryIter =? (await queryIter.toSafeAsyncIter()), err:
     error "Unable to convert QueryIter to AsyncIter", err = err.msg
     return failure(err)
 
-  let filteredIter: AsyncIter[KeyVal[BlockMetadata]] =
+  let filteredIter: SafeAsyncIter[KeyVal[BlockMetadata]] =
     await asyncQueryIter.filterSuccess()
 
-  proc mapping(kv: KeyVal[BlockMetadata]): Future[?BlockExpiration] {.async.} =
+  proc mapping(
+      kvRes: ?!KeyVal[BlockMetadata]
+  ): Future[Option[?!BlockExpiration]] {.async: (raises: [CancelledError]).} =
+    without kv =? kvRes, err:
+      error "Error occurred when getting KeyVal", err = err.msg
+      return Result[BlockExpiration, ref CatchableError].none
     without cid =? Cid.init(kv.key.value).mapFailure, err:
       error "Failed decoding cid", err = err.msg
-      return BlockExpiration.none
+      return Result[BlockExpiration, ref CatchableError].none
 
-    BlockExpiration(cid: cid, expiry: kv.value.expiry).some
+    some(success(BlockExpiration(cid: cid, expiry: kv.value.expiry)))
 
-  try:
-    let blockExpIter =
-      await mapFilter[KeyVal[BlockMetadata], BlockExpiration](filteredIter, mapping)
-    success(blockExpIter)
-  except CatchableError as err:
-    raiseAssert err.msg
+  let blockExpIter =
+    await mapFilter[KeyVal[BlockMetadata], BlockExpiration](filteredIter, mapping)
+  success(blockExpIter)
 
 method close*(self: RepoStore): Future[void] {.async: (raises: []).} =
   ## Close the blockstore, cleaning up resources managed by it.
