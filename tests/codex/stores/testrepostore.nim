@@ -15,7 +15,7 @@ import pkg/codex/stores
 import pkg/codex/stores/repostore/operations
 import pkg/codex/blocktype as bt
 import pkg/codex/clock
-import pkg/codex/utils/asynciter
+import pkg/codex/utils/safeasynciter
 import pkg/codex/merkletree/codex
 
 import ../../asynctest
@@ -181,9 +181,8 @@ asyncchecksuite "RepoStore":
 
     var res = newSeq[BlockExpiration]()
     for fut in iter:
-      let be = await fut
-      res.add(be)
-
+      if be =? (await fut):
+        res.add(be)
     res
 
   test "Should store block expiration timestamp":
@@ -294,14 +293,17 @@ asyncchecksuite "RepoStore":
 
   test "Should retrieve block expiration information":
     proc unpack(
-        beIter: Future[?!AsyncIter[BlockExpiration]]
-    ): Future[seq[BlockExpiration]] {.async.} =
+        beIter: Future[?!SafeAsyncIter[BlockExpiration]]
+    ): Future[seq[BlockExpiration]] {.async: (raises: [CancelledError]).} =
       var expirations = newSeq[BlockExpiration](0)
-      without iter =? (await beIter), err:
+      without iter =? (
+        await cast[Future[?!SafeAsyncIter[BlockExpiration]].Raising([CancelledError])](beIter)
+      ), err:
         return expirations
       for beFut in toSeq(iter):
-        let value = await beFut
-        expirations.add(value)
+        if value =?
+            (await cast[Future[?!BlockExpiration].Raising([CancelledError])](beFut)):
+          expirations.add(value)
       return expirations
 
     let

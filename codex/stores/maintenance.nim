@@ -10,13 +10,15 @@
 ## Store maintenance module
 ## Looks for and removes expired blocks from blockstores.
 
+{.push raises: [].}
+
 import pkg/chronos
 import pkg/questionable
 import pkg/questionable/results
 
 import ./repostore
 import ../utils/timer
-import ../utils/asynciter
+import ../utils/safeasynciter
 import ../clock
 import ../logutils
 import ../systemclock
@@ -81,13 +83,13 @@ proc runBlockCheck(
 
   var numberReceived = 0
   for beFut in iter:
-    try:
-      let be = await beFut
-      inc numberReceived
-      await self.processBlockExpiration(be)
-      await sleepAsync(1.millis) # cooperative scheduling
-    except CatchableError as err:
-      raiseAssert err.msg
+    let beRes = await cast[Future[?!BlockExpiration].Raising([CancelledError])](beFut)
+    without be =? beRes, err:
+      trace "Unable to obtain blockExpiration from iterator"
+      continue
+    inc numberReceived
+    await self.processBlockExpiration(be)
+    await sleepAsync(1.millis) # cooperative scheduling
 
   # If we received fewer blockExpirations from the iterator than we asked for,
   # We're at the end of the dataset and should start from 0 next time.
@@ -95,15 +97,14 @@ proc runBlockCheck(
     self.offset = 0
 
 proc start*(self: BlockMaintainer) =
-  proc onTimer(): Future[void] {.async.} =
+  proc onTimer(): Future[void] {.async: (raises: []).} =
     try:
       await self.runBlockCheck()
-    except CancelledError as error:
-      raise error
-    except CatchableError as exc:
-      error "Unexpected exception in BlockMaintainer.onTimer(): ", msg = exc.msg
+    except CancelledError as err:
+      trace "Running block check in block maintenance timer callback cancelled: ",
+        err = err.msg
 
   self.timer.start(onTimer, self.interval)
 
-proc stop*(self: BlockMaintainer): Future[void] {.async.} =
+proc stop*(self: BlockMaintainer): Future[void] {.async: (raises: []).} =
   await self.timer.stop()
