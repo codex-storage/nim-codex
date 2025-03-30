@@ -485,7 +485,7 @@ proc iterateManifests*(self: CodexNodeRef, onManifest: OnManifest) {.async.} =
     return
 
   for c in cidsIter:
-    if cid =? await c:
+    if cid =? (await cast[Future[?!Cid].Raising([CancelledError])](c)):
       without blk =? await self.networkStore.getBlock(cid):
         warn "Failed to get manifest block by cid", cid
         return

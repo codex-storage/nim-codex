@@ -106,11 +106,11 @@ proc commonBlockStoreTests*(
         check not handle.failed
         check handle.read.isOk
 
-      let cids = (await store.listBlocks(blockType = BlockType.Block)).tryGet()
+      let cidsIter = (await store.listBlocks(blockType = BlockType.Block)).tryGet()
 
       var count = 0
-      for c in cids:
-        if cid =? await c:
+      for c in cidsIter:
+        if cid =? (await cast[Future[?!Cid].Raising([CancelledError])](c)):
           check (await store.hasBlock(cid)).tryGet()
           count.inc
 
@@ -130,11 +130,11 @@ proc commonBlockStoreTests*(
         check not handle.failed
         check handle.read.isOk
 
-      let cids = (await store.listBlocks(blockType = BlockType.Manifest)).tryGet()
+      let cidsIter = (await store.listBlocks(blockType = BlockType.Manifest)).tryGet()
 
       var count = 0
-      for c in cids:
-        if cid =? (await c):
+      for c in cidsIter:
+        if cid =? (await cast[Future[?!Cid].Raising([CancelledError])](c)):
           check manifestBlock.cid == cid
           check (await store.hasBlock(cid)).tryGet()
           count.inc
@@ -155,11 +155,11 @@ proc commonBlockStoreTests*(
         check not handle.failed
         check handle.read.isOk
 
-      let cids = (await store.listBlocks(blockType = BlockType.Both)).tryGet()
+      let cidsIter = (await store.listBlocks(blockType = BlockType.Both)).tryGet()
 
       var count = 0
-      for c in cids:
-        if cid =? (await c):
+      for c in cidsIter:
+        if cid =? (await cast[Future[?!Cid].Raising([CancelledError])](c)):
           check (await store.hasBlock(cid)).tryGet()
           count.inc
 
