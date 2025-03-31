@@ -27,10 +27,6 @@ components:
       maxLength: 66
       example: 0x...
 
-    BigInt:
-      type: string
-      description: Integer represented as decimal string
-
     Cid:
       type: string
       description: Content Identifier as specified at https://github.com/multiformats/cid
@@ -55,17 +51,18 @@ components:
       description: The amount of tokens paid per byte per second per slot to hosts the client is willing to pay
 
     Duration:
-      type: string
-      description: The duration of the request in seconds as decimal string
+      type: integer
+      format: int64
+      description: The duration of the request in seconds
 
     ProofProbability:
       type: string
       description: How often storage proofs are required as decimal string
 
     Expiry:
-      type: string
+      type: integer
+      format: int64
       description: A timestamp as seconds since unix epoch at which this request expires if the Request does not find requested amount of nodes to host the data.
-      default: 10 minutes
 
     SPR:
       type: string
@@ -192,8 +189,9 @@ components:
         request:
           $ref: "#/components/schemas/StorageRequest"
         slotIndex:
-          type: string
-          description: Slot Index as decimal string
+          type: integer
+          format: int64
+          description: Slot Index number
 
     SlotAgent:
       type: object
@@ -201,8 +199,9 @@ components:
         id:
           $ref: "#/components/schemas/SlotId"
         slotIndex:
-          type: string
-          description: Slot Index as decimal string
+          type: integer
+          format: int64
+          description: Slot Index number
         requestId:
           $ref: "#/components/schemas/Id"
         request:
@@ -235,12 +234,15 @@ components:
         availabilityId:
           $ref: "#/components/schemas/Id"
         size:
-          $ref: "#/components/schemas/BigInt"
+          type: integer
+          format: int64
+          description: Size of the slot in bytes
         requestId:
           $ref: "#/components/schemas/Id"
         slotIndex:
-          type: string
-          description: Slot Index as decimal string
+          type: integer
+          format: int64
+          description: Slot Index number
 
     StorageRequestCreation:
       type: object
@@ -260,17 +262,18 @@ components:
         nodes:
           description: Minimal number of nodes the content should be stored on
           type: integer
-          default: 1
+          default: 3
         tolerance:
           description: Additional number of nodes on top of the `nodes` property that can be lost before pronouncing the content lost
           type: integer
-          default: 0
+          default: 1
         collateralPerByte:
           type: string
           description: Number as decimal string that represents how much collateral per byte is asked from hosts that wants to fill a slots
         expiry:
-          type: string
-          description: Number as decimal string that represents expiry threshold in seconds from when the Request is submitted. When the threshold is reached and the Request does not find requested amount of nodes to host the data, the Request is voided. The number of seconds can not be higher then the Request's duration itself.
+          type: integer
+          format: int64
+          description: Number that represents expiry threshold in seconds from when the Request is submitted. When the threshold is reached and the Request does not find requested amount of nodes to host the data, the Request is voided. The number of seconds can not be higher then the Request's duration itself.
     StorageAsk:
       type: object
       required:
