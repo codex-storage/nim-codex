@@ -17,6 +17,7 @@ import pkg/questionable/results
 
 import ../logutils
 import ../utils/iter
+import ../utils/safeasynciter
 import ../utils/trackedfutures
 import ../errors
 import ../manifest
@@ -188,9 +189,12 @@ proc downloadPieces*(self: TorrentDownloader): Future[void] {.async: (raises: []
   finally:
     await noCancel self.cancel()
 
+proc finished*(self: TorrentDownloader): bool =
+  self.pieceIndex == -1
+
 proc getNext*(
     self: TorrentDownloader
-): Future[?!(int, seq[byte])] {.async: (raises: []).} =
+): Future[?!(int, seq[byte])] {.async: (raises: [CancelledError]).} =
   try:
     if self.pieceIndex == -1:
       return success((-1, newSeq[byte]()))
@@ -211,15 +215,26 @@ proc getNext*(
       error "Could not get block from local store", error = err.msg
       return failure("Could not get block from local store: " & err.msg)
     success((blockIndex, blk.data))
-  except CancelledError:
+  except CancelledError as e:
     trace "Getting next block from downloader cancelled"
-    return success((-1, newSeq[byte]()))
+    raise e
+    # return success((-1, newSeq[byte]()))
   except CatchableError as e:
     warn "Could not get block from local store", error = e.msg
     return failure("Could not get block from local store: " & e.msg)
 
-proc finished*(self: TorrentDownloader): bool =
-  self.pieceIndex == -1
+proc getAsyncBlockIterator*(self: TorrentDownloader): SafeAsyncIter[(int, seq[byte])] =
+  proc genNext(): Future[?!(int, seq[byte])] {.
+      async: (raw: true, raises: [CancelledError])
+  .} =
+    self.getNext()
+
+  proc isFinished(): bool =
+    self.finished()
+
+  SafeAsyncIter[(int, seq[byte])].new(
+    genNext = genNext, isFinished = isFinished, finishOnErr = true
+  )
 
 proc start*(self: TorrentDownloader) =
   self.trackedFutures.track(self.downloadPieces())
