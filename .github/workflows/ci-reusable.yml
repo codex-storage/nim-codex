@@ -38,6 +38,7 @@ jobs:
         uses: ./.github/actions/nimbus-build-system
         with:
           os: ${{ matrix.os }}
+          cpu: ${{ matrix.cpu }}
           shell: ${{ matrix.shell }}
           nim_version: ${{ matrix.nim_version }}
           coverage: false
