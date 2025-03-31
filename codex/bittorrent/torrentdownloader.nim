@@ -246,12 +246,18 @@ proc stop*(self: TorrentDownloader) {.async: (raises: []).} =
 proc newTorrentPiece*(
     pieceIndex: int, pieceHash: MultiHash, blockIndexStart: int, blockIndexEnd: int
 ): TorrentPiece =
+  proc newRaisingFuture[T](
+      fromProc: static[string] = ""
+  ): Future[T] {.async: (raw: true, raises: [CancelledError]).} =
+    let fut = newFuture[T](fromProc)
+    return fut
+
   TorrentPiece(
     pieceIndex: pieceIndex,
     pieceHash: pieceHash,
     blockIndexStart: blockIndexStart,
     blockIndexEnd: blockIndexEnd,
-    handle: cast[PieceHandle](newFuture[void]("PieceValidator.newTorrentPiece")),
+    handle: newRaisingFuture[void]("PieceValidator.newTorrentPiece"),
   )
 
 proc newTorrentDownloader*(
