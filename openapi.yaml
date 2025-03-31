@@ -317,10 +317,12 @@ components:
           description: Minimal number of nodes the content should be stored on
           type: integer
           default: 3
+          minimum: 3
         tolerance:
           description: Additional number of nodes on top of the `nodes` property that can be lost before pronouncing the content lost
           type: integer
           default: 1
+          minimum: 1
         collateralPerByte:
           type: string
           description: Number as decimal string that represents how much collateral per byte is asked from hosts that wants to fill a slots
@@ -341,9 +343,11 @@ components:
         slots:
           description: Number of slots (eq. hosts) that the Request want to have the content spread over
           type: integer
+          format: int64
         slotSize:
-          type: string
-          description: Amount of storage per slot (in bytes) as decimal string
+          type: integer
+          format: int64
+          description: Amount of storage per slot in bytes
         duration:
           $ref: "#/components/schemas/Duration"
         proofProbability:
@@ -352,6 +356,7 @@ components:
           $ref: "#/components/schemas/PricePerBytePerSecond"
         maxSlotLoss:
           type: integer
+          format: int64
           description: Max slots that can be lost without data considered to be lost
 
     StorageRequest:
