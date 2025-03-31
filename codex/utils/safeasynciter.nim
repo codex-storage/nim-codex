@@ -52,17 +52,15 @@ type
     next*: SafeGenNext[?!T]
 
 proc flatMap[T, U](
-    fut: Future[?!T], fn: SafeFunction[?!T, ?!U]
+    fut: auto, fn: SafeFunction[?!T, ?!U]
 ): Future[?!U] {.async: (raises: [CancelledError]).} =
-  let raisingFut = cast[Future[?!T].Raising([CancelledError])](fut)
-  let t = await raisingFut
+  let t = await fut
   await fn(t)
 
 proc flatMap[T, U](
-    fut: Future[?!T], fn: SafeFunction[?!T, Option[?!U]]
+    fut: auto, fn: SafeFunction[?!T, Option[?!U]]
 ): Future[Option[?!U]] {.async: (raises: [CancelledError]).} =
-  let raisingFut = cast[Future[?!T].Raising([CancelledError])](fut)
-  let t = await raisingFut
+  let t = await fut
   await fn(t)
 
 ########################################################################
@@ -141,13 +139,11 @@ proc finish*[T](self: SafeAsyncIter[T]): void =
 proc finished*[T](self: SafeAsyncIter[T]): bool =
   self.finished
 
-iterator items*[T](self: SafeAsyncIter[T]): Future[?!T] =
+iterator items*[T](self: SafeAsyncIter[T]): auto {.inline.} =
   while not self.finished:
     yield self.next()
 
-iterator pairs*[T](
-    self: SafeAsyncIter[T]
-): tuple[key: int, val: Future[?!T]] {.inline.} =
+iterator pairs*[T](self: SafeAsyncIter[T]): auto {.inline.} =
   var i = 0
   while not self.finished:
     yield (i, self.next())
@@ -176,25 +172,23 @@ proc mapFilter*[T, U](
     mapPredicate: SafeFunction[?!T, Option[?!U]],
     finishOnErr: bool = true,
 ): Future[SafeAsyncIter[U]] {.async: (raises: [CancelledError]).} =
-  var nextFutU: Option[Future[?!U]]
+  var nextU: Option[?!U]
 
   proc filter(): Future[void] {.async: (raises: [CancelledError]).} =
-    nextFutU = Future[?!U].none
+    nextU = none(?!U)
     while not iter.finished:
-      let futT: Future[?!T] = iter.next()
+      let futT = iter.next()
       if mappedValue =? await futT.flatMap(mapPredicate):
-        let fut: Future[?!U] = newFuture[?!U]("mapFilter.filter")
-        fut.complete(mappedValue)
-        nextFutU = fut.some
+        nextU = some(mappedValue)
         break
 
   proc genNext(): Future[?!U] {.async: (raises: [CancelledError]).} =
-    let futU = cast[Future[?!U].Raising([CancelledError])](nextFutU.unsafeGet)
+    let u = nextU.unsafeGet
     await filter()
-    await futU
+    u
 
   proc isFinished(): bool =
-    nextFutU.isNone
+    nextU.isNone
 
   await filter()
   SafeAsyncIter[U].new(genNext, isFinished, finishOnErr = finishOnErr)
