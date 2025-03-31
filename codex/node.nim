@@ -245,7 +245,7 @@ proc fetchBatched*(
   #   )
 
   while not iter.finished:
-    let blockFutures: seq[Future[?!bt.Block].Raising([CancelledError])] = collect:
+    let blockFutures = collect:
       for i in 0 ..< batchSize:
         if not iter.finished:
           let address = BlockAddress.init(cid, iter.next())
@@ -255,8 +255,7 @@ proc fetchBatched*(
     if blockFutures.len == 0:
       continue
 
-    without blockResults =?
-      await allFinishedValues(cast[seq[Future[?!bt.Block]]](blockFutures)), err:
+    without blockResults =? await allFinishedValues[?!bt.Block](blockFutures), err:
       trace "Some blocks failed to fetch", err = err.msg
       return failure(err)
 
@@ -728,7 +727,7 @@ proc iterateManifests*(self: CodexNodeRef, onManifest: OnManifest) {.async.} =
     return
 
   for c in cidsIter:
-    if cid =? (await cast[Future[?!Cid].Raising([CancelledError])](c)):
+    if cid =? await c:
       without blk =? await self.networkStore.getBlock(cid):
         warn "Failed to get manifest block by cid", cid
         return

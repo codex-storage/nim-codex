@@ -83,8 +83,7 @@ proc runBlockCheck(
 
   var numberReceived = 0
   for beFut in iter:
-    let beRes = await cast[Future[?!BlockExpiration].Raising([CancelledError])](beFut)
-    without be =? beRes, err:
+    without be =? (await beFut), err:
       trace "Unable to obtain blockExpiration from iterator"
       continue
     inc numberReceived
