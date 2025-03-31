@@ -26,7 +26,11 @@ type
 
   BlocksCb* = proc(blocks: seq[bt.Block]): Future[?!void] {.gcsafe, raises: [].}
   OnStore* = proc(
-    request: StorageRequest, slot: uint64, blocksCb: BlocksCb, isRepairing: bool
+    request: StorageRequest,
+    expiry: StorageTimestamp,
+    slot: uint64,
+    blocksCb: BlocksCb,
+    isRepairing: bool
   ): Future[?!void] {.gcsafe, upraises: [].}
   OnProve* = proc(slot: Slot, challenge: ProofChallenge): Future[?!Groth16Proof] {.
     gcsafe, upraises: []

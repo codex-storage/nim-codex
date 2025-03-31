@@ -16,9 +16,9 @@ marketplacesuite "Bug #821 - node crashes during erasure coding":
       providers: CodexConfigs.init(nodes = 0).some,
     ):
     let
-      pricePerBytePerSecond = 1.u256
+      pricePerBytePerSecond = 1'TokensPerSecond
       duration = 20.periods
-      collateralPerByte = 1.u256
+      collateralPerByte = 1'Tokens
       expiry = 10.periods
       data = await RandomChunker.example(blocks = 8)
       client = clients()[0]
@@ -36,15 +36,15 @@ marketplacesuite "Bug #821 - node crashes during erasure coding":
     # client requests storage but requires multiple slots to host the content
     discard await clientApi.requestStorage(
       cid,
-      duration = duration.stuint(40),
-      pricePerBytePerSecond = pricePerBytePerSecond.stuint(96),
-      expiry = expiry.stuint(40),
-      collateralPerByte = collateralPerByte.stuint(128),
+      duration = duration,
+      pricePerBytePerSecond = pricePerBytePerSecond,
+      expiry = expiry,
+      collateralPerByte = collateralPerByte,
       nodes = 3,
       tolerance = 1,
     )
 
-    check eventually(requestId.isSome, timeout = expiry.int * 1000)
+    check eventually(requestId.isSome, timeout = expiry.u64.int * 1000)
 
     let
       request = await marketplace.getRequest(requestId.get)

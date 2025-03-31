@@ -30,10 +30,8 @@ ethersuite "On-Chain Market":
   var host: Signer
   var otherHost: Signer
 
-  proc expectedPayout(
-      r: StorageRequest, startTimestamp: UInt256, endTimestamp: UInt256
-  ): UInt256 =
-    return (endTimestamp - startTimestamp) * r.ask.pricePerSlotPerSecond.stuint(256)
+  proc expectedPayout(request: StorageRequest, start, finish: StorageTimestamp): Tokens =
+    return request.ask.pricePerSlotPerSecond * start.until(finish)
 
   proc switchAccount(account: Signer) {.async.} =
     marketplace = marketplace.connect(account)
@@ -49,7 +47,7 @@ ethersuite "On-Chain Market":
     let tokenAddress = await marketplace.token()
     token = Erc20Token.new(tokenAddress, ethProvider.getSigner())
 
-    periodicity = Periodicity(seconds: config.proofs.period.u64)
+    periodicity = Periodicity(seconds: config.proofs.period)
 
     request = StorageRequest.example
     request.client = accounts[0]
@@ -60,7 +58,7 @@ ethersuite "On-Chain Market":
 
   proc advanceToNextPeriod() {.async.} =
     let currentPeriod =
-      periodicity.periodOf((await ethProvider.currentTime()).truncate(uint64))
+      periodicity.periodOf((await ethProvider.currentTime()).truncate(int64))
     await ethProvider.advanceTimeTo((periodicity.periodEnd(currentPeriod) + 1).u256)
 
   proc advanceToCancelledRequest(request: StorageRequest) {.async.} =
@@ -88,12 +86,12 @@ ethersuite "On-Chain Market":
     let periodicity = market.periodicity
     let config = await marketplace.configuration()
     let periodLength = config.proofs.period
-    check periodicity.seconds == periodLength.u64
+    check periodicity.seconds == periodLength
 
   test "can retrieve proof timeout":
     let proofTimeout = market.proofTimeout
     let config = await marketplace.configuration()
-    check proofTimeout == config.proofs.timeout.u64
+    check proofTimeout == config.proofs.timeout
 
   test "supports marketplace requests":
     await market.requestStorage(request)
@@ -114,12 +112,12 @@ ethersuite "On-Chain Market":
 
     let endBalanceClient = await token.balanceOf(clientAddress)
 
-    check endBalanceClient == (startBalanceClient + request.totalPrice.stuint(256))
+    check endBalanceClient == (startBalanceClient + request.totalPrice.u256)
 
   test "supports request subscriptions":
     var receivedIds: seq[RequestId]
     var receivedAsks: seq[StorageAsk]
-    proc onRequest(id: RequestId, ask: StorageAsk, expiry: uint64) =
+    proc onRequest(id: RequestId, ask: StorageAsk, expiry: StorageTimestamp) =
       receivedIds.add(id)
       receivedAsks.add(ask)
 
@@ -168,7 +166,7 @@ ethersuite "On-Chain Market":
     await market.fillSlot(request.id, slotIndex, proof, request.ask.collateralPerSlot)
     await waitUntilProofRequired(slotId)
     let missingPeriod =
-      periodicity.periodOf((await ethProvider.currentTime()).truncate(uint64))
+      periodicity.periodOf((await ethProvider.currentTime()).truncate(int64))
     await advanceToNextPeriod()
     await market.markProofAsMissing(slotId, missingPeriod)
     check (await marketplace.missingProofs(slotId)) == 1
@@ -180,7 +178,7 @@ ethersuite "On-Chain Market":
     await market.fillSlot(request.id, slotIndex, proof, request.ask.collateralPerSlot)
     await waitUntilProofRequired(slotId)
     let missingPeriod =
-      periodicity.periodOf((await ethProvider.currentTime()).truncate(uint64))
+      periodicity.periodOf((await ethProvider.currentTime()).truncate(int64))
     await advanceToNextPeriod()
     check (await market.canProofBeMarkedAsMissing(slotId, missingPeriod)) == true
 
@@ -324,9 +322,9 @@ ethersuite "On-Chain Market":
           break
         await waitUntilProofRequired(slotId)
         let missingPeriod =
-          periodicity.periodOf((await ethProvider.currentTime()).truncate(uint64))
+          periodicity.periodOf((await ethProvider.currentTime()).truncate(int64))
         await advanceToNextPeriod()
-        discard await marketplace.markProofAsMissing(slotId, missingPeriod.stuint(40)).confirm(1)
+        discard await marketplace.markProofAsMissing(slotId, missingPeriod).confirm(1)
     check eventually receivedIds == @[request.id]
     await subscription.unsubscribe()
 
@@ -510,7 +508,8 @@ ethersuite "On-Chain Market":
     await switchAccount(host)
     await market.reserveSlot(request.id, 0.uint64)
     await market.fillSlot(request.id, 0.uint64, proof, request.ask.collateralPerSlot)
-    let filledAt = await ethProvider.blockTime(BlockTag.latest)
+    let blockTime = await ethProvider.blockTime(BlockTag.latest)
+    let filledAt = StorageTimestamp.init(blockTime.stuint(40))
 
     for slotIndex in 1 ..< request.ask.slots:
       await market.reserveSlot(request.id, slotIndex.uint64)
@@ -525,8 +524,8 @@ ethersuite "On-Chain Market":
     await market.freeSlot(request.slotId(0.uint64))
     let endBalance = await token.balanceOf(address)
 
-    let expectedPayout = request.expectedPayout(filledAt, requestEnd.u256)
-    check endBalance == (startBalance + expectedPayout + request.ask.collateralPerSlot.stuint(256))
+    let expectedPayout = request.expectedPayout(filledAt, requestEnd)
+    check (endBalance - startBalance) == (expectedPayout + request.ask.collateralPerSlot).u256
 
   test "the request is added to cache after the first access":
     await market.requestStorage(request)

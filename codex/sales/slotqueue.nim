@@ -32,11 +32,11 @@ type
     requestId: RequestId
     slotIndex: uint16
     slotSize: uint64
-    duration: uint64
-    pricePerBytePerSecond: UInt256
-    repairReward: UInt256
-    collateral: UInt256
-    expiry: uint64
+    duration: StorageDuration
+    pricePerBytePerSecond: TokensPerSecond
+    repairReward: Tokens
+    collateral: Tokens
+    expiry: ?StorageTimestamp
     seen: bool
 
   # don't need to -1 to prevent overflow when adding 1 (to always allow push)
@@ -70,14 +70,14 @@ const DefaultMaxWorkers = 3
 # slots.
 const DefaultMaxSize = 128'u16
 
-proc profitability(item: SlotQueueItem): UInt256 =
+proc profitability(item: SlotQueueItem): Tokens =
   let price =
     StorageAsk(
-      duration: item.duration.stuint(40),
-      pricePerBytePerSecond: item.pricePerBytePerSecond.stuint(96),
+      duration: item.duration,
+      pricePerBytePerSecond: item.pricePerBytePerSecond,
       slotSize: item.slotSize,
     ).pricePerSlot
-  return price.stuint(256) + item.repairReward
+  return price + item.repairReward
 
 proc `<`*(a, b: SlotQueueItem): bool =
   # for A to have a higher priority than B (in a min queue), A must be less than
@@ -98,8 +98,9 @@ proc `<`*(a, b: SlotQueueItem): bool =
   scoreA.addIf(a.collateral < b.collateral, 2)
   scoreB.addIf(a.collateral > b.collateral, 2)
 
-  scoreA.addIf(a.expiry > b.expiry, 1)
-  scoreB.addIf(a.expiry < b.expiry, 1)
+  if expiryA =? a.expiry and expiryB =? b.expiry:
+    scoreA.addIf(expiryA > expiryB, 1)
+    scoreB.addIf(expiryA < expiryB, 1)
 
   return scoreA > scoreB
 
@@ -141,22 +142,22 @@ proc init(_: type SlotQueueWorker): SlotQueueWorker =
 
   SlotQueueWorker(doneProcessing: workerFut)
 
-proc init*(
+proc init(
     _: type SlotQueueItem,
     requestId: RequestId,
     slotIndex: uint16,
     ask: StorageAsk,
-    expiry: uint64,
-    collateral: UInt256,
-    repairReward = 0.u256,
+    expiry: ?StorageTimestamp,
+    collateral: Tokens,
+    repairReward = 0'Tokens,
     seen = false,
 ): SlotQueueItem =
   SlotQueueItem(
     requestId: requestId,
     slotIndex: slotIndex,
     slotSize: ask.slotSize,
-    duration: ask.duration.u64,
-    pricePerBytePerSecond: ask.pricePerBytePerSecond.stuint(256),
+    duration: ask.duration,
+    pricePerBytePerSecond: ask.pricePerBytePerSecond,
     collateral: collateral,
     expiry: expiry,
     seen: seen,
@@ -164,22 +165,39 @@ proc init*(
 
 proc init*(
     _: type SlotQueueItem,
-    request: StorageRequest,
+    requestId: RequestId,
     slotIndex: uint16,
-    collateral: UInt256,
-    repairReward = 0.u256,
+    ask: StorageAsk,
+    expiry: StorageTimestamp,
+    collateral: Tokens,
+    repairReward = 0'Tokens,
+    seen = false,
 ): SlotQueueItem =
-  SlotQueueItem.init(
-    request.id, slotIndex, request.ask, request.expiry.u64, collateral, repairReward
-  )
+  SlotQueueItem.init(requestId, slotIndex, ask, some expiry, collateral, repairReward, seen)
 
 proc init*(
     _: type SlotQueueItem,
+    request: StorageRequest,
+    slotIndex: uint16,
+    collateral: Tokens,
+    repairReward = 0'Tokens,
+): SlotQueueItem =
+  SlotQueueItem(
+    requestId: request.id,
+    slotIndex: slotIndex,
+    slotSize: request.ask.slotSize,
+    duration: request.ask.duration,
+    pricePerBytePerSecond: request.ask.pricePerBytePerSecond,
+    collateral: collateral
+  )
+
+proc init(
+    _: type SlotQueueItem,
     requestId: RequestId,
     ask: StorageAsk,
-    expiry: uint64,
-    collateral: UInt256,
-    repairReward = 0.u256,
+    expiry: ?StorageTimestamp,
+    collateral: Tokens,
+    repairReward = 0'Tokens,
 ): seq[SlotQueueItem] {.raises: [SlotsOutOfRangeError].} =
   if not ask.slots.inRange:
     raise newException(SlotsOutOfRangeError, "Too many slots")
@@ -196,12 +214,22 @@ proc init*(
 
 proc init*(
     _: type SlotQueueItem,
+    requestId: RequestId,
+    ask: StorageAsk,
+    expiry: StorageTimestamp,
+    collateral: Tokens,
+    repairReward = 0'Tokens,
+): seq[SlotQueueItem] {.raises: [SlotsOutOfRangeError].} =
+  SlotQueueItem.init(requestId, ask, some expiry, collateral, repairReward)
+
+proc init*(
+    _: type SlotQueueItem,
     request: StorageRequest,
-    collateral: UInt256,
-    repairReward = 0.u256,
-): seq[SlotQueueItem] =
+    collateral: Tokens,
+    repairReward = 0'Tokens,
+): seq[SlotQueueItem] {.raises: [SlotsOutOfRangeError].} =
   return SlotQueueItem.init(
-    request.id, request.ask, request.expiry.u64, collateral, repairReward
+    request.id, request.ask, StorageTimestamp.none, collateral, repairReward
   )
 
 proc inRange*(val: SomeUnsignedInt): bool =
@@ -216,13 +244,13 @@ proc slotIndex*(self: SlotQueueItem): uint16 =
 proc slotSize*(self: SlotQueueItem): uint64 =
   self.slotSize
 
-proc duration*(self: SlotQueueItem): uint64 =
+proc duration*(self: SlotQueueItem): StorageDuration =
   self.duration
 
-proc pricePerBytePerSecond*(self: SlotQueueItem): UInt256 =
+proc pricePerBytePerSecond*(self: SlotQueueItem): TokensPerSecond =
   self.pricePerBytePerSecond
 
-proc collateralPerByte*(self: SlotQueueItem): UInt256 =
+proc collateralPerByte*(self: SlotQueueItem): Tokens =
   self.collateralPerByte
 
 proc seen*(self: SlotQueueItem): bool =

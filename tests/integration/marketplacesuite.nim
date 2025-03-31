@@ -2,7 +2,7 @@ import pkg/chronos
 import pkg/ethers/erc20
 from pkg/libp2p import Cid
 import pkg/codex/contracts/marketplace as mp
-import pkg/codex/periods
+import pkg/codex/contracts/periods
 import pkg/codex/utils/json
 from pkg/codex/utils import roundUp, divUp
 import ./multinodes
@@ -15,21 +15,21 @@ export multinodes
 template marketplacesuite*(name: string, body: untyped) =
   multinodesuite name:
     var marketplace {.inject, used.}: Marketplace
-    var period: uint64
+    var period: StorageDuration
     var periodicity: Periodicity
     var token {.inject, used.}: Erc20Token
 
-    proc getCurrentPeriod(): Future[Period] {.async.} =
-      return periodicity.periodOf((await ethProvider.currentTime()).truncate(uint64))
+    proc getCurrentPeriod(): Future[ProofPeriod] {.async.} =
+      return periodicity.periodOf((await ethProvider.currentTime()).truncate(int64))
 
     proc advanceToNextPeriod() {.async.} =
       let periodicity = Periodicity(seconds: period)
-      let currentTime = (await ethProvider.currentTime()).truncate(uint64)
+      let currentTime = (await ethProvider.currentTime()).truncate(int64)
       let currentPeriod = periodicity.periodOf(currentTime)
       let endOfPeriod = periodicity.periodEnd(currentPeriod)
       await ethProvider.advanceTimeTo(endOfPeriod.u256 + 1)
 
-    template eventuallyP(condition: untyped, finalPeriod: Period): bool =
+    template eventuallyP(condition: untyped, finalPeriod: ProofPeriod): bool =
       proc eventuallyP(): Future[bool] {.async.} =
         while (
           let currentPeriod = await getCurrentPeriod()
@@ -43,32 +43,32 @@ template marketplacesuite*(name: string, body: untyped) =
 
       await eventuallyP()
 
-    proc periods(p: int): uint64 =
-      p.uint64 * period
+    proc periods(p: int): StorageDuration =
+      period * p.uint32
 
-    proc slotSize(blocks, nodes, tolerance: int): UInt256 =
+    proc slotSize(blocks, nodes, tolerance: int): uint64 =
       let ecK = nodes - tolerance
       let blocksRounded = roundUp(blocks, ecK)
       let blocksPerSlot = divUp(blocksRounded, ecK)
-      (DefaultBlockSize * blocksPerSlot.NBytes).Natural.u256
+      (DefaultBlockSize * blocksPerSlot.NBytes).Natural.uint64
 
-    proc datasetSize(blocks, nodes, tolerance: int): UInt256 =
-      return nodes.u256 * slotSize(blocks, nodes, tolerance)
+    proc datasetSize(blocks, nodes, tolerance: int): uint64 =
+      return nodes.uint64 * slotSize(blocks, nodes, tolerance)
 
     proc createAvailabilities(
         datasetSize: uint64,
-        duration: uint64,
-        collateralPerByte: UInt256,
-        minPricePerBytePerSecond: UInt256,
+        duration: StorageDuration,
+        collateralPerByte: Tokens,
+        minPricePerBytePerSecond: TokensPerSecond,
     ): Future[void] {.async: (raises: [CancelledError, HttpError, ConfigurationError]).} =
-      let totalCollateral = datasetSize.u256 * collateralPerByte
+      let totalCollateral = collateralPerByte * datasetSize
       # post availability to each provider
       for i in 0 ..< providers().len:
         let provider = providers()[i].client
 
         discard await provider.postAvailability(
           totalSize = datasetSize,
-          duration = duration.uint64,
+          duration = duration,
           minPricePerBytePerSecond = minPricePerBytePerSecond,
           totalCollateral = totalCollateral,
         )
@@ -77,10 +77,10 @@ template marketplacesuite*(name: string, body: untyped) =
         client: CodexClient,
         cid: Cid,
         proofProbability = 1.u256,
-        duration = 12.periods.stuint(40),
-        pricePerBytePerSecond = 1.stuint(96),
-        collateralPerByte = 1.u128,
-        expiry = 4.periods.stuint(40),
+        duration = 12.periods,
+        pricePerBytePerSecond = 1'TokensPerSecond,
+        collateralPerByte = 1'Tokens,
+        expiry = 4.periods,
         nodes = providers().len,
         tolerance = 0,
     ): Future[PurchaseId] {.async: (raises: [CancelledError, HttpError]).} =
@@ -104,7 +104,7 @@ template marketplacesuite*(name: string, body: untyped) =
       let tokenAddress = await marketplace.token()
       token = Erc20Token.new(tokenAddress, ethProvider.getSigner())
       let config = await marketplace.configuration()
-      period = config.proofs.period.u64
+      period = config.proofs.period
       periodicity = Periodicity(seconds: period)
 
     body

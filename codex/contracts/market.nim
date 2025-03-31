@@ -89,7 +89,7 @@ template withAllowanceLock*(market: OnChainMarket, body: untyped) =
       raise newException(Defect, error.msg, error)
 
 proc approveFunds(
-    market: OnChainMarket, amount: UInt256
+    market: OnChainMarket, amount: Tokens
 ) {.async: (raises: [CancelledError, MarketError]).} =
   debug "Approving tokens", amount
   convertEthersError("Failed to approve funds"):
@@ -99,7 +99,7 @@ proc approveFunds(
     let spender = market.contract.address
     market.withAllowanceLock:
       let allowance = await token.allowance(owner, spender)
-      discard await token.approve(spender, allowance + amount).confirm(1)
+      discard await token.approve(spender, allowance + amount.u256).confirm(1)
 
 method getSigner*(
     market: OnChainMarket
@@ -112,16 +112,16 @@ method zkeyHash*(market: OnChainMarket): string =
 
 method periodicity*(market: OnChainMarket): Periodicity =
   let period = market.configuration.proofs.period
-  return Periodicity(seconds: period.u64)
+  return Periodicity(seconds: period)
 
-method proofTimeout*(market: OnChainMarket): uint64  =
-  return market.configuration.proofs.timeout.u64
+method proofTimeout*(market: OnChainMarket): StorageDuration  =
+  return market.configuration.proofs.timeout
 
 method repairRewardPercentage*(market: OnChainMarket): uint8 =
   return market.configuration.collateral.repairRewardPercentage
 
-method requestDurationLimit*(market: OnChainMarket): uint64 =
-  return market.configuration.requestDurationLimit.u64
+method requestDurationLimit*(market: OnChainMarket): StorageDuration =
+  return market.configuration.requestDurationLimit
 
 method proofDowntime*(market: OnChainMarket): uint8 =
   return market.configuration.proofs.downtime
@@ -147,7 +147,7 @@ method requestStorage(
 ) {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError("Failed to request storage"):
     debug "Requesting storage"
-    await market.approveFunds(request.totalPrice().stuint(256))
+    await market.approveFunds(request.totalPrice())
     discard await market.contract.requestStorage(request).confirm(1)
 
 method getRequest*(
@@ -188,13 +188,13 @@ method slotState*(
 
 method getRequestEnd*(
     market: OnChainMarket, id: RequestId
-): Future[SecondsSince1970] {.async.} =
+): Future[StorageTimestamp] {.async.} =
   convertEthersError("Failed to get request end"):
     return await market.contract.requestEnd(id)
 
 method requestExpiresAt*(
     market: OnChainMarket, id: RequestId
-): Future[SecondsSince1970] {.async.} =
+): Future[StorageTimestamp] {.async.} =
   convertEthersError("Failed to get request expiry"):
     return await market.contract.requestExpiry(id)
 
@@ -211,7 +211,7 @@ method getHost(
 
 method currentCollateral*(
     market: OnChainMarket, slotId: SlotId
-): Future[UInt128] {.async: (raises: [MarketError, CancelledError]).} =
+): Future[Tokens] {.async: (raises: [MarketError, CancelledError]).} =
   convertEthersError("Failed to get slot's current collateral"):
     return await market.contract.currentCollateral(slotId)
 
@@ -227,7 +227,7 @@ method fillSlot(
     requestId: RequestId,
     slotIndex: uint64,
     proof: Groth16Proof,
-    collateral: UInt128,
+    collateral: Tokens,
 ) {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError("Failed to fill slot"):
     logScope:
@@ -235,7 +235,7 @@ method fillSlot(
       slotIndex
 
     try:
-      await market.approveFunds(collateral.stuint(256))
+      await market.approveFunds(collateral)
 
       # Add 10% to gas estimate to deal with different evm code flow when we
       # happen to be the last one to fill a slot in this request
@@ -306,7 +306,7 @@ method submitProof*(
     discard await market.contract.submitProof(id, proof).confirm(1)
 
 method markProofAsMissing*(
-    market: OnChainMarket, id: SlotId, period: Period
+    market: OnChainMarket, id: SlotId, period: ProofPeriod
 ) {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError("Failed to mark proof as missing"):
     # Add 10% to gas estimate to deal with different evm code flow when we
@@ -314,16 +314,16 @@ method markProofAsMissing*(
     let gas = await market.contract.estimateGas.markProofAsMissing(id, period)
     let overrides = TransactionOverrides(gasLimit: some (gas * 110) div 100)
 
-    discard await market.contract.markProofAsMissing(id, period.stuint(40), overrides).confirm(1)
+    discard await market.contract.markProofAsMissing(id, period, overrides).confirm(1)
 
 method canProofBeMarkedAsMissing*(
-    market: OnChainMarket, id: SlotId, period: Period
+    market: OnChainMarket, id: SlotId, period: ProofPeriod
 ): Future[bool] {.async.} =
   let provider = market.contract.provider
   let contractWithoutSigner = market.contract.connect(provider)
   let overrides = CallOverrides(blockTag: some BlockTag.pending)
   try:
-    discard await contractWithoutSigner.markProofAsMissing(id, period.stuint(40), overrides)
+    discard await contractWithoutSigner.markProofAsMissing(id, period, overrides)
     return true
   except EthersError as e:
     trace "Proof cannot be marked as missing", msg = e.msg
@@ -361,7 +361,7 @@ method subscribeRequests*(
       error "There was an error in Request subscription", msg = eventErr.msg
       return
 
-    callback(event.requestId, event.ask, event.expiry.truncate(uint64))
+    callback(event.requestId, event.ask, event.expiry)
 
   convertEthersError("Failed to subscribe to StorageRequested events"):
     let subscription = await market.contract.subscribe(StorageRequested, onEvent)

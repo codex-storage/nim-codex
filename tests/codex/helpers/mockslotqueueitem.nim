@@ -5,10 +5,10 @@ type MockSlotQueueItem* = object
   requestId*: RequestId
   slotIndex*: uint16
   slotSize*: uint64
-  duration*: uint64
-  pricePerBytePerSecond*: UInt256
-  collateral*: UInt256
-  expiry*: uint64
+  duration*: StorageDuration
+  pricePerBytePerSecond*: TokensPerSecond
+  collateral*: Tokens
+  expiry*: StorageTimestamp
   seen*: bool
 
 proc toSlotQueueItem*(item: MockSlotQueueItem): SlotQueueItem =
@@ -17,8 +17,8 @@ proc toSlotQueueItem*(item: MockSlotQueueItem): SlotQueueItem =
     slotIndex = item.slotIndex,
     ask = StorageAsk(
       slotSize: item.slotSize,
-      duration: item.duration.stuint(40),
-      pricePerBytePerSecond: item.pricePerBytePerSecond.stuint(96),
+      duration: item.duration,
+      pricePerBytePerSecond: item.pricePerBytePerSecond,
     ),
     expiry = item.expiry,
     seen = item.seen,

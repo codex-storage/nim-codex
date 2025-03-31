@@ -10,8 +10,12 @@ import pkg/libp2p/[cid, multicodec]
 import ../logutils
 import ../utils/json
 from ../errors import mapFailure
+import ./timestamps
+import ./tokens
 
 export contractabi
+export timestamps
+export tokens
 
 type
   StorageRequest* = object
@@ -24,7 +28,7 @@ type
   StorageAsk* = object
     proofProbability* {.serialize.}: UInt256
     pricePerBytePerSecond* {.serialize.}: TokensPerSecond
-    collateralPerByte* {.serialize.}: UInt128
+    collateralPerByte* {.serialize.}: Tokens
     slots* {.serialize.}: uint64
     slotSize* {.serialize.}: uint64
     duration* {.serialize.}: StorageDuration
@@ -56,9 +60,6 @@ type
     Cancelled
     Repair
 
-  StorageDuration* = StUint[40]
-  TokensPerSecond* = StUint[96]
-
 proc `==`*(x, y: Nonce): bool {.borrow.}
 proc `==`*(x, y: RequestId): bool {.borrow.}
 proc `==`*(x, y: SlotId): bool {.borrow.}
@@ -68,9 +69,6 @@ proc hash*(x: Address): Hash {.borrow.}
 
 func toArray*(id: RequestId | SlotId | Nonce): array[32, byte] =
   array[32, byte](id)
-
-func u64*(uint40: StUint[40]): uint64 =
-  uint40.truncate(uint64)
 
 proc `$`*(id: RequestId | SlotId | Nonce): string =
   id.toArray.toHex
@@ -139,12 +137,6 @@ func solidityType*(_: type StorageAsk): string =
 func solidityType*(_: type StorageRequest): string =
   solidityType(StorageRequest.fieldTypes)
 
-func solidityType*(_: type StUint[40]): string =
-  "uint40"
-
-func solidityType*(_: type StUint[96]): string =
-  "uint96"
-
 # Note: it seems to be ok to ignore the vbuffer offset for now
 func encode*(encoder: var AbiEncoder, cid: Cid) =
   encoder.write(cid.data.buffer)
@@ -199,19 +191,19 @@ func id*(slot: Slot): SlotId =
   slotId(slot.request, slot.slotIndex)
 
 func pricePerSlotPerSecond*(ask: StorageAsk): TokensPerSecond =
-  ask.pricePerBytePerSecond * ask.slotSize.to(TokensPerSecond)
+  ask.pricePerBytePerSecond * ask.slotSize
 
-func pricePerSlot*(ask: StorageAsk): UInt128 =
-  ask.duration.stuint(128) * ask.pricePerSlotPerSecond.stuint(128)
+func pricePerSlot*(ask: StorageAsk): Tokens =
+  ask.pricePerSlotPerSecond * ask.duration
 
-func totalPrice*(ask: StorageAsk): UInt128 =
-  ask.slots.stuint(128) * ask.pricePerSlot
+func totalPrice*(ask: StorageAsk): Tokens =
+  ask.pricePerSlot * ask.slots
 
-func totalPrice*(request: StorageRequest): UInt128 =
+func totalPrice*(request: StorageRequest): Tokens =
   request.ask.totalPrice
 
-func collateralPerSlot*(ask: StorageAsk): UInt128 =
-  ask.collateralPerByte * ask.slotSize.stuint(128)
+func collateralPerSlot*(ask: StorageAsk): Tokens =
+  ask.collateralPerByte * ask.slotSize
 
 func size*(ask: StorageAsk): uint64 =
   ask.slots * ask.slotSize

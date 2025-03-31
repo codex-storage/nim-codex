@@ -114,7 +114,7 @@ proc cleanUp(
     sales: Sales,
     agent: SalesAgent,
     reprocessSlot: bool,
-    returnedCollateral: ?UInt256,
+    returnedCollateral: ?Tokens,
     processing: Future[void],
 ) {.async.} =
   let data = agent.data
@@ -186,7 +186,7 @@ proc processSlot(sales: Sales, item: SlotQueueItem, done: Future[void]) =
   )
 
   agent.onCleanUp = proc(
-      reprocessSlot = false, returnedCollateral = UInt256.none
+      reprocessSlot = false, returnedCollateral = Tokens.none
   ) {.async.} =
     await sales.cleanUp(agent, reprocessSlot, returnedCollateral, done)
 
@@ -254,7 +254,7 @@ proc load*(sales: Sales) {.async.} =
       newSalesAgent(sales.context, slot.request.id, slot.slotIndex, some slot.request)
 
     agent.onCleanUp = proc(
-        reprocessSlot = false, returnedCollateral = UInt256.none
+        reprocessSlot = false, returnedCollateral = Tokens.none
     ) {.async.} =
       # since workers are not being dispatched, this future has not been created
       # by a worker. Create a dummy one here so we can call sales.cleanUp
@@ -282,7 +282,7 @@ proc OnAvailabilitySaved(
     queue.unpause()
 
 proc onStorageRequested(
-    sales: Sales, requestId: RequestId, ask: StorageAsk, expiry: uint64
+    sales: Sales, requestId: RequestId, ask: StorageAsk, expiry: StorageTimestamp
 ) {.raises: [].} =
   logScope:
     topics = "marketplace sales onStorageRequested"
@@ -294,7 +294,7 @@ proc onStorageRequested(
 
   trace "storage requested, adding slots to queue"
 
-  let collateral = ask.collateralPerSlot().stuint(256)
+  let collateral = ask.collateralPerSlot()
 
   without items =? SlotQueueItem.init(requestId, ask, expiry, collateral).catch, err:
     if err of SlotsOutOfRangeError:
@@ -331,9 +331,9 @@ proc onSlotFreed(sales: Sales, requestId: RequestId, slotIndex: uint64) =
         error "unknown request in contract", error = err.msgDetail
         return
 
-      let collateral = request.ask.collateralPerSlot.stuint(256)
+      let collateral = request.ask.collateralPerSlot
       let percentage = context.market.repairRewardPercentage
-      let repairReward = (collateral * percentage.u256) div 100.u256
+      let repairReward = (collateral * percentage) div 100'u
 
       if slotIndex > uint16.high.uint64:
         error "Cannot cast slot index to uint16, value = ", slotIndex
@@ -365,7 +365,7 @@ proc subscribeRequested(sales: Sales) {.async.} =
   let market = context.market
 
   proc onStorageRequested(
-      requestId: RequestId, ask: StorageAsk, expiry: uint64
+      requestId: RequestId, ask: StorageAsk, expiry: StorageTimestamp
   ) {.raises: [].} =
     sales.onStorageRequested(requestId, ask, expiry)
 

@@ -27,15 +27,12 @@ twonodessuite "REST API":
 
   test "node shows used and available space", twoNodesConfig:
     discard (await client1.upload("some file contents")).get
-    let totalSize = 12.uint64
-    let minPricePerBytePerSecond = 1.u256
-    let totalCollateral = totalSize.u256 * minPricePerBytePerSecond
     discard (
       await client1.postAvailability(
-        totalSize = totalSize,
-        duration = 2.uint64,
-        minPricePerBytePerSecond = minPricePerBytePerSecond,
-        totalCollateral = totalCollateral,
+        totalSize = 12.uint64,
+        duration = 2'StorageDuration,
+        minPricePerBytePerSecond = 1'TokensPerSecond,
+        totalCollateral = 100'Tokens,
         enabled = true.some,
       )
     ).get
@@ -63,11 +60,11 @@ twonodessuite "REST API":
     let response = (
       await client1.requestStorageRaw(
         cid,
-        duration = 10.stuint(40),
-        pricePerBytePerSecond = 1.stuint(96),
+        duration = 10'StorageDuration,
+        pricePerBytePerSecond = 1'TokensPerSecond,
         proofProbability = 3.u256,
-        collateralPerByte = 1.u128,
-        expiry = 9.stuint(40),
+        collateralPerByte = 1'Tokens,
+        expiry = 9'StorageDuration,
       )
     )
 
@@ -84,11 +81,11 @@ twonodessuite "REST API":
       let cid = (await client1.upload(data)).get
       let response = await client1.requestStorageRaw(
         cid,
-        duration = 100.stuint(40),
-        pricePerBytePerSecond = 1.stuint(96),
+        duration = 100'StorageDuration,
+        pricePerBytePerSecond = 1'TokensPerSecond,
         proofProbability = 3.u256,
-        collateralPerByte = 1.u128,
-        expiry = 30.stuint(40),
+        collateralPerByte = 1'Tokens,
+        expiry = 30'StorageDuration,
         nodes = nodes.uint,
         tolerance = tolerance.uint,
       )
