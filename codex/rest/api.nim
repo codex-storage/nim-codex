@@ -204,8 +204,7 @@ proc retrieveInfoHash(
     torrentDownloader.start()
 
     for blockFut in torrentDownloader.getAsyncBlockIterator():
-      let blockRes =
-        await cast[Future[?!(int, seq[byte])].Raising([CancelledError])](blockFut)
+      let blockRes = await blockFut
       without (blockIndex, data) =? (blockRes), err:
         error "Error streaming blocks", err = err.msg
         resp.status = Http500

@@ -245,7 +245,7 @@ proc fetchBatched*(
   #   )
 
   while not iter.finished:
-    let blockFutures: seq[Future[?!bt.Block].Raising([CancelledError])] = collect:
+    let blockFutures = collect:
       for i in 0 ..< batchSize:
         if not iter.finished:
           let address = BlockAddress.init(cid, iter.next())
