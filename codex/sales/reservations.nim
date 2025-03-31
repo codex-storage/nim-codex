@@ -14,17 +14,17 @@
 ## |---------------------------------------------------|              |--------------------------------------|
 ## | AvailabilityId   | id                       | PK  |<-||-------o<-| AvailabilityId | availabilityId | FK |
 ## |---------------------------------------------------|              |--------------------------------------|
-## | UInt256          | totalSize                |     |              | UInt256        | size           |    |
+## | uint64           | totalSize                |     |              | uint64         | size           |    |
 ## |---------------------------------------------------|              |--------------------------------------|
-## | UInt256          | freeSize                 |     |              | UInt256        | slotIndex      |    |
+## | uint64           | freeSize                 |     |              | uint64         | slotIndex      |    |
 ## |---------------------------------------------------|              +--------------------------------------+
-## | UInt256          | duration                 |     |
+## | StorageDuration  | duration                 |     |
 ## |---------------------------------------------------|
-## | UInt256          | minPricePerBytePerSecond |     |
+## | TokensPerSecond  | minPricePerBytePerSecond |     |
 ## |---------------------------------------------------|
-## | UInt256          | totalCollateral          |     |
+## | Tokens           | totalCollateral          |     |
 ## |---------------------------------------------------|
-## | UInt256          | totalRemainingCollateral |     |
+## | Tokens           | totalRemainingCollateral |     |
 ## +---------------------------------------------------+
 
 import pkg/upraises
@@ -34,7 +34,6 @@ push:
 import std/sequtils
 import std/sugar
 import std/typetraits
-import std/sequtils
 import pkg/chronos
 import pkg/datastore
 import pkg/nimcrypto
@@ -66,10 +65,10 @@ type
     id* {.serialize.}: AvailabilityId
     totalSize* {.serialize.}: uint64
     freeSize* {.serialize.}: uint64
-    duration* {.serialize.}: uint64
-    minPricePerBytePerSecond* {.serialize.}: UInt256
-    totalCollateral {.serialize.}: UInt256
-    totalRemainingCollateral* {.serialize.}: UInt256
+    duration* {.serialize.}: StorageDuration
+    minPricePerBytePerSecond* {.serialize.}: TokensPerSecond
+    totalCollateral {.serialize.}: Tokens
+    totalRemainingCollateral* {.serialize.}: Tokens
 
   Reservation* = ref object
     id* {.serialize.}: ReservationId
@@ -125,9 +124,9 @@ proc init*(
     _: type Availability,
     totalSize: uint64,
     freeSize: uint64,
-    duration: uint64,
-    minPricePerBytePerSecond: UInt256,
-    totalCollateral: UInt256,
+    duration: StorageDuration,
+    minPricePerBytePerSecond: TokensPerSecond,
+    totalCollateral: Tokens,
 ): Availability =
   var id: array[32, byte]
   doAssert randomBytes(id) == 32
@@ -141,10 +140,10 @@ proc init*(
     totalRemainingCollateral: totalCollateral,
   )
 
-func totalCollateral*(self: Availability): UInt256 {.inline.} =
+func totalCollateral*(self: Availability): Tokens {.inline.} =
   return self.totalCollateral
 
-proc `totalCollateral=`*(self: Availability, value: UInt256) {.inline.} =
+proc `totalCollateral=`*(self: Availability, value: Tokens) {.inline.} =
   self.totalCollateral = value
   self.totalRemainingCollateral = value
 
@@ -205,8 +204,8 @@ func key*(reservationId: ReservationId, availabilityId: AvailabilityId): ?!Key =
 func key*(availability: Availability): ?!Key =
   return availability.id.key
 
-func maxCollateralPerByte*(availability: Availability): UInt256 =
-  return availability.totalRemainingCollateral div availability.freeSize.stuint(256)
+func maxCollateralPerByte*(availability: Availability): Tokens =
+  return availability.totalRemainingCollateral div availability.freeSize
 
 func key*(reservation: Reservation): ?!Key =
   return key(reservation.id, reservation.availabilityId)
@@ -342,7 +341,7 @@ proc deleteReservation*(
     self: Reservations,
     reservationId: ReservationId,
     availabilityId: AvailabilityId,
-    returnedCollateral: ?UInt256 = UInt256.none,
+    returnedCollateral = Tokens.none,
 ): Future[?!void] {.async.} =
   logScope:
     reservationId
@@ -388,9 +387,9 @@ proc deleteReservation*(
 proc createAvailability*(
     self: Reservations,
     size: uint64,
-    duration: uint64,
-    minPricePerBytePerSecond: UInt256,
-    totalCollateral: UInt256,
+    duration: StorageDuration,
+    minPricePerBytePerSecond: TokensPerSecond,
+    totalCollateral: Tokens,
 ): Future[?!Availability] {.async.} =
   trace "creating availability",
     size, duration, minPricePerBytePerSecond, totalCollateral
@@ -419,7 +418,7 @@ method createReservation*(
     slotSize: uint64,
     requestId: RequestId,
     slotIndex: uint64,
-    collateralPerByte: UInt256,
+    collateralPerByte: Tokens,
 ): Future[?!Reservation] {.async, base.} =
   withLock(self.availabilityLock):
     without availabilityKey =? availabilityId.key, error:
@@ -448,7 +447,7 @@ method createReservation*(
     availability.freeSize -= slotSize
 
     # adjust the remaining totalRemainingCollateral
-    availability.totalRemainingCollateral -= slotSize.stuint(256) * collateralPerByte
+    availability.totalRemainingCollateral -= collateralPerByte * slotSize
 
     # update availability with reduced size
     trace "Updating availability with reduced size"
@@ -639,8 +638,10 @@ proc all*(
 
 proc findAvailability*(
     self: Reservations,
-    size, duration: uint64,
-    pricePerBytePerSecond, collateralPerByte: UInt256,
+    size: uint64,
+    duration: StorageDuration,
+    pricePerBytePerSecond: TokensPerSecond,
+    collateralPerByte: Tokens,
 ): Future[?Availability] {.async.} =
   without storables =? (await self.storables(Availability)), e:
     error "failed to get all storables", error = e.msg

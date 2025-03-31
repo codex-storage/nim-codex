@@ -16,8 +16,8 @@ marketplacesuite "Marketplace":
   var client: CodexClient
   var clientAccount: Address
 
-  const minPricePerBytePerSecond = 1.u256
-  const collateralPerByte = 1.u128
+  const minPricePerBytePerSecond = 1'TokensPerSecond
+  const collateralPerByte = 1'Tokens
   const blocks = 8
   const ecNodes = 3
   const ecTolerance = 1
@@ -40,9 +40,9 @@ marketplacesuite "Marketplace":
     let availability = (
       await host.postAvailability(
         totalSize = size,
-        duration = 20 * 60.uint64,
+        duration = StorageDuration.init(20'u32 * 60),
         minPricePerBytePerSecond = minPricePerBytePerSecond,
-        totalCollateral = size.u256 * minPricePerBytePerSecond,
+        totalCollateral = collateralPerByte * size,
       )
     ).get
 
@@ -50,10 +50,10 @@ marketplacesuite "Marketplace":
     let cid = (await client.upload(data)).get
     let id = await client.requestStorage(
       cid,
-      duration = 20 * 60.stuint(40),
-      pricePerBytePerSecond = minPricePerBytePerSecond.stuint(96),
+      duration = StorageDuration.init(20'u32 * 60),
+      pricePerBytePerSecond = minPricePerBytePerSecond,
       proofProbability = 3.u256,
-      expiry = 10 * 60.stuint(40),
+      expiry = StorageDuration.init(10'u32 * 60),
       collateralPerByte = collateralPerByte,
       nodes = ecNodes,
       tolerance = ecTolerance,
@@ -80,7 +80,7 @@ marketplacesuite "Marketplace":
     let marketplace = Marketplace.new(Marketplace.address, ethProvider.getSigner())
     let tokenAddress = await marketplace.token()
     let token = Erc20Token.new(tokenAddress, ethProvider.getSigner())
-    let duration = 20 * 60.uint64
+    let duration = StorageDuration.init(20'u32 * 60)
 
     # host makes storage available
     let startBalanceHost = await token.balanceOf(hostAccount)
@@ -89,7 +89,7 @@ marketplacesuite "Marketplace":
         totalSize = size,
         duration = duration,
         minPricePerBytePerSecond = minPricePerBytePerSecond,
-        totalCollateral = size.u256 * minPricePerBytePerSecond,
+        totalCollateral = collateralPerByte * size,
       )
     ).get
 
@@ -97,10 +97,10 @@ marketplacesuite "Marketplace":
     let cid = (await client.upload(data)).get
     let id = await client.requestStorage(
       cid,
-      duration = duration.stuint(40),
-      pricePerBytePerSecond = minPricePerBytePerSecond.stuint(96),
+      duration = duration,
+      pricePerBytePerSecond = minPricePerBytePerSecond,
       proofProbability = 3.u256,
-      expiry = (10 * 60).stuint(40),
+      expiry = StorageDuration.init(10'u32 * 60),
       collateralPerByte = collateralPerByte,
       nodes = ecNodes,
       tolerance = ecTolerance,
@@ -123,7 +123,7 @@ marketplacesuite "Marketplace":
     let slotSize = slotSize(blocks, ecNodes, ecTolerance)
     let pricePerSlotPerSecond = minPricePerBytePerSecond * slotSize
     check eventually (await token.balanceOf(hostAccount)) - startBalanceHost >=
-      (duration - 5 * 60).u256 * pricePerSlotPerSecond * ecNodes.u256
+      (duration.u256 - 5 * 60) * pricePerSlotPerSecond.u256 * ecNodes.u256
 
     # Checking that client node receives some funds back that were not used for the host nodes
     check eventually(
@@ -132,8 +132,8 @@ marketplacesuite "Marketplace":
     )
 
 marketplacesuite "Marketplace payouts":
-  const minPricePerBytePerSecond = 1.u256
-  const collateralPerByte = 1.u128
+  const minPricePerBytePerSecond = 1'TokensPerSecond
+  const collateralPerByte = 1'Tokens
   const blocks = 8
   const ecNodes = 3
   const ecTolerance = 1
@@ -165,14 +165,14 @@ marketplacesuite "Marketplace payouts":
 
     # provider makes storage available
     let datasetSize = datasetSize(blocks, ecNodes, ecTolerance)
-    let totalAvailabilitySize = (datasetSize div 2).truncate(uint64)
+    let totalAvailabilitySize = datasetSize div 2
     discard await providerApi.postAvailability(
       # make availability size small enough that we can't fill all the slots,
       # thus causing a cancellation
       totalSize = totalAvailabilitySize,
-      duration = duration.uint64,
+      duration = duration,
       minPricePerBytePerSecond = minPricePerBytePerSecond,
-      totalCollateral = collateralPerByte.stuint(256) * totalAvailabilitySize.u256,
+      totalCollateral = collateralPerByte * totalAvailabilitySize,
     )
 
     let cid = (await clientApi.upload(data)).get
@@ -187,16 +187,16 @@ marketplacesuite "Marketplace payouts":
     # client requests storage but requires multiple slots to host the content
     let id = await clientApi.requestStorage(
       cid,
-      duration = duration.stuint(40),
-      pricePerBytePerSecond = minPricePerBytePerSecond.stuint(96),
-      expiry = expiry.stuint(40),
+      duration = duration,
+      pricePerBytePerSecond = minPricePerBytePerSecond,
+      expiry = expiry,
       collateralPerByte = collateralPerByte,
       nodes = ecNodes,
       tolerance = ecTolerance,
     )
 
     # wait until one slot is filled
-    check eventually(slotIdxFilled.isSome, timeout = expiry.int * 1000)
+    check eventually(slotIdxFilled.isSome, timeout = expiry.u64.int64 * 1000)
     let slotId = slotId(!(await clientApi.requestId(id)), !slotIdxFilled)
 
     # wait until sale is cancelled
@@ -211,7 +211,7 @@ marketplacesuite "Marketplace payouts":
     check eventually (
       let endBalanceProvider = (await token.balanceOf(provider.ethAccount))
       endBalanceProvider > startBalanceProvider and
-        endBalanceProvider < startBalanceProvider + expiry.u256 * pricePerSlotPerSecond
+        endBalanceProvider < startBalanceProvider + expiry.u256 * pricePerSlotPerSecond.u256
     )
     check eventually(
       (

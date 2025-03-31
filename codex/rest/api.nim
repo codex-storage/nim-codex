@@ -660,7 +660,7 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
 
       let expiry = params.expiry
 
-      if expiry <= 0 or expiry >= params.duration:
+      if expiry == 0'StorageDuration or expiry >= params.duration:
         return RestApiResponse.error(
           Http422,
           "Expiry must be greater than zero and less than the request's duration",
@@ -672,12 +672,12 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
           Http422, "Proof probability must be greater than zero", headers = headers
         )
 
-      if params.collateralPerByte <= 0:
+      if params.collateralPerByte <= 0'Tokens:
         return RestApiResponse.error(
           Http422, "Collateral per byte must be greater than zero", headers = headers
         )
 
-      if params.pricePerBytePerSecond <= 0:
+      if params.pricePerBytePerSecond <= 0'TokensPerSecond:
         return RestApiResponse.error(
           Http422,
           "Price per byte per second must be greater than zero",
@@ -685,7 +685,7 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
         )
 
       let requestDurationLimit = contracts.purchasing.market.requestDurationLimit
-      if params.duration.u64 > requestDurationLimit:
+      if params.duration > requestDurationLimit:
         return RestApiResponse.error(
           Http422,
           "Duration exceeds limit of " & $requestDurationLimit & " seconds",

@@ -22,7 +22,7 @@ asyncchecksuite "Reservations module":
     repoDs: Datastore
     metaDs: Datastore
     reservations: Reservations
-    collateralPerByte: UInt256
+    collateralPerByte: Tokens
   let
     repoTmp = TempLevelDb.new()
     metaTmp = TempLevelDb.new()
@@ -33,7 +33,7 @@ asyncchecksuite "Reservations module":
     metaDs = metaTmp.newDb()
     repo = RepoStore.new(repoDs, metaDs)
     reservations = Reservations.new(repo)
-    collateralPerByte = uint8.example.u256
+    collateralPerByte = Tokens.init(uint8.example)
 
   teardown:
     await repoTmp.destroyDb()
@@ -42,7 +42,7 @@ asyncchecksuite "Reservations module":
   proc createAvailability(): Availability =
     let example = Availability.example(collateralPerByte)
     let totalSize = rand(100000 .. 200000).uint64
-    let totalCollateral = totalSize.u256 * collateralPerByte
+    let totalCollateral = collateralPerByte * totalSize
     let availability = waitFor reservations.createAvailability(
       totalSize, example.duration, example.minPricePerBytePerSecond, totalCollateral
     )
@@ -51,7 +51,7 @@ asyncchecksuite "Reservations module":
   proc createReservation(availability: Availability): Reservation =
     let size = rand(1 ..< availability.freeSize.int)
     let reservation = waitFor reservations.createReservation(
-      availability.id, size.uint64, RequestId.example, uint64.example, 1.u256
+      availability.id, size.uint64, RequestId.example, uint64.example, 1'Tokens
     )
     return reservation.get
 
@@ -64,8 +64,8 @@ asyncchecksuite "Reservations module":
     check (await reservations.all(Availability)).get.len == 0
 
   test "generates unique ids for storage availability":
-    let availability1 = Availability.init(1.uint64, 2.uint64, 3.uint64, 4.u256, 5.u256)
-    let availability2 = Availability.init(1.uint64, 2.uint64, 3.uint64, 4.u256, 5.u256)
+    let availability1 = Availability.init(1.uint64, 2.uint64, 3'StorageDuration, 4'TokensPerSecond, 5'Tokens)
+    let availability2 = Availability.init(1.uint64, 2.uint64, 3'StorageDuration, 4'TokensPerSecond, 5'Tokens)
     check availability1.id != availability2.id
 
   test "can reserve available storage":
@@ -129,7 +129,7 @@ asyncchecksuite "Reservations module":
   test "cannot create reservation with non-existant availability":
     let availability = Availability.example
     let created = await reservations.createReservation(
-      availability.id, uint64.example, RequestId.example, uint64.example, 1.u256
+      availability.id, uint64.example, RequestId.example, uint64.example, 1'Tokens
     )
     check created.isErr
     check created.error of NotExistsError
@@ -141,7 +141,7 @@ asyncchecksuite "Reservations module":
       availability.totalSize + 1,
       RequestId.example,
       uint64.example,
-      UInt256.example,
+      Tokens.example,
     )
     check created.isErr
     check created.error of BytesOutOfBoundsError
@@ -154,12 +154,12 @@ asyncchecksuite "Reservations module":
         availability.totalSize - 1,
         RequestId.example,
         uint64.example,
-        UInt256.example,
+        Tokens.example,
       )
 
       let two = reservations.createReservation(
         availability.id, availability.totalSize, RequestId.example, uint64.example,
-        UInt256.example,
+        Tokens.example,
       )
 
       let oneResult = await one
@@ -317,7 +317,7 @@ asyncchecksuite "Reservations module":
     var added: Availability
     reservations.OnAvailabilitySaved = proc(a: Availability) {.async.} =
       added = a
-    availability.duration += 1
+    availability.duration += 1'StorageDuration
     discard await reservations.update(availability)
 
     check added == availability
@@ -327,7 +327,7 @@ asyncchecksuite "Reservations module":
     var called = false
     reservations.OnAvailabilitySaved = proc(a: Availability) {.async.} =
       called = true
-    availability.duration -= 1
+    availability.duration -= 1'StorageDuration
     discard await reservations.update(availability)
 
     check not called
@@ -337,7 +337,7 @@ asyncchecksuite "Reservations module":
     var added: Availability
     reservations.OnAvailabilitySaved = proc(a: Availability) {.async.} =
       added = a
-    availability.minPricePerBytePerSecond += 1.u256
+    availability.minPricePerBytePerSecond += 1'TokensPerSecond
     discard await reservations.update(availability)
 
     check added == availability
@@ -347,7 +347,7 @@ asyncchecksuite "Reservations module":
     var called = false
     reservations.OnAvailabilitySaved = proc(a: Availability) {.async.} =
       called = true
-    availability.minPricePerBytePerSecond -= 1.u256
+    availability.minPricePerBytePerSecond -= 1'TokensPerSecond
     discard await reservations.update(availability)
 
     check not called
@@ -357,7 +357,7 @@ asyncchecksuite "Reservations module":
     var added: Availability
     reservations.OnAvailabilitySaved = proc(a: Availability) {.async.} =
       added = a
-    availability.totalCollateral = availability.totalCollateral + 1.u256
+    availability.totalCollateral = availability.totalCollateral + 1'Tokens
     discard await reservations.update(availability)
 
     check added == availability
@@ -367,7 +367,7 @@ asyncchecksuite "Reservations module":
     var called = false
     reservations.OnAvailabilitySaved = proc(a: Availability) {.async.} =
       called = true
-    availability.totalCollateral = availability.totalCollateral - 1.u256
+    availability.totalCollateral = availability.totalCollateral - 1'Tokens
     discard await reservations.update(availability)
 
     check not called
@@ -420,7 +420,7 @@ asyncchecksuite "Reservations module":
 
   test "fails to create availability with size that is larger than available quota":
     let created = await reservations.createAvailability(
-      DefaultQuotaBytes.uint64 + 1, uint64.example, UInt256.example, UInt256.example
+      DefaultQuotaBytes.uint64 + 1, StorageDuration.example, TokensPerSecond.example, Tokens.example
     )
     check created.isErr
     check created.error of ReserveFailedError

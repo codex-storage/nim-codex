@@ -37,15 +37,21 @@ proc example*[T](_: type seq[T]): seq[T] =
   let length = uint8.example.int
   newSeqWith(length, T.example)
 
-proc example*(_: type UInt256): UInt256 =
-  UInt256.fromBytes(array[32, byte].example)
-
-proc example*(_: type UInt128): UInt128 =
-  UInt128.fromBytes(array[16, byte].example)
+proc example*[bits](_: type StUint[bits]): StUint[bits] =
+  StUint[bits].fromBytes(array[bits div 8, byte].example)
 
 proc example*[T: distinct](_: type T): T =
   type baseType = T.distinctBase
   T(baseType.example)
+
+proc example*(_: type StorageDuration): StorageDuration =
+  StorageDuration.init(StUint[40].example)
+
+proc example*(_: type TokensPerSecond): TokensPerSecond =
+  TokensPerSecond.init(StUint[96].example)
+
+proc example*(_: type Tokens): Tokens =
+  Tokens.init(UInt128.example)
 
 proc example*(_: type StorageRequest): StorageRequest =
   StorageRequest(
@@ -53,17 +59,17 @@ proc example*(_: type StorageRequest): StorageRequest =
     ask: StorageAsk(
       slots: 4,
       slotSize: (1 * 1024 * 1024 * 1024).uint64, # 1 Gigabyte
-      duration: (10 * 60 * 60).stuint(40), # 10 hours
-      collateralPerByte: 1.u128,
+      duration: StorageDuration.init((10 * 60 * 60).stuint(40)), # 10 hours
+      collateralPerByte: 1'Tokens,
       proofProbability: 4.u256, # require a proof roughly once every 4 periods
-      pricePerBytePerSecond: 1.stuint(96),
+      pricePerBytePerSecond: 1'TokensPerSecond,
       maxSlotLoss: 2, # 2 slots can be freed without data considered to be lost
     ),
     content: StorageContent(
       cid: Cid.init("zb2rhheVmk3bLks5MgzTqyznLu1zqGH5jrfTA1eAZXrjx7Vob").tryGet,
       merkleRoot: array[32, byte].example,
     ),
-    expiry: (60 * 60).stuint(40), # 1 hour ,
+    expiry: StorageDuration.init((60 * 60).stuint(40)), # 1 hour ,
     nonce: Nonce.example,
   )
 
@@ -75,7 +81,7 @@ proc example*(_: type Slot): Slot =
 proc example*(_: type SlotQueueItem): SlotQueueItem =
   let request = StorageRequest.example
   let slot = Slot.example
-  let collateral = request.ask.collateralPerSlot.stuint(256)
+  let collateral = request.ask.collateralPerSlot
   SlotQueueItem.init(request, slot.slotIndex.uint16, collateral)
 
 proc example(_: type G1Point): G1Point =

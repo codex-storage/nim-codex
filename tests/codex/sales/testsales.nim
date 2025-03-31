@@ -36,21 +36,20 @@ asyncchecksuite "Sales - start":
   var repo: RepoStore
   var queue: SlotQueue
   var itemsProcessed: seq[SlotQueueItem]
-  var expiry: SecondsSince1970
 
   setup:
     request = StorageRequest(
       ask: StorageAsk(
         slots: 4,
         slotSize: 100.uint64,
-        duration: 60.stuint(40),
-        pricePerBytePerSecond: 1.stuint(96),
-        collateralPerByte: 1.u128,
+        duration: 60'StorageDuration,
+        pricePerBytePerSecond: 1'TokensPerSecond,
+        collateralPerByte: 1'Tokens,
       ),
       content: StorageContent(
         cid: Cid.init("zb2rhheVmk3bLks5MgzTqyznLu1zqGH5jrfTA1eAZXrjx7Vob").tryGet
       ),
-      expiry: (getTime() + initDuration(hours = 1)).toUnix.stuint(40),
+      expiry: 60'StorageDuration,
     )
 
     market = MockMarket.new()
@@ -62,7 +61,11 @@ asyncchecksuite "Sales - start":
     sales = Sales.new(market, clock, repo)
     reservations = sales.context.reservations
     sales.onStore = proc(
-        request: StorageRequest, slot: uint64, onBatch: BatchProc, isRepairing = false
+        request: StorageRequest,
+        expiry: StorageTimestamp,
+        slot: uint64,
+        onBatch: BatchProc,
+        isRepairing = false
     ): Future[?!void] {.async.} =
       return success()
 
@@ -77,8 +80,6 @@ asyncchecksuite "Sales - start":
     ): Future[?!Groth16Proof] {.async.} =
       return success(proof)
     itemsProcessed = @[]
-    expiry = (clock.now() + 42)
-    request.expiry = expiry.stuint(40)
 
   teardown:
     await sales.stop()
@@ -99,7 +100,6 @@ asyncchecksuite "Sales - start":
     request.ask.slots = 2
     market.requested = @[request]
     market.requestState[request.id] = RequestState.New
-    market.requestExpiry[request.id] = expiry
 
     let slot0 = MockSlot(requestId: request.id, slotIndex: 0, proof: proof, host: me)
     await fillSlot(slot0.slotIndex)
@@ -128,9 +128,9 @@ asyncchecksuite "Sales":
     metaTmp = TempLevelDb.new()
 
   var totalAvailabilitySize: uint64
-  var minPricePerBytePerSecond: UInt256
-  var requestedCollateralPerByte: UInt128
-  var totalCollateral: UInt256
+  var minPricePerBytePerSecond: TokensPerSecond
+  var requestedCollateralPerByte: Tokens
+  var totalCollateral: Tokens
   var availability: Availability
   var request: StorageRequest
   var sales: Sales
@@ -143,13 +143,13 @@ asyncchecksuite "Sales":
 
   setup:
     totalAvailabilitySize = 100.uint64
-    minPricePerBytePerSecond = 1.u256
-    requestedCollateralPerByte = 1.u128
-    totalCollateral = requestedCollateralPerByte.stuint(256) * totalAvailabilitySize.stuint(256)
+    minPricePerBytePerSecond = 1'TokensPerSecond
+    requestedCollateralPerByte = 1'Tokens
+    totalCollateral = requestedCollateralPerByte * totalAvailabilitySize
     availability = Availability.init(
       totalSize = totalAvailabilitySize,
       freeSize = totalAvailabilitySize,
-      duration = 60.uint64,
+      duration = 60'StorageDuration,
       minPricePerBytePerSecond = minPricePerBytePerSecond,
       totalCollateral = totalCollateral,
     )
@@ -157,21 +157,20 @@ asyncchecksuite "Sales":
       ask: StorageAsk(
         slots: 4,
         slotSize: 100.uint64,
-        duration: 60.stuint(40),
-        pricePerBytePerSecond: minPricePerBytePerSecond.stuint(96),
-        collateralPerByte: 1.u128,
+        duration: 60'StorageDuration,
+        pricePerBytePerSecond: minPricePerBytePerSecond,
+        collateralPerByte: 1'Tokens,
       ),
       content: StorageContent(
         cid: Cid.init("zb2rhheVmk3bLks5MgzTqyznLu1zqGH5jrfTA1eAZXrjx7Vob").tryGet
       ),
-      expiry: (getTime() + initDuration(hours = 1)).toUnix.stuint(40),
+      expiry: 60'StorageDuration,
     )
 
     market = MockMarket.new()
 
     let me = await market.getSigner()
     market.activeSlots[me] = @[]
-    market.requestEnds[request.id] = request.expiry.toSecondsSince1970
 
     clock = MockClock.new()
     let repoDs = repoTmp.newDb()
@@ -181,7 +180,11 @@ asyncchecksuite "Sales":
     sales = Sales.new(market, clock, repo)
     reservations = sales.context.reservations
     sales.onStore = proc(
-        request: StorageRequest, slot: uint64, onBatch: BatchProc, isRepairing = false
+        request: StorageRequest,
+        expiry: StorageTimestamp,
+        slot: uint64,
+        onBatch: BatchProc,
+        isRepairing = false
     ): Future[?!void] {.async.} =
       return success()
 
@@ -229,7 +232,7 @@ asyncchecksuite "Sales":
     availability = a.get # update id
 
   proc notProcessed(itemsProcessed: seq[SlotQueueItem], request: StorageRequest): bool =
-    let collateral =request.ask.collateralPerSlot.stuint(256)
+    let collateral = request.ask.collateralPerSlot
     let items = SlotQueueItem.init(request, collateral)
     for i in 0 ..< items.len:
       if itemsProcessed.contains(items[i]):
@@ -250,7 +253,7 @@ asyncchecksuite "Sales":
           done.complete()
 
     var request1 = StorageRequest.example
-    request1.ask.collateralPerByte = request.ask.collateralPerByte + 1
+    request1.ask.collateralPerByte = request.ask.collateralPerByte + 1'u8
     createAvailability()
     # saturate queue
     while queue.len < queue.size - 1:
@@ -277,7 +280,7 @@ asyncchecksuite "Sales":
         done.complete()
     createAvailability()
     await market.requestStorage(request)
-    let collateral = request.ask.collateralPerSlot.stuint(256)
+    let collateral = request.ask.collateralPerSlot
     let items = SlotQueueItem.init(request, collateral)
     check eventually items.allIt(itemsProcessed.contains(it))
 
@@ -294,14 +297,14 @@ asyncchecksuite "Sales":
   test "removes slot index from slot queue once SlotFilled emitted":
     let request1 = await addRequestToSaturatedQueue()
     market.emitSlotFilled(request1.id, 1.uint64)
-    let collateral = request1.ask.collateralPerSlot.stuint(256)
+    let collateral = request1.ask.collateralPerSlot
     let expected = SlotQueueItem.init(request1, 1'u16, collateral)
     check always (not itemsProcessed.contains(expected))
 
   test "removes slot index from slot queue once SlotReservationsFull emitted":
     let request1 = await addRequestToSaturatedQueue()
     market.emitSlotReservationsFull(request1.id, 1.uint64)
-    let collateral = request1.ask.collateralPerSlot.stuint(256)
+    let collateral = request1.ask.collateralPerSlot
     let expected = SlotQueueItem.init(request1, 1'u16, collateral)
     check always (not itemsProcessed.contains(expected))
 
@@ -318,14 +321,14 @@ asyncchecksuite "Sales":
 
     market.emitSlotFreed(request.id, 2.uint64)
 
-    let collateral = request.ask.collateralPerSlot.stuint(256)
+    let collateral = request.ask.collateralPerSlot
     let expected = SlotQueueItem.init(request, 2.uint16, collateral)
 
     check eventually itemsProcessed.contains(expected)
 
   test "items in queue are readded (and marked seen) once ignored":
     await market.requestStorage(request)
-    let collateral = request.ask.collateralPerSlot.stuint(256)
+    let collateral = request.ask.collateralPerSlot
     let items = SlotQueueItem.init(request, collateral)
     check eventually queue.len > 0
       # queue starts paused, allow items to be added to the queue
@@ -347,7 +350,7 @@ asyncchecksuite "Sales":
   test "queue is paused once availability is insufficient to service slots in queue":
     createAvailability() # enough to fill a single slot
     await market.requestStorage(request)
-    let collateral = request.ask.collateralPerSlot.stuint(256)
+    let collateral = request.ask.collateralPerSlot
     let items = SlotQueueItem.init(request, collateral)
     check eventually queue.len > 0
       # queue starts paused, allow items to be added to the queue
@@ -365,7 +368,7 @@ asyncchecksuite "Sales":
 
   test "availability size is reduced by request slot size when fully downloaded":
     sales.onStore = proc(
-        request: StorageRequest, slot: uint64, onBatch: BatchProc, isRepairing = false
+        request: StorageRequest, expiry: StorageTimestamp, slot: uint64, onBatch: BatchProc, isRepairing = false
     ): Future[?!void] {.async.} =
       let blk = bt.Block.new(@[1.byte]).get
       await onBatch(blk.repeat(request.ask.slotSize.int))
@@ -378,7 +381,7 @@ asyncchecksuite "Sales":
   test "non-downloaded bytes are returned to availability once finished":
     var slotIndex = 0.uint64
     sales.onStore = proc(
-        request: StorageRequest, slot: uint64, onBatch: BatchProc, isRepairing = false
+        request: StorageRequest, expiry: StorageTimestamp, slot: uint64, onBatch: BatchProc, isRepairing = false
     ): Future[?!void] {.async.} =
       slotIndex = slot
       let blk = bt.Block.new(@[1.byte]).get
@@ -396,12 +399,12 @@ asyncchecksuite "Sales":
 
     # complete request
     market.slotState[request.slotId(slotIndex)] = SlotState.Finished
-    clock.advance(request.ask.duration.truncate(int64))
+    clock.advance(request.ask.duration.u64.int64)
 
     check eventually getAvailability().freeSize == origSize - 1
 
   test "ignores download when duration not long enough":
-    availability.duration = request.ask.duration.truncate(uint64) - 1
+    availability.duration = request.ask.duration - 1'u8
     createAvailability()
     await market.requestStorage(request)
     check wasIgnored()
@@ -413,8 +416,8 @@ asyncchecksuite "Sales":
     check wasIgnored()
 
   test "ignores request when reward is too low":
-    let price = request.ask.pricePerBytePerSecond.stuint(256)
-    availability.minPricePerBytePerSecond = price + 1
+    let price = request.ask.pricePerBytePerSecond
+    availability.minPricePerBytePerSecond = price + 1'u8
     createAvailability()
     await market.requestStorage(request)
     check wasIgnored()
@@ -439,7 +442,7 @@ asyncchecksuite "Sales":
     var storingRequest: StorageRequest
     var storingSlot: uint64
     sales.onStore = proc(
-        request: StorageRequest, slot: uint64, onBatch: BatchProc, isRepairing = false
+        request: StorageRequest, expiry: StorageTimestamp, slot: uint64, onBatch: BatchProc, isRepairing = false
     ): Future[?!void] {.async.} =
       storingRequest = request
       storingSlot = slot
@@ -452,7 +455,7 @@ asyncchecksuite "Sales":
   test "makes storage available again when data retrieval fails":
     let error = newException(IOError, "data retrieval failed")
     sales.onStore = proc(
-        request: StorageRequest, slot: uint64, onBatch: BatchProc, isRepairing = false
+        request: StorageRequest, expiry: StorageTimestamp, slot: uint64, onBatch: BatchProc, isRepairing = false
     ): Future[?!void] {.async.} =
       return failure(error)
     createAvailability()
@@ -521,7 +524,7 @@ asyncchecksuite "Sales":
   test "makes storage available again when other host fills the slot":
     let otherHost = Address.example
     sales.onStore = proc(
-        request: StorageRequest, slot: uint64, onBatch: BatchProc, isRepairing = false
+        request: StorageRequest, expiry: StorageTimestamp, slot: uint64, onBatch: BatchProc, isRepairing = false
     ): Future[?!void] {.async.} =
       await sleepAsync(chronos.hours(1))
       return success()
@@ -532,12 +535,9 @@ asyncchecksuite "Sales":
     check eventually (await reservations.all(Availability)).get == @[availability]
 
   test "makes storage available again when request expires":
-    let expiry = getTime().toUnix() + 10
-    market.requestExpiry[request.id] = expiry
-
     let origSize = availability.freeSize
     sales.onStore = proc(
-        request: StorageRequest, slot: uint64, onBatch: BatchProc, isRepairing = false
+        request: StorageRequest, expiry: StorageTimestamp, slot: uint64, onBatch: BatchProc, isRepairing = false
     ): Future[?!void] {.async.} =
       await sleepAsync(chronos.hours(1))
       return success()
@@ -548,21 +548,19 @@ asyncchecksuite "Sales":
     # would otherwise not set the timeout early enough as it uses `clock.now` in the deadline calculation.
     await sleepAsync(chronos.milliseconds(100))
     market.requestState[request.id] = RequestState.Cancelled
-    clock.set(expiry + 1)
+    clock.set(market.requestExpiry[request.id].toSecondsSince1970 + 1)
     check eventually (await reservations.all(Availability)).get == @[availability]
     check getAvailability().freeSize == origSize
 
   test "verifies that request is indeed expired from onchain before firing onCancelled":
-    let expiry = getTime().toUnix() + 10
     # ensure only one slot, otherwise once bytes are returned to the
     # availability, the queue will be unpaused and availability will be consumed
     # by other slots
     request.ask.slots = 1
-    market.requestExpiry[request.id] = expiry
 
     let origSize = availability.freeSize
     sales.onStore = proc(
-        request: StorageRequest, slot: uint64, onBatch: BatchProc, isRepairing = false
+        request: StorageRequest, expiry: StorageTimestamp, slot: uint64, onBatch: BatchProc, isRepairing = false
     ): Future[?!void] {.async.} =
       await sleepAsync(chronos.hours(1))
       return success()
@@ -574,7 +572,7 @@ asyncchecksuite "Sales":
     # If we would not await, then the `clock.set` would run "too fast" as the `subscribeCancellation()`
     # would otherwise not set the timeout early enough as it uses `clock.now` in the deadline calculation.
     await sleepAsync(chronos.milliseconds(100))
-    clock.set(expiry + 1)
+    clock.set(market.requestExpiry[request.id].toSecondsSince1970 + 1)
     check getAvailability().freeSize == 0
 
     market.requestState[request.id] = RequestState.Cancelled
@@ -587,7 +585,6 @@ asyncchecksuite "Sales":
     request.ask.slots = 2
     market.requested = @[request]
     market.requestState[request.id] = RequestState.New
-    market.requestEnds[request.id] = request.expiry.toSecondsSince1970
 
     proc fillSlot(slotIdx: uint64 = 0) {.async.} =
       let address = await market.getSigner()
@@ -618,7 +615,7 @@ asyncchecksuite "Sales":
   test "deletes inactive reservations on load":
     createAvailability()
     discard await reservations.createReservation(
-      availability.id, 100.uint64, RequestId.example, 0.uint64, UInt256.example
+      availability.id, 100.uint64, RequestId.example, 0.uint64, Tokens.example
     )
     check (await reservations.all(Reservation)).get.len == 1
     await sales.load()

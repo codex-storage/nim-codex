@@ -39,9 +39,9 @@ method run*(
     await subscription.unsubscribe()
 
   proc withTimeout(future: Future[void]) {.async.} =
-    let expiry = (await market.requestExpiresAt(request.id)) + 1
+    let expiry = (await market.requestExpiresAt(request.id)) + 1'u8
     trace "waiting for request fulfillment or expiry", expiry
-    await future.withTimeout(clock, expiry)
+    await future.withTimeout(clock, expiry.toSecondsSince1970)
 
   try:
     await wait().withTimeout()

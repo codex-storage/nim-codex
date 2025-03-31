@@ -20,7 +20,7 @@ when codex_enable_proof_failures:
     failEveryNProofs*: int
     proofCount: int
 
-  proc onSubmitProofError(error: ref CatchableError, period: Period, slotId: SlotId) =
+  proc onSubmitProofError(error: ref CatchableError, period: ProofPeriod, slotId: SlotId) =
     error "Submitting invalid proof failed", period, slotId, msg = error.msgDetail
 
   method prove*(
@@ -29,7 +29,7 @@ when codex_enable_proof_failures:
       challenge: ProofChallenge,
       onProve: OnProve,
       market: Market,
-      currentPeriod: Period,
+      currentPeriod: ProofPeriod,
   ) {.async.} =
     try:
       trace "Processing proving in simulated mode"

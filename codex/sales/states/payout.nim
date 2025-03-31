@@ -38,7 +38,7 @@ method run*(
     let currentCollateral = await market.currentCollateral(slot.id)
     await market.freeSlot(slot.id)
 
-    return some State(SaleFinished(returnedCollateral: some currentCollateral.stuint(256)))
+    return some State(SaleFinished(returnedCollateral: some currentCollateral))
   except CancelledError as e:
     trace "SalePayout.run onCleanUp was cancelled", error = e.msgDetail
   except CatchableError as e:

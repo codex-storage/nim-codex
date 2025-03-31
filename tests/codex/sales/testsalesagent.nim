@@ -33,6 +33,7 @@ method onSlotFilled*(
 
 asyncchecksuite "Sales agent":
   let request = StorageRequest.example
+  var expiry: StorageTimestamp
   var agent: SalesAgent
   var context: SalesContext
   var slotIndex: uint64
@@ -41,7 +42,7 @@ asyncchecksuite "Sales agent":
 
   setup:
     market = MockMarket.new()
-    let expiry = getTime().toUnix() + request.expiry.toSecondsSince1970
+    expiry = StorageTimestamp.init(getTime().toUnix()) + request.expiry
     market.requestExpiry[request.id] = expiry
     clock = MockClock.new()
     context = SalesContext(market: market, clock: clock)
@@ -84,7 +85,7 @@ asyncchecksuite "Sales agent":
     agent.start(MockState.new())
     await agent.subscribe()
     market.requestState[request.id] = RequestState.Cancelled
-    clock.set(market.requestExpiry[request.id] + 1)
+    clock.set(expiry.toSecondsSince1970 + 1)
     check eventually onCancelCalled
 
   for requestState in {
@@ -94,7 +95,7 @@ asyncchecksuite "Sales agent":
       agent.start(MockState.new())
       await agent.subscribe()
       market.requestState[request.id] = requestState
-      clock.set(market.requestExpiry[request.id] + 1)
+      clock.set(expiry.toSecondsSince1970 + 1)
       await sleepAsync(100.millis)
       check not onCancelCalled
 
@@ -103,7 +104,7 @@ asyncchecksuite "Sales agent":
       agent.start(MockState.new())
       await agent.subscribe()
       market.requestState[request.id] = requestState
-      clock.set(market.requestExpiry[request.id] + 1)
+      clock.set(expiry.toSecondsSince1970 + 1)
       check eventually agent.data.cancelled.finished
 
   test "cancelled future is finished (cancelled) when onFulfilled called":

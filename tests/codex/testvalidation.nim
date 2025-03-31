@@ -2,8 +2,8 @@ import pkg/chronos
 import std/strformat
 import std/times
 
+import codex/contracts/periods
 import codex/validation
-import codex/periods
 import codex/clock
 
 import ../asynctest
@@ -16,8 +16,8 @@ logScope:
   topics = "testValidation"
 
 asyncchecksuite "validation":
-  let period = 10.uint64
-  let timeout = 5.uint64
+  let period = 10'StorageDuration
+  let timeout = 5'StorageDuration
   let maxSlots = MaxSlots(100)
   let validationGroups = ValidationGroups(8).some
   let slot = Slot.example
@@ -50,9 +50,9 @@ asyncchecksuite "validation":
   setup:
     groupIndex = groupIndexForSlotId(slot.id, !validationGroups)
     clock = MockClock.new()
-    market = MockMarket.new(clock = Clock(clock).some)
-    market.config.proofs.period = period.stuint(40)
-    market.config.proofs.timeout = timeout.stuint(40)
+    market = MockMarket.new(clock)
+    market.config.proofs.period = period
+    market.config.proofs.timeout = timeout
     validation = newValidation(clock, market, maxSlots, validationGroups, groupIndex)
 
   teardown:
@@ -61,7 +61,7 @@ asyncchecksuite "validation":
 
   proc advanceToNextPeriod() =
     let periodicity = Periodicity(seconds: period)
-    let period = periodicity.periodOf(clock.now().Timestamp)
+    let period = periodicity.periodOf(StorageTimestamp.init(clock.now()))
     let periodEnd = periodicity.periodEnd(period)
     clock.set(periodEnd.toSecondsSince1970 + 1)
 

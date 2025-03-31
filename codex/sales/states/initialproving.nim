@@ -25,9 +25,9 @@ method onFailed*(state: SaleInitialProving, request: StorageRequest): ?State =
 
 proc waitUntilNextPeriod(clock: Clock, periodicity: Periodicity) {.async.} =
   trace "Waiting until next period"
-  let period = periodicity.periodOf(clock.now().Timestamp)
+  let period = periodicity.periodOf(clock.now())
   let periodEnd = periodicity.periodEnd(period)
-  await clock.waitUntil((periodEnd + 1).toSecondsSince1970)
+  await clock.waitUntil((periodEnd + 1'u8).toSecondsSince1970)
 
 proc waitForStableChallenge(market: Market, clock: Clock, slotId: SlotId) {.async.} =
   let periodicity = market.periodicity

@@ -34,12 +34,12 @@ asyncchecksuite "sales state 'preparing'":
 
   setup:
     let collateral =
-      request.ask.collateralPerSlot.stuint(256) * request.ask.slots.u256
+      request.ask.collateralPerSlot * request.ask.slots
     availability = Availability.init(
       totalSize = request.ask.slotSize + 100.uint64,
       freeSize = request.ask.slotSize + 100.uint64,
-      duration = request.ask.duration.u64 + 60,
-      minPricePerBytePerSecond = request.ask.pricePerBytePerSecond.stuint(256),
+      duration = request.ask.duration + 60'u8,
+      minPricePerBytePerSecond = request.ask.pricePerBytePerSecond,
       totalCollateral = collateral,
     )
     let repoDs = SQLiteDatastore.new(Memory).tryGet()
