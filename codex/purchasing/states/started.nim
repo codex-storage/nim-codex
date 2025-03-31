@@ -34,9 +34,10 @@ method run*(
   var ended: Future[void]
   try:
     let subscription = await market.subscribeRequestFailed(purchase.requestId, callback)
+    let requestEnd = await market.getRequestEnd(purchase.requestId)
 
     # Ensure that we're past the request end by waiting an additional second
-    ended = clock.waitUntil((await market.getRequestEnd(purchase.requestId)) + 1)
+    ended = clock.waitUntil(requestEnd.toSecondsSince1970 + 1)
     let fut = await one(ended, failed)
     await subscription.unsubscribe()
     if fut.id == failed.id:

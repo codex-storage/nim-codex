@@ -33,7 +33,7 @@ suite "sales state 'filled'":
       proof: Groth16Proof.default,
     )
 
-    market.requestEnds[request.id] = 321
+    market.requestEnds[request.id] = 321'StorageTimestamp
     onExpiryUpdatePassedExpiry = -1
     let onExpiryUpdate = proc(
         rootCid: Cid, expiry: SecondsSince1970
@@ -55,11 +55,11 @@ suite "sales state 'filled'":
     slot.host = await market.getSigner()
     market.filled = @[slot]
 
-    let expectedExpiry = 123
+    let expectedExpiry = 123'StorageTimestamp
     market.requestEnds[request.id] = expectedExpiry
     let next = await state.run(agent)
     check !next of SaleProving
-    check onExpiryUpdatePassedExpiry == expectedExpiry
+    check onExpiryUpdatePassedExpiry == expectedExpiry.toSecondsSince1970
 
   test "switches to error state when slot is filled by another host":
     slot.host = Address.example

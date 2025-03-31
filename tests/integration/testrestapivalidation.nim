@@ -23,11 +23,11 @@ multinodesuite "Rest API validation":
 
     let response = await client.requestStorageRaw(
       cid,
-      duration = 100.stuint(40),
-      pricePerBytePerSecond = 1.stuint(96),
+      duration = 100'StorageDuration,
+      pricePerBytePerSecond = 1'TokensPerSecond,
       proofProbability = 3.u256,
-      collateralPerByte = 1.u128,
-      expiry = 30.stuint(40),
+      collateralPerByte = 1'Tokens,
+      expiry = 30'StorageDuration,
       nodes = 3.uint,
       tolerance = 0.uint,
     )
@@ -39,11 +39,11 @@ multinodesuite "Rest API validation":
     let cid = (await client.upload("some file contents")).get
     let response = await client.requestStorageRaw(
       cid,
-      duration = 10.stuint(40),
-      pricePerBytePerSecond = 1.stuint(96),
+      duration = 10'StorageDuration,
+      pricePerBytePerSecond = 1'TokensPerSecond,
       proofProbability = 3.u256,
-      collateralPerByte = 1.u128,
-      expiry = 9.stuint(40),
+      collateralPerByte = 1'Tokens,
+      expiry = 9'StorageDuration,
     )
 
     check:
@@ -63,11 +63,11 @@ multinodesuite "Rest API validation":
       let response = (
         await client.requestStorageRaw(
           cid,
-          duration = 100.stuint(40),
-          pricePerBytePerSecond = 1.stuint(96),
+          duration = 100'StorageDuration,
+          pricePerBytePerSecond = 1'TokensPerSecond,
           proofProbability = 3.u256,
-          expiry = 30.stuint(40),
-          collateralPerByte = 1.u128,
+          expiry = 30'StorageDuration,
+          collateralPerByte = 1'Tokens,
           nodes = nodes.uint,
           tolerance =tolerance.uint,
         )
@@ -84,11 +84,11 @@ multinodesuite "Rest API validation":
     let response = (
       await client.requestStorageRaw(
         cid,
-        duration = 100.stuint(40),
-        pricePerBytePerSecond = 1.stuint(96),
+        duration = 100'StorageDuration,
+        pricePerBytePerSecond = 1'TokensPerSecond,
         proofProbability = 3.u256,
-        expiry = 30.stuint(40),
-        collateralPerByte = 1.u128,
+        expiry = 30'StorageDuration,
+        collateralPerByte = 1'Tokens,
         nodes = 3.uint,
         tolerance = 0.uint,
       )
@@ -114,9 +114,9 @@ multinodesuite "Rest API validation":
   test "updating non-existing availability", config:
     let nonExistingResponse = await client.patchAvailabilityRaw(
       AvailabilityId.example,
-      duration = 100.uint64.some,
-      minPricePerBytePerSecond = 2.u256.some,
-      totalCollateral = 200.u256.some,
+      duration = some 100'StorageDuration,
+      minPricePerBytePerSecond = some 2'TokensPerSecond,
+      totalCollateral = some 200'Tokens,
     )
     check nonExistingResponse.status == 404
 
@@ -124,9 +124,9 @@ multinodesuite "Rest API validation":
     let availability = (
       await client.postAvailability(
         totalSize = 140000.uint64,
-        duration = 200.uint64,
-        minPricePerBytePerSecond = 3.u256,
-        totalCollateral = 300.u256,
+        duration = 200'StorageDuration,
+        minPricePerBytePerSecond = 3'TokensPerSecond,
+        totalCollateral = 300'Tokens,
       )
     ).get
     let freeSizeResponse =
@@ -137,9 +137,9 @@ multinodesuite "Rest API validation":
   test "creating availability above the node quota returns 422", config:
     let response = await client.postAvailabilityRaw(
       totalSize = 24000000000.uint64,
-      duration = 200.uint64,
-      minPricePerBytePerSecond = 3.u256,
-      totalCollateral = 300.u256,
+      duration = 200'StorageDuration,
+      minPricePerBytePerSecond = 3'TokensPerSecond,
+      totalCollateral = 300'Tokens,
     )
 
     check response.status == 422
@@ -149,9 +149,9 @@ multinodesuite "Rest API validation":
     let availability = (
       await client.postAvailability(
         totalSize = 140000.uint64,
-        duration = 200.uint64,
-        minPricePerBytePerSecond = 3.u256,
-        totalCollateral = 300.u256,
+        duration = 200'StorageDuration,
+        minPricePerBytePerSecond = 3'TokensPerSecond,
+        totalCollateral = 300'Tokens,
       )
     ).get
     let response = await client.patchAvailabilityRaw(
@@ -164,9 +164,9 @@ multinodesuite "Rest API validation":
   test "creating availability when total size is zero returns 422", config:
     let response = await client.postAvailabilityRaw(
       totalSize = 0.uint64,
-      duration = 200.uint64,
-      minPricePerBytePerSecond = 3.u256,
-      totalCollateral = 300.u256,
+      duration = 200'StorageDuration,
+      minPricePerBytePerSecond = 3'TokensPerSecond,
+      totalCollateral = 300'Tokens,
     )
 
     check response.status == 422
@@ -176,9 +176,9 @@ multinodesuite "Rest API validation":
     let availability = (
       await client.postAvailability(
         totalSize = 140000.uint64,
-        duration = 200.uint64,
-        minPricePerBytePerSecond = 3.u256,
-        totalCollateral = 300.u256,
+        duration = 200'StorageDuration,
+        minPricePerBytePerSecond = 3'TokensPerSecond,
+        totalCollateral = 300'Tokens,
       )
     ).get
     let response =
@@ -204,9 +204,9 @@ multinodesuite "Rest API validation":
     let availability = (
       await client.postAvailability(
         totalSize = 140000.uint64,
-        duration = 200.uint64,
-        minPricePerBytePerSecond = 3.u256,
-        totalCollateral = 300.u256,
+        duration = 200'StorageDuration,
+        minPricePerBytePerSecond = 3'TokensPerSecond,
+        totalCollateral = 300'Tokens,
       )
     ).get
 
@@ -223,11 +223,11 @@ multinodesuite "Rest API validation":
     let cid = (await client.upload(data)).get
     let response = await client.requestStorageRaw(
       cid,
-      duration = 100.stuint(40),
-      pricePerBytePerSecond = 1.stuint(96),
+      duration = 100'StorageDuration,
+      pricePerBytePerSecond = 1'TokensPerSecond,
       proofProbability = 3.u256,
-      expiry = 30.stuint(40),
-      collateralPerByte = 1.u128,
+      expiry = 30'StorageDuration,
+      collateralPerByte = 1'Tokens,
       nodes = 3.uint,
       tolerance = 0.uint,
     )
@@ -241,11 +241,11 @@ multinodesuite "Rest API validation":
 
     let response = await client.requestStorageRaw(
       cid,
-      duration = (31 * 24 * 60 * 60).stuint(40),  # 31 days TODO: this should not be hardcoded, but waits for https://github.com/codex-storage/nim-codex/issues/1056
-      pricePerBytePerSecond = 1.stuint(96),
+      duration = StorageDuration.init(31'u32 * 24 * 60 * 60),  # 31 days TODO: this should not be hardcoded, but waits for https://github.com/codex-storage/nim-codex/issues/1056
+      pricePerBytePerSecond = 1'TokensPerSecond,
       proofProbability = 3.u256,
-      expiry = 30.stuint(40),
-      collateralPerByte = 1.u128,
+      expiry = 30'StorageDuration,
+      collateralPerByte = 1'Tokens,
       nodes = 3.uint,
       tolerance = 2.uint,
     )
@@ -259,11 +259,11 @@ multinodesuite "Rest API validation":
 
     let response = await client.requestStorageRaw(
       cid,
-      duration = 100.stuint(40),
-      pricePerBytePerSecond = 1.stuint(96),
+      duration = 100'StorageDuration,
+      pricePerBytePerSecond = 1'TokensPerSecond,
       proofProbability = 3.u256,
-      expiry = 0.stuint(40),
-      collateralPerByte = 1.u128,
+      expiry = 0'StorageDuration,
+      collateralPerByte = 1'Tokens,
       nodes = 3.uint,
       tolerance = 0.uint,
     )
@@ -278,11 +278,11 @@ multinodesuite "Rest API validation":
 
     let response = await client.requestStorageRaw(
       cid,
-      duration = 100.stuint(40),
-      pricePerBytePerSecond = 1.stuint(96),
+      duration = 100'StorageDuration,
+      pricePerBytePerSecond = 1'TokensPerSecond,
       proofProbability = 0.u256,
-      expiry = 30.stuint(40),
-      collateralPerByte = 1.u128,
+      expiry = 30'StorageDuration,
+      collateralPerByte = 1'Tokens,
       nodes = 3.uint,
       tolerance = 0.uint,
     )
@@ -296,11 +296,11 @@ multinodesuite "Rest API validation":
 
     let response = await client.requestStorageRaw(
       cid,
-      duration = 100.stuint(40),
-      pricePerBytePerSecond = 0.stuint(96),
+      duration = 100'StorageDuration,
+      pricePerBytePerSecond = 0'TokensPerSecond,
       proofProbability = 3.u256,
-      expiry = 30.stuint(40),
-      collateralPerByte = 1.u128,
+      expiry = 30'StorageDuration,
+      collateralPerByte = 1'Tokens,
       nodes = 3.uint,
       tolerance = 0.uint,
     )
@@ -315,30 +315,14 @@ multinodesuite "Rest API validation":
 
     let response = await client.requestStorageRaw(
       cid,
-      duration = 100.stuint(40),
-      pricePerBytePerSecond = 1.stuint(96),
+      duration = 100'StorageDuration,
+      pricePerBytePerSecond = 1'TokensPerSecond,
       proofProbability = 3.u256,
-      expiry = 30.stuint(40),
-      collateralPerByte = 0.u128,
+      expiry = 30'StorageDuration,
+      collateralPerByte = 0'Tokens,
       nodes = 3.uint,
       tolerance = 0.uint,
     )
 
     check response.status == 422
     check (await response.body) == "Collateral per byte must be greater than zero"
-
-  test "creating availability fails when until is negative", config:
-    let totalSize = 12.uint64
-    let minPricePerBytePerSecond = 1.u256
-    let totalCollateral = totalSize.u256 * minPricePerBytePerSecond
-    let response = await client.postAvailabilityRaw(
-      totalSize = totalSize,
-      duration = 2.uint64,
-      minPricePerBytePerSecond = minPricePerBytePerSecond,
-      totalCollateral = totalCollateral,
-      until = -1.SecondsSince1970.some,
-    )
-
-    check:
-      response.status == 422
-      (await response.body) == "Cannot set until to a negative value"

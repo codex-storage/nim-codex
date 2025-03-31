@@ -26,7 +26,7 @@ method prove*(
     challenge: ProofChallenge,
     onProve: OnProve,
     market: Market,
-    currentPeriod: Period,
+    currentPeriod: ProofPeriod,
 ) {.base, async.} =
   try:
     without proof =? (await onProve(slot, challenge)), err:
@@ -58,14 +58,14 @@ proc proveLoop(
     slotIndex
     slotId = slot.id
 
-  proc getCurrentPeriod(): Period =
+  proc getCurrentPeriod(): ProofPeriod =
     let periodicity = market.periodicity
-    return periodicity.periodOf(clock.now().Timestamp)
+    return periodicity.periodOf(clock.now())
 
-  proc waitUntilPeriod(period: Period) {.async.} =
+  proc waitUntilPeriod(period: ProofPeriod) {.async.} =
     let periodicity = market.periodicity
     # Ensure that we're past the period boundary by waiting an additional second
-    await clock.waitUntil((periodicity.periodStart(period) + 1).toSecondsSince1970)
+    await clock.waitUntil((periodicity.periodStart(period) + 1'u8).toSecondsSince1970)
 
   while true:
     let currentPeriod = getCurrentPeriod()
@@ -97,7 +97,7 @@ proc proveLoop(
       raise newException(SlotNotFilledError, message)
 
     debug "waiting until next period"
-    await waitUntilPeriod(currentPeriod + 1)
+    await waitUntilPeriod(currentPeriod + 1'u8)
 
 method `$`*(state: SaleProving): string =
   "SaleProving"
