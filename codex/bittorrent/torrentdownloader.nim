@@ -218,7 +218,6 @@ proc getNext*(
   except CancelledError as e:
     trace "Getting next block from downloader cancelled"
     raise e
-    # return success((-1, newSeq[byte]()))
   except CatchableError as e:
     warn "Could not get block from local store", error = e.msg
     return failure("Could not get block from local store: " & e.msg)
