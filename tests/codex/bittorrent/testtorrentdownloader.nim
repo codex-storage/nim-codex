@@ -235,6 +235,5 @@ asyncchecksuite "Torrent Downloader":
 
     assert dataFut.finished
 
-    let (blockIndex, data) = dataFut.read.tryGet()
-    check blockIndex == -1
-    check data.len == 0
+    expect CancelledError:
+      discard await dataFut
