@@ -293,16 +293,13 @@ asyncchecksuite "RepoStore":
 
   test "Should retrieve block expiration information":
     proc unpack(
-        beIter: Future[?!SafeAsyncIter[BlockExpiration]]
+        beIter: auto
     ): Future[seq[BlockExpiration]] {.async: (raises: [CancelledError]).} =
       var expirations = newSeq[BlockExpiration](0)
-      without iter =? (
-        await cast[Future[?!SafeAsyncIter[BlockExpiration]].Raising([CancelledError])](beIter)
-      ), err:
+      without iter =? (await beIter), err:
         return expirations
       for beFut in toSeq(iter):
-        if value =?
-            (await cast[Future[?!BlockExpiration].Raising([CancelledError])](beFut)):
+        if value =? (await beFut):
           expirations.add(value)
       return expirations
 

@@ -86,7 +86,7 @@ proc advertiseLocalStoreLoop(b: Advertiser) {.async: (raises: []).} =
       if cidsIter =? await b.localStore.listBlocks(blockType = BlockType.Manifest):
         trace "Advertiser begins iterating blocks..."
         for c in cidsIter:
-          if cid =? (await cast[Future[?!Cid].Raising([CancelledError])](c)):
+          if cid =? await c:
             await b.advertiseBlock(cid)
         trace "Advertiser iterating blocks finished."
 

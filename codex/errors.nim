@@ -65,7 +65,7 @@ proc allFinishedFailed*[T](
   return res
 
 proc allFinishedValues*[T](
-    futs: seq[Future[T]]
+    futs: auto
 ): Future[?!seq[T]] {.async: (raises: [CancelledError]).} =
   ## If all futures have finished, return corresponding values,
   ## otherwise return failure
