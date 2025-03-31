@@ -110,7 +110,7 @@ proc commonBlockStoreTests*(
 
       var count = 0
       for c in cidsIter:
-        if cid =? (await cast[Future[?!Cid].Raising([CancelledError])](c)):
+        if cid =? await c:
           check (await store.hasBlock(cid)).tryGet()
           count.inc
 
@@ -134,7 +134,7 @@ proc commonBlockStoreTests*(
 
       var count = 0
       for c in cidsIter:
-        if cid =? (await cast[Future[?!Cid].Raising([CancelledError])](c)):
+        if cid =? await c:
           check manifestBlock.cid == cid
           check (await store.hasBlock(cid)).tryGet()
           count.inc
@@ -159,7 +159,7 @@ proc commonBlockStoreTests*(
 
       var count = 0
       for c in cidsIter:
-        if cid =? (await cast[Future[?!Cid].Raising([CancelledError])](c)):
+        if cid =? await c:
           check (await store.hasBlock(cid)).tryGet()
           count.inc
 
