@@ -18,19 +18,19 @@ asyncchecksuite "sales state 'finished'":
   let slotIndex = request.ask.slots div 2
   let clock = MockClock.new()
 
-  let currentCollateral = UInt256.example
+  let currentCollateral = Tokens.example
 
   var market: MockMarket
   var state: SaleFinished
   var agent: SalesAgent
   var reprocessSlotWas = bool.none
-  var returnedCollateralValue = UInt256.none
+  var returnedCollateralValue = Tokens.none
   var saleCleared = bool.none
 
   setup:
     market = MockMarket.new()
     let onCleanUp = proc(
-        reprocessSlot = false, returnedCollateral = UInt256.none
+        reprocessSlot = false, returnedCollateral = Tokens.none
     ) {.async.} =
       reprocessSlotWas = some reprocessSlot
       returnedCollateralValue = returnedCollateral

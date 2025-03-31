@@ -494,7 +494,7 @@ proc setupRequest(
     nodes: uint,
     tolerance: uint,
     pricePerBytePerSecond: TokensPerSecond,
-    collateralPerByte: UInt128,
+    collateralPerByte: Tokens,
     expiry: StorageDuration,
 ): Future[?!StorageRequest] {.async.} =
   ## Setup slots for a given dataset
@@ -575,7 +575,7 @@ proc requestStorage*(
     nodes: uint,
     tolerance: uint,
     pricePerBytePerSecond: TokensPerSecond,
-    collateralPerByte: UInt128,
+    collateralPerByte: Tokens,
     expiry: StorageDuration,
 ): Future[?!PurchaseId] {.async.} =
   ## Initiate a request for storage sequence, this might
@@ -614,6 +614,7 @@ proc requestStorage*(
 proc onStore(
     self: CodexNodeRef,
     request: StorageRequest,
+    expiry: StorageTimestamp,
     slotIdx: uint64,
     blocksCb: BlocksCb,
     isRepairing: bool = false,
@@ -641,8 +642,6 @@ proc onStore(
     Poseidon2Builder.new(self.networkStore, manifest, manifest.verifiableStrategy), err:
     trace "Unable to create slots builder", err = err.msg
     return failure(err)
-
-  let expiry = request.expiry
 
   if slotIdx > manifest.slotRoots.high.uint64:
     trace "Slot index not in manifest", slotIdx
@@ -778,11 +777,12 @@ proc start*(self: CodexNodeRef) {.async.} =
   if hostContracts =? self.contracts.host:
     hostContracts.sales.onStore = proc(
         request: StorageRequest,
+        expiry: StorageTimestamp,
         slot: uint64,
         onBatch: BatchProc,
         isRepairing: bool = false,
     ): Future[?!void] =
-      self.onStore(request, slot, onBatch, isRepairing)
+      self.onStore(request, expiry, slot, onBatch, isRepairing)
 
     hostContracts.sales.onExpiryUpdate = proc(
         rootCid: Cid, expiry: SecondsSince1970

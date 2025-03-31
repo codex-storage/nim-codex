@@ -55,7 +55,7 @@ method run*(
       without onExpiryUpdate =? context.onExpiryUpdate:
         raiseAssert "onExpiryUpdate callback not set"
 
-      let requestEnd = await market.getRequestEnd(data.requestId)
+      let requestEnd = (await market.getRequestEnd(data.requestId)).toSecondsSince1970
       if err =? (await onExpiryUpdate(request.content.cid, requestEnd)).errorOption:
         return some State(SaleErrored(error: err))
 

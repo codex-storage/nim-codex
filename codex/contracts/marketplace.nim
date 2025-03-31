@@ -58,7 +58,7 @@ proc configuration*(marketplace: Marketplace): MarketplaceConfig {.contract, vie
 proc token*(marketplace: Marketplace): Address {.contract, view.}
 proc currentCollateral*(
   marketplace: Marketplace, id: SlotId
-): UInt128 {.contract, view.}
+): Tokens {.contract, view.}
 
 proc requestStorage*(
   marketplace: Marketplace, request: StorageRequest
@@ -131,11 +131,11 @@ proc requestState*(
 proc slotState*(marketplace: Marketplace, slotId: SlotId): SlotState {.contract, view.}
 proc requestEnd*(
   marketplace: Marketplace, requestId: RequestId
-): SecondsSince1970 {.contract, view.}
+): StorageTimestamp {.contract, view.}
 
 proc requestExpiry*(
   marketplace: Marketplace, requestId: RequestId
-): SecondsSince1970 {.contract, view.}
+): StorageTimestamp {.contract, view.}
 
 proc missingProofs*(marketplace: Marketplace, id: SlotId): UInt256 {.contract, view.}
 proc isProofRequired*(marketplace: Marketplace, id: SlotId): bool {.contract, view.}
@@ -155,7 +155,7 @@ proc submitProof*(
 .}
 
 proc markProofAsMissing*(
-  marketplace: Marketplace, id: SlotId, period: StUint[40]
+  marketplace: Marketplace, id: SlotId, period: ProofPeriod
 ): Confirmable {.
   contract,
   errors: [

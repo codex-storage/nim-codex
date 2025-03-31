@@ -14,17 +14,17 @@
 ## |---------------------------------------------------|              |--------------------------------------|
 ## | AvailabilityId   | id                       | PK  |<-||-------o<-| AvailabilityId | availabilityId | FK |
 ## |---------------------------------------------------|              |--------------------------------------|
-## | UInt256          | totalSize                |     |              | UInt256        | size           |    |
+## | uint64           | totalSize                |     |              | uint64         | size           |    |
 ## |---------------------------------------------------|              |--------------------------------------|
-## | UInt256          | freeSize                 |     |              | UInt256        | slotIndex      |    |
+## | uint64           | freeSize                 |     |              | uint64         | slotIndex      |    |
 ## |---------------------------------------------------|              +--------------------------------------+
-## | UInt256          | duration                 |     |
+## | StorageDuration  | duration                 |     |
 ## |---------------------------------------------------|
-## | UInt256          | minPricePerBytePerSecond |     |
+## | TokensPerSecond  | minPricePerBytePerSecond |     |
 ## |---------------------------------------------------|
-## | UInt256          | totalCollateral          |     |
+## | Tokens           | totalCollateral          |     |
 ## |---------------------------------------------------|
-## | UInt256          | totalRemainingCollateral |     |
+## | Tokens           | totalRemainingCollateral |     |
 ## +---------------------------------------------------+
 
 import pkg/upraises
@@ -34,7 +34,6 @@ push:
 import std/sequtils
 import std/sugar
 import std/typetraits
-import std/sequtils
 import std/times
 import pkg/chronos
 import pkg/datastore
@@ -67,16 +66,16 @@ type
     id* {.serialize.}: AvailabilityId
     totalSize* {.serialize.}: uint64
     freeSize* {.serialize.}: uint64
-    duration* {.serialize.}: uint64
-    minPricePerBytePerSecond* {.serialize.}: UInt256
-    totalCollateral {.serialize.}: UInt256
-    totalRemainingCollateral* {.serialize.}: UInt256
+    duration* {.serialize.}: StorageDuration
+    minPricePerBytePerSecond* {.serialize.}: TokensPerSecond
+    totalCollateral {.serialize.}: Tokens
+    totalRemainingCollateral* {.serialize.}: Tokens
     # If set to false, the availability will not accept new slots.
     # If enabled, it will not impact any existing slots that are already being hosted.
     enabled* {.serialize.}: bool
     # Specifies the latest timestamp after which the availability will no longer host any slots.
     # If set to 0, there will be no restrictions.
-    until* {.serialize.}: SecondsSince1970
+    until* {.serialize.}: StorageTimestamp
 
   Reservation* = ref object
     id* {.serialize.}: ReservationId
@@ -84,7 +83,7 @@ type
     size* {.serialize.}: uint64
     requestId* {.serialize.}: RequestId
     slotIndex* {.serialize.}: uint64
-    validUntil* {.serialize.}: SecondsSince1970
+    validUntil* {.serialize.}: StorageTimestamp
 
   Reservations* = ref object of RootObj
     availabilityLock: AsyncLock
@@ -144,11 +143,11 @@ proc init*(
     _: type Availability,
     totalSize: uint64,
     freeSize: uint64,
-    duration: uint64,
-    minPricePerBytePerSecond: UInt256,
-    totalCollateral: UInt256,
+    duration: StorageDuration,
+    minPricePerBytePerSecond: TokensPerSecond,
+    totalCollateral: Tokens,
     enabled: bool,
-    until: SecondsSince1970,
+    until: StorageTimestamp,
 ): Availability =
   var id: array[32, byte]
   doAssert randomBytes(id) == 32
@@ -164,10 +163,10 @@ proc init*(
     until: until,
   )
 
-func totalCollateral*(self: Availability): UInt256 {.inline.} =
+func totalCollateral*(self: Availability): Tokens {.inline.} =
   return self.totalCollateral
 
-proc `totalCollateral=`*(self: Availability, value: UInt256) {.inline.} =
+proc `totalCollateral=`*(self: Availability, value: Tokens) {.inline.} =
   self.totalCollateral = value
   self.totalRemainingCollateral = value
 
@@ -177,7 +176,7 @@ proc init*(
     size: uint64,
     requestId: RequestId,
     slotIndex: uint64,
-    validUntil: SecondsSince1970,
+    validUntil: StorageTimestamp,
 ): Reservation =
   var id: array[32, byte]
   doAssert randomBytes(id) == 32
@@ -230,8 +229,8 @@ func key*(reservationId: ReservationId, availabilityId: AvailabilityId): ?!Key =
 func key*(availability: Availability): ?!Key =
   return availability.id.key
 
-func maxCollateralPerByte*(availability: Availability): UInt256 =
-  return availability.totalRemainingCollateral div availability.freeSize.stuint(256)
+func maxCollateralPerByte*(availability: Availability): Tokens =
+  return availability.totalRemainingCollateral div availability.freeSize
 
 func key*(reservation: Reservation): ?!Key =
   return key(reservation.id, reservation.availabilityId)
@@ -295,11 +294,6 @@ proc updateAvailability(
   logScope:
     availabilityId = obj.id
 
-  if obj.until < 0:
-    let error =
-      newException(UntilOutOfBoundsError, "Cannot set until to a negative value")
-    return failure(error)
-
   without key =? obj.key, error:
     return failure(error)
 
@@ -314,7 +308,7 @@ proc updateAvailability(
     else:
       return failure(err)
 
-  if obj.until > 0:
+  if obj.until > 0'StorageTimestamp:
     without allReservations =? await self.all(Reservation, obj.id), error:
       error.msg = "Error updating reservation: " & error.msg
       return failure(error)
@@ -383,7 +377,7 @@ proc deleteReservation*(
     self: Reservations,
     reservationId: ReservationId,
     availabilityId: AvailabilityId,
-    returnedCollateral: ?UInt256 = UInt256.none,
+    returnedCollateral = Tokens.none,
 ): Future[?!void] {.async.} =
   logScope:
     reservationId
@@ -429,19 +423,14 @@ proc deleteReservation*(
 proc createAvailability*(
     self: Reservations,
     size: uint64,
-    duration: uint64,
-    minPricePerBytePerSecond: UInt256,
-    totalCollateral: UInt256,
+    duration: StorageDuration,
+    minPricePerBytePerSecond: TokensPerSecond,
+    totalCollateral: Tokens,
     enabled: bool,
-    until: SecondsSince1970,
+    until: StorageTimestamp,
 ): Future[?!Availability] {.async.} =
   trace "creating availability",
     size, duration, minPricePerBytePerSecond, totalCollateral, enabled, until
-
-  if until < 0:
-    let error =
-      newException(UntilOutOfBoundsError, "Cannot set until to a negative value")
-    return failure(error)
 
   let availability = Availability.init(
     size, size, duration, minPricePerBytePerSecond, totalCollateral, enabled, until
@@ -468,8 +457,8 @@ method createReservation*(
     slotSize: uint64,
     requestId: RequestId,
     slotIndex: uint64,
-    collateralPerByte: UInt256,
-    validUntil: SecondsSince1970,
+    collateralPerByte: Tokens,
+    validUntil: StorageTimestamp,
 ): Future[?!Reservation] {.async, base.} =
   withLock(self.availabilityLock):
     without availabilityKey =? availabilityId.key, error:
@@ -500,7 +489,7 @@ method createReservation*(
     availability.freeSize -= slotSize
 
     # adjust the remaining totalRemainingCollateral
-    availability.totalRemainingCollateral -= slotSize.u256 * collateralPerByte
+    availability.totalRemainingCollateral -= collateralPerByte * slotSize
 
     # update availability with reduced size
     trace "Updating availability with reduced size"
@@ -695,9 +684,11 @@ proc all*(
 
 proc findAvailability*(
     self: Reservations,
-    size, duration: uint64,
-    pricePerBytePerSecond, collateralPerByte: UInt256,
-    validUntil: SecondsSince1970,
+    size: uint64,
+    duration: StorageDuration,
+    pricePerBytePerSecond: TokensPerSecond,
+    collateralPerByte: Tokens,
+    validUntil: StorageTimestamp,
 ): Future[?Availability] {.async.} =
   without storables =? (await self.storables(Availability)), e:
     error "failed to get all storables", error = e.msg
@@ -709,7 +700,7 @@ proc findAvailability*(
           duration <= availability.duration and
           collateralPerByte <= availability.maxCollateralPerByte and
           pricePerBytePerSecond >= availability.minPricePerBytePerSecond and
-          (availability.until == 0 or availability.until >= validUntil):
+          (availability.until == 0'StorageTimestamp or availability.until >= validUntil):
         trace "availability matched",
           id = availability.id,
           enabled = availability.enabled,

@@ -16,7 +16,7 @@ type
     duration* {.serialize.}: StorageDuration
     proofProbability* {.serialize.}: UInt256
     pricePerBytePerSecond* {.serialize.}: TokensPerSecond
-    collateralPerByte* {.serialize.}: UInt128
+    collateralPerByte* {.serialize.}: Tokens
     expiry* {.serialize.}: StorageDuration
     nodes* {.serialize.}: ?uint
     tolerance* {.serialize.}: ?uint
@@ -29,12 +29,12 @@ type
 
   RestAvailability* = object
     totalSize* {.serialize.}: uint64
-    duration* {.serialize.}: uint64
-    minPricePerBytePerSecond* {.serialize.}: UInt256
-    totalCollateral* {.serialize.}: UInt256
+    duration* {.serialize.}: StorageDuration
+    minPricePerBytePerSecond* {.serialize.}: TokensPerSecond
+    totalCollateral* {.serialize.}: Tokens
     freeSize* {.serialize.}: ?uint64
     enabled* {.serialize.}: ?bool
-    until* {.serialize.}: ?SecondsSince1970
+    until* {.serialize.}: ?StorageTimestamp
 
   RestSalesAgent* = object
     state* {.serialize.}: string
