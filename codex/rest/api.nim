@@ -38,7 +38,7 @@ import ../erasure/erasure
 import ../manifest
 import ../streams/asyncstreamwrapper
 import ../stores
-import ../utils/iter
+import ../utils/safeasynciter
 import ../utils/options
 import ../bittorrent/manifest
 import ../bittorrent/torrentdownloader
@@ -203,8 +203,10 @@ proc retrieveInfoHash(
     torrentDownloader = downloader
     torrentDownloader.start()
 
-    while not torrentDownloader.finished:
-      without (blockIndex, data) =? (await torrentDownloader.getNext()), err:
+    for blockFut in torrentDownloader.getAsyncBlockIterator():
+      let blockRes =
+        await cast[Future[?!(int, seq[byte])].Raising([CancelledError])](blockFut)
+      without (blockIndex, data) =? (blockRes), err:
         error "Error streaming blocks", err = err.msg
         resp.status = Http500
         if resp.isPending():
