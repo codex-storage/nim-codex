@@ -14,6 +14,7 @@ import pkg/codex/bittorrent/manifest
 import pkg/codex/bittorrent/torrentdownloader
 
 import pkg/codex/utils/iter
+import pkg/codex/utils/safeasynciter
 import pkg/codex/logutils
 
 import ../../asynctest
@@ -199,6 +200,47 @@ asyncchecksuite "Torrent Downloader":
       let (blockIndex, data) = (await dataFut).tryGet()
       trace "got data", blockIndex, len = data.len
       let expectedBlockIndex = blockIter.next()
+      check blockIndex == expectedBlockIndex
+      let treeCid = codexManifest.treeCid
+      let address = BlockAddress.init(treeCid, expectedBlockIndex)
+      let blk = (await localStore.getBlock(address)).tryGet()
+      check blk.data == data
+
+    check blockIter.finished
+    await torrentDownloader.stop()
+
+  test "get downloaded blocks using async iter":
+    torrentDownloader.start()
+
+    let blockIter = Iter.new(0 ..< codexManifest.blocksCount)
+
+    for dataFut in torrentDownloader.getAsyncBlockIterator():
+      let status = await dataFut.withTimeout(1.seconds)
+      assert status == true
+      let (blockIndex, data) = (await dataFut).tryGet()
+      trace "got data", blockIndex, len = data.len
+      let expectedBlockIndex = blockIter.next()
+      check blockIndex == expectedBlockIndex
+      let treeCid = codexManifest.treeCid
+      let address = BlockAddress.init(treeCid, expectedBlockIndex)
+      let blk = (await localStore.getBlock(address)).tryGet()
+      check blk.data == data
+
+    check blockIter.finished
+    await torrentDownloader.stop()
+
+  test "get downloaded blocks using async pairs iter":
+    torrentDownloader.start()
+
+    let blockIter = Iter.new(0 ..< codexManifest.blocksCount)
+
+    for i, dataFut in torrentDownloader.getAsyncBlockIterator():
+      let status = await dataFut.withTimeout(1.seconds)
+      assert status == true
+      let (blockIndex, data) = (await dataFut).tryGet()
+      trace "got data", blockIndex, len = data.len
+      let expectedBlockIndex = blockIter.next()
+      check i == expectedBlockIndex
       check blockIndex == expectedBlockIndex
       let treeCid = codexManifest.treeCid
       let address = BlockAddress.init(treeCid, expectedBlockIndex)
