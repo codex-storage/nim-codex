@@ -153,8 +153,9 @@ components:
         id:
           $ref: "#/components/schemas/Id"
         totalSize:
-          type: string
-          description: Total size of availability's storage in bytes as decimal string
+          type: integer
+          format: int64
+          description: Total size of availability's storage in bytes
         duration:
           $ref: "#/components/schemas/Duration"
         minPricePerBytePerSecond:
@@ -178,8 +179,9 @@ components:
         - type: object
           properties:
             freeSize:
-              type: string
-              description: Unused size of availability's storage in bytes as decimal string
+              type: integer
+              format: int64
+              description: Unused size of availability's storage in bytes
 
     SalesAvailabilityCREATE:
       allOf:
