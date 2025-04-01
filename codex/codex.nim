@@ -163,8 +163,8 @@ proc start*(s: CodexServer) {.async.} =
 
   await s.codexNode.switch.start()
 
-  let (announceAddrs, discoveryAddrs) = nattedAddress(
-    s.config.nat, s.codexNode.switch.peerInfo.addrs, s.config.discoveryPort
+  let (announceAddrs, discoveryAddrs) = s.codexNode.nat.nattedAddress(
+    s.codexNode.switch.peerInfo.addrs, s.config.discoveryPort
   )
 
   s.codexNode.discovery.updateAnnounceRecord(announceAddrs)
@@ -287,7 +287,7 @@ proc new*(
       interval = config.blockMaintenanceInterval,
       numberOfBlocksPerInterval = config.blockMaintenanceNumberOfBlocks,
     )
-
+    natManager = NatManager.new(config.nat)
     peerStore = PeerCtxStore.new()
     pendingBlocks = PendingBlocksManager.new()
     advertiser = Advertiser.new(repoStore, discovery)
@@ -312,6 +312,7 @@ proc new*(
       discovery = discovery,
       prover = prover,
       taskPool = taskpool,
+      nat = natManager,
     )
 
     restServer = RestServerRef
