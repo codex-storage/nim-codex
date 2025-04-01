@@ -236,3 +236,6 @@
 	url = https://github.com/codex-storage/nim-groth16.git
 	ignore = untracked
 	branch = master
+[submodule "vendor/threading"]
+	path = vendor/threading
+	url = https://github.com/nim-lang/threading.git
