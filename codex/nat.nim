@@ -50,6 +50,8 @@ type NatManager* = ref object
   threadStarted: bool
   natCloseChan: Channel[bool]
 
+export natutils
+
 logScope:
   topics = "nat"
 

@@ -48,7 +48,7 @@ import ./utils/asynciter
 import ./utils/trackedfutures
 import ./nat
 
-export logutils
+export logutils, nat
 
 logScope:
   topics = "codex node"
