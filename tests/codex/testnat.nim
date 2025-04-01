@@ -43,6 +43,10 @@ suite "NAT Address Tests":
     # Test address remapping
     let (libp2pAddrs, discoveryAddrs) = nattedAddress(nat, addrs, udpPort)
 
+    defer:
+      # Stop the nat
+      waitFor nat.stop()
+
     # Verify results
     check(discoveryAddrs == expectedDiscoveryAddrs)
     check(libp2pAddrs == expectedlibp2pAddrs)
