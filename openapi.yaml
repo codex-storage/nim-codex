@@ -216,10 +216,6 @@ components:
               description: Total collateral effective (in amount of tokens) that can be used for matching requests
               readOnly: true
 
-    SalesAvailabilityCREATE:
-      allOf:
-        - $ref: "#/components/schemas/SalesAvailability"
-
     Slot:
       type: object
       required:
@@ -331,6 +327,7 @@ components:
         - duration
         - proofProbability
         - pricePerBytePerSecond
+        - collateralPerByte
         - maxSlotLoss
       properties:
         slots:
@@ -779,7 +776,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/SalesAvailabilityCREATE"
+              $ref: "#/components/schemas/SalesAvailability"
       responses:
         "201":
           description: Created storage availability
