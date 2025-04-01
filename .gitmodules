@@ -231,3 +231,8 @@
 	url = https://github.com/vacp2p/nim-ngtcp2.git
 	ignore = untracked
 	branch = master
+[submodule "vendor/nim-groth16"]
+	path = vendor/nim-groth16
+	url = https://github.com/codex-storage/nim-groth16.git
+	ignore = untracked
+	branch = master
