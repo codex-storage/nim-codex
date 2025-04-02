@@ -241,3 +241,6 @@
 	url = https://github.com/nim-lang/threading.git
 	ignore = untracked
 	branch = master
+[submodule "vendor/nim-goldilocks-hash"]
+	path = vendor/nim-goldilocks-hash
+	url = https://github.com/codex-storage/nim-goldilocks-hash.git
