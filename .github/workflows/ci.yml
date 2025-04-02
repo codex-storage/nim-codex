@@ -61,11 +61,7 @@ jobs:
           suggest: true
 
   coverage:
-    # Force to stick to ubuntu 20.04 for coverage because
-    # lcov was updated to 2.x version in ubuntu-latest
-    # and cause a lot of issues.
-    # See https://github.com/linux-test-project/lcov/issues/238
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
