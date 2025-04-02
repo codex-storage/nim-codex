@@ -27,10 +27,6 @@ components:
       maxLength: 66
       example: 0x...
 
-    BigInt:
-      type: string
-      description: Integer represented as decimal string
-
     Cid:
       type: string
       description: Content Identifier as specified at https://github.com/multiformats/cid
@@ -55,17 +51,18 @@ components:
       description: The amount of tokens paid per byte per second per slot to hosts the client is willing to pay
 
     Duration:
-      type: string
-      description: The duration of the request in seconds as decimal string
+      type: integer
+      format: int64
+      description: The duration of the request in seconds
 
     ProofProbability:
       type: string
       description: How often storage proofs are required as decimal string
 
     Expiry:
-      type: string
+      type: integer
+      format: int64
       description: A timestamp as seconds since unix epoch at which this request expires if the Request does not find requested amount of nodes to host the data.
-      default: 10 minutes
 
     SPR:
       type: string
@@ -73,6 +70,8 @@ components:
 
     SPRRead:
       type: object
+      required:
+        - spr
       properties:
         spr:
           $ref: "#/components/schemas/SPR"
@@ -85,6 +84,8 @@ components:
 
     Content:
       type: object
+      required:
+       - cid
       description: Parameters specifying the content
       properties:
         cid:
@@ -92,6 +93,12 @@ components:
 
     Node:
       type: object
+      required:
+       - nodeId
+       - peerId
+       - record
+       - address
+       - seen
       properties:
         nodeId:
           type: string
@@ -116,6 +123,9 @@ components:
 
     PeersTable:
       type: object
+      required:
+       - localNode
+       - nodes
       properties:
         localNode:
           $ref: "#/components/schemas/Node"
@@ -126,6 +136,14 @@ components:
 
     DebugInfo:
       type: object
+      required:
+        - id
+        - addrs
+        - repo
+        - spr
+        - announceAddresses
+        - table
+        - codex
       properties:
         id:
           $ref: "#/components/schemas/PeerId"
@@ -149,12 +167,16 @@ components:
 
     SalesAvailability:
       type: object
+      required:
+        - totalSize
+        - duration
+        - minPricePerBytePerSecond
+        - totalCollateral
       properties:
-        id:
-          $ref: "#/components/schemas/Id"
         totalSize:
-          type: string
-          description: Total size of availability's storage in bytes as decimal string
+          type: integer
+          format: int64
+          description: Total size of availability's storage in bytes
         duration:
           $ref: "#/components/schemas/Duration"
         minPricePerBytePerSecond:
@@ -173,42 +195,53 @@ components:
           default: 0
 
     SalesAvailabilityREAD:
+      required:
+        - id
+        - totalRemainingCollateral
       allOf:
         - $ref: "#/components/schemas/SalesAvailability"
         - type: object
           properties:
+            id:
+              $ref: "#/components/schemas/Id"
+              readonly: true
             freeSize:
-              type: string
+              type: integer
+              format: int64
               description: Unused size of availability's storage in bytes as decimal string
-
-    SalesAvailabilityCREATE:
-      allOf:
-        - $ref: "#/components/schemas/SalesAvailability"
-        - required:
-            - totalSize
-            - minPricePerBytePerSecond
-            - totalCollateral
-            - duration
+              readOnly: true
+            totalRemainingCollateral:
+              type: string
+              description: Total collateral effective (in amount of tokens) that can be used for matching requests
+              readOnly: true
 
     Slot:
       type: object
+      required:
+        - id
+        - request
+        - slotIndex
       properties:
         id:
           $ref: "#/components/schemas/SlotId"
         request:
           $ref: "#/components/schemas/StorageRequest"
         slotIndex:
-          type: string
-          description: Slot Index as decimal string
+          type: integer
+          format: int64
+          description: Slot Index number
 
     SlotAgent:
       type: object
+      required:
+        - state
+        - requestId
+        - slotIndex
       properties:
-        id:
-          $ref: "#/components/schemas/SlotId"
         slotIndex:
-          type: string
-          description: Slot Index as decimal string
+          type: integer
+          format: int64
+          description: Slot Index number
         requestId:
           $ref: "#/components/schemas/Id"
         request:
@@ -235,18 +268,28 @@ components:
 
     Reservation:
       type: object
+      required:
+        - id
+        - availabilityId
+        - size
+        - requestId
+        - slotIndex
+        - validUntil
       properties:
         id:
           $ref: "#/components/schemas/Id"
         availabilityId:
           $ref: "#/components/schemas/Id"
         size:
-          $ref: "#/components/schemas/BigInt"
+          type: integer
+          format: int64
+          description: Size of the slot in bytes
         requestId:
           $ref: "#/components/schemas/Id"
         slotIndex:
-          type: string
-          description: Slot Index as decimal string
+          type: integer
+          format: int64
+          description: Slot Index number
         validUntil:
           type: integer
           description: Timestamp after which the reservation will no longer be valid.
@@ -269,28 +312,39 @@ components:
         nodes:
           description: Minimal number of nodes the content should be stored on
           type: integer
-          default: 1
+          default: 3
+          minimum: 3
         tolerance:
           description: Additional number of nodes on top of the `nodes` property that can be lost before pronouncing the content lost
           type: integer
-          default: 0
+          default: 1
+          minimum: 1
         collateralPerByte:
           type: string
           description: Number as decimal string that represents how much collateral per byte is asked from hosts that wants to fill a slots
         expiry:
-          type: string
-          description: Number as decimal string that represents expiry threshold in seconds from when the Request is submitted. When the threshold is reached and the Request does not find requested amount of nodes to host the data, the Request is voided. The number of seconds can not be higher then the Request's duration itself.
+          type: integer
+          format: int64
+          description: Number that represents expiry threshold in seconds from when the Request is submitted. When the threshold is reached and the Request does not find requested amount of nodes to host the data, the Request is voided. The number of seconds can not be higher then the Request's duration itself.
     StorageAsk:
       type: object
       required:
+        - slots
+        - slotSize
+        - duration
+        - proofProbability
         - pricePerBytePerSecond
+        - collateralPerByte
+        - maxSlotLoss
       properties:
         slots:
           description: Number of slots (eq. hosts) that the Request want to have the content spread over
           type: integer
+          format: int64
         slotSize:
-          type: string
-          description: Amount of storage per slot (in bytes) as decimal string
+          type: integer
+          format: int64
+          description: Amount of storage per slot in bytes
         duration:
           $ref: "#/components/schemas/Duration"
         proofProbability:
@@ -299,10 +353,18 @@ components:
           $ref: "#/components/schemas/PricePerBytePerSecond"
         maxSlotLoss:
           type: integer
+          format: int64
           description: Max slots that can be lost without data considered to be lost
 
     StorageRequest:
       type: object
+      required:
+       - id
+       - client
+       - ask
+       - content
+       - expiry
+       - nonce
       properties:
         id:
           type: string
@@ -321,6 +383,9 @@ components:
 
     Purchase:
       type: object
+      required:
+        - state
+        - requestId
       properties:
         state:
           type: string
@@ -340,9 +405,13 @@ components:
           description: If Request failed, then here is presented the error message
         request:
           $ref: "#/components/schemas/StorageRequest"
+        requestId:
+          $ref: "#/components/schemas/Id"
 
     DataList:
       type: object
+      required:
+        - content
       properties:
         content:
           type: array
@@ -351,6 +420,9 @@ components:
 
     DataItem:
       type: object
+      required:
+        - cid
+        - manifest
       properties:
         cid:
           $ref: "#/components/schemas/Cid"
@@ -359,6 +431,11 @@ components:
 
     ManifestItem:
       type: object
+      required:
+        - treeCid
+        - datasetSize
+        - blockSize
+        - protected
       properties:
         treeCid:
           $ref: "#/components/schemas/Cid"
@@ -386,6 +463,11 @@ components:
 
     Space:
       type: object
+      required:
+        - totalBlocks
+        - quotaMaxBytes
+        - quotaUsedBytes
+        - quotaReservedBytes
       properties:
         totalBlocks:
           description: "Number of blocks stored by the node"
@@ -704,7 +786,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/SalesAvailabilityCREATE"
+              $ref: "#/components/schemas/SalesAvailability"
       responses:
         "201":
           description: Created storage availability
@@ -870,7 +952,7 @@ paths:
         "200":
           description: Node's SPR
           content:
-            plain/text:
+            text/plain:
               schema:
                 $ref: "#/components/schemas/SPR"
             application/json:
@@ -888,7 +970,7 @@ paths:
         "200":
           description: Node's Peer ID
           content:
-            plain/text:
+            text/plain:
               schema:
                 $ref: "#/components/schemas/PeerId"
             application/json:
