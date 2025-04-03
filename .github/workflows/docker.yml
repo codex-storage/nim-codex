@@ -29,6 +29,7 @@ jobs:
       dockerhub_repo: codexstorage/codex-contracts-eth
       tag_suffix: -codex-factory
       tag_sha_long: true
+      checkout-submodules: true
     secrets: inherit
 
   build-and-push:
