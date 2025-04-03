@@ -92,10 +92,16 @@ runs:
       if : ${{ inputs.os == 'linux' && inputs.coverage != 'true' }}
       shell: ${{ inputs.shell }} {0}
       run: |
-        # Add GCC-14 to alternatives
-        sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 14
-        # Set GCC-14 as the default
-        sudo update-alternatives --set gcc /usr/bin/gcc-14
+        # Skip for older Ubuntu versions
+        if [[ $(lsb_release -r | awk -F '[^0-9]+' '{print $2}') -ge 24 ]]; then
+          # Install GCC-14
+          sudo apt-get update -qq
+          sudo apt-get install -yq gcc-14
+          # Add GCC-14 to alternatives
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 14
+          # Set GCC-14 as the default
+          sudo update-alternatives --set gcc /usr/bin/gcc-14
+        fi
 
     - name: Install ccache on Linux/Mac
       if: inputs.os == 'linux' || inputs.os == 'macos'
