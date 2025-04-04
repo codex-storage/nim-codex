@@ -189,7 +189,46 @@ ethersuite "On-Chain Market":
     let missingPeriod =
       periodicity.periodOf((await ethProvider.currentTime()).truncate(uint64))
     await advanceToNextPeriod()
-    check (await market.canProofBeMarkedAsMissing(slotId, missingPeriod)) == true
+    check (await market.canMarkProofAsMissing(slotId, missingPeriod)) == true
+
+  test "can check whether a proof cannot be marked as missing when the slot is free":
+    let slotId = slotId(request, slotIndex)
+    await market.requestStorage(request)
+    await market.reserveSlot(request.id, slotIndex)
+    await market.fillSlot(request.id, slotIndex, proof, request.ask.collateralPerSlot)
+    await waitUntilProofRequired(slotId)
+
+    await market.freeSlot(slotId(request.id, slotIndex))
+
+    let missingPeriod =
+      periodicity.periodOf((await ethProvider.currentTime()).truncate(uint64))
+    await advanceToNextPeriod()
+    check (await market.canMarkProofAsMissing(slotId, missingPeriod)) == false
+
+  test "can check whether a proof cannot be marked as missing before a proof is required":
+    let slotId = slotId(request, slotIndex)
+    await market.requestStorage(request)
+    await market.reserveSlot(request.id, slotIndex)
+    await market.fillSlot(request.id, slotIndex, proof, request.ask.collateralPerSlot)
+
+    let missingPeriod =
+      periodicity.periodOf((await ethProvider.currentTime()).truncate(uint64))
+    await advanceToNextPeriod()
+    check (await market.canMarkProofAsMissing(slotId, missingPeriod)) == false
+
+  test "can check whether a proof cannot be marked as missing if the proof was submitted":
+    let slotId = slotId(request, slotIndex)
+    await market.requestStorage(request)
+    await market.reserveSlot(request.id, slotIndex)
+    await market.fillSlot(request.id, slotIndex, proof, request.ask.collateralPerSlot)
+    await waitUntilProofRequired(slotId)
+
+    await market.submitProof(slotId(request.id, slotIndex), proof)
+
+    let missingPeriod =
+      periodicity.periodOf((await ethProvider.currentTime()).truncate(uint64))
+    await advanceToNextPeriod()
+    check (await market.canMarkProofAsMissing(slotId, missingPeriod)) == false
 
   test "supports slot filled subscriptions":
     await market.requestStorage(request)

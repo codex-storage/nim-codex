@@ -178,7 +178,7 @@ proc markProofAsMissing*(
   ]
 .}
 
-proc canProofBeMarkedAsMissing*(
+proc canMarkProofAsMissing*(
   marketplace: Marketplace, id: SlotId, period: uint64
 ): Confirmable {.
   contract,
