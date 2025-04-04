@@ -27,7 +27,7 @@ jobs:
       docker_build_context: vendor/codex-contracts-eth
       docker_file: vendor/codex-contracts-eth/docker/Dockerfile
       dockerhub_repo: codexstorage/codex-contracts-eth
-      tag_suffix: -codex-factory
+      tag_suffix: codex-factory
       tag_sha_long: true
       checkout-submodules: true
     secrets: inherit
