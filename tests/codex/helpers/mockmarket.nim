@@ -389,7 +389,7 @@ proc setCanProofBeMarkedAsMissing*(mock: MockMarket, id: SlotId, required: bool)
 
 method canProofBeMarkedAsMissing*(
     market: MockMarket, id: SlotId, period: Period
-): Future[bool] {.async.} =
+): Future[bool] {.async: (raises: [CancelledError]).} =
   return market.canBeMarkedAsMissing.contains(id)
 
 method reserveSlot*(
