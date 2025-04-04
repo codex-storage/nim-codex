@@ -78,6 +78,7 @@ template setupAndTearDown*() {.dirty.} =
     pendingBlocks: PendingBlocksManager
     discovery: DiscoveryEngine
     advertiser: Advertiser
+    nat: NatManager
 
   let
     path = currentSourcePath().parentDir
@@ -112,6 +113,7 @@ template setupAndTearDown*() {.dirty.} =
     engine = BlockExcEngine.new(
       localStore, wallet, network, discovery, advertiser, peerStore, pendingBlocks
     )
+    nat = NatManager.new(NatConfig(hasExtIp: false, nat: NatNone))
     store = NetworkStore.new(engine, localStore)
     node = CodexNodeRef.new(
       switch = switch,
@@ -120,6 +122,7 @@ template setupAndTearDown*() {.dirty.} =
       prover = Prover.none,
       discovery = blockDiscovery,
       taskpool = Taskpool.new(),
+      nat = nat,
     )
 
   teardown:
