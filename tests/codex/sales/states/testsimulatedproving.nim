@@ -44,7 +44,7 @@ asyncchecksuite "sales state 'simulated-proving'":
 
     let onProve = proc(
         slot: Slot, challenge: ProofChallenge
-    ): Future[?!Groth16Proof] {.async.} =
+    ): Future[?!Groth16Proof] {.async: (raises: [CancelledError]).} =
       return success(proof)
     let context = SalesContext(market: market, clock: clock, onProve: onProve.some)
     agent = newSalesAgent(context, request.id, slot.slotIndex, request.some)
