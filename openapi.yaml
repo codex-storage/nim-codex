@@ -50,6 +50,10 @@ components:
       type: string
       description: The amount of tokens paid per byte per second per slot to hosts the client is willing to pay
 
+    CollateralPerByte:
+      type: string
+      description: Number as decimal string that represents how much collateral per byte is asked from hosts that wants to fill a slots
+
     Duration:
       type: integer
       format: int64
@@ -320,8 +324,7 @@ components:
           default: 1
           minimum: 1
         collateralPerByte:
-          type: string
-          description: Number as decimal string that represents how much collateral per byte is asked from hosts that wants to fill a slots
+          $ref: "#/components/schemas/CollateralPerByte"
         expiry:
           type: integer
           format: int64
@@ -351,6 +354,8 @@ components:
           $ref: "#/components/schemas/ProofProbability"
         pricePerBytePerSecond:
           $ref: "#/components/schemas/PricePerBytePerSecond"
+        collateralPerByte:
+          $ref: "#/components/schemas/CollateralPerByte"
         maxSlotLoss:
           type: integer
           format: int64
@@ -392,7 +397,7 @@ components:
           description: Description of the Request's state
           enum:
             - cancelled
-            - error
+            - errored
             - failed
             - finished
             - pending
@@ -586,6 +591,8 @@ paths:
             text/plain:
               schema:
                 type: string
+        "422":
+          description: The mimetype of the filename is invalid
         "500":
           description: Well it was bad-bad and the upload did not work out
 
