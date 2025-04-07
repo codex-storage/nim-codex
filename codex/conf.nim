@@ -44,7 +44,7 @@ import ./utils
 import ./nat
 import ./utils/natutils
 
-from ./contracts/config import DefaultRequestCacheSize
+from ./contracts/config import DefaultRequestCacheSize, DefaultMaxPriorityFeePerGas
 from ./validationconfig import MaxSlots, ValidationGroups
 
 export units, net, codextypes, logutils, completeCmdArg, parseCmdArg, NatConfig
@@ -52,7 +52,7 @@ export ValidationGroups, MaxSlots
 
 export
   DefaultQuotaBytes, DefaultBlockTtl, DefaultBlockInterval, DefaultNumBlocksPerInterval,
-  DefaultRequestCacheSize
+  DefaultRequestCacheSize, DefaultMaxPriorityFeePerGas
 
 type ThreadCount* = distinct Natural
 
@@ -369,6 +369,15 @@ type
         name: "request-cache-size",
         hidden
       .}: uint16
+
+      maxPriorityFeePerGas* {.
+        desc:
+          "Sets the maximum priority fee per gas for Ethereum EIP-1559 transactions in wei.",
+        defaultValue: DefaultMaxPriorityFeePerGas,
+        defaultValueDesc: $DefaultMaxPriorityFeePerGas,
+        name: "max-priority-fee-per-gas",
+        hidden
+      .}: uint64
 
       case persistenceCmd* {.defaultValue: noCmd, command.}: PersistenceCmd
       of PersistenceCmd.prover:
