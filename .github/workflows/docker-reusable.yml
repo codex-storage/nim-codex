@@ -85,8 +85,19 @@ env:
 
 
 jobs:
+  compute:
+      name: Compute build ID
+      runs-on: ubuntu-latest
+      outputs:
+        build_id: ${{ steps.build_id.outputs.build_id }}
+      steps:
+        - name: Generate unique build id
+          id: build_id
+          run: echo "build_id=$(openssl rand -hex 5)" >> $GITHUB_OUTPUT
+
   # Build platform specific image
   build:
+    needs: compute
     strategy:
       fail-fast: true
       matrix:
@@ -152,7 +163,7 @@ jobs:
       - name: Docker - Upload digest
         uses: actions/upload-artifact@v4
         with:
-          name: digests-${{ matrix.target.arch }}
+          name: digests-${{ needs.compute.outputs.build_id }}-${{ matrix.target.arch }}
           path: /tmp/digests/*
           if-no-files-found: error
           retention-days: 1
@@ -164,7 +175,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.meta.outputs.version }}
-    needs: build
+    needs: [build, compute]
     steps:
       - name: Docker - Variables
         run: |
@@ -197,7 +208,7 @@ jobs:
       - name: Docker - Download digests
         uses: actions/download-artifact@v4
         with:
-          pattern: digests-*
+          pattern: digests-${{ needs.compute.outputs.build_id }}-*
           merge-multiple: true
           path: /tmp/digests
 
