@@ -5,6 +5,7 @@ import pkg/questionable/results
 export contractabi
 
 const DefaultRequestCacheSize* = 128.uint16
+const DefaultMaxPriorityFeePerGas* = 1_000_000_000.uint64
 
 type
   MarketplaceConfig* = object
