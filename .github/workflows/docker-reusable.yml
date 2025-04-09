@@ -124,6 +124,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Docker - Variables
+        run: |
+          # Create contract label for compatible contract image if specified
+          if [[ -n "${{ env.CONTRACT_IMAGE }}" ]]; then
+            echo "CONTRACT_LABEL=storage.codex.nim-codex.blockchain-image=${{ env.CONTRACT_IMAGE }}" >>$GITHUB_ENV
+          fi
+
       - name: Docker - Meta
         id: meta
         uses: docker/metadata-action@v5
