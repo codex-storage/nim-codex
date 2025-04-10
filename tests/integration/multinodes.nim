@@ -37,7 +37,7 @@ type
 
   MultiNodeSuiteError = object of CatchableError
 
-const jsonRpcProviderUrl* = "ws://127.0.0.1:8545"
+const jsonRpcProviderUrl* = "ws://localhost:8545"
 
 proc raiseMultiNodeSuiteError(msg: string) =
   raise newException(MultiNodeSuiteError, msg)
