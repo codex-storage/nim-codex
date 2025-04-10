@@ -356,14 +356,8 @@ asyncchecksuite "Test SafeAsyncIter":
       iter3.finished
 
   test "Should propagate cancellation error immediately":
-    proc newRaisingFuture[T](
-        fromProc: static[string] = ""
-    ): Future[T] {.async: (raw: true, raises: [CancelledError]).} =
-      let fut = newFuture[T](fromProc)
-      return fut
-
     let fut: Future[Option[?!string]].Raising([CancelledError]) =
-      newRaisingFuture[Option[?!string]]("testsafeasynciter")
+      Future[Option[?!string]].Raising([CancelledError]).init("testsafeasynciter")
 
     let iter1 = SafeAsyncIter[int].new(0 ..< 5).delayBy(10.millis)
     let iter2 = await mapFilter[int, string](
