@@ -1,6 +1,6 @@
 import pkg/stint
 import pkg/contractabi
-import pkg/ethers/fields
+import pkg/ethers/contracts/fields
 
 type
   Groth16Proof* = object
