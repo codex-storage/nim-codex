@@ -257,8 +257,17 @@ method fillSlot(
 
     try:
       await market.approveFunds(collateral)
+
+      # Add 10% to gas estimate to deal with different evm code flow when we
+      # happen to be the last one to fill a slot in this request
+      trace "estimating gas for fillSlot"
+      let gas = await market.contract.estimateGas.fillSlot(requestId, slotIndex, proof)
+      let overrides = TransactionOverrides(gasLimit: some (gas * 110) div 100)
+
       trace "calling fillSlot on contract"
-      discard await market.contract.fillSlot(requestId, slotIndex, proof).confirm(1)
+      discard await market.contract
+      .fillSlot(requestId, slotIndex, proof, overrides)
+      .confirm(1)
       trace "fillSlot transaction completed"
     except Marketplace_SlotNotFree as parent:
       raise newException(
@@ -276,15 +285,30 @@ method freeSlot*(
         # If --reward-recipient specified, use it as the reward recipient, and use
         # the SP's address as the collateral recipient
         let collateralRecipient = await market.getSigner()
+
+        # Add 10% to gas estimate to deal with different evm code flow when we
+        # happen to be the one to make the request fail
+        let gas = await market.contract.estimateGas.freeSlot(
+          slotId, rewardRecipient, collateralRecipient
+        )
+        let overrides = TransactionOverrides(gasLimit: some (gas * 110) div 100)
+
         freeSlot = market.contract.freeSlot(
           slotId,
           rewardRecipient, # --reward-recipient
-          collateralRecipient,
-        ) # SP's address
+          collateralRecipient, # SP's address
+          overrides,
+        )
       else:
         # Otherwise, use the SP's address as both the reward and collateral
         # recipient (the contract will use msg.sender for both)
-        freeSlot = market.contract.freeSlot(slotId)
+
+        # Add 10% to gas estimate to deal with different evm code flow when we
+        # happen to be the one to make the request fail
+        let gas = await market.contract.estimateGas.freeSlot(slotId)
+        let overrides = TransactionOverrides(gasLimit: some (gas * 110) div 100)
+
+        freeSlot = market.contract.freeSlot(slotId, overrides)
 
       discard await freeSlot.confirm(1)
     except Marketplace_SlotIsFree as parent:
@@ -331,7 +355,12 @@ method markProofAsMissing*(
     market: OnChainMarket, id: SlotId, period: Period
 ) {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError("Failed to mark proof as missing"):
-    discard await market.contract.markProofAsMissing(id, period).confirm(1)
+    # Add 10% to gas estimate to deal with different evm code flow when we
+    # happen to be the one to make the request fail
+    let gas = await market.contract.estimateGas.markProofAsMissing(id, period)
+    let overrides = TransactionOverrides(gasLimit: some (gas * 110) div 100)
+
+    discard await market.contract.markProofAsMissing(id, period, overrides).confirm(1)
 
 method canProofBeMarkedAsMissing*(
     market: OnChainMarket, id: SlotId, period: Period
@@ -351,14 +380,13 @@ method reserveSlot*(
 ) {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError("Failed to reserve slot"):
     try:
-      discard await market.contract
-      .reserveSlot(
-        requestId,
-        slotIndex,
-        # reserveSlot runs out of gas for unknown reason, but 100k gas covers it
-        TransactionOverrides(gasLimit: some 100000.u256),
-      )
-      .confirm(1)
+      # Add 10% to gas estimate to deal with different evm code flow when we
+      # happen to be the last one that is allowed to reserve the slot
+      let gas = await market.contract.estimateGas.reserveSlot(requestId, slotIndex)
+      let overrides = TransactionOverrides(gasLimit: some (gas * 110) div 100)
+
+      discard
+        await market.contract.reserveSlot(requestId, slotIndex, overrides).confirm(1)
     except SlotReservations_ReservationNotAllowed:
       raise newException(
         SlotReservationNotAllowedError,
