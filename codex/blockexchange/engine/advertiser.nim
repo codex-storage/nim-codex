@@ -126,15 +126,15 @@ proc start*(b: Advertiser) {.async: (raises: []).} =
 
   trace "Advertiser start"
 
+  if b.advertiserRunning:
+    warn "Starting advertiser twice"
+    return
+
   proc onBlock(cid: Cid) {.async.} =
     await b.advertiseBlock(cid)
 
   doAssert(b.localStore.onBlockStored.isNone())
   b.localStore.onBlockStored = onBlock.some
-
-  if b.advertiserRunning:
-    warn "Starting advertiser twice"
-    return
 
   b.advertiserRunning = true
   for i in 0 ..< b.concurrentAdvReqs:
