@@ -82,6 +82,7 @@ type
     rounded: Natural
     steps: Natural
     blocksCount: Natural
+    totalGroups: Natural
     strategy: StrategyType
 
   ErasureError* = object of CodexError
@@ -166,11 +167,14 @@ proc prepareEncodingData(
 
   let
     strategy = params.strategy.init(
-      firstIndex = 0, lastIndex = params.rounded - 1, iterations = params.steps
+      firstIndex = 0,
+      lastIndex = params.rounded - 1,
+      iterations = params.steps,
+      totalGroups = params.totalGroups,
     )
-    indicies = toSeq(strategy.getIndicies(step))
+    indices = toSeq(strategy.getIndices(step))
     pendingBlocksIter =
-      self.getPendingBlocks(manifest, indicies.filterIt(it < manifest.blocksCount))
+      self.getPendingBlocks(manifest, indices.filterIt(it < manifest.blocksCount))
 
   var resolved = 0
   for fut in pendingBlocksIter:
@@ -185,7 +189,7 @@ proc prepareEncodingData(
 
     resolved.inc()
 
-  for idx in indicies.filterIt(it >= manifest.blocksCount):
+  for idx in indices.filterIt(it >= manifest.blocksCount):
     let pos = indexToPos(params.steps, idx, step)
     trace "Padding with empty block", idx
     shallowCopy(data[pos], emptyBlock)
@@ -216,10 +220,13 @@ proc prepareDecodingData(
 
   let
     strategy = encoded.protectedStrategy.init(
-      firstIndex = 0, lastIndex = encoded.blocksCount - 1, iterations = encoded.steps
+      firstIndex = 0,
+      lastIndex = encoded.blocksCount - 1,
+      iterations = encoded.steps,
+      totalGroups = encoded.numSlots,
     )
-    indicies = toSeq(strategy.getIndicies(step))
-    pendingBlocksIter = self.getPendingBlocks(encoded, indicies)
+    indices = toSeq(strategy.getIndices(step))
+    pendingBlocksIter = self.getPendingBlocks(encoded, indices)
 
   var
     dataPieces = 0
@@ -281,6 +288,7 @@ proc init*(
     rounded = roundUp(manifest.blocksCount, ecK)
     steps = divUp(rounded, ecK)
     blocksCount = rounded + (steps * ecM)
+    totalGroups = ecK + ecM
 
   success EncodingParams(
     ecK: ecK,
@@ -288,6 +296,7 @@ proc init*(
     rounded: rounded,
     steps: steps,
     blocksCount: blocksCount,
+    totalGroups: totalGroups,
     strategy: strategy,
   )
 
@@ -384,6 +393,8 @@ proc encodeData(
       var
         data = seq[seq[byte]].new() # number of blocks to encode
         parity = createDoubleArray(params.ecM, manifest.blockSize.int)
+      defer:
+        freeDoubleArray(parity, params.ecM)
 
       data[].setLen(params.ecK)
       # TODO: this is a tight blocking loop so we sleep here to allow
@@ -408,8 +419,6 @@ proc encodeData(
           return failure(err)
       except CancelledError as exc:
         raise exc
-      finally:
-        freeDoubleArray(parity, params.ecM)
 
       var idx = params.rounded + step
       for j in 0 ..< params.ecM:
@@ -582,6 +591,8 @@ proc decode*(self: Erasure, encoded: Manifest): Future[?!Manifest] {.async.} =
         data = seq[seq[byte]].new()
         parityData = seq[seq[byte]].new()
         recovered = createDoubleArray(encoded.ecK, encoded.blockSize.int)
+      defer:
+        freeDoubleArray(recovered, encoded.ecK)
 
       data[].setLen(encoded.ecK) # set len to K
       parityData[].setLen(encoded.ecM) # set len to M
@@ -608,8 +619,6 @@ proc decode*(self: Erasure, encoded: Manifest): Future[?!Manifest] {.async.} =
           return failure(err)
       except CancelledError as exc:
         raise exc
-      finally:
-        freeDoubleArray(recovered, encoded.ecK)
 
       for i in 0 ..< encoded.ecK:
         let idx = i * encoded.steps + step
@@ -658,6 +667,137 @@ proc decode*(self: Erasure, encoded: Manifest): Future[?!Manifest] {.async.} =
   let decoded = Manifest.new(encoded)
 
   return decoded.success
+
+proc repair*(self: Erasure, encoded: Manifest, slotIdx: int): Future[?!void] {.async.} =
+  ## Repair a protected manifest slot
+  ##
+  ## `encoded` - the encoded (protected) manifest to
+  ##             be repaired
+  ##
+  logScope:
+    steps = encoded.steps
+    rounded_blocks = encoded.rounded
+    new_manifest = encoded.blocksCount
+
+  var
+    cids = seq[Cid].new()
+    decoder = self.decoderProvider(encoded.blockSize.int, encoded.ecK, encoded.ecM)
+    emptyBlock = newSeq[byte](encoded.blockSize.int)
+
+  cids[].setLen(encoded.blocksCount)
+  try:
+    for step in 0 ..< encoded.steps:
+      await sleepAsync(10.millis)
+
+      var
+        data = seq[seq[byte]].new()
+        parityData = seq[seq[byte]].new()
+        recovered = createDoubleArray(encoded.ecK, encoded.blockSize.int)
+
+      data[].setLen(encoded.ecK)
+      parityData[].setLen(encoded.ecM)
+
+      without (dataPieces, _) =? (
+        await self.prepareDecodingData(
+          encoded, step, data, parityData, cids, emptyBlock
+        )
+      ), err:
+        trace "Unable to prepare decoding data", error = err.msg
+        return failure(err)
+
+      if dataPieces >= encoded.ecK:
+        trace "Retrieved all the required data blocks for this step"
+        continue
+
+      trace "Erasure decoding data"
+      try:
+        if err =? (
+          await self.asyncDecode(
+            encoded.blockSize.int, encoded.ecK, encoded.ecM, data, parityData, recovered
+          )
+        ).errorOption:
+          return failure(err)
+      except CancelledError as exc:
+        raise exc
+      finally:
+        freeDoubleArray(recovered, encoded.ecK)
+
+      for i in 0 ..< encoded.ecK:
+        let idx = i * encoded.steps + step
+        if data[i].len <= 0 and not cids[idx].isEmpty:
+          var innerPtr: ptr UncheckedArray[byte] = recovered[][i]
+
+          without blk =? bt.Block.new(
+            innerPtr.toOpenArray(0, encoded.blockSize.int - 1)
+          ), error:
+            trace "Unable to create data block!", exc = error.msg
+            return failure(error)
+
+          trace "Recovered data block", cid = blk.cid, index = i
+          if isErr (await self.store.putBlock(blk)):
+            trace "Unable to store data block!", cid = blk.cid
+            return failure("Unable to store data block!")
+
+          cids[idx] = blk.cid
+  except CancelledError as exc:
+    trace "Erasure coding decoding cancelled"
+    raise exc # cancellation needs to be propagated
+  except CatchableError as exc:
+    trace "Erasure coding decoding error", exc = exc.msg
+    return failure(exc)
+  finally:
+    decoder.release()
+
+  without tree =? CodexTree.init(cids[0 ..< encoded.originalBlocksCount]), err:
+    return failure(err)
+
+  without treeCid =? tree.rootCid, err:
+    return failure(err)
+
+  if treeCid != encoded.originalTreeCid:
+    return failure(
+      "Original tree root differs from the tree root computed out of recovered data"
+    )
+
+  if err =? (await self.store.putAllProofs(tree)).errorOption:
+    return failure(err)
+
+  without repaired =? (
+    await self.encode(
+      Manifest.new(encoded), encoded.ecK, encoded.ecM, encoded.protectedStrategy
+    )
+  ), err:
+    return failure(err)
+
+  if repaired.treeCid != encoded.treeCid:
+    return failure(
+      "Original tree root differs from the repaired tree root encoded out of recovered data"
+    )
+
+  let
+    strategy =
+      ?encoded.protectedStrategy.init(
+        firstIndex = 0,
+        lastIndex = encoded.blocksCount - 1,
+        iterations = encoded.steps,
+        totalGroups = encoded.numSlots,
+      ).catch
+    groupIndices = ?toSeq(strategy.getGroupIndices(slotIdx)).catch
+
+  for step in 0 ..< encoded.steps:
+    let indices = strategy.getIndices(step)
+    for i in indices:
+      if i notin groupIndices:
+        if isErr (await self.store.delBlock(encoded.treeCid, i)):
+          trace "Failed to remove block from tree ",
+            treeCid = encoded.treeCid, index = i
+
+  for i, cid in cids[0 ..< encoded.originalBlocksCount]:
+    if i notin groupIndices:
+      if isErr (await self.store.delBlock(treeCid, i)):
+        trace "Failed to remove original block from tree ", treeCid = treeCid, index = i
+
+  return success()
 
 proc start*(self: Erasure) {.async.} =
   return

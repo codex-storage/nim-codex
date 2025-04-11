@@ -53,8 +53,8 @@ proc getSample*[T, H](
     cellsPerBlock = self.builder.numBlockCells
     blkCellIdx = cellIdx.toCellInBlk(cellsPerBlock) # block cell index
     blkSlotIdx = cellIdx.toBlkInSlot(cellsPerBlock) # slot tree index
-    origBlockIdx = self.builder.slotIndicies(self.index)[blkSlotIdx]
-      # convert to original dataset block index
+    slotIndices = ?self.builder.slotIndices(self.index).catch
+    origBlockIdx = slotIndices[blkSlotIdx] # convert to original dataset block index
 
   logScope:
     cellIdx = cellIdx

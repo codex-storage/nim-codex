@@ -167,7 +167,13 @@ suite "Slot builder":
 
   test "Should build slot hashes for all slots":
     let
-      steppedStrategy = Strategy.init(0, numBlocksTotal - 1, numSlots)
+      steppedStrategy = Strategy.init(
+        0,
+        protectedManifest.blocksCount - 1,
+        protectedManifest.steps,
+        numSlots,
+        numPadSlotBlocks,
+      )
 
       builder = Poseidon2Builder
         .new(localStore, protectedManifest, cellSize = cellSize)
@@ -176,7 +182,7 @@ suite "Slot builder":
     for i in 0 ..< numSlots:
       let
         expectedHashes = collect(newSeq):
-          for j, idx in steppedStrategy.getIndicies(i):
+          for j, idx in steppedStrategy.getGroupIndices(i):
             if j > (protectedManifest.numSlotBlocks - 1):
               emptyDigest
             else:
@@ -190,7 +196,13 @@ suite "Slot builder":
 
   test "Should build slot trees for all slots":
     let
-      steppedStrategy = Strategy.init(0, numBlocksTotal - 1, numSlots)
+      steppedStrategy = Strategy.init(
+        0,
+        protectedManifest.blocksCount - 1,
+        protectedManifest.steps,
+        numSlots,
+        numPadSlotBlocks,
+      )
 
       builder = Poseidon2Builder
         .new(localStore, protectedManifest, cellSize = cellSize)
@@ -199,7 +211,7 @@ suite "Slot builder":
     for i in 0 ..< numSlots:
       let
         expectedHashes = collect(newSeq):
-          for j, idx in steppedStrategy.getIndicies(i):
+          for j, idx in steppedStrategy.getGroupIndices(i):
             if j > (protectedManifest.numSlotBlocks - 1):
               emptyDigest
             else:
@@ -235,7 +247,13 @@ suite "Slot builder":
 
   test "Should build correct verification root":
     let
-      steppedStrategy = Strategy.init(0, numBlocksTotal - 1, numSlots)
+      steppedStrategy = Strategy.init(
+        0,
+        protectedManifest.blocksCount - 1,
+        protectedManifest.steps,
+        numSlots,
+        numPadSlotBlocks,
+      )
       builder = Poseidon2Builder
         .new(localStore, protectedManifest, cellSize = cellSize)
         .tryGet()
@@ -245,7 +263,7 @@ suite "Slot builder":
       slotsHashes = collect(newSeq):
         for i in 0 ..< numSlots:
           let slotHashes = collect(newSeq):
-            for j, idx in steppedStrategy.getIndicies(i):
+            for j, idx in steppedStrategy.getGroupIndices(i):
               if j > (protectedManifest.numSlotBlocks - 1):
                 emptyDigest
               else:
@@ -261,7 +279,13 @@ suite "Slot builder":
 
   test "Should build correct verification root manifest":
     let
-      steppedStrategy = Strategy.init(0, numBlocksTotal - 1, numSlots)
+      steppedStrategy = Strategy.init(
+        0,
+        protectedManifest.blocksCount - 1,
+        protectedManifest.steps,
+        numSlots,
+        numPadSlotBlocks,
+      )
       builder = Poseidon2Builder
         .new(localStore, protectedManifest, cellSize = cellSize)
         .tryGet()
@@ -269,7 +293,7 @@ suite "Slot builder":
       slotsHashes = collect(newSeq):
         for i in 0 ..< numSlots:
           let slotHashes = collect(newSeq):
-            for j, idx in steppedStrategy.getIndicies(i):
+            for j, idx in steppedStrategy.getGroupIndices(i):
               if j > (protectedManifest.numSlotBlocks - 1):
                 emptyDigest
               else:

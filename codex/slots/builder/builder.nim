@@ -113,18 +113,19 @@ func numSlotCells*[T, H](self: SlotsBuilder[T, H]): Natural =
 
   self.numBlockCells * self.numSlotBlocks
 
-func slotIndiciesIter*[T, H](self: SlotsBuilder[T, H], slot: Natural): ?!Iter[int] =
+func slotIndicesIter*[T, H](self: SlotsBuilder[T, H], slot: Natural): Iter[int] =
   ## Returns the slot indices.
   ##
 
-  self.strategy.getIndicies(slot).catch
+  self.strategy.getGroupIndicies(slot)
 
-func slotIndicies*[T, H](self: SlotsBuilder[T, H], slot: Natural): seq[int] =
+func slotIndices*[T, H](
+    self: SlotsBuilder[T, H], slot: Natural
+): seq[int] {.raises: [IndexingError].} =
   ## Returns the slot indices.
   ##
 
-  if iter =? self.strategy.getIndicies(slot).catch:
-    return toSeq(iter)
+  toSeq(self.strategy.getGroupIndices(slot))
 
 func manifest*[T, H](self: SlotsBuilder[T, H]): Manifest =
   ## Returns the manifest.
@@ -183,22 +184,25 @@ proc getCellHashes*[T, H](
     numberOfSlots = numberOfSlots
     slotIndex = slotIndex
 
-  let hashes = collect(newSeq):
-    for i, blkIdx in self.strategy.getIndicies(slotIndex):
-      logScope:
-        blkIdx = blkIdx
-        pos = i
+  try:
+    let hashes = collect(newSeq):
+      for i, blkIdx in self.strategy.getGroupIndices(slotIndex):
+        logScope:
+          blkIdx = blkIdx
+          pos = i
 
-      trace "Getting block CID for tree at index"
-      without (_, tree) =? (await self.buildBlockTree(blkIdx, i)) and digest =? tree.root,
-        err:
-        error "Failed to get block CID for tree at index", err = err.msg
-        return failure(err)
+        trace "Getting block CID for tree at index"
+        without (_, tree) =? (await self.buildBlockTree(blkIdx, i)) and
+          digest =? tree.root, err:
+          error "Failed to get block CID for tree at index", err = err.msg
+          return failure(err)
 
-      trace "Get block digest", digest = digest.toHex
-      digest
+        trace "Get block digest", digest = digest.toHex
+        digest
 
-  success hashes
+    success hashes
+  except IndexingError as e:
+    failure e.msg
 
 proc buildSlotTree*[T, H](
     self: SlotsBuilder[T, H], slotIndex: Natural
@@ -346,7 +350,14 @@ proc new*[T, H](
     emptyBlock = newSeq[byte](manifest.blockSize.int)
     emptyDigestTree = ?T.digestTree(emptyBlock, cellSize.int)
 
-    strategy = ?strategy.init(0, numBlocksTotal - 1, manifest.numSlots).catch
+    strategy =
+      ?strategy.init(
+        firstIndex = 0,
+        lastIndex = manifest.blocksCount - 1,
+        iterations = manifest.steps,
+        totalGroups = manifest.numSlots,
+        numPadGroupBlocks = numPadSlotBlocks,
+      ).catch
 
   logScope:
     numSlotBlocks = numSlotBlocks
