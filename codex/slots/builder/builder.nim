@@ -310,7 +310,7 @@ proc new*[T, H](
     _: type SlotsBuilder[T, H],
     store: BlockStore,
     manifest: Manifest,
-    strategy = SteppedStrategy,
+    strategy = LinearStrategy,
     cellSize = DefaultCellSize,
 ): ?!SlotsBuilder[T, H] =
   if not manifest.protected:
@@ -354,7 +354,14 @@ proc new*[T, H](
     emptyBlock = newSeq[byte](manifest.blockSize.int)
     emptyDigestTree = ?T.digestTree(emptyBlock, cellSize.int)
 
-    strategy = ?strategy.init(0, numBlocksTotal - 1, manifest.numSlots).catch
+    strategy =
+      ?strategy.init(
+        0,
+        manifest.blocksCount - 1,
+        manifest.numSlots,
+        manifest.numSlots,
+        numPadSlotBlocks,
+      ).catch
 
   logScope:
     numSlotBlocks = numSlotBlocks

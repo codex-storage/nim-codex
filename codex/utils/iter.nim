@@ -7,6 +7,7 @@ type
   Function*[T, U] = proc(fut: T): U {.raises: [CatchableError], gcsafe, closure.}
   IsFinished* = proc(): bool {.raises: [], gcsafe, closure.}
   GenNext*[T] = proc(): T {.raises: [CatchableError], gcsafe.}
+  Iterable[T] = iterator (): T
   Iter*[T] = ref object
     finished: bool
     next*: GenNext[T]
@@ -88,6 +89,36 @@ proc new*[T](_: type Iter[T], items: seq[T]): Iter[T] =
   ##
 
   Iter[int].new(0 ..< items.len).map((i: int) => items[i])
+
+proc new*[T](_: type Iter[T], iter: Iterable[T]): Iter[T] =
+  ## Creates a new Iter from an iterator
+  ##
+  var nextOrErr: Option[Result[T, ref CatchableError]]
+  proc tryNext(): void =
+    nextOrErr = Result[T, ref CatchableError].none
+    while not iter.finished:
+      try:
+        let t: T = iter()
+        if not iter.finished:
+          nextOrErr = some(success(t))
+        break
+      except CatchableError as err:
+        nextOrErr = some(T.failure(err))
+      except Exception:
+        assert(false)
+
+  proc genNext(): T {.raises: [CatchableError].} =
+    without u =? nextOrErr.unsafeGet, err:
+      raise err
+
+    tryNext()
+    return u
+
+  proc isFinished(): bool =
+    nextOrErr.isNone
+
+  tryNext()
+  Iter[T].new(genNext, isFinished)
 
 proc empty*[T](_: type Iter[T]): Iter[T] =
   ## Creates an empty Iter
