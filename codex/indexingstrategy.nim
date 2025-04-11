@@ -24,13 +24,17 @@ type
   IndexingError* = object of CodexError
   IndexingWrongIndexError* = object of IndexingError
   IndexingWrongIterationsError* = object of IndexingError
+  IndexingWrongTotalGroupsError* = object of IndexingError
+  IndexingWrongNumPadGroupBlocksError* = object of IndexingError
 
   IndexingStrategy* = object
-    strategyType*: StrategyType
+    strategyType*: StrategyType # Strategy algorithm
     firstIndex*: int # Lowest index that can be returned
     lastIndex*: int # Highest index that can be returned
-    iterations*: int # getIndices(iteration) will run from 0 ..< iterations
-    step*: int
+    iterations*: int # Number of iterations (0 ..< iterations)
+    step*: int # Step size between indices
+    totalGroups*: int # Total number of groups to distribute indices into
+    numPadGroupBlocks*: int # Optional number of padding blocks per group
 
 func checkIteration(
     self: IndexingStrategy, iteration: int
@@ -44,7 +48,7 @@ func getIter(first, last, step: int): Iter[int] =
   {.cast(noSideEffect).}:
     Iter[int].new(first, last, step)
 
-func getLinearIndicies(
+func getLinearIndices(
     self: IndexingStrategy, iteration: int
 ): Iter[int] {.raises: [IndexingError].} =
   self.checkIteration(iteration)
@@ -55,7 +59,7 @@ func getLinearIndicies(
 
   getIter(first, last, 1)
 
-func getSteppedIndicies(
+func getSteppedIndices(
     self: IndexingStrategy, iteration: int
 ): Iter[int] {.raises: [IndexingError].} =
   self.checkIteration(iteration)
@@ -66,17 +70,54 @@ func getSteppedIndicies(
 
   getIter(first, last, self.iterations)
 
-func getIndicies*(
+func getIndices*(
     self: IndexingStrategy, iteration: int
 ): Iter[int] {.raises: [IndexingError].} =
+  ## defines the layout of blocks per encoding iteration (data + parity)
+  ##
+
   case self.strategyType
   of StrategyType.LinearStrategy:
-    self.getLinearIndicies(iteration)
+    self.getLinearIndices(iteration)
   of StrategyType.SteppedStrategy:
-    self.getSteppedIndicies(iteration)
+    self.getSteppedIndices(iteration)
+
+func getGroupIndices*(
+    self: IndexingStrategy, groupIndex: int
+): Iter[int] {.raises: [IndexingError].} =
+  ## defines failure recovery groups by selecting specific block indices
+  ## from each encoding step (using getIndices)
+  ##
+
+  {.cast(noSideEffect).}:
+    Iter[int].new(
+      iterator (): int {.raises: [IndexingError], gcsafe.} =
+        var idx = groupIndex
+        for step in 0 ..< self.iterations:
+          var
+            current = 0
+            found = false
+          for value in self.getIndices(step):
+            if current == idx:
+              yield value
+              found = true
+              break
+            inc current
+          if not found:
+            raise newException(
+              IndexingError, "groupIndex exceeds indices length in iteration " & $step
+            )
+          idx = (idx + 1) mod self.totalGroups
+
+        for i in 0 ..< self.numPadGroupBlocks:
+          yield self.lastIndex + (groupIndex + 1) + i * self.totalGroups
+
+    )
 
 func init*(
-    strategy: StrategyType, firstIndex, lastIndex, iterations: int
+    strategy: StrategyType,
+    firstIndex, lastIndex, iterations, totalGroups: int,
+    numPadGroupBlocks = 0.int,
 ): IndexingStrategy {.raises: [IndexingError].} =
   if firstIndex > lastIndex:
     raise newException(
@@ -91,10 +132,25 @@ func init*(
       "iterations (" & $iterations & ") must be greater than zero.",
     )
 
+  if totalGroups <= 0:
+    raise newException(
+      IndexingWrongTotalGroupsError,
+      "totalGroups (" & $totalGroups & ") must be greater than zero.",
+    )
+
+  if numPadGroupBlocks < 0:
+    raise newException(
+      IndexingWrongNumPadGroupBlocksError,
+      "numPadGroupBlocks (" & $numPadGroupBlocks &
+        ") must be equal or greater than zero.",
+    )
+
   IndexingStrategy(
     strategyType: strategy,
     firstIndex: firstIndex,
     lastIndex: lastIndex,
     iterations: iterations,
+    totalGroups: totalGroups,
     step: divUp((lastIndex - firstIndex + 1), iterations),
+    numPadGroupBlocks: numPadGroupBlocks,
   )
