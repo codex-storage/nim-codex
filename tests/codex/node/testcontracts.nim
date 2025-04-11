@@ -129,8 +129,8 @@ asyncchecksuite "Test Node - Host contracts":
     (await onStore(request, expiry, 1.uint64, onBlocks, isRepairing = false)).tryGet()
     check fetchedBytes == 12 * DefaultBlockSize.uint
 
-    let indexer = verifiable.protectedStrategy.init(
-      0, verifiable.numSlotBlocks() - 1, verifiable.numSlots
+    let indexer = verifiable.verifiableStrategy.init(
+      0, verifiable.blocksCount - 1, verifiable.numSlots
     )
 
     for index in indexer.getIndicies(1):
