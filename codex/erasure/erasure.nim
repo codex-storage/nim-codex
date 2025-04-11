@@ -259,6 +259,10 @@ proc prepareDecodingData(
 
     resolved.inc
 
+  for fut in pendingBlocksIter:
+    if not (fut.finished):
+      fut.cancelSoon()
+
   return success (dataPieces.Natural, parityPieces.Natural)
 
 proc init*(

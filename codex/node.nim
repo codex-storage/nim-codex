@@ -679,11 +679,26 @@ proc onStore(
     trace "Unable to get indicies from strategy", err = err.msg
     return failure(err)
 
-  if err =? (
-    await self.fetchBatched(manifest.treeCid, blksIter, onBatch = updateExpiry)
-  ).errorOption:
-    trace "Unable to fetch blocks", err = err.msg
-    return failure(err)
+  if isRepairing:
+    trace "start repairing slot", slotIdx
+    try:
+      let erasure = Erasure.new(
+        self.networkStore, leoEncoderProvider, leoDecoderProvider, self.taskpool
+      )
+      without _ =? (await erasure.decode(manifest)), err:
+        error "Unable to erasure decode repairing manifest",
+          cid = manifest.treeCid, exc = err.msg
+        return failure(err)
+    except CatchableError as exc:
+      error "Error erasure decoding repairing manifest",
+        cid = manifest.treeCid, exc = exc.msg
+      return failure(exc.msg)
+  else:
+    if err =? (
+      await self.fetchBatched(manifest.treeCid, blksIter, onBatch = updateExpiry)
+    ).errorOption:
+      trace "Unable to fetch blocks", err = err.msg
+      return failure(err)
 
   without slotRoot =? (await builder.buildSlot(slotIdx.int)), err:
     trace "Unable to build slot", err = err.msg
