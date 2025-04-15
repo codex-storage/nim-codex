@@ -171,6 +171,16 @@ ethersuite "On-Chain Market":
     await market.markProofAsMissing(slotId, missingPeriod)
     check (await marketplace.missingProofs(slotId)) == 1
 
+  test "cannot mark proofs missing for cancelled request":
+    let slotId = slotId(request, slotIndex)
+    await market.requestStorage(request)
+    await advanceToCancelledRequest(request)
+    let missingPeriod =
+      periodicity.periodOf((await ethProvider.currentTime()).truncate(int64))
+    await advanceToNextPeriod()
+    expect MarketError:
+      await market.markProofAsMissing(slotId, missingPeriod)
+
   test "can check whether a proof can be marked as missing":
     let slotId = slotId(request, slotIndex)
     await market.requestStorage(request)
