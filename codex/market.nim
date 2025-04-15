@@ -21,8 +21,9 @@ type
   SlotStateMismatchError* = object of MarketError
   SlotReservationNotAllowedError* = object of MarketError
   Subscription* = ref object of RootObj
-  OnRequest* =
-    proc(id: RequestId, ask: StorageAsk, expiry: StorageTimestamp) {.gcsafe, upraises: [].}
+  OnRequest* = proc(id: RequestId, ask: StorageAsk, expiry: StorageTimestamp) {.
+    gcsafe, upraises: []
+  .}
   OnFulfillment* = proc(requestId: RequestId) {.gcsafe, upraises: [].}
   OnSlotFilled* = proc(requestId: RequestId, slotIndex: uint64) {.gcsafe, upraises: [].}
   OnSlotFreed* = proc(requestId: RequestId, slotIndex: uint64) {.gcsafe, upraises: [].}
@@ -65,19 +66,21 @@ method getSigner*(
 ): Future[Address] {.base, async: (raises: [CancelledError, MarketError]).} =
   raiseAssert("not implemented")
 
-method zkeyHash*(market: Market): string {.base, gcsafe, raises:[].} =
+method zkeyHash*(market: Market): string {.base, gcsafe, raises: [].} =
   raiseAssert("not implemented")
 
-method periodicity*(market: Market): Periodicity {.base, gcsafe, raises:[].} =
+method periodicity*(market: Market): Periodicity {.base, gcsafe, raises: [].} =
   raiseAssert("not implemented")
 
-method proofTimeout*(market: Market): StorageDuration {.base, gcsafe, raises:[].} =
+method proofTimeout*(market: Market): StorageDuration {.base, gcsafe, raises: [].} =
   raiseAssert("not implemented")
 
-method repairRewardPercentage*(market: Market): uint8 {.base, gcsafe, raises:[].} =
+method repairRewardPercentage*(market: Market): uint8 {.base, gcsafe, raises: [].} =
   raiseAssert("not implemented")
 
-method requestDurationLimit*(market: Market): StorageDuration {.base, gcsafe, raises:[].} =
+method requestDurationLimit*(
+    market: Market
+): StorageDuration {.base, gcsafe, raises: [].} =
   raiseAssert("not implemented")
 
 method proofDowntime*(market: Market): uint8 {.base, gcsafe, raises: [].} =

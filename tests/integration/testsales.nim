@@ -86,7 +86,8 @@ multinodesuite "Sales":
     let updatedAvailability =
       ((await host.getAvailabilities()).get).findItem(availability).get
     check updatedAvailability.duration == 100'StorageDuration
-    check updatedAvailability.minPricePerBytePerSecond == 2'TokensPerSecond
+    check updatedAvailability.minPricePerBytePerSecond ==
+      2'TokensPerSecond
     check updatedAvailability.totalCollateral == 200'Tokens
     check updatedAvailability.totalSize == 140000.uint64
     check updatedAvailability.freeSize == 140000.uint64

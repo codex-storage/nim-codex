@@ -341,9 +341,9 @@ proc onSlotFreed(sales: Sales, requestId: RequestId, slotIndex: uint64) =
 
       without slotQueueItem =?
         SlotQueueItem.init(request, slotIndex.uint16, collateral, repairReward).catch,
-          err:
-          warn "Too many slots, cannot add to queue", error = err.msgDetail
-          return
+        err:
+        warn "Too many slots, cannot add to queue", error = err.msgDetail
+        return
 
       if err =? queue.push(slotQueueItem).errorOption:
         if err of SlotQueueItemExistsError:

@@ -6,6 +6,7 @@ import ./timestamps
 type
   TokensPerSecond* = object
     value: StUint[96]
+
   Tokens* = object
     value: StUint[128]
 
@@ -101,8 +102,7 @@ func `%`*(value: TokensPerSecond | Tokens): JsonNode =
   %value.value
 
 func fromJson*(_: type TokensPerSecond, json: JsonNode): ?!TokensPerSecond =
-  success TokensPerSecond(value: ? StUint[96].fromJson(json))
+  success TokensPerSecond(value: ?StUint[96].fromJson(json))
 
 func fromJson*(_: type Tokens, json: JsonNode): ?!Tokens =
-  success Tokens(value: ? UInt128.fromJson(json))
-
+  success Tokens(value: ?UInt128.fromJson(json))

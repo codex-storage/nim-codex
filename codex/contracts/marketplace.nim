@@ -55,9 +55,7 @@ type
 
 proc configuration*(marketplace: Marketplace): MarketplaceConfig {.contract, view.}
 proc token*(marketplace: Marketplace): Address {.contract, view.}
-proc currentCollateral*(
-  marketplace: Marketplace, id: SlotId
-): Tokens {.contract, view.}
+proc currentCollateral*(marketplace: Marketplace, id: SlotId): Tokens {.contract, view.}
 
 proc requestStorage*(
   marketplace: Marketplace, request: StorageRequest

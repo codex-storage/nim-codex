@@ -69,22 +69,12 @@ asyncchecksuite "Reservations module":
 
   test "generates unique ids for storage availability":
     let availability1 = Availability.init(
-      1.uint64,
-      2.uint64,
-      3'StorageDuration,
-      4'TokensPerSecond,
-      5'Tokens,
-      true,
-      0'StorageTimestamp
+      1.uint64, 2.uint64, 3'StorageDuration, 4'TokensPerSecond, 5'Tokens, true,
+      0'StorageTimestamp,
     )
     let availability2 = Availability.init(
-      1.uint64,
-      2.uint64,
-      3'StorageDuration,
-      4'TokensPerSecond,
-      5'Tokens,
-      true,
-      0'StorageTimestamp
+      1.uint64, 2.uint64, 3'StorageDuration, 4'TokensPerSecond, 5'Tokens, true,
+      0'StorageTimestamp,
     )
     check availability1.id != availability2.id
 
@@ -185,7 +175,7 @@ asyncchecksuite "Reservations module":
 
       let two = reservations.createReservation(
         availability.id, availability.totalSize, RequestId.example, uint64.example,
-        Tokens.example, validUntil
+        Tokens.example, validUntil,
       )
 
       let oneResult = await one

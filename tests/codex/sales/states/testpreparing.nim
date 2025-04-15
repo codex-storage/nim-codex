@@ -34,8 +34,7 @@ asyncchecksuite "sales state 'preparing'":
   var reservations: MockReservations
 
   setup:
-    let collateral =
-      request.ask.collateralPerSlot * request.ask.slots
+    let collateral = request.ask.collateralPerSlot * request.ask.slots
     availability = Availability.init(
       totalSize = request.ask.slotSize + 100.uint64,
       freeSize = request.ask.slotSize + 100.uint64,

@@ -30,7 +30,7 @@ type
     expiry: StorageTimestamp,
     slot: uint64,
     blocksCb: BlocksCb,
-    isRepairing: bool
+    isRepairing: bool,
   ): Future[?!void] {.gcsafe, upraises: [].}
   OnProve* = proc(slot: Slot, challenge: ProofChallenge): Future[?!Groth16Proof] {.
     gcsafe, upraises: []

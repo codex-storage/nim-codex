@@ -72,11 +72,8 @@ method run*(
 
     without availability =?
       await reservations.findAvailability(
-        request.ask.slotSize,
-        request.ask.duration,
-        request.ask.pricePerBytePerSecond,
-        request.ask.collateralPerByte,
-        requestEnd
+        request.ask.slotSize, request.ask.duration, request.ask.pricePerBytePerSecond,
+        request.ask.collateralPerByte, requestEnd,
       ):
       debug "No availability found for request, ignoring"
 
@@ -86,12 +83,8 @@ method run*(
 
     without reservation =?
       await reservations.createReservation(
-        availability.id,
-        request.ask.slotSize,
-        request.id,
-        data.slotIndex,
-        request.ask.collateralPerByte,
-        requestEnd
+        availability.id, request.ask.slotSize, request.id, data.slotIndex,
+        request.ask.collateralPerByte, requestEnd,
       ), error:
       trace "Creation of reservation failed"
       # Race condition:

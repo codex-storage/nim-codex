@@ -100,10 +100,7 @@ marketplacesuite "Validation":
     let datasetSize =
       datasetSize(blocks = blocks, nodes = ecNodes, tolerance = ecTolerance)
     await createAvailabilities(
-      datasetSize,
-      duration,
-      collateralPerByte,
-      minPricePerBytePerSecond,
+      datasetSize, duration, collateralPerByte, minPricePerBytePerSecond
     )
 
     let cid = (await client0.upload(data)).get
@@ -170,10 +167,7 @@ marketplacesuite "Validation":
     let datasetSize =
       datasetSize(blocks = blocks, nodes = ecNodes, tolerance = ecTolerance)
     await createAvailabilities(
-      datasetSize,
-      duration,
-      collateralPerByte,
-      minPricePerBytePerSecond,
+      datasetSize, duration, collateralPerByte, minPricePerBytePerSecond
     )
 
     let cid = (await client0.upload(data)).get

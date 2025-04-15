@@ -501,7 +501,11 @@ method queryPastStorageRequestedEvents*(
 ): Future[seq[StorageRequested]] {.async.} =
   return market.requested.map(
     request =>
-      StorageRequested(requestId: request.id, ask: request.ask, expiry: market.requestExpiry[request.id])
+      StorageRequested(
+        requestId: request.id,
+        ask: request.ask,
+        expiry: market.requestExpiry[request.id],
+      )
   )
 
 method queryPastStorageRequestedEvents*(
@@ -509,7 +513,11 @@ method queryPastStorageRequestedEvents*(
 ): Future[seq[StorageRequested]] {.async.} =
   return market.requested.map(
     request =>
-      StorageRequested(requestId: request.id, ask: request.ask, expiry: market.requestExpiry[request.id])
+      StorageRequested(
+        requestId: request.id,
+        ask: request.ask,
+        expiry: market.requestExpiry[request.id],
+      )
   )
 
 method queryPastSlotFilledEvents*(

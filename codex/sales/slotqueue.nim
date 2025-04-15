@@ -173,7 +173,9 @@ proc init*(
     repairReward = 0'Tokens,
     seen = false,
 ): SlotQueueItem =
-  SlotQueueItem.init(requestId, slotIndex, ask, some expiry, collateral, repairReward, seen)
+  SlotQueueItem.init(
+    requestId, slotIndex, ask, some expiry, collateral, repairReward, seen
+  )
 
 proc init*(
     _: type SlotQueueItem,
@@ -188,7 +190,7 @@ proc init*(
     slotSize: request.ask.slotSize,
     duration: request.ask.duration,
     pricePerBytePerSecond: request.ask.pricePerBytePerSecond,
-    collateral: collateral
+    collateral: collateral,
   )
 
 proc init(
