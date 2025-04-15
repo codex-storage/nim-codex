@@ -51,13 +51,10 @@ proc load*(
 
   var requestCache = newLruCache[string, StorageRequest](int(requestCacheSize))
 
-  let market = OnChainMarket(
-    contract: contract,
-    signer: signer,
-    requestCache: requestCache,
-  )
+  let market =
+    OnChainMarket(contract: contract, signer: signer, requestCache: requestCache)
 
-  market.configuration = ? await market.loadConfig()
+  market.configuration = ?await market.loadConfig()
 
   return success market
 
@@ -114,7 +111,7 @@ method periodicity*(market: OnChainMarket): Periodicity =
   let period = market.configuration.proofs.period
   return Periodicity(seconds: period)
 
-method proofTimeout*(market: OnChainMarket): StorageDuration  =
+method proofTimeout*(market: OnChainMarket): StorageDuration =
   return market.configuration.proofs.timeout
 
 method repairRewardPercentage*(market: OnChainMarket): uint8 =

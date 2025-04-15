@@ -30,20 +30,22 @@ ethersuite "On-Chain Market":
   var host: Signer
   var otherHost: Signer
 
-  proc expectedPayout(request: StorageRequest, start, finish: StorageTimestamp): Tokens =
+  proc expectedPayout(
+      request: StorageRequest, start, finish: StorageTimestamp
+  ): Tokens =
     return request.ask.pricePerSlotPerSecond * start.until(finish)
 
   proc switchAccount(account: Signer) {.async.} =
     marketplace = marketplace.connect(account)
     token = token.connect(account)
-    market = ! await OnChainMarket.load(marketplace)
+    market = !await OnChainMarket.load(marketplace)
 
   setup:
     let address = Marketplace.address(dummyVerifier = true)
     marketplace = Marketplace.new(address, ethProvider.getSigner())
     let config = await marketplace.configuration()
 
-    market = ! await OnChainMarket.load(marketplace)
+    market = !await OnChainMarket.load(marketplace)
     let tokenAddress = await marketplace.token()
     token = Erc20Token.new(tokenAddress, ethProvider.getSigner())
 
@@ -535,7 +537,8 @@ ethersuite "On-Chain Market":
     let endBalance = await token.balanceOf(address)
 
     let expectedPayout = request.expectedPayout(filledAt, requestEnd)
-    check (endBalance - startBalance) == (expectedPayout + request.ask.collateralPerSlot).u256
+    check (endBalance - startBalance) ==
+      (expectedPayout + request.ask.collateralPerSlot).u256
 
   test "the request is added to cache after the first access":
     await market.requestStorage(request)

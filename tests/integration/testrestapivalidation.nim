@@ -69,7 +69,7 @@ multinodesuite "Rest API validation":
           expiry = 30'StorageDuration,
           collateralPerByte = 1'Tokens,
           nodes = nodes.uint,
-          tolerance =tolerance.uint,
+          tolerance = tolerance.uint,
         )
       )
 
@@ -241,7 +241,8 @@ multinodesuite "Rest API validation":
 
     let response = await client.requestStorageRaw(
       cid,
-      duration = StorageDuration.init(31'u32 * 24 * 60 * 60),  # 31 days TODO: this should not be hardcoded, but waits for https://github.com/codex-storage/nim-codex/issues/1056
+      duration = StorageDuration.init(31'u32 * 24 * 60 * 60),
+        # 31 days TODO: this should not be hardcoded, but waits for https://github.com/codex-storage/nim-codex/issues/1056
       pricePerBytePerSecond = 1'TokensPerSecond,
       proofProbability = 3.u256,
       expiry = 30'StorageDuration,
@@ -306,8 +307,7 @@ multinodesuite "Rest API validation":
     )
 
     check response.status == 422
-    check (await response.body) ==
-      "Price per byte per second must be greater than zero"
+    check (await response.body) == "Price per byte per second must be greater than zero"
 
   test "request storage fails if collareral per byte is zero", config:
     let data = await RandomChunker.example(blocks = 2)

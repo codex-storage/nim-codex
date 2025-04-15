@@ -81,7 +81,8 @@ method run*(
       expiry = await market.requestExpiresAt(requestId)
 
     trace "Starting download"
-    if err =? (await onStore(request, expiry, data.slotIndex, onBlocks, isRepairing)).errorOption:
+    if err =?
+        (await onStore(request, expiry, data.slotIndex, onBlocks, isRepairing)).errorOption:
       return some State(SaleErrored(error: err, reprocessSlot: false))
 
     trace "Download complete"

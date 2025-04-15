@@ -43,10 +43,7 @@ marketplacesuite "Hosts submit regular proofs":
     let datasetSize =
       datasetSize(blocks = blocks, nodes = ecNodes, tolerance = ecTolerance)
     await createAvailabilities(
-      datasetSize,
-      duration,
-      collateralPerByte,
-      minPricePerBytePerSecond,
+      datasetSize, duration, collateralPerByte, minPricePerBytePerSecond
     )
 
     let cid = (await client0.upload(data)).get
@@ -65,7 +62,8 @@ marketplacesuite "Hosts submit regular proofs":
     let slotSize = slotSize(blocks, ecNodes, ecTolerance)
 
     check eventually(
-      await client0.purchaseStateIs(purchaseId, "started"), timeout = expiry.u64.int * 1000
+      await client0.purchaseStateIs(purchaseId, "started"),
+      timeout = expiry.u64.int * 1000,
     )
 
     var proofWasSubmitted = false
@@ -120,10 +118,7 @@ marketplacesuite "Simulate invalid proofs":
     let datasetSize =
       datasetSize(blocks = blocks, nodes = ecNodes, tolerance = ecTolerance)
     await createAvailabilities(
-      datasetSize,
-      duration,
-      collateralPerByte,
-      minPricePerBytePerSecond,
+      datasetSize, duration, collateralPerByte, minPricePerBytePerSecond
     )
 
     let cid = (await client0.upload(data)).get
@@ -141,7 +136,8 @@ marketplacesuite "Simulate invalid proofs":
     let requestId = (await client0.requestId(purchaseId)).get
 
     check eventually(
-      await client0.purchaseStateIs(purchaseId, "started"), timeout = expiry.u64.int * 1000
+      await client0.purchaseStateIs(purchaseId, "started"),
+      timeout = expiry.u64.int * 1000,
     )
 
     var slotWasFreed = false
@@ -185,10 +181,7 @@ marketplacesuite "Simulate invalid proofs":
     let datasetSize =
       datasetSize(blocks = blocks, nodes = ecNodes, tolerance = ecTolerance)
     await createAvailabilities(
-      datasetSize,
-      duration,
-      collateralPerByte,
-      minPricePerBytePerSecond,
+      datasetSize, duration, collateralPerByte, minPricePerBytePerSecond
     )
 
     let cid = (await client0.upload(data)).get

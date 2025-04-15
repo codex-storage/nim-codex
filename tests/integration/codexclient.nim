@@ -255,8 +255,14 @@ proc requestStorageRaw*(
     tolerance: uint = 1,
 ): Future[HttpClientResponseRef] {.async: (raises: [CancelledError, HttpError]).} =
   return await client.requestStorageRaw(
-    cid, duration, pricePerBytePerSecond, proofProbability, collateralPerByte,
-    some expiry, nodes, tolerance
+    cid,
+    duration,
+    pricePerBytePerSecond,
+    proofProbability,
+    collateralPerByte,
+    some expiry,
+    nodes,
+    tolerance,
   )
 
 proc requestStorage*(
@@ -295,8 +301,14 @@ proc requestStorage*(
     tolerance: uint = 1,
 ): Future[?!PurchaseId] {.async: (raises: [CancelledError, HttpError]).} =
   return await client.requestStorage(
-    cid, duration, pricePerBytePerSecond, proofProbability, some expiry,
-    collateralPerByte, nodes, tolerance
+    cid,
+    duration,
+    pricePerBytePerSecond,
+    proofProbability,
+    some expiry,
+    collateralPerByte,
+    nodes,
+    tolerance,
   )
 
 proc getPurchase*(

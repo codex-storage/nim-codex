@@ -66,7 +66,7 @@ asyncchecksuite "Sales - start":
         expiry: StorageTimestamp,
         slot: uint64,
         onBatch: BatchProc,
-        isRepairing = false
+        isRepairing = false,
     ): Future[?!void] {.async.} =
       return success()
 
@@ -187,7 +187,7 @@ asyncchecksuite "Sales":
         expiry: StorageTimestamp,
         slot: uint64,
         onBatch: BatchProc,
-        isRepairing = false
+        isRepairing = false,
     ): Future[?!void] {.async.} =
       return success()
 
@@ -372,7 +372,11 @@ asyncchecksuite "Sales":
 
   test "availability size is reduced by request slot size when fully downloaded":
     sales.onStore = proc(
-        request: StorageRequest, expiry: StorageTimestamp, slot: uint64, onBatch: BatchProc, isRepairing = false
+        request: StorageRequest,
+        expiry: StorageTimestamp,
+        slot: uint64,
+        onBatch: BatchProc,
+        isRepairing = false,
     ): Future[?!void] {.async.} =
       let blk = bt.Block.new(@[1.byte]).get
       await onBatch(blk.repeat(request.ask.slotSize.int))
@@ -385,7 +389,11 @@ asyncchecksuite "Sales":
   test "bytes are returned to availability once finished":
     var slotIndex = 0.uint64
     sales.onStore = proc(
-        request: StorageRequest, expiry: StorageTimestamp, slot: uint64, onBatch: BatchProc, isRepairing = false
+        request: StorageRequest,
+        expiry: StorageTimestamp,
+        slot: uint64,
+        onBatch: BatchProc,
+        isRepairing = false,
     ): Future[?!void] {.async.} =
       slotIndex = slot
       let blk = bt.Block.new(@[1.byte]).get
@@ -455,14 +463,17 @@ asyncchecksuite "Sales":
     check wasIgnored()
 
   test "retrieves request when availability until terminates after the duration":
-    let requestEnd =
-      StorageTimestamp.init(getTime().toUnix()) + request.ask.duration
+    let requestEnd = StorageTimestamp.init(getTime().toUnix()) + request.ask.duration
     let until = requestEnd + 1'StorageDuration
     createAvailability(until = until)
 
     var storingRequest: StorageRequest
     sales.onStore = proc(
-        request: StorageRequest, expiry: StorageTimestamp, slot: uint64, onBatch: BatchProc, isRepairing = false
+        request: StorageRequest,
+        expiry: StorageTimestamp,
+        slot: uint64,
+        onBatch: BatchProc,
+        isRepairing = false,
     ): Future[?!void] {.async.} =
       storingRequest = request
       return success()
@@ -475,7 +486,11 @@ asyncchecksuite "Sales":
     var storingRequest: StorageRequest
     var storingSlot: uint64
     sales.onStore = proc(
-        request: StorageRequest, expiry: StorageTimestamp, slot: uint64, onBatch: BatchProc, isRepairing = false
+        request: StorageRequest,
+        expiry: StorageTimestamp,
+        slot: uint64,
+        onBatch: BatchProc,
+        isRepairing = false,
     ): Future[?!void] {.async.} =
       storingRequest = request
       storingSlot = slot
@@ -488,7 +503,11 @@ asyncchecksuite "Sales":
   test "makes storage available again when data retrieval fails":
     let error = newException(IOError, "data retrieval failed")
     sales.onStore = proc(
-        request: StorageRequest, expiry: StorageTimestamp, slot: uint64, onBatch: BatchProc, isRepairing = false
+        request: StorageRequest,
+        expiry: StorageTimestamp,
+        slot: uint64,
+        onBatch: BatchProc,
+        isRepairing = false,
     ): Future[?!void] {.async.} =
       return failure(error)
     createAvailability()
@@ -557,7 +576,11 @@ asyncchecksuite "Sales":
   test "makes storage available again when other host fills the slot":
     let otherHost = Address.example
     sales.onStore = proc(
-        request: StorageRequest, expiry: StorageTimestamp, slot: uint64, onBatch: BatchProc, isRepairing = false
+        request: StorageRequest,
+        expiry: StorageTimestamp,
+        slot: uint64,
+        onBatch: BatchProc,
+        isRepairing = false,
     ): Future[?!void] {.async.} =
       await sleepAsync(chronos.hours(1))
       return success()
@@ -570,7 +593,11 @@ asyncchecksuite "Sales":
   test "makes storage available again when request expires":
     let origSize = availability.freeSize
     sales.onStore = proc(
-        request: StorageRequest, expiry: StorageTimestamp, slot: uint64, onBatch: BatchProc, isRepairing = false
+        request: StorageRequest,
+        expiry: StorageTimestamp,
+        slot: uint64,
+        onBatch: BatchProc,
+        isRepairing = false,
     ): Future[?!void] {.async.} =
       await sleepAsync(chronos.hours(1))
       return success()
@@ -595,7 +622,11 @@ asyncchecksuite "Sales":
 
     let origSize = availability.freeSize
     sales.onStore = proc(
-        request: StorageRequest, expiry: StorageTimestamp, slot: uint64, onBatch: BatchProc, isRepairing = false
+        request: StorageRequest,
+        expiry: StorageTimestamp,
+        slot: uint64,
+        onBatch: BatchProc,
+        isRepairing = false,
     ): Future[?!void] {.async.} =
       await sleepAsync(chronos.hours(1))
       return success()
