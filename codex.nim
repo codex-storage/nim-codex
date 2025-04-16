@@ -142,6 +142,7 @@ when isMainModule:
       chronos.poll()
     except Exception as exc:
       error "Unhandled exception in async proc, aborting", msg = exc.msg
+      echo exc.getStackTrace()
       quit QuitFailure
 
   try:

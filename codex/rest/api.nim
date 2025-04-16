@@ -15,6 +15,7 @@ push:
 import std/sequtils
 import std/mimetypes
 import std/os
+import std/tables
 
 import pkg/questionable
 import pkg/questionable/results
@@ -192,6 +193,37 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
 
     resp.status = Http204
     await resp.sendBody("")
+
+  router.api(MethodPost, "/api/codex/v1/download") do(
+    contentBody: Option[ContentBody]
+  ) -> RestApiResponse:
+    if contentBody.isNone:
+      return RestApiResponse.error(Http400, "Missing content body")
+
+    without manifest =? RestContent.fromJson(string.fromBytes(contentBody.get().data)),
+      err:
+      return RestApiResponse.error(Http400, err.msg)
+
+    info "Starting download for manifest",
+      manifest = manifest.cid, treeCid = manifest.manifest.treeCid
+
+    let downloadId = await node.startDownload(manifest.manifest)
+
+    info "Download id assigned", downloadId = downloadId
+
+    return RestApiResponse.response(
+      $ %*{"downloadId": $downloadId}, contentType = "application/json"
+    )
+
+  router.rawApi(MethodGet, "/api/codex/v1/download/{id}") do(
+    id: uint64
+  ) -> RestApiResponse:
+    if (downloaded, total) =? node.downloadStatus(id.get()):
+      return RestApiResponse.response(
+        $ %*{"downloaded": downloaded, "total": total}, contentType = "application/json"
+      )
+    else:
+      return RestApiResponse.error(Http404)
 
   router.rawApi(MethodPost, "/api/codex/v1/data") do() -> RestApiResponse:
     ## Upload a file in a streaming manner

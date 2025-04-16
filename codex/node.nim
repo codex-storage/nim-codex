@@ -46,6 +46,7 @@ import ./errors
 import ./logutils
 import ./utils/asynciter
 import ./utils/trackedfutures
+import ./blockexchange/swarm
 
 export logutils
 
@@ -75,6 +76,11 @@ type
     taskpool: Taskpool
     trackedFutures: TrackedFutures
 
+    # This will go into a download manager, likely persisted to disk
+    # so download sessions can be live across node shutdowns.
+    downloads*: Table[uint64, Swarm]
+    downloadCounter: uint64
+
   CodexNodeRef* = ref CodexNode
 
   OnManifest* = proc(cid: Cid, manifest: Manifest): void {.gcsafe, raises: [].}
@@ -91,6 +97,33 @@ func engine*(self: CodexNodeRef): BlockExcEngine =
 
 func discovery*(self: CodexNodeRef): Discovery =
   return self.discovery
+
+proc startDownload*(
+    self: CodexNodeRef, manifest: Manifest
+): Future[uint64] {.async: (raises: []).} =
+  ## Start a download for a manifest
+  ##
+
+  # This won't play nice with multiple downloads as the Swarm will install
+  # its own callbacks and listeners, but for experimentation is fine.
+  let
+    id = self.downloadCounter
+    swarm = Swarm.new(
+      manifest, self.networkStore.localStore, self.engine.network, self.discovery
+    )
+
+  self.downloadCounter += 1
+  self.downloads[id] = swarm
+
+  await swarm.start()
+
+  return id
+
+proc downloadStatus*(self: CodexNodeRef, id: uint64): ?(int, int) =
+  try:
+    return self.downloads[id].downloadStatus().some()
+  except KeyError:
+    return none((int, int))
 
 proc storeManifest*(
     self: CodexNodeRef, manifest: Manifest
@@ -311,6 +344,9 @@ proc streamEntireDataset(
   trace "Creating store stream for manifest", manifestCid
 
   stream.success
+
+proc downloadDataset(self: CodexNodeRef, manifest: Manifest, partitions: int) =
+  ## Simple experiment with partitioned peer blocks. Assumes a uniform swarm.
 
 proc retrieve*(
     self: CodexNodeRef, cid: Cid, local: bool = true
@@ -766,8 +802,9 @@ proc onClear(self: CodexNodeRef, request: StorageRequest, slotIndex: uint64) =
   discard
 
 proc start*(self: CodexNodeRef) {.async.} =
-  if not self.engine.isNil:
-    await self.engine.start()
+  # Don't start the engine as we'll use swarms here.
+  # if not self.engine.isNil:
+  #   await self.engine.start()
 
   if not self.discovery.isNil:
     await self.discovery.start()
@@ -836,8 +873,8 @@ proc stop*(self: CodexNodeRef) {.async.} =
 
   await self.trackedFutures.cancelTracked()
 
-  if not self.engine.isNil:
-    await self.engine.stop()
+  # if not self.engine.isNil:
+  #   await self.engine.stop()
 
   if not self.discovery.isNil:
     await self.discovery.stop()
