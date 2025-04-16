@@ -207,18 +207,15 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
     info "Starting download for manifest",
       manifest = manifest.cid, treeCid = manifest.manifest.treeCid
 
-    let downloadId = await node.startDownload(manifest.manifest)
-
-    info "Download id assigned", downloadId = downloadId
-
+    let treeCid = await node.startDownload(manifest.manifest)
     return RestApiResponse.response(
-      $ %*{"downloadId": $downloadId}, contentType = "application/json"
+      $ %*{"downloadId": $treeCid}, contentType = "application/json"
     )
 
-  router.rawApi(MethodGet, "/api/codex/v1/download/{id}") do(
-    id: uint64
+  router.rawApi(MethodGet, "/api/codex/v1/download/{cid}") do(
+    cid: Cid
   ) -> RestApiResponse:
-    if (downloaded, total) =? node.downloadStatus(id.get()):
+    if (downloaded, total) =? node.downloadStatus(cid.get()):
       return RestApiResponse.response(
         $ %*{"downloaded": downloaded, "total": total}, contentType = "application/json"
       )

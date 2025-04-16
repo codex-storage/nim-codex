@@ -78,8 +78,7 @@ type
 
     # This will go into a download manager, likely persisted to disk
     # so download sessions can be live across node shutdowns.
-    downloads*: Table[uint64, Swarm]
-    downloadCounter: uint64
+    downloads*: Table[Cid, Swarm]
 
   CodexNodeRef* = ref CodexNode
 
@@ -100,28 +99,24 @@ func discovery*(self: CodexNodeRef): Discovery =
 
 proc startDownload*(
     self: CodexNodeRef, manifest: Manifest
-): Future[uint64] {.async: (raises: []).} =
+): Future[Cid] {.async: (raises: []).} =
   ## Start a download for a manifest
   ##
 
   # This won't play nice with multiple downloads as the Swarm will install
   # its own callbacks and listeners, but for experimentation is fine.
-  let
-    id = self.downloadCounter
-    swarm = Swarm.new(
-      manifest, self.networkStore.localStore, self.engine.network, self.discovery
-    )
+  let swarm = Swarm.new(
+    manifest, self.networkStore.localStore, self.engine.network, self.discovery
+  )
 
-  self.downloadCounter += 1
-  self.downloads[id] = swarm
-
+  self.downloads[manifest.treeCid] = swarm
   await swarm.start()
 
-  return id
+  return manifest.treeCid
 
-proc downloadStatus*(self: CodexNodeRef, id: uint64): ?(int, int) =
+proc downloadStatus*(self: CodexNodeRef, dataset: Cid): ?(int, int) =
   try:
-    return self.downloads[id].downloadStatus().some()
+    return self.downloads[dataset].downloadStatus().some()
   except KeyError:
     return none((int, int))
 
