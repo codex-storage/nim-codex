@@ -222,6 +222,19 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
     else:
       return RestApiResponse.error(Http404)
 
+  router.rawApi(MethodDelete, "/api/codex/v1/download/{cid}") do(
+    cid: Cid, resp: HttpResponseRef
+  ) -> RestApiResponse:
+    let downloadId = cid.get()
+    if downloadId notin node.downloads:
+      return RestApiResponse.error(Http404)
+
+    if err =? (await node.stopDownload(downloadId)).errorOption:
+      return RestApiResponse.error(Http500, err.msg)
+
+    resp.status = Http204
+    await resp.sendBody("")
+
   router.rawApi(MethodPost, "/api/codex/v1/data") do() -> RestApiResponse:
     ## Upload a file in a streaming manner
     ##

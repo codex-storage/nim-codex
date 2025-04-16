@@ -120,6 +120,17 @@ proc downloadStatus*(self: CodexNodeRef, dataset: Cid): ?(int, int) =
   except KeyError:
     return none((int, int))
 
+proc stopDownload*(self: CodexNodeRef, dataset: Cid): Future[?!void] {.async.} =
+  ## Stop a download for a manifest
+  ##
+  if dataset notin self.downloads:
+    return success()
+
+  await self.downloads[dataset].stop()
+
+  self.downloads.del(dataset)
+  return success()
+
 proc storeManifest*(
     self: CodexNodeRef, manifest: Manifest
 ): Future[?!bt.Block] {.async.} =
