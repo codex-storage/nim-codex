@@ -56,7 +56,7 @@ export requests
 export logutils
 
 logScope:
-  topics = "sales reservations"
+  topics = "marketplace sales reservations"
 
 type
   AvailabilityId* = distinct array[32, byte]
