@@ -4,6 +4,8 @@ import helpers/templeveldb
 import std/times
 import std/sequtils, chronos
 
+import ./asynctest
+
 export multisetup, trackers, templeveldb
 
 ### taken from libp2p errorhelpers.nim
