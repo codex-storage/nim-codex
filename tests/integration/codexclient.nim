@@ -1,4 +1,3 @@
-import std/httpclient
 import std/strutils
 
 from pkg/libp2p import Cid, `$`, init
