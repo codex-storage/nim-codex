@@ -548,7 +548,7 @@ ethersuite "On-Chain Market":
     switchAccount(host)
     await market.reserveSlot(request.id, 0.uint64)
     await market.fillSlot(request.id, 0.uint64, proof, request.ask.collateralPerSlot)
-    let filledAt = (await ethProvider.currentTime()) - 1.u256
+    let filledAt = (await ethProvider.currentTime())
 
     for slotIndex in 1 ..< request.ask.slots:
       await market.reserveSlot(request.id, slotIndex.uint64)
@@ -575,7 +575,7 @@ ethersuite "On-Chain Market":
     switchAccount(host)
     await market.reserveSlot(request.id, 0.uint64)
     await market.fillSlot(request.id, 0.uint64, proof, request.ask.collateralPerSlot)
-    let filledAt = (await ethProvider.currentTime()) - 1.u256
+    let filledAt = (await ethProvider.currentTime())
 
     for slotIndex in 1 ..< request.ask.slots:
       await market.reserveSlot(request.id, slotIndex.uint64)
