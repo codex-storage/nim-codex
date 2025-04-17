@@ -10,6 +10,7 @@ import ../manifest
 import ../units
 
 import ../bittorrent/manifest
+import ../tarballs/directorymanifest
 
 export json
 
@@ -49,6 +50,10 @@ type
     cid* {.serialize.}: Cid
     manifest* {.serialize.}: Manifest
 
+  RestDirectoryContent* = object
+    cid* {.serialize.}: Cid
+    manifest* {.serialize.}: DirectoryManifest
+
   RestTorrentContent* = object
     infoHash* {.serialize.}: MultiHash
     torrentManifest* {.serialize.}: BitTorrentManifest
@@ -86,6 +91,11 @@ proc init*(_: type RestContentList, content: seq[RestContent]): RestContentList 
 
 proc init*(_: type RestContent, cid: Cid, manifest: Manifest): RestContent =
   RestContent(cid: cid, manifest: manifest)
+
+proc init*(
+    _: type RestDirectoryContent, cid: Cid, manifest: DirectoryManifest
+): RestDirectoryContent =
+  RestDirectoryContent(cid: cid, manifest: manifest)
 
 proc init*(
     _: type RestTorrentContent, infoHash: MultiHash, torrentManifest: BitTorrentManifest

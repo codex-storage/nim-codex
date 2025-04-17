@@ -27,6 +27,9 @@ import ../../stores/blockstore
 import ../../logutils
 import ../../manifest
 
+# tarballs
+import ../../tarballs/[directorymanifest, decoding]
+
 logScope:
   topics = "codex discoveryengine advertiser"
 
@@ -82,6 +85,11 @@ proc advertiseBlock(b: Advertiser, cid: Cid) {.async: (raises: [CancelledError])
 
       without manifest =? Manifest.decode(blk), err:
         error "Unable to decode as manifest", err = err.msg
+        # Try if it not a directory manifest
+        without manifest =? DirectoryManifest.decode(blk), err:
+          error "Unable to decode as manifest", err = err.msg
+          return
+        await b.addCidToQueue(cid)
         return
 
       # announce manifest cid and tree cid

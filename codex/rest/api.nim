@@ -43,6 +43,8 @@ import ../utils/options
 import ../bittorrent/manifest
 import ../bittorrent/torrentdownloader
 
+import ../tarballs/directorymanifest
+
 import ./coders
 import ./json
 
@@ -59,6 +61,11 @@ proc formatTorrentManifest(
     infoHash: MultiHash, torrentManifest: BitTorrentManifest
 ): RestTorrentContent =
   return RestTorrentContent.init(infoHash, torrentManifest)
+
+proc formatDirectoryManifest(
+    cid: Cid, manifest: DirectoryManifest
+): RestDirectoryContent =
+  return RestDirectoryContent.init(cid, manifest)
 
 proc formatManifest(cid: Cid, manifest: Manifest): RestContent =
   return RestContent.init(cid, manifest)
@@ -255,6 +262,75 @@ proc getFilenameFromContentDisposition(contentDisposition: string): ?string =
 
 proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRouter) =
   let allowedOrigin = router.allowedOrigin # prevents capture inside of api definition
+
+  router.api(MethodOptions, "/api/codex/v1/tar") do(
+    resp: HttpResponseRef
+  ) -> RestApiResponse:
+    if corsOrigin =? allowedOrigin:
+      resp.setCorsHeaders("POST", corsOrigin)
+      resp.setHeader(
+        "Access-Control-Allow-Headers", "content-type, content-disposition"
+      )
+
+    resp.status = Http204
+    await resp.sendBody("")
+
+  router.rawApi(MethodPost, "/api/codex/v1/tar") do() -> RestApiResponse:
+    ## Upload a file in a streaming manner
+    ##
+
+    trace "Handling upload of a tar file"
+    var bodyReader = request.getBodyReader()
+    if bodyReader.isErr():
+      return RestApiResponse.error(Http500, msg = bodyReader.error())
+
+    # Attempt to handle `Expect` header
+    # some clients (curl), wait 1000ms
+    # before giving up
+    #
+    await request.handleExpect()
+
+    var mimetype = request.headers.getString(ContentTypeHeader).some
+
+    if mimetype.get() != "":
+      let mimetypeVal = mimetype.get()
+      var m = newMimetypes()
+      let extension = m.getExt(mimetypeVal, "")
+      if extension == "":
+        return RestApiResponse.error(
+          Http422, "The MIME type '" & mimetypeVal & "' is not valid."
+        )
+    else:
+      mimetype = string.none
+
+    const ContentDispositionHeader = "Content-Disposition"
+    let contentDisposition = request.headers.getString(ContentDispositionHeader)
+    let filename = getFilenameFromContentDisposition(contentDisposition)
+
+    if filename.isSome and not isValidFilename(filename.get()):
+      return RestApiResponse.error(Http422, "The filename is not valid.")
+
+    # Here we could check if the extension matches the filename if needed
+
+    let reader = bodyReader.get()
+    let stream = AsyncStreamReader(reader)
+
+    try:
+      without json =? (await node.storeTarball(stream = stream)), error:
+        error "Error uploading tarball", exc = error.msg
+        return RestApiResponse.error(Http500, error.msg)
+
+      codex_api_uploads.inc()
+      trace "Uploaded tarball", result = json
+      return RestApiResponse.response(json, contentType = "application/json")
+    except CancelledError:
+      trace "Upload cancelled error"
+      return RestApiResponse.error(Http500)
+    except AsyncStreamError:
+      trace "Async stream error"
+      return RestApiResponse.error(Http500)
+    finally:
+      await reader.closeWait()
 
   router.api(MethodOptions, "/api/codex/v1/torrent") do(
     resp: HttpResponseRef
@@ -533,6 +609,24 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
       return RestApiResponse.error(Http404, err.msg, headers = headers)
 
     let json = %formatManifest(cid.get(), manifest)
+    return RestApiResponse.response($json, contentType = "application/json")
+
+  router.api(MethodGet, "/api/codex/v1/data/{cid}/network/dirmanifest") do(
+    cid: Cid, resp: HttpResponseRef
+  ) -> RestApiResponse:
+    ## Download only the directory manifest.
+    ##
+
+    var headers = buildCorsHeaders("GET", allowedOrigin)
+
+    if cid.isErr:
+      return RestApiResponse.error(Http400, $cid.error(), headers = headers)
+
+    without manifest =? (await node.fetchDirectoryManifest(cid.get())), err:
+      error "Failed to fetch directory manifest", err = err.msg
+      return RestApiResponse.error(Http404, err.msg, headers = headers)
+
+    let json = %formatDirectoryManifest(cid.get(), manifest)
     return RestApiResponse.response($json, contentType = "application/json")
 
   router.api(MethodGet, "/api/codex/v1/torrent/{infoHash}/network/manifest") do(
