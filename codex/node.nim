@@ -13,6 +13,7 @@ import std/options
 import std/sequtils
 import std/strformat
 import std/sugar
+import std/streams
 import times
 
 import pkg/taskpools
@@ -51,6 +52,9 @@ import ./utils/trackedfutures
 from ./codextypes import InfoHashV1Codec
 import ./bittorrent/manifest
 import ./bittorrent/torrentdownloader
+
+# tarball
+import ./tarballs/[tarballs, encoding, decoding, stdstreamwrapper, directorymanifest]
 
 export logutils
 
@@ -156,6 +160,31 @@ proc fetchManifest*(
   trace "Decoding manifest for cid", cid
 
   without manifest =? Manifest.decode(blk), err:
+    trace "Unable to decode as manifest", err = err.msg
+    return failure("Unable to decode as manifest")
+
+  trace "Decoded manifest", cid
+
+  manifest.success
+
+proc fetchDirectoryManifest*(
+    self: CodexNodeRef, cid: Cid
+): Future[?!DirectoryManifest] {.async: (raises: [CancelledError]).} =
+  ## Fetch and decode a manifest block
+  ##
+
+  if err =? cid.isManifest.errorOption:
+    return failure "CID has invalid content type for manifest {$cid}"
+
+  trace "Retrieving manifest for cid", cid
+
+  without blk =? await self.networkStore.getBlock(BlockAddress.init(cid)), err:
+    trace "Error retrieve manifest block", cid, err = err.msg
+    return failure err
+
+  trace "Decoding manifest for cid", cid
+
+  without manifest =? DirectoryManifest.decode(blk), err:
     trace "Unable to decode as manifest", err = err.msg
     return failure("Unable to decode as manifest")
 
@@ -737,6 +766,83 @@ proc iterateManifests*(self: CodexNodeRef, onManifest: OnManifest) {.async.} =
         return
 
       onManifest(cid, manifest)
+
+proc storeDirectoryManifest*(
+    self: CodexNodeRef, manifest: DirectoryManifest
+): Future[?!bt.Block] {.async.} =
+  let encodedManifest = manifest.encode()
+
+  without blk =? bt.Block.new(data = encodedManifest, codec = ManifestCodec), error:
+    trace "Unable to create block from manifest"
+    return failure(error)
+
+  if err =? (await self.networkStore.putBlock(blk)).errorOption:
+    trace "Unable to store manifest block", cid = blk.cid, err = err.msg
+    return failure(err)
+
+  success blk
+
+proc storeTarball*(
+    self: CodexNodeRef, stream: AsyncStreamReader
+): Future[?!string] {.async.} =
+  info "Storing tarball data"
+
+  # Just as a proof of concept, we process tar bar in memory
+  # Later to see how to do actual streaming to either store
+  # tarball locally in some tmp folder, or to process the
+  # tarball incrementally 
+  let tarballBytes = await stream.read()
+  let stream = newStringStream(string.fromBytes(tarballBytes))
+
+  proc onProcessedTarFile(
+      stream: Stream, fileName: string
+  ): Future[?!Cid] {.gcsafe, async: (raises: [CancelledError]).} =
+    try:
+      echo "onProcessedTarFile:name: ", fileName
+      let stream = newStdStreamWrapper(stream)
+      await self.store(stream, filename = some fileName)
+    except CancelledError as e:
+      raise e
+    except CatchableError as e:
+      error "Error processing tar file", fileName, exc = e.msg
+      return failure(e.msg)
+
+  proc onProcessedTarDir(
+      name: string, cids: seq[Cid]
+  ): Future[?!Cid] {.gcsafe, async: (raises: [CancelledError]).} =
+    try:
+      echo "onProcessedTarDir:name: ", name
+      echo "onProcessedTarDir:cids: ", cids
+      let directoryManifest = newDirectoryManifest(name = name, cids = cids)
+      without manifestBlk =? await self.storeDirectoryManifest(directoryManifest), err:
+        error "Unable to store manifest"
+        return failure(err)
+      manifestBlk.cid.success
+    except CancelledError as e:
+      raise e
+    except CatchableError as e:
+      error "Error processing tar dir", name, exc = e.msg
+      return failure(e.msg)
+
+  let tarball = Tarball()
+  if err =? (await tarball.open(stream, onProcessedTarFile)).errorOption:
+    error "Unable to open tarball", err = err.msg
+    return failure(err)
+  echo "tarball = ", $tarball
+  without root =? tarball.findRootDir(), err:
+    return failure(err.msg)
+  echo "root = ", root
+  let dirs = processDirEntries(tarball)
+  echo "dirs = ", dirs
+  without tree =? (await buildTree(root = root, dirs = dirs, onProcessedTarDir)), err:
+    error "Unable to build tree", err = err.msg
+    return failure(err)
+  echo ""
+  echo "preorderTraversal:"
+  let json = newJArray()
+  preorderTraversal(tree, json)
+  echo "json = ", json
+  success($json)
 
 proc setupRequest(
     self: CodexNodeRef,
