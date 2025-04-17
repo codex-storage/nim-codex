@@ -39,8 +39,8 @@ marketplacesuite "Validation":
   const ecTolerance = 1
   const proofProbability = 1.u256
 
-  const collateralPerByte = 1.u256
-  const minPricePerBytePerSecond = 1.u256
+  const collateralPerByte = 1'Tokens
+  const minPricePerBytePerSecond = 1'TokensPerSecond
 
   proc waitForRequestToFail(
       marketplace: Marketplace, requestId: RequestId, timeout = 10, step = 5
@@ -94,16 +94,13 @@ marketplacesuite "Validation":
     discard await ethProvider.send("evm_mine")
 
     var currentTime = await ethProvider.currentTime()
-    let requestEndTime = currentTime.truncate(uint64) + duration
+    let requestEndTime = currentTime.truncate(uint64) + duration.u64
 
     let data = await RandomChunker.example(blocks = blocks)
     let datasetSize =
       datasetSize(blocks = blocks, nodes = ecNodes, tolerance = ecTolerance)
     await createAvailabilities(
-      datasetSize.truncate(uint64),
-      duration,
-      collateralPerByte,
-      minPricePerBytePerSecond,
+      datasetSize, duration, collateralPerByte, minPricePerBytePerSecond
     )
 
     let cid = (await client0.upload(data)).get
@@ -121,7 +118,7 @@ marketplacesuite "Validation":
 
     if not eventuallyS(
       await client0.purchaseStateIs(purchaseId, "started"),
-      timeout = (expiry + 60).int,
+      timeout = (expiry.u64 + 60).int,
       step = 5,
     ):
       debug "validation suite: timed out waiting for the purchase to start"
@@ -164,16 +161,13 @@ marketplacesuite "Validation":
     discard await ethProvider.send("evm_mine")
 
     var currentTime = await ethProvider.currentTime()
-    let requestEndTime = currentTime.truncate(uint64) + duration
+    let requestEndTime = currentTime.truncate(uint64) + duration.u64
 
     let data = await RandomChunker.example(blocks = blocks)
     let datasetSize =
       datasetSize(blocks = blocks, nodes = ecNodes, tolerance = ecTolerance)
     await createAvailabilities(
-      datasetSize.truncate(uint64),
-      duration,
-      collateralPerByte,
-      minPricePerBytePerSecond,
+      datasetSize, duration, collateralPerByte, minPricePerBytePerSecond
     )
 
     let cid = (await client0.upload(data)).get
@@ -191,7 +185,7 @@ marketplacesuite "Validation":
 
     if not eventuallyS(
       await client0.purchaseStateIs(purchaseId, "started"),
-      timeout = (expiry + 60).int,
+      timeout = (expiry.u64 + 60).int,
       step = 5,
     ):
       debug "validation suite: timed out waiting for the purchase to start"

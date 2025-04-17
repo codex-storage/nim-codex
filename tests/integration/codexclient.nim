@@ -217,16 +217,14 @@ proc space*(
 proc requestStorageRaw*(
     client: CodexClient,
     cid: Cid,
-    duration: uint64,
-    pricePerBytePerSecond: UInt256,
+    duration: StorageDuration,
+    pricePerBytePerSecond: TokensPerSecond,
     proofProbability: UInt256,
-    collateralPerByte: UInt256,
-    expiry: uint64 = 0,
+    collateralPerByte: Tokens,
+    expiry = none StorageDuration,
     nodes: uint = 3,
     tolerance: uint = 1,
-): Future[HttpClientResponseRef] {.
-    async: (raw: true, raises: [CancelledError, HttpError])
-.} =
+): Future[HttpClientResponseRef] {.async: (raises: [CancelledError, HttpError]).} =
   ## Call request storage REST endpoint
   ##
   let url = client.baseurl & "/storage/request/" & $cid
@@ -240,19 +238,41 @@ proc requestStorageRaw*(
       "tolerance": tolerance,
     }
 
-  if expiry != 0:
-    json["expiry"] = %($expiry)
+  if expiry =? expiry:
+    json["expiry"] = %expiry
 
-  return client.post(url, $json)
+  return await client.post(url, $json)
+
+proc requestStorageRaw*(
+    client: CodexClient,
+    cid: Cid,
+    duration: StorageDuration,
+    pricePerBytePerSecond: TokensPerSecond,
+    proofProbability: UInt256,
+    collateralPerByte: Tokens,
+    expiry: StorageDuration,
+    nodes: uint = 3,
+    tolerance: uint = 1,
+): Future[HttpClientResponseRef] {.async: (raises: [CancelledError, HttpError]).} =
+  return await client.requestStorageRaw(
+    cid,
+    duration,
+    pricePerBytePerSecond,
+    proofProbability,
+    collateralPerByte,
+    some expiry,
+    nodes,
+    tolerance,
+  )
 
 proc requestStorage*(
     client: CodexClient,
     cid: Cid,
-    duration: uint64,
-    pricePerBytePerSecond: UInt256,
+    duration: StorageDuration,
+    pricePerBytePerSecond: TokensPerSecond,
     proofProbability: UInt256,
-    expiry: uint64,
-    collateralPerByte: UInt256,
+    expiry = none StorageDuration,
+    collateralPerByte: Tokens,
     nodes: uint = 3,
     tolerance: uint = 1,
 ): Future[?!PurchaseId] {.async: (raises: [CancelledError, HttpError]).} =
@@ -268,6 +288,28 @@ proc requestStorage*(
   if response.status != 200:
     doAssert(false, body)
   PurchaseId.fromHex(body).catch
+
+proc requestStorage*(
+    client: CodexClient,
+    cid: Cid,
+    duration: StorageDuration,
+    pricePerBytePerSecond: TokensPerSecond,
+    proofProbability: UInt256,
+    expiry: StorageDuration,
+    collateralPerByte: Tokens,
+    nodes: uint = 3,
+    tolerance: uint = 1,
+): Future[?!PurchaseId] {.async: (raises: [CancelledError, HttpError]).} =
+  return await client.requestStorage(
+    cid,
+    duration,
+    pricePerBytePerSecond,
+    proofProbability,
+    some expiry,
+    collateralPerByte,
+    nodes,
+    tolerance,
+  )
 
 proc getPurchase*(
     client: CodexClient, purchaseId: PurchaseId
@@ -291,10 +333,12 @@ proc getSalesAgent*(
 
 proc postAvailabilityRaw*(
     client: CodexClient,
-    totalSize, duration: uint64,
-    minPricePerBytePerSecond, totalCollateral: UInt256,
+    totalSize: uint64,
+    duration: StorageDuration,
+    minPricePerBytePerSecond: TokensPerSecond,
+    totalCollateral: Tokens,
     enabled: ?bool = bool.none,
-    until: ?SecondsSince1970 = SecondsSince1970.none,
+    until = StorageTimestamp.none,
 ): Future[HttpClientResponseRef] {.async: (raises: [CancelledError, HttpError]).} =
   ## Post sales availability endpoint
   ##
@@ -312,10 +356,12 @@ proc postAvailabilityRaw*(
 
 proc postAvailability*(
     client: CodexClient,
-    totalSize, duration: uint64,
-    minPricePerBytePerSecond, totalCollateral: UInt256,
+    totalSize: uint64,
+    duration: StorageDuration,
+    minPricePerBytePerSecond: TokensPerSecond,
+    totalCollateral: Tokens,
     enabled: ?bool = bool.none,
-    until: ?SecondsSince1970 = SecondsSince1970.none,
+    until = StorageTimestamp.none,
 ): Future[?!Availability] {.async: (raises: [CancelledError, HttpError]).} =
   let response = await client.postAvailabilityRaw(
     totalSize = totalSize,
@@ -335,10 +381,13 @@ proc postAvailability*(
 proc patchAvailabilityRaw*(
     client: CodexClient,
     availabilityId: AvailabilityId,
-    totalSize, freeSize, duration: ?uint64 = uint64.none,
-    minPricePerBytePerSecond, totalCollateral: ?UInt256 = UInt256.none,
+    totalSize = none uint64,
+    freeSize = none uint64,
+    duration = none StorageDuration,
+    minPricePerBytePerSecond = none TokensPerSecond,
     enabled: ?bool = bool.none,
-    until: ?SecondsSince1970 = SecondsSince1970.none,
+    until = StorageTimestamp.none,
+    totalCollateral = none Tokens,
 ): Future[HttpClientResponseRef] {.
     async: (raw: true, raises: [CancelledError, HttpError])
 .} =
@@ -375,10 +424,12 @@ proc patchAvailabilityRaw*(
 proc patchAvailability*(
     client: CodexClient,
     availabilityId: AvailabilityId,
-    totalSize, duration: ?uint64 = uint64.none,
-    minPricePerBytePerSecond, totalCollateral: ?UInt256 = UInt256.none,
+    totalSize = none uint64,
+    duration = none StorageDuration,
+    minPricePerBytePerSecond = none TokensPerSecond,
+    totalCollateral = none Tokens,
     enabled: ?bool = bool.none,
-    until: ?SecondsSince1970 = SecondsSince1970.none,
+    until = StorageTimestamp.none,
 ): Future[void] {.async: (raises: [CancelledError, HttpError]).} =
   let response = await client.patchAvailabilityRaw(
     availabilityId,

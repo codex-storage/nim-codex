@@ -34,14 +34,15 @@ asyncchecksuite "sales state 'preparing'":
   var reservations: MockReservations
 
   setup:
+    let collateral = request.ask.collateralPerSlot * request.ask.slots
     availability = Availability.init(
       totalSize = request.ask.slotSize + 100.uint64,
       freeSize = request.ask.slotSize + 100.uint64,
-      duration = request.ask.duration + 60.uint64,
+      duration = request.ask.duration + 60'u8,
       minPricePerBytePerSecond = request.ask.pricePerBytePerSecond,
-      totalCollateral = request.ask.collateralPerSlot * request.ask.slots.u256,
+      totalCollateral = collateral,
       enabled = true,
-      until = 0.SecondsSince1970,
+      until = 0'StorageTimestamp,
     )
     let repoDs = SQLiteDatastore.new(Memory).tryGet()
     let metaDs = SQLiteDatastore.new(Memory).tryGet()
@@ -55,7 +56,8 @@ asyncchecksuite "sales state 'preparing'":
     context.reservations = reservations
     agent = newSalesAgent(context, request.id, slotIndex, request.some)
 
-    market.requestEnds[request.id] = clock.now() + cast[int64](request.ask.duration)
+    market.requestEnds[request.id] =
+      StorageTimestamp.init(clock.now()) + request.ask.duration
 
   teardown:
     await repo.stop()
@@ -79,7 +81,7 @@ asyncchecksuite "sales state 'preparing'":
       availability.minPricePerBytePerSecond,
       availability.totalCollateral,
       enabled,
-      until = 0.SecondsSince1970,
+      until = 0'StorageTimestamp,
     )
     availability = a.get
 

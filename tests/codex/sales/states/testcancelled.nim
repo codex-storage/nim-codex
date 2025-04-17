@@ -19,18 +19,18 @@ asyncchecksuite "sales state 'cancelled'":
   let slotIndex = request.ask.slots div 2
   let clock = MockClock.new()
 
-  let currentCollateral = UInt256.example
+  let currentCollateral = Tokens.example
 
   var market: MockMarket
   var state: SaleCancelled
   var agent: SalesAgent
   var reprocessSlotWas: ?bool
-  var returnedCollateralValue: ?UInt256
+  var returnedCollateralValue: ?Tokens
 
   setup:
     market = MockMarket.new()
     let onCleanUp = proc(
-        reprocessSlot = false, returnedCollateral = UInt256.none
+        reprocessSlot = false, returnedCollateral = Tokens.none
     ) {.async.} =
       reprocessSlotWas = some reprocessSlot
       returnedCollateralValue = returnedCollateral
@@ -40,10 +40,10 @@ asyncchecksuite "sales state 'cancelled'":
     agent.onCleanUp = onCleanUp
     state = SaleCancelled.new()
     reprocessSlotWas = bool.none
-    returnedCollateralValue = UInt256.none
+    returnedCollateralValue = Tokens.none
   teardown:
     reprocessSlotWas = bool.none
-    returnedCollateralValue = UInt256.none
+    returnedCollateralValue = Tokens.none
 
   test "calls onCleanUp with reprocessSlot = true, and returnedCollateral = currentCollateral":
     market.fillSlot(
@@ -91,7 +91,7 @@ asyncchecksuite "sales state 'cancelled'":
     let next = await state.run(agent)
     check next == none State
     check eventually reprocessSlotWas == some false
-    check eventually returnedCollateralValue == UInt256.none
+    check eventually returnedCollateralValue == Tokens.none
 
   test "calls onCleanUp and returns the collateral when an error is raised":
     market.fillSlot(

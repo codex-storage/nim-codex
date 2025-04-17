@@ -109,9 +109,11 @@ proc bootstrapInteractions(s: CodexServer): Future[void] {.async.} =
       quit QuitFailure
 
     let marketplace = Marketplace.new(marketplaceAddress, signer)
-    let market = OnChainMarket.new(
-      marketplace, config.rewardRecipient, config.marketplaceRequestCacheSize
-    )
+    without market =?
+      await OnChainMarket.load(marketplace, config.marketplaceRequestCacheSize), error:
+      fatal "Cannot load market", error = error.msg
+      quit QuitFailure
+
     let clock = OnChainClock.new(provider)
 
     var client: ?ClientInteractions
@@ -133,10 +135,6 @@ proc bootstrapInteractions(s: CodexServer): Future[void] {.async.} =
       let proofFailures = 0
       if config.simulateProofFailures > 0:
         warn "Proof failure simulation is not enabled for this build! Configuration ignored"
-
-    if error =? (await market.loadConfig()).errorOption:
-      fatal "Cannot load market configuration", error = error.msg
-      quit QuitFailure
 
     let purchasing = Purchasing.new(market, clock)
     let sales = Sales.new(market, clock, repo, proofFailures)

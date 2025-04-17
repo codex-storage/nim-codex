@@ -11,6 +11,7 @@ import ./statemachine
 import ./salescontext
 import ./salesdata
 import ./reservations
+import ./slotqueue
 
 export reservations
 
@@ -27,7 +28,7 @@ type
     onFilled*: ?OnFilled
 
   OnCleanUp* = proc(
-    reprocessSlot = false, returnedCollateral = UInt256.none
+    reprocessSlot = false, returnedCollateral = Tokens.none
   ): Future[void] {.gcsafe, upraises: [].}
   OnFilled* = proc(request: StorageRequest, slotIndex: uint64) {.gcsafe, upraises: [].}
 
@@ -42,10 +43,16 @@ proc newSalesAgent*(
     requestId: RequestId,
     slotIndex: uint64,
     request: ?StorageRequest,
+    slotQueueItem = SlotQueueItem.none,
 ): SalesAgent =
   var agent = SalesAgent.new()
   agent.context = context
-  agent.data = SalesData(requestId: requestId, slotIndex: slotIndex, request: request)
+  agent.data = SalesData(
+    requestId: requestId,
+    slotIndex: slotIndex,
+    request: request,
+    slotQueueItem: slotQueueItem,
+  )
   return agent
 
 proc retrieveRequest*(agent: SalesAgent) {.async.} =
@@ -75,7 +82,7 @@ proc subscribeCancellation(agent: SalesAgent) {.async.} =
 
     try:
       let market = agent.context.market
-      let expiry = await market.requestExpiresAt(data.requestId)
+      let expiry = (await market.requestExpiresAt(data.requestId)).toSecondsSince1970
 
       while true:
         let deadline = max(clock.now, expiry) + 1

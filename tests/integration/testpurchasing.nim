@@ -12,21 +12,21 @@ twonodessuite "Purchasing":
     let id1 = (
       await client1.requestStorage(
         cid,
-        duration = 100.uint64,
-        pricePerBytePerSecond = 1.u256,
+        duration = 100'StorageDuration,
+        pricePerBytePerSecond = 1'TokensPerSecond,
         proofProbability = 3.u256,
-        expiry = 10.uint64,
-        collateralPerByte = 1.u256,
+        expiry = 10'StorageDuration,
+        collateralPerByte = 1'Tokens,
       )
     ).get
     let id2 = (
       await client1.requestStorage(
         cid,
-        duration = 400.uint64,
-        pricePerBytePerSecond = 2.u256,
+        duration = 400'StorageDuration,
+        pricePerBytePerSecond = 2'TokensPerSecond,
         proofProbability = 6.u256,
-        expiry = 10.uint64,
-        collateralPerByte = 2.u256,
+        expiry = 10'StorageDuration,
+        collateralPerByte = 2'Tokens,
       )
     ).get
     check id1 != id2
@@ -42,11 +42,11 @@ twonodessuite "Purchasing":
     let id = (
       await client1.requestStorage(
         cid,
-        duration = 100.uint64,
-        pricePerBytePerSecond = 1.u256,
+        duration = 100'StorageDuration,
+        pricePerBytePerSecond = 1'TokensPerSecond,
         proofProbability = 3.u256,
-        expiry = 30.uint64,
-        collateralPerByte = 1.u256,
+        expiry = 30'StorageDuration,
+        collateralPerByte = 1'Tokens,
         nodes = 3,
         tolerance = 1,
       )
@@ -55,11 +55,11 @@ twonodessuite "Purchasing":
     let request = (await client1.getPurchase(id)).get.request.get
 
     check request.content.cid.data.buffer.len > 0
-    check request.ask.duration == 100.uint64
-    check request.ask.pricePerBytePerSecond == 1.u256
+    check request.ask.duration == 100'StorageDuration
+    check request.ask.pricePerBytePerSecond == 1'TokensPerSecond
     check request.ask.proofProbability == 3.u256
-    check request.expiry == 30.uint64
-    check request.ask.collateralPerByte == 1.u256
+    check request.expiry == 30'StorageDuration
+    check request.ask.collateralPerByte == 1'Tokens
     check request.ask.slots == 3'u64
     check request.ask.maxSlotLoss == 1'u64
 
@@ -85,11 +85,11 @@ twonodessuite "Purchasing":
     let id = (
       await client1.requestStorage(
         cid,
-        duration = 10 * 60.uint64,
-        pricePerBytePerSecond = 1.u256,
+        duration = StorageDuration.init(10'u32 * 60),
+        pricePerBytePerSecond = 1'TokensPerSecond,
         proofProbability = 3.u256,
-        expiry = 5 * 60.uint64,
-        collateralPerByte = 1.u256,
+        expiry = StorageDuration.init(5'u32 * 60),
+        collateralPerByte = 1'Tokens,
         nodes = 3.uint,
         tolerance = 1.uint,
       )
@@ -104,11 +104,11 @@ twonodessuite "Purchasing":
       await client1.purchaseStateIs(id, "submitted"), timeout = 3 * 60 * 1000
     )
     let request = (await client1.getPurchase(id)).get.request.get
-    check request.ask.duration == (10 * 60).uint64
-    check request.ask.pricePerBytePerSecond == 1.u256
+    check request.ask.duration == StorageDuration.init(10'u32 * 60)
+    check request.ask.pricePerBytePerSecond == 1'TokensPerSecond
     check request.ask.proofProbability == 3.u256
-    check request.expiry == (5 * 60).uint64
-    check request.ask.collateralPerByte == 1.u256
+    check request.expiry == StorageDuration.init(5'u32 * 60)
+    check request.ask.collateralPerByte == 1'Tokens
     check request.ask.slots == 3'u64
     check request.ask.maxSlotLoss == 1'u64
 
@@ -118,10 +118,10 @@ twonodessuite "Purchasing":
 
     let responseMissing = await client1.requestStorageRaw(
       cid,
-      duration = 1.uint64,
-      pricePerBytePerSecond = 1.u256,
+      duration = 1'StorageDuration,
+      pricePerBytePerSecond = 1'TokensPerSecond,
       proofProbability = 3.u256,
-      collateralPerByte = 1.u256,
+      collateralPerByte = 1'Tokens,
     )
     check responseMissing.status == 422
     check (await responseMissing.body) ==
@@ -129,11 +129,11 @@ twonodessuite "Purchasing":
 
     let responseBefore = await client1.requestStorageRaw(
       cid,
-      duration = 10.uint64,
-      pricePerBytePerSecond = 1.u256,
+      duration = 10'StorageDuration,
+      pricePerBytePerSecond = 1'TokensPerSecond,
       proofProbability = 3.u256,
-      collateralPerByte = 1.u256,
-      expiry = 10.uint64,
+      collateralPerByte = 1'Tokens,
+      expiry = 10'StorageDuration,
     )
     check responseBefore.status == 422
     check "Expiry must be greater than zero and less than the request's duration" in

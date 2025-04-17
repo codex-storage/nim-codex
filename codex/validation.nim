@@ -34,8 +34,8 @@ proc new*(
 proc slots*(validation: Validation): seq[SlotId] =
   validation.slots.toSeq
 
-proc getCurrentPeriod(validation: Validation): Period =
-  return validation.periodicity.periodOf(validation.clock.now().Timestamp)
+proc getCurrentPeriod(validation: Validation): ProofPeriod =
+  return validation.periodicity.periodOf(validation.clock.now())
 
 proc waitUntilNextPeriod(validation: Validation) {.async.} =
   let period = validation.getCurrentPeriod()
@@ -79,7 +79,7 @@ proc removeSlotsThatHaveEnded(validation: Validation) {.async.} =
   validation.slots.excl(ended)
 
 proc markProofAsMissing(
-    validation: Validation, slotId: SlotId, period: Period
+    validation: Validation, slotId: SlotId, period: ProofPeriod
 ) {.async.} =
   logScope:
     currentPeriod = validation.getCurrentPeriod()
@@ -99,7 +99,7 @@ proc markProofAsMissing(
 proc markProofsAsMissing(validation: Validation) {.async.} =
   let slots = validation.slots
   for slotId in slots:
-    let previousPeriod = validation.getCurrentPeriod() - 1
+    let previousPeriod = validation.getCurrentPeriod() - 1'u8
     await validation.markProofAsMissing(slotId, previousPeriod)
 
 proc run(validation: Validation) {.async: (raises: []).} =
@@ -120,8 +120,8 @@ proc findEpoch(validation: Validation, secondsAgo: uint64): SecondsSince1970 =
 
 proc restoreHistoricalState(validation: Validation) {.async.} =
   trace "Restoring historical state..."
-  let requestDurationLimit = await validation.market.requestDurationLimit
-  let startTimeEpoch = validation.findEpoch(secondsAgo = requestDurationLimit)
+  let requestDurationLimit = validation.market.requestDurationLimit
+  let startTimeEpoch = validation.findEpoch(secondsAgo = requestDurationLimit.u64)
   let slotFilledEvents =
     await validation.market.queryPastSlotFilledEvents(fromTime = startTimeEpoch)
   for event in slotFilledEvents:
@@ -137,8 +137,8 @@ proc restoreHistoricalState(validation: Validation) {.async.} =
 proc start*(validation: Validation) {.async.} =
   trace "Starting validator",
     groups = validation.config.groups, groupIndex = validation.config.groupIndex
-  validation.periodicity = await validation.market.periodicity()
-  validation.proofTimeout = await validation.market.proofTimeout()
+  validation.periodicity = validation.market.periodicity
+  validation.proofTimeout = validation.market.proofTimeout.u64
   await validation.subscribeSlotFilled()
   await validation.restoreHistoricalState()
   validation.running = validation.run()

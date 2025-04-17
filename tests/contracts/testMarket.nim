@@ -29,25 +29,23 @@ ethersuite "On-Chain Market":
   var periodicity: Periodicity
   var host: Signer
   var otherHost: Signer
-  var hostRewardRecipient: Address
 
   proc expectedPayout(
-      r: StorageRequest, startTimestamp: UInt256, endTimestamp: UInt256
-  ): UInt256 =
-    return (endTimestamp - startTimestamp) * r.ask.pricePerSlotPerSecond
+      request: StorageRequest, start, finish: StorageTimestamp
+  ): Tokens =
+    return request.ask.pricePerSlotPerSecond * start.until(finish)
 
-  proc switchAccount(account: Signer) =
+  proc switchAccount(account: Signer) {.async.} =
     marketplace = marketplace.connect(account)
     token = token.connect(account)
-    market = OnChainMarket.new(marketplace, market.rewardRecipient)
+    market = !await OnChainMarket.load(marketplace)
 
   setup:
     let address = Marketplace.address(dummyVerifier = true)
     marketplace = Marketplace.new(address, ethProvider.getSigner())
     let config = await marketplace.configuration()
-    hostRewardRecipient = accounts[2]
 
-    market = OnChainMarket.new(marketplace)
+    market = !await OnChainMarket.load(marketplace)
     let tokenAddress = await marketplace.token()
     token = Erc20Token.new(tokenAddress, ethProvider.getSigner())
 
@@ -62,7 +60,7 @@ ethersuite "On-Chain Market":
 
   proc advanceToNextPeriod() {.async.} =
     let currentPeriod =
-      periodicity.periodOf((await ethProvider.currentTime()).truncate(uint64))
+      periodicity.periodOf((await ethProvider.currentTime()).truncate(int64))
     await ethProvider.advanceTimeTo((periodicity.periodEnd(currentPeriod) + 1).u256)
 
   proc advanceToCancelledRequest(request: StorageRequest) {.async.} =
@@ -78,27 +76,22 @@ ethersuite "On-Chain Market":
     :
       await advanceToNextPeriod()
 
-  test "caches marketplace configuration":
-    check isNone market.configuration
-    discard await market.periodicity()
-    check isSome market.configuration
-
   test "fails to instantiate when contract does not have a signer":
     let storageWithoutSigner = marketplace.connect(ethProvider)
     expect AssertionDefect:
-      discard OnChainMarket.new(storageWithoutSigner)
+      discard await OnChainMarket.load(storageWithoutSigner)
 
   test "knows signer address":
     check (await market.getSigner()) == (await ethProvider.getSigner().getAddress())
 
   test "can retrieve proof periodicity":
-    let periodicity = await market.periodicity()
+    let periodicity = market.periodicity
     let config = await marketplace.configuration()
     let periodLength = config.proofs.period
     check periodicity.seconds == periodLength
 
   test "can retrieve proof timeout":
-    let proofTimeout = await market.proofTimeout()
+    let proofTimeout = market.proofTimeout
     let config = await marketplace.configuration()
     check proofTimeout == config.proofs.timeout
 
@@ -121,12 +114,12 @@ ethersuite "On-Chain Market":
 
     let endBalanceClient = await token.balanceOf(clientAddress)
 
-    check endBalanceClient == (startBalanceClient + request.totalPrice)
+    check endBalanceClient == (startBalanceClient + request.totalPrice.u256)
 
   test "supports request subscriptions":
     var receivedIds: seq[RequestId]
     var receivedAsks: seq[StorageAsk]
-    proc onRequest(id: RequestId, ask: StorageAsk, expiry: uint64) =
+    proc onRequest(id: RequestId, ask: StorageAsk, expiry: StorageTimestamp) =
       receivedIds.add(id)
       receivedAsks.add(ask)
 
@@ -175,10 +168,20 @@ ethersuite "On-Chain Market":
     await market.fillSlot(request.id, slotIndex, proof, request.ask.collateralPerSlot)
     await waitUntilProofRequired(slotId)
     let missingPeriod =
-      periodicity.periodOf((await ethProvider.currentTime()).truncate(uint64))
+      periodicity.periodOf((await ethProvider.currentTime()).truncate(int64))
     await advanceToNextPeriod()
     await market.markProofAsMissing(slotId, missingPeriod)
     check (await marketplace.missingProofs(slotId)) == 1
+
+  test "cannot mark proofs missing for cancelled request":
+    let slotId = slotId(request, slotIndex)
+    await market.requestStorage(request)
+    await advanceToCancelledRequest(request)
+    let missingPeriod =
+      periodicity.periodOf((await ethProvider.currentTime()).truncate(int64))
+    await advanceToNextPeriod()
+    expect MarketError:
+      await market.markProofAsMissing(slotId, missingPeriod)
 
   test "can check whether a proof can be marked as missing":
     let slotId = slotId(request, slotIndex)
@@ -187,7 +190,7 @@ ethersuite "On-Chain Market":
     await market.fillSlot(request.id, slotIndex, proof, request.ask.collateralPerSlot)
     await waitUntilProofRequired(slotId)
     let missingPeriod =
-      periodicity.periodOf((await ethProvider.currentTime()).truncate(uint64))
+      periodicity.periodOf((await ethProvider.currentTime()).truncate(int64))
     await advanceToNextPeriod()
     check (await market.canProofBeMarkedAsMissing(slotId, missingPeriod)) == true
 
@@ -256,9 +259,9 @@ ethersuite "On-Chain Market":
       await market.subscribeSlotReservationsFull(onSlotReservationsFull)
 
     await market.reserveSlot(request.id, slotIndex)
-    switchAccount(account2)
+    await switchAccount(account2)
     await market.reserveSlot(request.id, slotIndex)
-    switchAccount(account3)
+    await switchAccount(account3)
     await market.reserveSlot(request.id, slotIndex)
 
     check eventually receivedRequestIds == @[request.id] and receivedIdxs == @[
@@ -309,21 +312,6 @@ ethersuite "On-Chain Market":
 
     await subscription.unsubscribe()
 
-  test "support request cancelled subscriptions":
-    await market.requestStorage(request)
-
-    var receivedIds: seq[RequestId]
-    proc onRequestCancelled(id: RequestId) =
-      receivedIds.add(id)
-
-    let subscription =
-      await market.subscribeRequestCancelled(request.id, onRequestCancelled)
-
-    await advanceToCancelledRequest(request)
-    await market.withdrawFunds(request.id)
-    check eventually receivedIds == @[request.id]
-    await subscription.unsubscribe()
-
   test "support request failed subscriptions":
     await market.requestStorage(request)
 
@@ -346,27 +334,9 @@ ethersuite "On-Chain Market":
           break
         await waitUntilProofRequired(slotId)
         let missingPeriod =
-          periodicity.periodOf((await ethProvider.currentTime()).truncate(uint64))
+          periodicity.periodOf((await ethProvider.currentTime()).truncate(int64))
         await advanceToNextPeriod()
         discard await marketplace.markProofAsMissing(slotId, missingPeriod).confirm(1)
-    check eventually receivedIds == @[request.id]
-    await subscription.unsubscribe()
-
-  test "subscribes only to a certain request cancellation":
-    var otherRequest = request
-    otherRequest.nonce = Nonce.example
-    await market.requestStorage(request)
-    await market.requestStorage(otherRequest)
-
-    var receivedIds: seq[RequestId]
-    proc onRequestCancelled(requestId: RequestId) =
-      receivedIds.add(requestId)
-
-    let subscription =
-      await market.subscribeRequestCancelled(request.id, onRequestCancelled)
-    await advanceToCancelledRequest(otherRequest) # shares expiry with otherRequest
-    await market.withdrawFunds(otherRequest.id)
-    await market.withdrawFunds(request.id)
     check eventually receivedIds == @[request.id]
     await subscription.unsubscribe()
 
@@ -498,6 +468,8 @@ ethersuite "On-Chain Market":
 
     let (_, fromTime) = await ethProvider.blockNumberAndTimestamp(BlockTag.latest)
 
+    await ethProvider.advanceTime(1.u256)
+
     await market.reserveSlot(request.id, 1.uint64)
     await market.reserveSlot(request.id, 2.uint64)
     await market.fillSlot(request.id, 1.uint64, proof, request.ask.collateralPerSlot)
@@ -545,10 +517,11 @@ ethersuite "On-Chain Market":
     await market.requestStorage(request)
 
     let address = await host.getAddress()
-    switchAccount(host)
+    await switchAccount(host)
     await market.reserveSlot(request.id, 0.uint64)
     await market.fillSlot(request.id, 0.uint64, proof, request.ask.collateralPerSlot)
-    let filledAt = await ethProvider.blockTime(BlockTag.latest)
+    let blockTime = await ethProvider.blockTime(BlockTag.latest)
+    let filledAt = StorageTimestamp.init(blockTime.stuint(40))
 
     for slotIndex in 1 ..< request.ask.slots:
       await market.reserveSlot(request.id, slotIndex.uint64)
@@ -563,71 +536,9 @@ ethersuite "On-Chain Market":
     await market.freeSlot(request.slotId(0.uint64))
     let endBalance = await token.balanceOf(address)
 
-    let expectedPayout = request.expectedPayout(filledAt, requestEnd.u256)
-    check endBalance == (startBalance + expectedPayout + request.ask.collateralPerSlot)
-
-  test "pays rewards to reward recipient, collateral to host":
-    market = OnChainMarket.new(marketplace, hostRewardRecipient.some)
-    let hostAddress = await host.getAddress()
-
-    await market.requestStorage(request)
-
-    switchAccount(host)
-    await market.reserveSlot(request.id, 0.uint64)
-    await market.fillSlot(request.id, 0.uint64, proof, request.ask.collateralPerSlot)
-    let filledAt = (await ethProvider.currentTime())
-
-    for slotIndex in 1 ..< request.ask.slots:
-      await market.reserveSlot(request.id, slotIndex.uint64)
-      await market.fillSlot(
-        request.id, slotIndex.uint64, proof, request.ask.collateralPerSlot
-      )
-
-    let requestEnd = await market.getRequestEnd(request.id)
-    await ethProvider.advanceTimeTo(requestEnd.u256 + 1)
-
-    let startBalanceHost = await token.balanceOf(hostAddress)
-    let startBalanceReward = await token.balanceOf(hostRewardRecipient)
-
-    await market.freeSlot(request.slotId(0.uint64))
-
-    let endBalanceHost = await token.balanceOf(hostAddress)
-    let endBalanceReward = await token.balanceOf(hostRewardRecipient)
-
-    let expectedPayout = request.expectedPayout(filledAt, requestEnd.u256)
-    check endBalanceHost == (startBalanceHost + request.ask.collateralPerSlot)
-    check endBalanceReward == (startBalanceReward + expectedPayout)
-
-  test "returns the collateral when the slot is not being repaired":
-    await market.requestStorage(request)
-    await market.reserveSlot(request.id, 0.uint64)
-    await market.fillSlot(request.id, 0.uint64, proof, request.ask.collateralPerSlot)
-
-    let slotId = request.slotId(0.uint64)
-    without collateral =? await market.slotCollateral(request.id, 0.uint64), error:
-      fail()
-
-    check collateral == request.ask.collateralPerSlot
-
-  test "calculates correctly the collateral when the slot is being repaired":
-    # Ensure that the config is loaded and repairRewardPercentage is available
-    discard await market.repairRewardPercentage()
-
-    await market.requestStorage(request)
-    await market.reserveSlot(request.id, 0.uint64)
-    await market.fillSlot(request.id, 0.uint64, proof, request.ask.collateralPerSlot)
-    await market.freeSlot(slotId(request.id, 0.uint64))
-
-    let slotId = request.slotId(0.uint64)
-
-    without collateral =? await market.slotCollateral(request.id, 0.uint64), error:
-      fail()
-
-    # slotCollateral
-    # repairRewardPercentage = 10
-    # expected collateral = slotCollateral - slotCollateral * 0.1
-    check collateral ==
-      request.ask.collateralPerSlot - (request.ask.collateralPerSlot * 10).div(100.u256)
+    let expectedPayout = request.expectedPayout(filledAt, requestEnd)
+    check (endBalance - startBalance) ==
+      (expectedPayout + request.ask.collateralPerSlot).u256
 
   test "the request is added to cache after the first access":
     await market.requestStorage(request)

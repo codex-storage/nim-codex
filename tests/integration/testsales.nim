@@ -4,7 +4,6 @@ import pkg/codex/contracts
 from pkg/codex/stores/repostore/types import DefaultQuotaBytes
 import ./twonodes
 import ../codex/examples
-import ../contracts/time
 import ./codexconfig
 import ./codexclient
 import ./nodeconfigs
@@ -37,17 +36,17 @@ multinodesuite "Sales":
     let availability1 = (
       await host.postAvailability(
         totalSize = 1.uint64,
-        duration = 2.uint64,
-        minPricePerBytePerSecond = 3.u256,
-        totalCollateral = 4.u256,
+        duration = 2'StorageDuration,
+        minPricePerBytePerSecond = 3'TokensPerSecond,
+        totalCollateral = 4'Tokens,
       )
     ).get
     let availability2 = (
       await host.postAvailability(
         totalSize = 4.uint64,
-        duration = 5.uint64,
-        minPricePerBytePerSecond = 6.u256,
-        totalCollateral = 7.u256,
+        duration = 5'StorageDuration,
+        minPricePerBytePerSecond = 6'TokensPerSecond,
+        totalCollateral = 7'Tokens,
       )
     ).get
     check availability1 != availability2
@@ -56,9 +55,9 @@ multinodesuite "Sales":
     let availability = (
       await host.postAvailability(
         totalSize = 1.uint64,
-        duration = 2.uint64,
-        minPricePerBytePerSecond = 3.u256,
-        totalCollateral = 4.u256,
+        duration = 2'StorageDuration,
+        minPricePerBytePerSecond = 3'TokensPerSecond,
+        totalCollateral = 4'Tokens,
       )
     ).get
     check availability in (await host.getAvailabilities()).get
@@ -67,28 +66,29 @@ multinodesuite "Sales":
     let availability = (
       await host.postAvailability(
         totalSize = 140000.uint64,
-        duration = 200.uint64,
-        minPricePerBytePerSecond = 3.u256,
-        totalCollateral = 300.u256,
+        duration = 200'StorageDuration,
+        minPricePerBytePerSecond = 3'TokensPerSecond,
+        totalCollateral = 300'Tokens,
       )
     ).get
 
-    var until = getTime().toUnix()
+    var until = StorageTimestamp.init(getTime().toUnix())
 
     await host.patchAvailability(
       availability.id,
-      duration = 100.uint64.some,
-      minPricePerBytePerSecond = 2.u256.some,
-      totalCollateral = 200.u256.some,
+      duration = some 100'StorageDuration,
+      minPricePerBytePerSecond = some 2'TokensPerSecond,
+      totalCollateral = some 200'Tokens,
       enabled = false.some,
       until = until.some,
     )
 
     let updatedAvailability =
       ((await host.getAvailabilities()).get).findItem(availability).get
-    check updatedAvailability.duration == 100.uint64
-    check updatedAvailability.minPricePerBytePerSecond == 2
-    check updatedAvailability.totalCollateral == 200
+    check updatedAvailability.duration == 100'StorageDuration
+    check updatedAvailability.minPricePerBytePerSecond ==
+      2'TokensPerSecond
+    check updatedAvailability.totalCollateral == 200'Tokens
     check updatedAvailability.totalSize == 140000.uint64
     check updatedAvailability.freeSize == 140000.uint64
     check updatedAvailability.enabled == false
@@ -98,9 +98,9 @@ multinodesuite "Sales":
     let availability = (
       await host.postAvailability(
         totalSize = 140000.uint64,
-        duration = 200.uint64,
-        minPricePerBytePerSecond = 3.u256,
-        totalCollateral = 300.u256,
+        duration = 200'StorageDuration,
+        minPricePerBytePerSecond = 3'TokensPerSecond,
+        totalCollateral = 300'Tokens,
       )
     ).get
     await host.patchAvailability(availability.id, totalSize = 100000.uint64.some)
@@ -114,13 +114,13 @@ multinodesuite "Sales":
     salesConfig:
     let originalSize = 0xFFFFFF.uint64
     let data = await RandomChunker.example(blocks = 8)
-    let minPricePerBytePerSecond = 3.u256
-    let collateralPerByte = 1.u256
-    let totalCollateral = originalSize.u256 * collateralPerByte
+    let minPricePerBytePerSecond = 3'TokensPerSecond
+    let collateralPerByte = 1'Tokens
+    let totalCollateral = collateralPerByte * originalSize
     let availability = (
       await host.postAvailability(
         totalSize = originalSize,
-        duration = 20 * 60.uint64,
+        duration = StorageDuration.init(20'u32 * 60),
         minPricePerBytePerSecond = minPricePerBytePerSecond,
         totalCollateral = totalCollateral,
       )
@@ -131,10 +131,10 @@ multinodesuite "Sales":
     let id = (
       await client.requestStorage(
         cid,
-        duration = 20 * 60.uint64,
+        duration = StorageDuration.init(20'u32 * 60),
         pricePerBytePerSecond = minPricePerBytePerSecond,
         proofProbability = 3.u256,
-        expiry = (10 * 60).uint64,
+        expiry = StorageDuration.init(10'u32 * 60),
         collateralPerByte = collateralPerByte,
         nodes = 3,
         tolerance = 1,
@@ -166,29 +166,13 @@ multinodesuite "Sales":
     check newUpdatedAvailability.totalSize == originalSize + 20000
     check newUpdatedAvailability.freeSize - updatedAvailability.freeSize == 20000
 
-  test "updating availability fails with until negative", salesConfig:
-    let availability = (
-      await host.postAvailability(
-        totalSize = 140000.uint64,
-        duration = 200.uint64,
-        minPricePerBytePerSecond = 3.u256,
-        totalCollateral = 300.u256,
-      )
-    ).get
-
-    let response =
-      await host.patchAvailabilityRaw(availability.id, until = -1.SecondsSince1970.some)
-
-    check:
-      (await response.body) == "Cannot set until to a negative value"
-
   test "returns an error when trying to update the until date before an existing a request is finished",
     salesConfig:
     let size = 0xFFFFFF.uint64
     let data = await RandomChunker.example(blocks = 8)
-    let duration = 20 * 60.uint64
-    let minPricePerBytePerSecond = 3.u256
-    let collateralPerByte = 1.u256
+    let duration = StorageDuration.init(20'u32 * 60)
+    let minPricePerBytePerSecond = 3'TokensPerSecond
+    let collateralPerByte = 1'Tokens
     let ecNodes = 3.uint
     let ecTolerance = 1.uint
 
@@ -198,7 +182,7 @@ multinodesuite "Sales":
         totalSize = size,
         duration = duration,
         minPricePerBytePerSecond = minPricePerBytePerSecond,
-        totalCollateral = size.u256 * minPricePerBytePerSecond,
+        totalCollateral = collateralPerByte * size,
       )
     ).get
 
@@ -210,7 +194,7 @@ multinodesuite "Sales":
         duration = duration,
         pricePerBytePerSecond = minPricePerBytePerSecond,
         proofProbability = 3.u256,
-        expiry = 10 * 60.uint64,
+        expiry = StorageDuration.init(10'u32 * 60),
         collateralPerByte = collateralPerByte,
         nodes = ecNodes,
         tolerance = ecTolerance,
@@ -224,7 +208,7 @@ multinodesuite "Sales":
     check purchase.error == none string
 
     let unixNow = getTime().toUnix()
-    let until = unixNow + 1.SecondsSince1970
+    let until = StorageTimestamp.init(unixNow + 1)
 
     let response = await host.patchAvailabilityRaw(
       availabilityId = availability.id, until = until.some

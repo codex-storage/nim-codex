@@ -14,8 +14,8 @@ logScope:
   topics = "integration test proofs"
 
 marketplacesuite "Hosts submit regular proofs":
-  const minPricePerBytePerSecond = 1.u256
-  const collateralPerByte = 1.u256
+  const minPricePerBytePerSecond = 1'TokensPerSecond
+  const collateralPerByte = 1'Tokens
   const blocks = 8
   const ecNodes = 3
   const ecTolerance = 1
@@ -43,10 +43,7 @@ marketplacesuite "Hosts submit regular proofs":
     let datasetSize =
       datasetSize(blocks = blocks, nodes = ecNodes, tolerance = ecTolerance)
     await createAvailabilities(
-      datasetSize.truncate(uint64),
-      duration,
-      collateralPerByte,
-      minPricePerBytePerSecond,
+      datasetSize, duration, collateralPerByte, minPricePerBytePerSecond
     )
 
     let cid = (await client0.upload(data)).get
@@ -65,7 +62,8 @@ marketplacesuite "Hosts submit regular proofs":
     let slotSize = slotSize(blocks, ecNodes, ecTolerance)
 
     check eventually(
-      await client0.purchaseStateIs(purchaseId, "started"), timeout = expiry.int * 1000
+      await client0.purchaseStateIs(purchaseId, "started"),
+      timeout = expiry.u64.int * 1000,
     )
 
     var proofWasSubmitted = false
@@ -74,7 +72,7 @@ marketplacesuite "Hosts submit regular proofs":
 
     let subscription = await marketplace.subscribe(ProofSubmitted, onProofSubmitted)
 
-    check eventually(proofWasSubmitted, timeout = (duration - expiry).int * 1000)
+    check eventually(proofWasSubmitted, timeout = (duration - expiry).u64.int * 1000)
 
     await subscription.unsubscribe()
 
@@ -84,8 +82,8 @@ marketplacesuite "Simulate invalid proofs":
   # tightened so that they are showing, as an integration test, that specific
   # proofs are being marked as missed by the validator.
 
-  const minPricePerBytePerSecond = 1.u256
-  const collateralPerByte = 1.u256
+  const minPricePerBytePerSecond = 1'TokensPerSecond
+  const collateralPerByte = 1'Tokens
   const blocks = 8
   const ecNodes = 3
   const ecTolerance = 1
@@ -120,10 +118,7 @@ marketplacesuite "Simulate invalid proofs":
     let datasetSize =
       datasetSize(blocks = blocks, nodes = ecNodes, tolerance = ecTolerance)
     await createAvailabilities(
-      datasetSize.truncate(uint64),
-      duration,
-      collateralPerByte,
-      minPricePerBytePerSecond,
+      datasetSize, duration, collateralPerByte, minPricePerBytePerSecond
     )
 
     let cid = (await client0.upload(data)).get
@@ -141,7 +136,8 @@ marketplacesuite "Simulate invalid proofs":
     let requestId = (await client0.requestId(purchaseId)).get
 
     check eventually(
-      await client0.purchaseStateIs(purchaseId, "started"), timeout = expiry.int * 1000
+      await client0.purchaseStateIs(purchaseId, "started"),
+      timeout = expiry.u64.int * 1000,
     )
 
     var slotWasFreed = false
@@ -151,7 +147,7 @@ marketplacesuite "Simulate invalid proofs":
 
     let subscription = await marketplace.subscribe(SlotFreed, onSlotFreed)
 
-    check eventually(slotWasFreed, timeout = (duration - expiry).int * 1000)
+    check eventually(slotWasFreed, timeout = (duration - expiry).u64.int * 1000)
 
     await subscription.unsubscribe()
 
@@ -185,10 +181,7 @@ marketplacesuite "Simulate invalid proofs":
     let datasetSize =
       datasetSize(blocks = blocks, nodes = ecNodes, tolerance = ecTolerance)
     await createAvailabilities(
-      datasetSize.truncate(uint64),
-      duration,
-      collateralPerByte,
-      minPricePerBytePerSecond,
+      datasetSize, duration, collateralPerByte, minPricePerBytePerSecond
     )
 
     let cid = (await client0.upload(data)).get
@@ -214,7 +207,7 @@ marketplacesuite "Simulate invalid proofs":
     let filledSubscription = await marketplace.subscribe(SlotFilled, onSlotFilled)
 
     # wait for the first slot to be filled
-    check eventually(slotWasFilled, timeout = expiry.int * 1000)
+    check eventually(slotWasFilled, timeout = expiry.u64.int * 1000)
 
     var slotWasFreed = false
     proc onSlotFreed(event: ?!SlotFreed) =
@@ -224,7 +217,7 @@ marketplacesuite "Simulate invalid proofs":
     let freedSubscription = await marketplace.subscribe(SlotFreed, onSlotFreed)
 
     # In 2 periods you cannot have enough invalid proofs submitted:
-    await sleepAsync(2.periods.int.seconds)
+    await sleepAsync(2.periods.u64.int.seconds)
     check not slotWasFreed
 
     await filledSubscription.unsubscribe()

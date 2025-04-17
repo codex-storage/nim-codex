@@ -31,7 +31,7 @@ method run*(
     raiseAssert "no sale request"
 
   try:
-    var returnedCollateral = UInt256.none
+    var returnedCollateral = Tokens.none
 
     if await slotIsFilledByMe(market, data.requestId, data.slotIndex):
       debug "Collecting collateral and partial payout",

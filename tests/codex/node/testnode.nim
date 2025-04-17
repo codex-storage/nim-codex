@@ -188,11 +188,11 @@ asyncchecksuite "Test Node - Basic":
         cid = manifestBlock.cid,
         nodes = 5,
         tolerance = 2,
-        duration = 100.uint64,
-        pricePerBytePerSecond = 1.u256,
+        duration = 100'StorageDuration,
+        pricePerBytePerSecond = 1'TokensPerSecond,
         proofProbability = 3.u256,
-        expiry = 200.uint64,
-        collateralPerByte = 1.u256,
+        expiry = 200'StorageDuration,
+        collateralPerByte = 1'Tokens,
       )
     ).tryGet
 

@@ -26,15 +26,12 @@ twonodessuite "REST API":
 
   test "node shows used and available space", twoNodesConfig:
     discard (await client1.upload("some file contents")).get
-    let totalSize = 12.uint64
-    let minPricePerBytePerSecond = 1.u256
-    let totalCollateral = totalSize.u256 * minPricePerBytePerSecond
     discard (
       await client1.postAvailability(
-        totalSize = totalSize,
-        duration = 2.uint64,
-        minPricePerBytePerSecond = minPricePerBytePerSecond,
-        totalCollateral = totalCollateral,
+        totalSize = 12.uint64,
+        duration = 2'StorageDuration,
+        minPricePerBytePerSecond = 1'TokensPerSecond,
+        totalCollateral = 100'Tokens,
         enabled = true.some,
       )
     ).get
@@ -62,11 +59,11 @@ twonodessuite "REST API":
     let response = (
       await client1.requestStorageRaw(
         cid,
-        duration = 10.uint64,
-        pricePerBytePerSecond = 1.u256,
+        duration = 10'StorageDuration,
+        pricePerBytePerSecond = 1'TokensPerSecond,
         proofProbability = 3.u256,
-        collateralPerByte = 1.u256,
-        expiry = 9.uint64,
+        collateralPerByte = 1'Tokens,
+        expiry = 9'StorageDuration,
       )
     )
 
@@ -81,20 +78,18 @@ twonodessuite "REST API":
       fmt"({minBlocks=}, {nodes=}, {tolerance=})", twoNodesConfig:
       let data = await RandomChunker.example(blocks = minBlocks)
       let cid = (await client1.upload(data)).get
-      let duration = 100.uint64
-      let pricePerBytePerSecond = 1.u256
-      let proofProbability = 3.u256
-      let expiry = 30.uint64
-      let collateralPerByte = 1.u256
-
-      var responseBefore = (
-        await client1.requestStorageRaw(
-          cid, duration, pricePerBytePerSecond, proofProbability, collateralPerByte,
-          expiry, nodes.uint, tolerance.uint,
-        )
+      let response = await client1.requestStorageRaw(
+        cid,
+        duration = 100'StorageDuration,
+        pricePerBytePerSecond = 1'TokensPerSecond,
+        proofProbability = 3.u256,
+        collateralPerByte = 1'Tokens,
+        expiry = 30'StorageDuration,
+        nodes = nodes.uint,
+        tolerance = tolerance.uint,
       )
 
-      check responseBefore.status == 200
+      check response.status == 200
 
   test "node accepts file uploads with content type", twoNodesConfig:
     let headers = @[("Content-Type", "text/plain")]

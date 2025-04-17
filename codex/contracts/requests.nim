@@ -10,24 +10,28 @@ import pkg/libp2p/[cid, multicodec]
 import ../logutils
 import ../utils/json
 from ../errors import mapFailure
+import ./timestamps
+import ./tokens
 
 export contractabi
+export timestamps
+export tokens
 
 type
   StorageRequest* = object
     client* {.serialize.}: Address
     ask* {.serialize.}: StorageAsk
     content* {.serialize.}: StorageContent
-    expiry* {.serialize.}: uint64
+    expiry* {.serialize.}: StorageDuration
     nonce*: Nonce
 
   StorageAsk* = object
     proofProbability* {.serialize.}: UInt256
-    pricePerBytePerSecond* {.serialize.}: UInt256
-    collateralPerByte* {.serialize.}: UInt256
+    pricePerBytePerSecond* {.serialize.}: TokensPerSecond
+    collateralPerByte* {.serialize.}: Tokens
     slots* {.serialize.}: uint64
     slotSize* {.serialize.}: uint64
-    duration* {.serialize.}: uint64
+    duration* {.serialize.}: StorageDuration
     maxSlotLoss* {.serialize.}: uint64
 
   StorageContent* = object
@@ -53,7 +57,6 @@ type
     Filled
     Finished
     Failed
-    Paid
     Cancelled
     Repair
 
@@ -187,20 +190,20 @@ func slotId*(request: StorageRequest, slotIndex: uint64): SlotId =
 func id*(slot: Slot): SlotId =
   slotId(slot.request, slot.slotIndex)
 
-func pricePerSlotPerSecond*(ask: StorageAsk): UInt256 =
-  ask.pricePerBytePerSecond * ask.slotSize.u256
+func pricePerSlotPerSecond*(ask: StorageAsk): TokensPerSecond =
+  ask.pricePerBytePerSecond * ask.slotSize
 
-func pricePerSlot*(ask: StorageAsk): UInt256 =
-  ask.duration.u256 * ask.pricePerSlotPerSecond
+func pricePerSlot*(ask: StorageAsk): Tokens =
+  ask.pricePerSlotPerSecond * ask.duration
 
-func totalPrice*(ask: StorageAsk): UInt256 =
-  ask.slots.u256 * ask.pricePerSlot
+func totalPrice*(ask: StorageAsk): Tokens =
+  ask.pricePerSlot * ask.slots
 
-func totalPrice*(request: StorageRequest): UInt256 =
+func totalPrice*(request: StorageRequest): Tokens =
   request.ask.totalPrice
 
-func collateralPerSlot*(ask: StorageAsk): UInt256 =
-  ask.collateralPerByte * ask.slotSize.u256
+func collateralPerSlot*(ask: StorageAsk): Tokens =
+  ask.collateralPerByte * ask.slotSize
 
 func size*(ask: StorageAsk): uint64 =
   ask.slots * ask.slotSize

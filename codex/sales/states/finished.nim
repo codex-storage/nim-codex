@@ -12,7 +12,7 @@ logScope:
   topics = "marketplace sales finished"
 
 type SaleFinished* = ref object of SaleState
-  returnedCollateral*: ?UInt256
+  returnedCollateral*: ?Tokens
 
 method `$`*(state: SaleFinished): string =
   "SaleFinished"
