@@ -142,7 +142,7 @@ asyncchecksuite "validation":
   test "when a proof is missed, it is marked as missing":
     await validation.start()
     await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
-    market.setCanProofBeMarkedAsMissing(slot.id, true)
+    market.setCanMarkProofAsMissing(slot.id, true)
     advanceToNextPeriod()
     await sleepAsync(100.millis) # allow validation loop to run
     check market.markedAsMissingProofs.contains(slot.id)
@@ -150,7 +150,7 @@ asyncchecksuite "validation":
   test "when a proof can not be marked as missing, it will not be marked":
     await validation.start()
     await market.fillSlot(slot.request.id, slot.slotIndex, proof, collateral)
-    market.setCanProofBeMarkedAsMissing(slot.id, false)
+    market.setCanMarkProofAsMissing(slot.id, false)
     advanceToNextPeriod()
     await sleepAsync(100.millis) # allow validation loop to run
     check market.markedAsMissingProofs.len == 0

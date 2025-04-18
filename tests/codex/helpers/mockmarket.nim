@@ -381,15 +381,15 @@ method markProofAsMissing*(
 ) {.async: (raises: [CancelledError, MarketError]).} =
   market.markedAsMissingProofs.add(id)
 
-proc setCanProofBeMarkedAsMissing*(mock: MockMarket, id: SlotId, required: bool) =
+proc setCanMarkProofAsMissing*(mock: MockMarket, id: SlotId, required: bool) =
   if required:
     mock.canBeMarkedAsMissing.incl(id)
   else:
     mock.canBeMarkedAsMissing.excl(id)
 
-method canProofBeMarkedAsMissing*(
+method canMarkProofAsMissing*(
     market: MockMarket, id: SlotId, period: Period
-): Future[bool] {.async.} =
+): Future[bool] {.async: (raises: [CancelledError]).} =
   return market.canBeMarkedAsMissing.contains(id)
 
 method reserveSlot*(
