@@ -63,7 +63,28 @@ method start*(node: HardhatProcess) {.async.} =
     node.process = await startProcess(
       node.executable,
       node.workingDir,
-      @["node", "--export", "deployment-localhost.json"].concat(node.arguments),
+      @["node"].concat(node.arguments),
+      options = poptions,
+      stdoutHandle = AsyncProcess.Pipe,
+    )
+
+    discard await startProcess(
+      node.executable,
+      node.workingDir,
+      @["node", "run", "scripts/mine.js", "--network", "localhost"].concat(
+        node.arguments
+      ),
+      options = poptions,
+      stdoutHandle = AsyncProcess.Pipe,
+    )
+
+    discard await startProcess(
+      node.executable,
+      node.workingDir,
+      @[
+        "node", "ignition", "deploy", "ignition/modules/marketplace.js", "--network",
+        "localhost",
+      ].concat(node.arguments),
       options = poptions,
       stdoutHandle = AsyncProcess.Pipe,
     )
