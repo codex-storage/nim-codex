@@ -78,7 +78,7 @@ proc retrieveCid(
   ## manner
   ##
 
-  var stream: LPStream
+  var lpStream: LPStream
 
   var bytes = 0
   try:
@@ -93,6 +93,8 @@ proc retrieveCid(
         resp.status = Http500
         await resp.sendBody(error.msg)
         return
+
+    lpStream = stream
 
     # It is ok to fetch again the manifest because it will hit the cache
     without manifest =? (await node.fetchManifest(cid)), err:
@@ -139,15 +141,15 @@ proc retrieveCid(
     codex_api_downloads.inc()
   except CancelledError as exc:
     raise exc
-  except CatchableError as exc:
+  except LPStreamError as exc:
     warn "Error streaming blocks", exc = exc.msg
     resp.status = Http500
     if resp.isPending():
       await resp.sendBody(exc.msg)
   finally:
     info "Sent bytes", cid = cid, bytes
-    if not stream.isNil:
-      await stream.close()
+    if not lpStream.isNil:
+      await lpStream.close()
 
 proc buildCorsHeaders(
     httpMethod: string, allowedOrigin: Option[string]
