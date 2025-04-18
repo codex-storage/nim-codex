@@ -103,12 +103,11 @@ proc startDownload*(
   ## Start a download for a manifest
   ##
 
-  # This won't play nice with multiple downloads as the Swarm will install
-  # its own callbacks and listeners, but for experimentation is fine.
-  let swarm = Swarm.new(
+  # Don't start before placing the swarm in the table or
+  # a fast call to stop will miss it.
+  var swarm = Swarm.new(
     manifest, self.networkStore.localStore, self.engine.network, self.discovery
   )
-
   self.downloads[manifest.treeCid] = swarm
   await swarm.start()
 

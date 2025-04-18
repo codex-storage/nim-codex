@@ -64,8 +64,8 @@ type
     network*: BlockExcNetwork
     discovery*: Discovery
     peerEventHandler: PeerEventHandler
-
     completionHandle: Future[?!void]
+    lifecycleLock: AsyncLock
 
 proc `$`(self: SwarmPeerCtx): string =
   return "SwarmPeerCtx(id = " & $self.id & ")"
@@ -534,23 +534,42 @@ proc uninstallEventHandlers(self: Swarm) =
 
 proc start*(self: Swarm): Future[void] {.async: (raises: []).} =
   trace "Initialize swarm. Load block knowledge.", cid = self.cid
-  await self.loadBlockKnowledge()
+  try:
+    await self.lifecycleLock.acquire()
+    await self.loadBlockKnowledge()
 
-  trace "Joining swarm."
-  self.installEventHandlers()
-  # Bootstraps
-  self.trackedFutures.track(self.neighborMaintenanceLoop())
-  self.trackedFutures.track(self.advertiseLoop())
+    trace "Joining swarm."
+    self.installEventHandlers()
+    # Bootstraps
+    self.trackedFutures.track(self.neighborMaintenanceLoop())
+    self.trackedFutures.track(self.advertiseLoop())
+  except CancelledError:
+    return
+  finally:
+    try:
+      self.lifecycleLock.release()
+    except AsyncLockError as err:
+      # This is probably serious enough that I should raise defect in production code.
+      error "Failed to release lock, stopping the swarm might fail", err = err.msg
 
 proc stop*(self: Swarm): Future[void] {.async: (raises: []).} =
   trace "Stopping event loops and uninstalling handlers"
-  # We should probably have a way to actively inform the DHT tracker
-  # that we're leaving.
-  await self.trackedFutures.cancelTracked()
-  # Messages that arrive after this will be ignored (or
-  # might be delivered to another swarm if we restart a download).
-  self.uninstallEventHandlers()
-  trace "Left swarm"
+  try:
+    await self.lifecycleLock.acquire()
+    # We should probably have a way to actively inform the DHT tracker
+    # that we're leaving.
+    await self.trackedFutures.cancelTracked()
+    # Messages that arrive after this will be ignored (or
+    # might be delivered to another swarm if we restart a download).
+    self.uninstallEventHandlers()
+    trace "Left swarm"
+  except CancelledError:
+    return
+  finally:
+    try:
+      self.lifecycleLock.release()
+    except AsyncLockError as err:
+      error "Failed to release lock. Restarting this swarm might fail", err = err.msg
 
 proc new*(
     T: type Swarm,
@@ -571,4 +590,5 @@ proc new*(
     downloadedBlocks: 0,
     trackedFutures: TrackedFutures.new(),
     completionHandle: newFuture[?!void]("codex.blockexchange.swarm.start"),
+    lifecycleLock: newAsyncLock(),
   )

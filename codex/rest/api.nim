@@ -200,8 +200,9 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
     if contentBody.isNone:
       return RestApiResponse.error(Http400, "Missing content body")
 
-    without manifest =? RestContent.fromJson(string.fromBytes(contentBody.get().data)),
-      err:
+    let rawData = string.fromBytes(contentBody.get().data)
+
+    without manifest =? RestContent.fromJson(rawData), err:
       return RestApiResponse.error(Http400, err.msg)
 
     info "Starting download for manifest",
@@ -222,10 +223,17 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
     else:
       return RestApiResponse.error(Http404)
 
-  router.rawApi(MethodDelete, "/api/codex/v1/download/{cid}") do(
+  router.rawApi(MethodGet, "/api/codex/v1/download") do() -> RestApiResponse:
+    let swarms = node.downloads.keys().toSeq
+    return RestApiResponse.response(
+      $ %*{"activeSwarms": swarms}, contentType = "application/json"
+    )
+
+  router.api(MethodDelete, "/api/codex/v1/download/{cid}") do(
     cid: Cid, resp: HttpResponseRef
   ) -> RestApiResponse:
     let downloadId = cid.get()
+    info "Stopping download for manifest", cid = downloadId
     if downloadId notin node.downloads:
       return RestApiResponse.error(Http404)
 
