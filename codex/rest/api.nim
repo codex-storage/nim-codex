@@ -208,7 +208,19 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
     info "Starting download for manifest",
       manifest = manifest.cid, treeCid = manifest.manifest.treeCid
 
-    let treeCid = await node.startDownload(manifest.manifest)
+    # FIXME Manifests are not de-serialized correctly, so we create a
+    #   new one here which should have the correct defaults for version,
+    #   hcodec and codec. Note that this is a HACK.
+    let treeCid = await node.startDownload(
+      Manifest.new(
+        treeCid = manifest.manifest.treeCid,
+        datasetSize = manifest.manifest.datasetSize,
+        blockSize = manifest.manifest.blockSize,
+        filename = manifest.manifest.filename,
+        mimetype = manifest.manifest.mimetype,
+        protected = false,
+      )
+    )
     return RestApiResponse.response(
       $ %*{"downloadId": $treeCid}, contentType = "application/json"
     )

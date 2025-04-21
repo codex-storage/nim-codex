@@ -97,18 +97,40 @@ func engine*(self: CodexNodeRef): BlockExcEngine =
 func discovery*(self: CodexNodeRef): Discovery =
   return self.discovery
 
+proc storeManifest*(
+    self: CodexNodeRef, manifest: Manifest
+): Future[?!bt.Block] {.async.} =
+  without encodedVerifiable =? manifest.encode(), err:
+    trace "Unable to encode manifest"
+    return failure(err)
+
+  without blk =? bt.Block.new(data = encodedVerifiable, codec = ManifestCodec), error:
+    trace "Unable to create block from manifest"
+    return failure(error)
+
+  if err =? (await self.networkStore.putBlock(blk)).errorOption:
+    trace "Unable to store manifest block", cid = blk.cid, err = err.msg
+    return failure(err)
+
+  success blk
+
 proc startDownload*(
     self: CodexNodeRef, manifest: Manifest
-): Future[Cid] {.async: (raises: []).} =
+): Future[Cid] {.async: (raises: [CatchableError]).} =
   ## Start a download for a manifest
   ##
 
-  # Don't start before placing the swarm in the table or
-  # a fast call to stop will miss it.
+  # Don't call await on anything before the swarm is stored in the table
+  # or you might end up with two swarms for the same manifest.
   var swarm = Swarm.new(
     manifest, self.networkStore.localStore, self.engine.network, self.discovery
   )
   self.downloads[manifest.treeCid] = swarm
+  # Make sure to have the manifest on-disk or you won't be able to get
+  # the file over the regular download API.
+  without _ =? (await self.storeManifest(manifest)), err:
+    error "Unable to store manifest block, download aborted",
+      cid = manifest.treeCid, err = err.msg
   await swarm.start()
 
   return manifest.treeCid
@@ -129,23 +151,6 @@ proc stopDownload*(self: CodexNodeRef, dataset: Cid): Future[?!void] {.async.} =
 
   self.downloads.del(dataset)
   return success()
-
-proc storeManifest*(
-    self: CodexNodeRef, manifest: Manifest
-): Future[?!bt.Block] {.async.} =
-  without encodedVerifiable =? manifest.encode(), err:
-    trace "Unable to encode manifest"
-    return failure(err)
-
-  without blk =? bt.Block.new(data = encodedVerifiable, codec = ManifestCodec), error:
-    trace "Unable to create block from manifest"
-    return failure(error)
-
-  if err =? (await self.networkStore.putBlock(blk)).errorOption:
-    trace "Unable to store manifest block", cid = blk.cid, err = err.msg
-    return failure(err)
-
-  success blk
 
 proc fetchManifest*(self: CodexNodeRef, cid: Cid): Future[?!Manifest] {.async.} =
   ## Fetch and decode a manifest block
