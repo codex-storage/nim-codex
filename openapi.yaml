@@ -124,6 +124,9 @@ components:
         revision:
           type: string
           example: 0c647d8
+        contracts:
+          type: string
+          example: 0b537c7
 
     PeersTable:
       type: object
