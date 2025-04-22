@@ -477,7 +477,7 @@ proc getCodexRevision(): string =
   var res = strip(staticExec("git rev-parse --short HEAD"))
   return res
 
-proc getCodexContractsRevision() : string =
+proc getCodexContractsRevision(): string =
   let res = strip(staticExec("git rev-parse --short HEAD:vendor/codex-contracts-eth"))
   return res
 
