@@ -477,7 +477,7 @@ proc getCodexRevision(): string =
   var res = strip(staticExec("git rev-parse --short HEAD"))
   return res
 
-proc getCodexContractsRevision() : string =
+proc getCodexContractsRevision(): string =
   let
     res = strip(staticExec("git ls-tree -z -d --abbrev=7 HEAD -- ../vendor/codex-contracts-eth")).replace('\t', ' ')
     tokens = res.split(' ')
