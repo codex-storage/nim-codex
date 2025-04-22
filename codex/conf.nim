@@ -479,7 +479,10 @@ proc getCodexRevision(): string =
 
 proc getCodexContractsRevision(): string =
   let
-    res = strip(staticExec("git ls-tree -z -d --abbrev=7 HEAD -- ../vendor/codex-contracts-eth")).replace('\t', ' ')
+    res = strip(
+        staticExec("git ls-tree -z -d --abbrev=7 HEAD -- ../vendor/codex-contracts-eth")
+      )
+      .replace('\t', ' ')
     tokens = res.split(' ')
   return tokens[2]
 
