@@ -478,6 +478,23 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
           Http422, "Total size must be larger then zero", headers = headers
         )
 
+      if restAv.duration == 0:
+        return RestApiResponse.error(
+          Http422, "duration must be larger then zero", headers = headers
+        )
+
+      if restAv.minPricePerBytePerSecond == 0:
+        return RestApiResponse.error(
+          Http422,
+          "minPricePerBytePerSecond must be larger then zero",
+          headers = headers,
+        )
+
+      if restAv.totalCollateral == 0:
+        return RestApiResponse.error(
+          Http422, "totalCollateral must be larger then zero", headers = headers
+        )
+
       if not reservations.hasAvailable(restAv.totalSize):
         return
           RestApiResponse.error(Http422, "Not enough storage quota", headers = headers)
