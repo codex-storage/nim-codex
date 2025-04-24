@@ -51,7 +51,7 @@ method run*(
       onClear(request, data.slotIndex)
 
     if onCleanUp =? agent.onCleanUp:
-      await onCleanUp(reprocessSlot = false, returnedCollateral = returnedCollateral)
+      await onCleanUp("cancelled due to timeout", reprocessSlot = false, returnedCollateral = returnedCollateral)
 
     warn "Sale cancelled due to timeout",
       requestId = data.requestId, slotIndex = data.slotIndex

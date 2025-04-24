@@ -55,13 +55,13 @@ method run*(
     let slot = Slot(request: request, slotIndex: data.slotIndex)
     await waitForStableChallenge(market, clock, slot.id)
 
-    debug "Generating initial proof", requestId = data.requestId
+    debug "Generating initial proof", requestId = data.requestId, slotIndex = data.slotIndex
     let challenge = await context.market.getChallenge(slot.id)
     without proof =? (await onProve(slot, challenge)), err:
       error "Failed to generate initial proof", error = err.msg
       return some State(SaleErrored(error: err))
 
-    debug "Finished proof calculation", requestId = data.requestId
+    debug "Finished proof calculation", requestId = data.requestId, slotIndex = data.slotIndex
 
     return some State(SaleFilling(proof: proof))
   except CancelledError as e:

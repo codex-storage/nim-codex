@@ -26,7 +26,7 @@ type
     onCleanUp*: OnCleanUp
     onFilled*: ?OnFilled
 
-  OnCleanUp* = proc(
+  OnCleanUp* = proc(reason: string,
     reprocessSlot = false, returnedCollateral = UInt256.none
   ): Future[void] {.gcsafe, upraises: [].}
   OnFilled* = proc(request: StorageRequest, slotIndex: uint64) {.gcsafe, upraises: [].}

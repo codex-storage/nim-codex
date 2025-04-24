@@ -158,6 +158,7 @@ method run*(
 
         state.loop = nil
 
+    debug "Proveloop finished"
     return some State(SalePayout())
   except CancelledError as e:
     trace "SaleProving.run onCleanUp was cancelled", error = e.msgDetail

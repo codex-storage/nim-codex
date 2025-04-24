@@ -72,6 +72,7 @@ method run*(
 
     trace "Starting download"
     if err =? (await onStore(request, data.slotIndex, onBlocks, isRepairing)).errorOption:
+      debug "Failed to download"
       return some State(SaleErrored(error: err, reprocessSlot: false))
 
     trace "Download complete"

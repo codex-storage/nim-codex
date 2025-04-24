@@ -25,7 +25,7 @@ method run*(
 
   try:
     if onCleanUp =? agent.onCleanUp:
-      await onCleanUp(reprocessSlot = state.reprocessSlot)
+      await onCleanUp("sale ignored", reprocessSlot = state.reprocessSlot)
   except CancelledError as e:
     trace "SaleIgnored.run was cancelled", error = e.msgDetail
   except CatchableError as e:

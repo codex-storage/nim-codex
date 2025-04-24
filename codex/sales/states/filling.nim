@@ -52,9 +52,11 @@ method run*(
       debug "Slot is already filled, ignoring slot"
       return some State(SaleIgnored(reprocessSlot: false))
     except MarketError as e:
+      debug "market error", err = e.msg
       return some State(SaleErrored(error: e))
     # other CatchableErrors are handled "automatically" by the SaleState
 
+    debug "going to filled"
     return some State(SaleFilled())
   except CancelledError as e:
     trace "SaleFilling.run was cancelled", error = e.msgDetail

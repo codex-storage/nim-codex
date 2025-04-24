@@ -56,6 +56,7 @@ method run*(
     let slotId = slotId(data.requestId, data.slotIndex)
     let state = await market.slotState(slotId)
     if state != SlotState.Free and state != SlotState.Repair:
+      debug "Slot is not free and not repair, ignoring."
       return some State(SaleIgnored(reprocessSlot: false))
 
     # TODO: Once implemented, check to ensure the host is allowed to fill the slot,
@@ -93,8 +94,10 @@ method run*(
       if error of BytesOutOfBoundsError:
         # Lets monitor how often this happen and if it is often we can make it more inteligent to handle it
         codex_reservations_availability_mismatch.inc()
+        debug "Bytes out of bounds error, ignoring"
         return some State(SaleIgnored(reprocessSlot: true))
 
+      debug "other error, going to error"
       return some State(SaleErrored(error: error))
 
     trace "Reservation created successfully"

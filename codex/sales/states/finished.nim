@@ -40,7 +40,7 @@ method run*(
       onClear(request, data.slotIndex)
 
     if onCleanUp =? agent.onCleanUp:
-      await onCleanUp(returnedCollateral = state.returnedCollateral)
+      await onCleanUp("finished contract slot", returnedCollateral = state.returnedCollateral)
   except CancelledError as e:
     trace "SaleFilled.run onCleanUp was cancelled", error = e.msgDetail
   except CatchableError as e:

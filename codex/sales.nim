@@ -112,6 +112,7 @@ proc remove(sales: Sales, agent: SalesAgent) {.async.} =
 
 proc cleanUp(
     sales: Sales,
+    reason: string,
     agent: SalesAgent,
     reprocessSlot: bool,
     returnedCollateral: ?UInt256,
@@ -126,7 +127,7 @@ proc cleanUp(
     reservationId = data.reservation .? id |? ReservationId.default
     availabilityId = data.reservation .? availabilityId |? AvailabilityId.default
 
-  trace "cleaning up sales agent"
+  trace "cleaning up sales agent", reason
 
   # if reservation for the SalesAgent was not created, then it means
   # that the cleanUp was called before the sales process really started, so
@@ -201,10 +202,10 @@ proc processSlot(sales: Sales, item: SlotQueueItem, done: Future[void]) =
   let agent =
     newSalesAgent(sales.context, item.requestId, item.slotIndex, none StorageRequest)
 
-  agent.onCleanUp = proc(
+  agent.onCleanUp = proc(reason: string,
       reprocessSlot = false, returnedCollateral = UInt256.none
   ) {.async.} =
-    await sales.cleanUp(agent, reprocessSlot, returnedCollateral, done)
+    await sales.cleanUp(reason, agent, reprocessSlot, returnedCollateral, done)
 
   agent.onFilled = some proc(request: StorageRequest, slotIndex: uint64) =
     sales.filled(request, slotIndex, done)
@@ -269,13 +270,13 @@ proc load*(sales: Sales) {.async.} =
     let agent =
       newSalesAgent(sales.context, slot.request.id, slot.slotIndex, some slot.request)
 
-    agent.onCleanUp = proc(
+    agent.onCleanUp = proc(reason: string,
         reprocessSlot = false, returnedCollateral = UInt256.none
     ) {.async.} =
       # since workers are not being dispatched, this future has not been created
       # by a worker. Create a dummy one here so we can call sales.cleanUp
       let done: Future[void] = nil
-      await sales.cleanUp(agent, reprocessSlot, returnedCollateral, done)
+      await sales.cleanUp(reason, agent, reprocessSlot, returnedCollateral, done)
 
     # There is no need to assign agent.onFilled as slots loaded from `mySlots`
     # are inherently already filled and so assigning agent.onFilled would be

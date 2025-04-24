@@ -57,6 +57,7 @@ method run*(
 
       let requestEnd = await market.getRequestEnd(data.requestId)
       if err =? (await onExpiryUpdate(request.content.cid, requestEnd)).errorOption:
+        debug "failed to update expiry"
         return some State(SaleErrored(error: err))
 
       when codex_enable_proof_failures:
@@ -66,9 +67,11 @@ method run*(
             SaleProvingSimulated(failEveryNProofs: context.simulateProofFailures)
           )
 
+      debug "filled, going to proving"
       return some State(SaleProving())
     else:
       let error = newException(HostMismatchError, "Slot filled by other host")
+      debug "slot filled by another host"
       return some State(SaleErrored(error: error))
   except CancelledError as e:
     trace "SaleFilled.run was cancelled", error = e.msgDetail
