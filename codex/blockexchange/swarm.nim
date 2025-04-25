@@ -235,15 +235,15 @@ proc fillRequests*(self: Swarm, peer: PeerId) {.async: (raises: [CancelledError]
     error "Cannot fill request schedule for peer", peer = peer
     return
 
+  if peerCtx.pendingRequests >= self.maxPendingRequests:
+    trace "Max pending requests reached for peer, not sending new ones", peer = peer
+    return
+
   var
     requests: seq[int]
     requested: int = 0
 
   for blockIndex in peerCtx.blockIndices:
-    if peerCtx.pendingRequests >= self.maxPendingRequests:
-      trace "Max pending requests reached for peer, not sending new ones", peer = peer
-      break
-
     # Already have the block.
     if self.blocks[blockIndex].completed:
       continue
@@ -354,7 +354,18 @@ proc handleBlockKnowledgeRequest(self: Swarm, peer: PeerId) {.async: (raises: []
 
   # XXX This will probably be way too expensive to keep sending, even just
   #   for prototyping
-  trace "Have block presences to send", count = presenceInfo.len
+  if presenceInfo.len > 0:
+    trace "Have block presences to send", count = presenceInfo.len, peer = peer
+  else:
+    trace "No block presences to send, sending empty reply", peer = peer
+    # Sends an easily recognizable bogus block or the reply handler at the
+    # peer will never get triggered.
+    presenceInfo =
+      @[
+        BlockPresence(
+          address: init(BlockAddress, self.cid), `type`: BlockPresenceType.Have
+        )
+      ]
 
   try:
     await self.network.request.sendPresence(peer, presenceInfo)
@@ -365,17 +376,20 @@ proc handleBlockKnowledgeResponse(
     self: Swarm, peer: PeerId, presence: seq[BlockPresence]
 ) {.async: (raises: []).} =
   try:
-    trace "Received block knowledge from peer", peer = peer
-    var i = 0
-    for blockPresence in presence:
-      i += 1
-      self.peers[peer].blocks[blockPresence.address.index.int] = true
+    if presence.len > 0:
+      trace "Received block knowledge from peer", peer = peer
+      var i = 0
+      for blockPresence in presence:
+        i += 1
+        self.peers[peer].blocks[blockPresence.address.index.int] = true
 
-    trace "Peer has blocks", peer = peer, count = i
+      trace "Peer has blocks", peer = peer, count = i
 
-    # Learned some potentially new blocks for peer, maybe we can push
-    # some more requests.
-    await self.fillRequests(peer)
+      # Learned some potentially new blocks for peer, maybe we can push
+      # some more requests.
+      await self.fillRequests(peer)
+    else:
+      trace "Peer reported no block knowledge", peer = peer
   except KeyError:
     error "Cannot update block presence for peer", peer = peer
     return
@@ -475,6 +489,7 @@ proc installEventHandlers(self: Swarm) =
 
   proc wantListHandler(peer: PeerId, wantList: WantList) {.async: (raises: []).} =
     if not self.checkAddresses(wantList.entries):
+      warn "Received want list for wrong swarm from peer", peer = peer
       return
 
     if wantList.full:
@@ -483,17 +498,26 @@ proc installEventHandlers(self: Swarm) =
       await self.handleBlockRequest(peer, wantList.entries.mapIt(it.address).toSeq)
 
   proc blocksPresenceHandler(
-      peer: PeerId, presence: seq[BlockPresence]
+      peer: PeerId, presences: seq[BlockPresence]
   ) {.async: (raises: []).} =
-    if not self.checkAddresses(presence):
+    if not self.checkAddresses(presences):
+      warn "Received block presences for wrong swarm from peer", peer = peer
       return
 
-    self.handleBlockKnowledgeResponse(peer, presence)
+    let actualPresences =
+      if presences.len == 1 and not presences[0].address.leaf:
+        trace "Received empty block knowledge reply from peer", peer = peer
+        @[]
+      else:
+        presences
+
+    await self.handleBlockKnowledgeResponse(peer, actualPresences)
 
   proc blocksDeliveryHandler(
       peer: PeerId, blocksDelivery: seq[BlockDelivery]
   ): Future[void] {.async: (raises: []).} =
     if not self.checkAddresses(blocksDelivery):
+      warn "Received blocks for wrong swarm from peer", peer = peer
       return
     self.handleBlockDelivery(peer, blocksDelivery)
 
