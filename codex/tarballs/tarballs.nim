@@ -16,6 +16,8 @@ import pkg/libp2p/[cid, multicodec, multihash]
 import pkg/serde/json
 
 import ../blocktype
+import ../manifest
+import ./directorymanifest
 
 proc example2*(_: type Block, size: int = 4096): ?!Block =
   let length = rand(size)
@@ -43,9 +45,9 @@ type
 
   TarballEntry* = object
     kind*: EntryKind
-    name: string
-    cid: Cid
-    contentLength: int
+    name*: string
+    cid*: Cid
+    contentLength*: int
     lastModified*: times.Time
     permissions*: set[FilePermission]
 
@@ -87,7 +89,7 @@ proc `$`*(tarballEntry: TarballEntry): string =
   ## Returns a string representation of the tarball entry.
   result = fmt"({tarballEntry.kind}, {tarballEntry.name})"
 
-proc parseFilePermissions(permissions: uint32): set[FilePermission] =
+proc parseFilePermissions*(permissions: uint32): set[FilePermission] =
   if defined(windows) or permissions == 0:
     # Ignore file permissions on Windows. If they are absent (.zip made on
     # Windows for example), set default permissions.
@@ -178,10 +180,12 @@ proc openStreamImpl(
         return failure("Attempted to read past end of file, corrupted tarball?")
 
       let normalizedFileName = normalizePathEnd(fileName)
+
       if typeFlag == '0' or typeFlag == '\0':
         if not onProcessedTarFile.isNil:
           let stream = newStringStream(data[pos ..< pos + fileSize])
-          without cid =? await onProcessedTarFile(stream, normalizedFileName), err:
+          without cid =?
+            await onProcessedTarFile(stream, normalizedFileName.lastPathPart), err:
             return failure(err.msg)
           tarball.contents[(fileNamePrefix / fileName).toUnixPath()] = TarballEntry(
             kind: ekNormalFile,
