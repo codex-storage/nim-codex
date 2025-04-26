@@ -10,15 +10,7 @@
 {.push raises: [].}
 
 import pkg/libp2p/cid
-# import pkg/stew/byteutils
-# import pkg/questionable
-# import pkg/questionable/results
-
-# import ../merkletree/codex/codex
 import ../utils/json
-
-# import ../errors
-# import ../codextypes
 
 type DirectoryManifest* = ref object
   name* {.serialize.}: string
