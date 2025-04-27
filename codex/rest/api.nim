@@ -189,14 +189,12 @@ proc retrieveDirectory(
     directoryDownloader.start(cid)
 
     echo "streaming directory started: ", cid
-    await sleepAsync(1.seconds)
     echo "after sleep..."
 
     while true:
       echo "getNext: ", directoryDownloader.queue.len, " entries in queue"
       let data = await directoryDownloader.getNext()
       echo "getNext[2]: ", data.len, " bytes"
-      await sleepAsync(1.seconds)
       if data.len == 0:
         break
       bytes += data.len
