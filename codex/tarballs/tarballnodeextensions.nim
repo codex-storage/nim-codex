@@ -21,24 +21,32 @@ proc fetchDirectoryManifest*(
   ## Fetch and decode a manifest block
   ##
 
-  if err =? cid.isManifest.errorOption:
-    return failure "CID has invalid content type for manifest {$cid}"
+  # we only need try/catch here because PR for checked exceptions is
+  # not yet merged
+  try:
+    if err =? cid.isManifest.errorOption:
+      return failure "CID has invalid content type for manifest {$cid}"
 
-  trace "Retrieving directory manifest for cid", cid
+    trace "Retrieving directory manifest for cid", cid
 
-  without blk =? await self.blockStore.getBlock(BlockAddress.init(cid)), err:
-    trace "Error retrieving directory manifest block", cid, err = err.msg
-    return failure err
+    without blk =? await self.blockStore.getBlock(BlockAddress.init(cid)), err:
+      trace "Error retrieving directory manifest block", cid, err = err.msg
+      return failure err
 
-  trace "Decoding directory manifest for cid", cid
+    trace "Decoding directory manifest for cid", cid
 
-  without manifest =? DirectoryManifest.decode(blk), err:
-    trace "Unable to decode as directory manifest", err = err.msg
-    return failure("Unable to decode as directory manifest")
+    without manifest =? DirectoryManifest.decode(blk), err:
+      trace "Unable to decode as directory manifest", err = err.msg
+      return failure("Unable to decode as directory manifest")
 
-  trace "Decoded directory manifest", cid
+    trace "Decoded directory manifest", cid
 
-  manifest.success
+    return manifest.success
+  except CancelledError as e:
+    raise e
+  except CatchableError as e:
+    trace "Error fetching directory manifest", cid, err = e.msg
+    return failure(e.msg)
 
 proc storeDirectoryManifest*(
     self: CodexNodeRef, manifest: DirectoryManifest
