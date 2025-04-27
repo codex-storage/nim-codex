@@ -39,8 +39,9 @@ import ../manifest
 import ../streams/asyncstreamwrapper
 import ../stores
 import ../utils/options
+
 # tarballs
-import ../tarballs/directorymanifest
+import ../tarballs/[directorymanifest, directorydownloader, tarballnodeextensions]
 
 import ./coders
 import ./json
@@ -155,6 +156,61 @@ proc retrieveCid(
     info "Sent bytes", cid = cid, bytes
     if not stream.isNil:
       await stream.close()
+
+proc retrieveDirectory(
+    node: CodexNodeRef, cid: Cid, resp: HttpResponseRef
+): Future[void] {.async: (raises: [CancelledError, HttpWriteError]).} =
+  ## Download torrent from the node in a streaming
+  ## manner
+  ##
+  let directoryDownloader = newDirectoryDownloader(node)
+
+  var bytes = 0
+  try:
+    without directoryManifest =? (await node.fetchDirectoryManifest(cid)), err:
+      error "Unable to fetch Directory Metadata", err = err.msg
+      resp.status = Http404
+      await resp.sendBody(err.msg)
+      return
+
+    resp.addHeader("Content-Type", "application/octet-stream")
+
+    resp.setHeader(
+      "Content-Disposition", "attachment; filename=\"" & directoryManifest.name & "\""
+    )
+
+    # ToDo: add contentSize to the directory manifest
+    # let contentLength = codexManifest.datasetSize
+    # resp.setHeader("Content-Length", $(contentLength.int))
+
+    await resp.prepare(HttpResponseStreamType.Plain)
+
+    echo "streaming directory: ", cid
+    directoryDownloader.start(cid)
+
+    echo "streaming directory started: ", cid
+    await sleepAsync(1.seconds)
+    echo "after sleep..."
+
+    while true:
+      echo "getNext: ", directoryDownloader.queue.len, " entries in queue"
+      let data = await directoryDownloader.getNext()
+      echo "getNext[2]: ", data.len, " bytes"
+      await sleepAsync(1.seconds)
+      if data.len == 0:
+        break
+      bytes += data.len
+      await resp.sendChunk(addr data[0], data.len)
+
+    echo "out of loop: ", directoryDownloader.queue.len, " entries in queue"
+    await resp.finish()
+    codex_api_downloads.inc()
+  except CancelledError as exc:
+    info "Streaming directory cancelled", exc = exc.msg
+    raise exc
+  finally:
+    info "Sent bytes for directory", cid, bytes
+    await directoryDownloader.stop()
 
 proc buildCorsHeaders(
     httpMethod: string, allowedOrigin: Option[string]
@@ -420,6 +476,25 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
 
     resp.setHeader("Access-Control-Expose-Headers", "Content-Disposition")
     await node.retrieveCid(cid.get(), local = false, resp = resp)
+
+  router.api(MethodGet, "/api/codex/v1/dir/{cid}/network/stream") do(
+    cid: Cid, resp: HttpResponseRef
+  ) -> RestApiResponse:
+    ## Download a file from the network in a streaming
+    ## manner
+    ##
+
+    var headers = buildCorsHeaders("GET", allowedOrigin)
+
+    if cid.isErr:
+      return RestApiResponse.error(Http400, $cid.error(), headers = headers)
+
+    if corsOrigin =? allowedOrigin:
+      resp.setCorsHeaders("GET", corsOrigin)
+      resp.setHeader("Access-Control-Headers", "X-Requested-With")
+
+    resp.setHeader("Access-Control-Expose-Headers", "Content-Disposition")
+    await node.retrieveDirectory(cid.get(), resp = resp)
 
   router.api(MethodGet, "/api/codex/v1/data/{cid}/network/manifest") do(
     cid: Cid, resp: HttpResponseRef
