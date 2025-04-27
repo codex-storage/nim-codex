@@ -58,7 +58,7 @@ type
   QueueNotRunningError* = object of SlotQueueError
 
 # Number of concurrent workers used for processing SlotQueueItems
-const DefaultMaxWorkers = 3
+const DefaultMaxWorkers = 1
 
 # Cap slot queue size to prevent unbounded growth and make sifting more
 # efficient. Max size is not equivalent to the number of slots a host can
@@ -333,6 +333,7 @@ proc addWorker(self: SlotQueue): ?!void =
   let worker = SlotQueueWorker.init()
   try:
     self.trackedFutures.track(worker.doneProcessing)
+    debug "adding worker"
     self.workers.addLastNoWait(worker)
   except AsyncQueueFullError:
     return failure("failed to add worker, worker queue full")
@@ -395,6 +396,7 @@ proc run(self: SlotQueue) {.async: (raises: []).} =
       # block until unpaused is true/fired, ie wait for queue to be unpaused
       await self.unpaused.wait()
 
+      debug "removing worker"
       let worker =
         await self.workers.popFirst() # if workers saturated, wait here for new workers
       let item = await self.queue.pop() # if queue empty, wait here for new items
