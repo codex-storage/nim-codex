@@ -627,6 +627,26 @@ paths:
         "500":
           description: Well it was bad-bad
 
+    delete:
+      summary: "Deletes either a single block or an entire dataset from the local node."
+      tags: [Data]
+      operationId: deleteLocal
+      parameters:
+        - in: path
+          name: cid
+          required: true
+          schema:
+            $ref: "#/components/schemas/Cid"
+          description: Block or dataset to be deleted.
+
+      responses:
+        "204":
+          description: Data was successfully deleted.
+        "400":
+          description: Invalid CID is specified
+        "500":
+          description: There was an error during deletion
+
   "/data/{cid}/network":
     post:
       summary: "Download a file from the network to the local node if it's not available locally. Note: Download is performed async. Call can return before download is completed."

@@ -288,7 +288,7 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
     cid: Cid, resp: HttpResponseRef
   ) -> RestApiResponse:
     ## Deletes either a single block or an entire dataset
-    ## from the local node. Does nothing and returns 200
+    ## from the local node. Does nothing and returns 204
     ## if the dataset is not locally available.
     ##
     var headers = buildCorsHeaders("DELETE", allowedOrigin)
