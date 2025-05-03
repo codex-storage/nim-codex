@@ -645,7 +645,7 @@ paths:
         "400":
           description: Invalid CID is specified
         "500":
-          description: There was an error while deletion
+          description: There was an error during deletion
 
   "/data/{cid}/network":
     post:
