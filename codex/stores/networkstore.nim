@@ -41,6 +41,25 @@ method getBlock*(self: NetworkStore, address: BlockAddress): Future[?!Block] {.a
       error "Unable to get block from exchange engine", address, err = err.msg
       return failure err
 
+    if address.leaf:
+      without proof =? newBlock.proof:
+        error "Proof expected for a leaf block delivery"
+        return failure "Proof expected for a leaf block delivery"
+      if err =? (await self.localStore.putBlock(newBlock)).errorOption:
+        error "Unable to store block", err = err.msg
+        return failure err
+      if err =? (
+        await self.localStore.putCidAndProof(
+          address.treeCid, address.index, newBlock.cid, proof
+        )
+      ).errorOption:
+        error "Unable to store proof and cid for a block:", err = err.msg
+        return failure err
+    else:
+      if err =? (await self.localStore.putBlock(newBlock)).errorOption:
+        error "Unable to store block", err = err.msg
+        return failure err
+
     return success newBlock
 
   return success blk
