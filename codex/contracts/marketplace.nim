@@ -51,8 +51,8 @@ type
   Proofs_ProofNotMissing* = object of SolidityError
   Proofs_ProofNotRequired* = object of SolidityError
   Proofs_ProofAlreadyMarkedMissing* = object of SolidityError
-  Proofs_InvalidProbability* = object of SolidityError
   Periods_InvalidSecondsPerPeriod* = object of SolidityError
+  SlotReservations_ReservationNotAllowed* = object of SolidityError
 
 proc configuration*(marketplace: Marketplace): MarketplaceConfig {.contract, view.}
 proc token*(marketplace: Marketplace): Address {.contract, view.}
@@ -67,7 +67,9 @@ proc requestStorage*(
   errors: [
     Marketplace_InvalidClientAddress, Marketplace_RequestAlreadyExists,
     Marketplace_InvalidExpiry, Marketplace_InsufficientSlots,
-    Marketplace_InvalidMaxSlotLoss,
+    Marketplace_InvalidMaxSlotLoss, Marketplace_InsufficientDuration,
+    Marketplace_InsufficientProofProbability, Marketplace_InsufficientCollateral,
+    Marketplace_InsufficientReward, Marketplace_InvalidCid,
   ]
 .}
 

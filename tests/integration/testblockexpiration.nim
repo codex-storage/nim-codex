@@ -18,11 +18,11 @@ multinodesuite "Node block expiration tests":
     let client = clients()[0]
     let clientApi = client.client
 
-    let contentId = clientApi.upload(content).get
+    let contentId = (await clientApi.upload(content)).get
 
     await sleepAsync(2.seconds)
 
-    let download = clientApi.download(contentId, local = true)
+    let download = await clientApi.download(contentId, local = true)
 
     check:
       download.isOk
@@ -39,12 +39,12 @@ multinodesuite "Node block expiration tests":
     let client = clients()[0]
     let clientApi = client.client
 
-    let contentId = clientApi.upload(content).get
+    let contentId = (await clientApi.upload(content)).get
 
     await sleepAsync(3.seconds)
 
-    let download = clientApi.download(contentId, local = true)
+    let download = await clientApi.download(contentId, local = true)
 
     check:
       download.isFailure
-      download.error.msg == "404 Not Found"
+      download.error.msg == "404"

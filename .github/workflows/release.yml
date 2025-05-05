@@ -28,7 +28,7 @@ jobs:
       uses: fabiocaccamo/create-matrix-action@v5
       with:
         matrix: |
-          os {linux},   cpu {amd64}, builder {ubuntu-20.04},     nim_version {${{ env.nim_version }}}, rust_version {${{ env.rust_version }}}, shell {bash --noprofile --norc -e -o pipefail}
+          os {linux},   cpu {amd64}, builder {ubuntu-22.04},     nim_version {${{ env.nim_version }}}, rust_version {${{ env.rust_version }}}, shell {bash --noprofile --norc -e -o pipefail}
           os {linux},   cpu {arm64}, builder {ubuntu-22.04-arm}, nim_version {${{ env.nim_version }}}, rust_version {${{ env.rust_version }}}, shell {bash --noprofile --norc -e -o pipefail}
           os {macos},   cpu {amd64}, builder {macos-13},         nim_version {${{ env.nim_version }}}, rust_version {${{ env.rust_version }}}, shell {bash --noprofile --norc -e -o pipefail}
           os {macos},   cpu {arm64}, builder {macos-14},         nim_version {${{ env.nim_version }}}, rust_version {${{ env.rust_version }}}, shell {bash --noprofile --norc -e -o pipefail}
@@ -177,3 +177,12 @@ jobs:
           files: |
             /tmp/release/*
           make_latest: true
+
+      - name: Generate Python SDK
+        uses: peter-evans/repository-dispatch@v3
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          token: ${{ secrets.DISPATCH_PAT }}
+          repository: codex-storage/py-codex-api-client
+          event-type: generate
+          client-payload: '{"openapi_url": "https://raw.githubusercontent.com/codex-storage/nim-codex/${{ github.ref }}/openapi.yaml"}'

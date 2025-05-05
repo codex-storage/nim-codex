@@ -76,7 +76,9 @@ proc config(
 
   return resolvedConfig
 
-proc approveFunds(market: OnChainMarket, amount: UInt256) {.async.} =
+proc approveFunds(
+    market: OnChainMarket, amount: UInt256
+) {.async: (raises: [CancelledError, MarketError]).} =
   debug "Approving tokens", amount
   convertEthersError("Failed to approve funds"):
     let tokenAddress = await market.contract.token()
@@ -105,7 +107,9 @@ method getZkeyHash*(
   let config = await market.config()
   return some config.proofs.zkeyHash
 
-method getSigner*(market: OnChainMarket): Future[Address] {.async.} =
+method getSigner*(
+    market: OnChainMarket
+): Future[Address] {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError("Failed to get signer address"):
     return await market.signer.getAddress()
 
@@ -159,7 +163,9 @@ method mySlots*(market: OnChainMarket): Future[seq[SlotId]] {.async.} =
 
     return slots
 
-method requestStorage(market: OnChainMarket, request: StorageRequest) {.async.} =
+method requestStorage(
+    market: OnChainMarket, request: StorageRequest
+) {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError("Failed to request storage"):
     debug "Requesting storage"
     await market.approveFunds(request.totalPrice())
@@ -215,7 +221,7 @@ method requestExpiresAt*(
 
 method getHost(
     market: OnChainMarket, requestId: RequestId, slotIndex: uint64
-): Future[?Address] {.async.} =
+): Future[?Address] {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError("Failed to get slot's host"):
     let slotId = slotId(requestId, slotIndex)
     let address = await market.contract.getHost(slotId)
@@ -226,7 +232,7 @@ method getHost(
 
 method currentCollateral*(
     market: OnChainMarket, slotId: SlotId
-): Future[UInt256] {.async.} =
+): Future[UInt256] {.async: (raises: [MarketError, CancelledError]).} =
   convertEthersError("Failed to get slot's current collateral"):
     return await market.contract.currentCollateral(slotId)
 
@@ -243,37 +249,76 @@ method fillSlot(
     slotIndex: uint64,
     proof: Groth16Proof,
     collateral: UInt256,
-) {.async.} =
+) {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError("Failed to fill slot"):
     logScope:
       requestId
       slotIndex
 
-    await market.approveFunds(collateral)
-    trace "calling fillSlot on contract"
-    discard await market.contract.fillSlot(requestId, slotIndex, proof).confirm(1)
-    trace "fillSlot transaction completed"
+    try:
+      await market.approveFunds(collateral)
 
-method freeSlot*(market: OnChainMarket, slotId: SlotId) {.async.} =
+      # Add 10% to gas estimate to deal with different evm code flow when we
+      # happen to be the last one to fill a slot in this request
+      trace "estimating gas for fillSlot"
+      let gas = await market.contract.estimateGas.fillSlot(requestId, slotIndex, proof)
+      let overrides = TransactionOverrides(gasLimit: some (gas * 110) div 100)
+
+      trace "calling fillSlot on contract"
+      discard await market.contract
+      .fillSlot(requestId, slotIndex, proof, overrides)
+      .confirm(1)
+      trace "fillSlot transaction completed"
+    except Marketplace_SlotNotFree as parent:
+      raise newException(
+        SlotStateMismatchError, "Failed to fill slot because the slot is not free",
+        parent,
+      )
+
+method freeSlot*(
+    market: OnChainMarket, slotId: SlotId
+) {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError("Failed to free slot"):
-    var freeSlot: Future[Confirmable]
-    if rewardRecipient =? market.rewardRecipient:
-      # If --reward-recipient specified, use it as the reward recipient, and use
-      # the SP's address as the collateral recipient
-      let collateralRecipient = await market.getSigner()
-      freeSlot = market.contract.freeSlot(
-        slotId,
-        rewardRecipient, # --reward-recipient
-        collateralRecipient,
-      ) # SP's address
-    else:
-      # Otherwise, use the SP's address as both the reward and collateral
-      # recipient (the contract will use msg.sender for both)
-      freeSlot = market.contract.freeSlot(slotId)
+    try:
+      var freeSlot: Future[Confirmable]
+      if rewardRecipient =? market.rewardRecipient:
+        # If --reward-recipient specified, use it as the reward recipient, and use
+        # the SP's address as the collateral recipient
+        let collateralRecipient = await market.getSigner()
 
-    discard await freeSlot.confirm(1)
+        # Add 10% to gas estimate to deal with different evm code flow when we
+        # happen to be the one to make the request fail
+        let gas = await market.contract.estimateGas.freeSlot(
+          slotId, rewardRecipient, collateralRecipient
+        )
+        let overrides = TransactionOverrides(gasLimit: some (gas * 110) div 100)
 
-method withdrawFunds(market: OnChainMarket, requestId: RequestId) {.async.} =
+        freeSlot = market.contract.freeSlot(
+          slotId,
+          rewardRecipient, # --reward-recipient
+          collateralRecipient, # SP's address
+          overrides,
+        )
+      else:
+        # Otherwise, use the SP's address as both the reward and collateral
+        # recipient (the contract will use msg.sender for both)
+
+        # Add 10% to gas estimate to deal with different evm code flow when we
+        # happen to be the one to make the request fail
+        let gas = await market.contract.estimateGas.freeSlot(slotId)
+        let overrides = TransactionOverrides(gasLimit: some (gas * 110) div 100)
+
+        freeSlot = market.contract.freeSlot(slotId, overrides)
+
+      discard await freeSlot.confirm(1)
+    except Marketplace_SlotIsFree as parent:
+      raise newException(
+        SlotStateMismatchError, "Failed to free slot, slot is already free", parent
+      )
+
+method withdrawFunds(
+    market: OnChainMarket, requestId: RequestId
+) {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError("Failed to withdraw funds"):
     discard await market.contract.withdrawFunds(requestId).confirm(1)
 
@@ -300,15 +345,22 @@ method getChallenge*(
     let overrides = CallOverrides(blockTag: some BlockTag.pending)
     return await market.contract.getChallenge(id, overrides)
 
-method submitProof*(market: OnChainMarket, id: SlotId, proof: Groth16Proof) {.async.} =
+method submitProof*(
+    market: OnChainMarket, id: SlotId, proof: Groth16Proof
+) {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError("Failed to submit proof"):
     discard await market.contract.submitProof(id, proof).confirm(1)
 
 method markProofAsMissing*(
     market: OnChainMarket, id: SlotId, period: Period
-) {.async.} =
+) {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError("Failed to mark proof as missing"):
-    discard await market.contract.markProofAsMissing(id, period).confirm(1)
+    # Add 10% to gas estimate to deal with different evm code flow when we
+    # happen to be the one to make the request fail
+    let gas = await market.contract.estimateGas.markProofAsMissing(id, period)
+    let overrides = TransactionOverrides(gasLimit: some (gas * 110) div 100)
+
+    discard await market.contract.markProofAsMissing(id, period, overrides).confirm(1)
 
 method canProofBeMarkedAsMissing*(
     market: OnChainMarket, id: SlotId, period: Period
@@ -325,16 +377,21 @@ method canProofBeMarkedAsMissing*(
 
 method reserveSlot*(
     market: OnChainMarket, requestId: RequestId, slotIndex: uint64
-) {.async.} =
+) {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError("Failed to reserve slot"):
-    discard await market.contract
-    .reserveSlot(
-      requestId,
-      slotIndex,
-      # reserveSlot runs out of gas for unknown reason, but 100k gas covers it
-      TransactionOverrides(gasLimit: some 100000.u256),
-    )
-    .confirm(1)
+    try:
+      # Add 10% to gas estimate to deal with different evm code flow when we
+      # happen to be the last one that is allowed to reserve the slot
+      let gas = await market.contract.estimateGas.reserveSlot(requestId, slotIndex)
+      let overrides = TransactionOverrides(gasLimit: some (gas * 110) div 100)
+
+      discard
+        await market.contract.reserveSlot(requestId, slotIndex, overrides).confirm(1)
+    except SlotReservations_ReservationNotAllowed:
+      raise newException(
+        SlotReservationNotAllowedError,
+        "Failed to reserve slot because reservation is not allowed",
+      )
 
 method canReserveSlot*(
     market: OnChainMarket, requestId: RequestId, slotIndex: uint64

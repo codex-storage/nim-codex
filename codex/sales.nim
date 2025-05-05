@@ -113,7 +113,6 @@ proc remove(sales: Sales, agent: SalesAgent) {.async.} =
 proc cleanUp(
     sales: Sales,
     agent: SalesAgent,
-    returnBytes: bool,
     reprocessSlot: bool,
     returnedCollateral: ?UInt256,
     processing: Future[void],
@@ -132,7 +131,7 @@ proc cleanUp(
   # if reservation for the SalesAgent was not created, then it means
   # that the cleanUp was called before the sales process really started, so
   # there are not really any bytes to be returned
-  if returnBytes and request =? data.request and reservation =? data.reservation:
+  if request =? data.request and reservation =? data.reservation:
     if returnErr =? (
       await sales.context.reservations.returnBytesToAvailability(
         reservation.availabilityId, reservation.id, request.ask.slotSize
@@ -203,9 +202,9 @@ proc processSlot(sales: Sales, item: SlotQueueItem, done: Future[void]) =
     newSalesAgent(sales.context, item.requestId, item.slotIndex, none StorageRequest)
 
   agent.onCleanUp = proc(
-      returnBytes = false, reprocessSlot = false, returnedCollateral = UInt256.none
+      reprocessSlot = false, returnedCollateral = UInt256.none
   ) {.async.} =
-    await sales.cleanUp(agent, returnBytes, reprocessSlot, returnedCollateral, done)
+    await sales.cleanUp(agent, reprocessSlot, returnedCollateral, done)
 
   agent.onFilled = some proc(request: StorageRequest, slotIndex: uint64) =
     sales.filled(request, slotIndex, done)
@@ -271,12 +270,12 @@ proc load*(sales: Sales) {.async.} =
       newSalesAgent(sales.context, slot.request.id, slot.slotIndex, some slot.request)
 
     agent.onCleanUp = proc(
-        returnBytes = false, reprocessSlot = false, returnedCollateral = UInt256.none
+        reprocessSlot = false, returnedCollateral = UInt256.none
     ) {.async.} =
       # since workers are not being dispatched, this future has not been created
       # by a worker. Create a dummy one here so we can call sales.cleanUp
       let done: Future[void] = nil
-      await sales.cleanUp(agent, returnBytes, reprocessSlot, returnedCollateral, done)
+      await sales.cleanUp(agent, reprocessSlot, returnedCollateral, done)
 
     # There is no need to assign agent.onFilled as slots loaded from `mySlots`
     # are inherently already filled and so assigning agent.onFilled would be
@@ -285,7 +284,9 @@ proc load*(sales: Sales) {.async.} =
     agent.start(SaleUnknown())
     sales.agents.add agent
 
-proc OnAvailabilitySaved(sales: Sales, availability: Availability) {.async.} =
+proc OnAvailabilitySaved(
+    sales: Sales, availability: Availability
+) {.async: (raises: []).} =
   ## When availabilities are modified or added, the queue should be unpaused if
   ## it was paused and any slots in the queue should have their `seen` flag
   ## cleared.
@@ -374,13 +375,13 @@ proc onSlotFreed(sales: Sales, requestId: RequestId, slotIndex: uint64) =
 
       if err =? queue.push(slotQueueItem).errorOption:
         if err of SlotQueueItemExistsError:
-          error "Failed to push item to queue becaue it already exists",
+          error "Failed to push item to queue because it already exists",
             error = err.msgDetail
         elif err of QueueNotRunningError:
-          warn "Failed to push item to queue becaue queue is not running",
+          warn "Failed to push item to queue because queue is not running",
             error = err.msgDetail
-    except CatchableError as e:
-      warn "Failed to add slot to queue", error = e.msg
+    except CancelledError as e:
+      trace "sales.addSlotToQueue was cancelled"
 
   # We could get rid of this by adding the storage ask in the SlotFreed event,
   # so we would not need to call getRequest to get the collateralPerSlot.
@@ -533,8 +534,9 @@ proc startSlotQueue(sales: Sales) =
 
   slotQueue.start()
 
-  proc OnAvailabilitySaved(availability: Availability) {.async.} =
-    await sales.OnAvailabilitySaved(availability)
+  proc OnAvailabilitySaved(availability: Availability) {.async: (raises: []).} =
+    if availability.enabled:
+      await sales.OnAvailabilitySaved(availability)
 
   reservations.OnAvailabilitySaved = OnAvailabilitySaved
 

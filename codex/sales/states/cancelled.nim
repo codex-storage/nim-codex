@@ -12,6 +12,14 @@ type SaleCancelled* = ref object of SaleState
 method `$`*(state: SaleCancelled): string =
   "SaleCancelled"
 
+proc slotIsFilledByMe(
+    market: Market, requestId: RequestId, slotIndex: uint64
+): Future[bool] {.async: (raises: [CancelledError, MarketError]).} =
+  let host = await market.getHost(requestId, slotIndex)
+  let me = await market.getSigner()
+
+  return host == me.some
+
 method run*(
     state: SaleCancelled, machine: Machine
 ): Future[?State] {.async: (raises: []).} =
@@ -23,21 +31,27 @@ method run*(
     raiseAssert "no sale request"
 
   try:
-    let slot = Slot(request: request, slotIndex: data.slotIndex)
-    debug "Collecting collateral and partial payout",
-      requestId = data.requestId, slotIndex = data.slotIndex
-    let currentCollateral = await market.currentCollateral(slot.id)
-    await market.freeSlot(slot.id)
+    var returnedCollateral = UInt256.none
+
+    if await slotIsFilledByMe(market, data.requestId, data.slotIndex):
+      debug "Collecting collateral and partial payout",
+        requestId = data.requestId, slotIndex = data.slotIndex
+
+      let slot = Slot(request: request, slotIndex: data.slotIndex)
+      let currentCollateral = await market.currentCollateral(slot.id)
+
+      try:
+        await market.freeSlot(slot.id)
+      except SlotStateMismatchError as e:
+        warn "Failed to free slot because slot is already free", error = e.msg
+
+      returnedCollateral = currentCollateral.some
 
     if onClear =? agent.context.onClear and request =? data.request:
       onClear(request, data.slotIndex)
 
     if onCleanUp =? agent.onCleanUp:
-      await onCleanUp(
-        returnBytes = true,
-        reprocessSlot = false,
-        returnedCollateral = some currentCollateral,
-      )
+      await onCleanUp(reprocessSlot = false, returnedCollateral = returnedCollateral)
 
     warn "Sale cancelled due to timeout",
       requestId = data.requestId, slotIndex = data.slotIndex

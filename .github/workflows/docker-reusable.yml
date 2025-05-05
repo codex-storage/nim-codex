@@ -59,6 +59,10 @@ on:
         required: false
         type: string
         default: false
+      contract_image:
+        description: Specifies compatible smart contract image
+        required: false
+        type: string
 
 
 env:
@@ -71,6 +75,7 @@ env:
   TAG_LATEST: ${{ inputs.tag_latest }}
   TAG_SHA: ${{ inputs.tag_sha }}
   TAG_SUFFIX: ${{ inputs.tag_suffix }}
+  CONTRACT_IMAGE: ${{ inputs.contract_image }}
   # Tests
   TESTS_SOURCE: codex-storage/cs-codex-dist-tests
   TESTS_BRANCH: master
@@ -80,8 +85,19 @@ env:
 
 
 jobs:
+  compute:
+      name: Compute build ID
+      runs-on: ubuntu-latest
+      outputs:
+        build_id: ${{ steps.build_id.outputs.build_id }}
+      steps:
+        - name: Generate unique build id
+          id: build_id
+          run: echo "build_id=$(openssl rand -hex 5)" >> $GITHUB_OUTPUT
+
   # Build platform specific image
   build:
+    needs: compute
     strategy:
       fail-fast: true
       matrix:
@@ -108,11 +124,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Docker - Variables
+        run: |
+          # Create contract label for compatible contract image if specified
+          if [[ -n "${{ env.CONTRACT_IMAGE }}" ]]; then
+            echo "CONTRACT_LABEL=storage.codex.nim-codex.blockchain-image=${{ env.CONTRACT_IMAGE }}" >>$GITHUB_ENV
+          fi
+
       - name: Docker - Meta
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.DOCKER_REPO }}
+          labels: ${{ env.CONTRACT_LABEL }}
 
       - name: Docker - Set up Buildx
         uses: docker/setup-buildx-action@v3
@@ -147,7 +171,7 @@ jobs:
       - name: Docker - Upload digest
         uses: actions/upload-artifact@v4
         with:
-          name: digests-${{ matrix.target.arch }}
+          name: digests-${{ needs.compute.outputs.build_id }}-${{ matrix.target.arch }}
           path: /tmp/digests/*
           if-no-files-found: error
           retention-days: 1
@@ -159,7 +183,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.meta.outputs.version }}
-    needs: build
+    needs: [build, compute]
     steps:
       - name: Docker - Variables
         run: |
@@ -183,11 +207,16 @@ jobs:
           else
             echo "TAG_RAW=false" >>$GITHUB_ENV
           fi
+          
+          # Create contract label for compatible contract image if specified
+          if [[ -n "${{ env.CONTRACT_IMAGE }}" ]]; then
+            echo "CONTRACT_LABEL=storage.codex.nim-codex.blockchain-image=${{ env.CONTRACT_IMAGE }}" >>$GITHUB_ENV
+          fi
 
       - name: Docker - Download digests
         uses: actions/download-artifact@v4
         with:
-          pattern: digests-*
+          pattern: digests-${{ needs.compute.outputs.build_id }}-*
           merge-multiple: true
           path: /tmp/digests
 
@@ -199,6 +228,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.DOCKER_REPO }}
+          labels: ${{ env.CONTRACT_LABEL }}
           flavor: |
             latest=${{ env.TAG_LATEST }}
             suffix=${{ env.TAG_SUFFIX }},onlatest=true

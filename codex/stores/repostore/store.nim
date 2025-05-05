@@ -380,7 +380,9 @@ method close*(self: RepoStore): Future[void] {.async.} =
 # RepoStore procs
 ###########################################################
 
-proc reserve*(self: RepoStore, bytes: NBytes): Future[?!void] {.async.} =
+proc reserve*(
+    self: RepoStore, bytes: NBytes
+): Future[?!void] {.async: (raises: [CancelledError]).} =
   ## Reserve bytes
   ##
 
@@ -388,7 +390,9 @@ proc reserve*(self: RepoStore, bytes: NBytes): Future[?!void] {.async.} =
 
   await self.updateQuotaUsage(plusReserved = bytes)
 
-proc release*(self: RepoStore, bytes: NBytes): Future[?!void] {.async.} =
+proc release*(
+    self: RepoStore, bytes: NBytes
+): Future[?!void] {.async: (raises: [CancelledError]).} =
   ## Release bytes
   ##
 

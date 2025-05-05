@@ -678,7 +678,9 @@ proc new*(
     advertiser: advertiser,
   )
 
-  proc peerEventHandler(peerId: PeerId, event: PeerEvent) {.async.} =
+  proc peerEventHandler(
+      peerId: PeerId, event: PeerEvent
+  ): Future[void] {.gcsafe, async: (raises: [CancelledError]).} =
     if event.kind == PeerEventKind.Joined:
       await self.setupPeer(peerId)
     else:

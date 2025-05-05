@@ -37,10 +37,12 @@ type
 
   MultiNodeSuiteError = object of CatchableError
 
+const jsonRpcProviderUrl* = "http://127.0.0.1:8545"
+
 proc raiseMultiNodeSuiteError(msg: string) =
   raise newException(MultiNodeSuiteError, msg)
 
-proc nextFreePort(startPort: int): Future[int] {.async.} =
+proc nextFreePort*(startPort: int): Future[int] {.async.} =
   proc client(server: StreamServer, transp: StreamTransport) {.async.} =
     await transp.closeWait()
 
@@ -59,6 +61,15 @@ proc nextFreePort(startPort: int): Future[int] {.async.} =
     except TransportOsError:
       trace "port is not free", port
       inc port
+
+proc sanitize(pathSegment: string): string =
+  var sanitized = pathSegment
+  for invalid in invalidFilenameChars.items:
+    sanitized = sanitized.replace(invalid, '_').replace(' ', '_')
+  sanitized
+
+proc getTempDirName*(starttime: string, role: Role, roleIdx: int): string =
+  getTempDir() / "Codex" / sanitize($starttime) / sanitize($role & "_" & $roleIdx)
 
 template multinodesuite*(name: string, body: untyped) =
   asyncchecksuite name:
@@ -82,7 +93,6 @@ template multinodesuite*(name: string, body: untyped) =
     #         .withEthProvider("ws://localhost:8545")
     #         .some,
     #     ...
-    let jsonRpcProviderUrl = "http://127.0.0.1:8545"
     var running {.inject, used.}: seq[RunningNode]
     var bootstrapNodes: seq[string]
     let starttime = now().format("yyyy-MM-dd'_'HH:mm:ss")
@@ -148,8 +158,7 @@ template multinodesuite*(name: string, body: untyped) =
         raiseMultiNodeSuiteError "Cannot start node at nodeIdx " & $nodeIdx &
           ", not enough eth accounts."
 
-      let datadir =
-        getTempDir() / "Codex" / sanitize($starttime) / sanitize($role & "_" & $roleIdx)
+      let datadir = getTempDirName(starttime, role, roleIdx)
 
       try:
         if config.logFile.isSome:
@@ -275,8 +284,10 @@ template multinodesuite*(name: string, body: untyped) =
         fail()
         quit(1)
 
-    proc updateBootstrapNodes(node: CodexProcess) =
-      without ninfo =? node.client.info():
+    proc updateBootstrapNodes(
+        node: CodexProcess
+    ): Future[void] {.async: (raises: [CatchableError]).} =
+      without ninfo =? await node.client.info():
         # raise CatchableError instead of Defect (with .get or !) so we
         # can gracefully shutdown and prevent zombies
         raiseMultiNodeSuiteError "Failed to get node info"
@@ -315,14 +326,14 @@ template multinodesuite*(name: string, body: untyped) =
           for config in clients.configs:
             let node = await startClientNode(config)
             running.add RunningNode(role: Role.Client, node: node)
-            CodexProcess(node).updateBootstrapNodes()
+            await CodexProcess(node).updateBootstrapNodes()
 
       if var providers =? nodeConfigs.providers:
         failAndTeardownOnError "failed to start provider nodes":
           for config in providers.configs.mitems:
             let node = await startProviderNode(config)
             running.add RunningNode(role: Role.Provider, node: node)
-            CodexProcess(node).updateBootstrapNodes()
+            await CodexProcess(node).updateBootstrapNodes()
 
       if var validators =? nodeConfigs.validators:
         failAndTeardownOnError "failed to start validator nodes":

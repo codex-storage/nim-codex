@@ -42,14 +42,14 @@ marketplacesuite "Hosts submit regular proofs":
     let data = await RandomChunker.example(blocks = blocks)
     let datasetSize =
       datasetSize(blocks = blocks, nodes = ecNodes, tolerance = ecTolerance)
-    createAvailabilities(
+    await createAvailabilities(
       datasetSize.truncate(uint64),
       duration,
       collateralPerByte,
       minPricePerBytePerSecond,
     )
 
-    let cid = client0.upload(data).get
+    let cid = (await client0.upload(data)).get
 
     let purchaseId = await client0.requestStorage(
       cid,
@@ -59,13 +59,13 @@ marketplacesuite "Hosts submit regular proofs":
       tolerance = ecTolerance,
     )
 
-    let purchase = client0.getPurchase(purchaseId).get
+    let purchase = (await client0.getPurchase(purchaseId)).get
     check purchase.error == none string
 
     let slotSize = slotSize(blocks, ecNodes, ecTolerance)
 
     check eventually(
-      client0.purchaseStateIs(purchaseId, "started"), timeout = expiry.int * 1000
+      await client0.purchaseStateIs(purchaseId, "started"), timeout = expiry.int * 1000
     )
 
     var proofWasSubmitted = false
@@ -119,27 +119,29 @@ marketplacesuite "Simulate invalid proofs":
     let data = await RandomChunker.example(blocks = blocks)
     let datasetSize =
       datasetSize(blocks = blocks, nodes = ecNodes, tolerance = ecTolerance)
-    createAvailabilities(
+    await createAvailabilities(
       datasetSize.truncate(uint64),
       duration,
       collateralPerByte,
       minPricePerBytePerSecond,
     )
 
-    let cid = client0.upload(data).get
+    let cid = (await client0.upload(data)).get
 
-    let purchaseId = await client0.requestStorage(
-      cid,
-      expiry = expiry,
-      duration = duration,
-      nodes = ecNodes,
-      tolerance = ecTolerance,
-      proofProbability = 1.u256,
+    let purchaseId = (
+      await client0.requestStorage(
+        cid,
+        expiry = expiry,
+        duration = duration,
+        nodes = ecNodes,
+        tolerance = ecTolerance,
+        proofProbability = 1.u256,
+      )
     )
-    let requestId = client0.requestId(purchaseId).get
+    let requestId = (await client0.requestId(purchaseId)).get
 
     check eventually(
-      client0.purchaseStateIs(purchaseId, "started"), timeout = expiry.int * 1000
+      await client0.purchaseStateIs(purchaseId, "started"), timeout = expiry.int * 1000
     )
 
     var slotWasFreed = false
@@ -182,14 +184,14 @@ marketplacesuite "Simulate invalid proofs":
     let data = await RandomChunker.example(blocks = blocks)
     let datasetSize =
       datasetSize(blocks = blocks, nodes = ecNodes, tolerance = ecTolerance)
-    createAvailabilities(
+    await createAvailabilities(
       datasetSize.truncate(uint64),
       duration,
       collateralPerByte,
       minPricePerBytePerSecond,
     )
 
-    let cid = client0.upload(data).get
+    let cid = (await client0.upload(data)).get
 
     let purchaseId = await client0.requestStorage(
       cid,
@@ -199,7 +201,7 @@ marketplacesuite "Simulate invalid proofs":
       tolerance = ecTolerance,
       proofProbability = 1.u256,
     )
-    let requestId = client0.requestId(purchaseId).get
+    let requestId = (await client0.requestId(purchaseId)).get
 
     var slotWasFilled = false
     proc onSlotFilled(eventResult: ?!SlotFilled) =
@@ -273,7 +275,9 @@ marketplacesuite "Simulate invalid proofs":
   #     totalSize=slotSize, # should match 1 slot only
   #     duration=totalPeriods.periods.u256,
   #     minPricePerBytePerSecond=minPricePerBytePerSecond,
-  #     totalCollateral=slotSize * minPricePerBytePerSecond
+  #     totalCollateral=slotSize * minPricePerBytePerSecond,
+  #     enabled = true.some,
+  #     until = 0.SecondsSince1970.some,
   #   )
 
   #   let cid = client0.upload(data).get
