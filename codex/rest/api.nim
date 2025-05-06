@@ -126,6 +126,10 @@ proc retrieveCid(
 
   var stream: LPStream
   var sentBytes = 0
+  var isRangeRequest = false
+  var rangeStart = 0
+  var rangeEnd = 0
+  
   try:
     # Always indicate acceptance of range requests
     resp.setHeader("Accept-Ranges", "bytes")
@@ -168,9 +172,9 @@ proc retrieveCid(
     let totalSize =
       (if manifest.protected: manifest.originalDatasetSize else: manifest.datasetSize).int
 
-    var rangeStart = 0
-    var rangeEnd = totalSize - 1 # Inclusive
-    var isRangeRequest = false
+    rangeStart = 0
+    rangeEnd = totalSize - 1 # Inclusive
+    isRangeRequest = false
 
     if range.isOk:
       let (startReq, endReqOpt) = range.get()
@@ -181,15 +185,20 @@ proc retrieveCid(
         if endReq =? endReqOpt:
           # bytes=start-end (inclusive end)
           rangeEnd = min(endReq, totalSize - 1)
-        # else: bytes=start- (rangeEnd remains totalSize - 1)
+        else:
+          # bytes=start- (rangeEnd remains totalSize - 1)
+          rangeEnd = totalSize - 1
+        
+        debug "Range request", start=rangeStart, endPos=rangeEnd, totalSize=totalSize
 
         # Ensure end >= start after validation/clamping
         if rangeEnd < rangeStart:
           # Requested range is impossible (e.g., start=100, end=50, totalSize=1000)
           # or fully outside the content (e.g., start=1000, totalSize=500)
           # Respond with 416 Range Not Satisfiable
+          warn "Invalid range request", start=rangeStart, endPos=rangeEnd, totalSize=totalSize
           resp.status = Http416
-          resp.setHeader("Content-Range", $"bytes */{totalSize}")
+          resp.setHeader("Content-Range", "bytes */" & $totalSize)
           await resp.sendBody("Requested range not satisfiable")
           return
 
@@ -197,14 +206,22 @@ proc retrieveCid(
 
     if isRangeRequest:
       resp.status = Http206
-      resp.setHeader("Content-Range", $"bytes {rangeStart}-{rangeEnd}/{totalSize}")
+      resp.setHeader("Content-Range", "bytes " & $rangeStart & "-" & $rangeEnd & "/" & $totalSize)
       resp.setHeader("Content-Length", $contentLength)
+      
       # Set the starting position in the seekable stream
       if stream of SeekableStream:
-        SeekableStream(stream).setPos(rangeStart)
+        try:
+          SeekableStream(stream).setPos(rangeStart)
+          debug "Seekable stream position set", position=rangeStart, cid=cid
+        except CatchableError as seekErr:
+          error "Failed to seek in stream", cid=cid, position=rangeStart, error=seekErr.msg
+          resp.status = Http500
+          await resp.sendBody("Internal error: Failed to seek to requested position")
+          return
       else:
         # This should not happen if node.retrieve returns StoreStream or similar
-        error "Stream returned by node.retrieve is not seekable, cannot fulfill range request", streamType = $type(stream)
+        error "Stream returned by node.retrieve is not seekable, cannot fulfill range request", streamType = $type(stream), cid=cid
         resp.status = Http500
         await resp.sendBody("Internal error: Cannot seek in content stream")
         return
@@ -215,36 +232,50 @@ proc retrieveCid(
     await resp.prepare(HttpResponseStreamType.Plain)
 
     var bytesToSend = contentLength
-    while bytesToSend > 0 and not stream.atEof:
-      var
-        buff = newSeqUninitialized[byte](DefaultBlockSize.int)
-        readLen = await stream.readOnce(addr buff[0], min(buff.len, bytesToSend))
+    try:
+      while bytesToSend > 0 and not stream.atEof:
+        var
+          buff = newSeqUninitialized[byte](DefaultBlockSize.int)
+          readLen = await stream.readOnce(addr buff[0], min(buff.len, bytesToSend))
 
-      buff.setLen(readLen)
-      if buff.len <= 0:
-        break
+        buff.setLen(readLen)
+        if buff.len <= 0:
+          debug "End of stream reached during streaming", cid=cid, remaining=bytesToSend
+          break
 
-      sentBytes += buff.len
-      bytesToSend -= buff.len
+        sentBytes += buff.len
+        bytesToSend -= buff.len
 
-      await resp.send(addr buff[0], buff.len)
+        await resp.send(addr buff[0], buff.len)
 
-    # Check if we sent less than expected (e.g., stream ended early)
-    if bytesToSend > 0 and not stream.atEof:
-      warn "Stream ended prematurely while sending range request", cid = cid, expected = contentLength, sent = sentBytes
-      # The connection will likely be closed by the client detecting the size mismatch
+      # Check if we sent less than expected (e.g., stream ended early)
+      if bytesToSend > 0 and not stream.atEof:
+        warn "Stream ended prematurely while sending content", cid=cid, expected=contentLength, sent=sentBytes, missing=bytesToSend
+        # The connection will likely be closed by the client detecting the size mismatch
 
-    await resp.finish()
-    codex_api_downloads.inc()
+      await resp.finish()
+      codex_api_downloads.inc()
+    except HttpWriteError as writeErr:
+      # This is likely a client disconnection during data transfer
+      # Log and move on, don't try to send more response data
+      warn "Client disconnected during download", cid=cid, sent=sentBytes, expected=contentLength, error=writeErr.msg
+    except CatchableError as streamErr:
+      # Other streaming errors
+      warn "Error during streaming", cid=cid, sent=sentBytes, error=streamErr.msg
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
-    warn "Error streaming blocks", exc = exc.msg
-    resp.status = Http500
+    # Handle other exceptions outside the streaming loop
+    warn "Error preparing stream", exc=exc.msg
     if resp.isPending():
-      await resp.sendBody(exc.msg)
+      try:
+        resp.status = Http500
+        await resp.sendBody(exc.msg)
+      except HttpWriteError:
+        # Connection might already be closed
+        warn "Unable to send error response, client likely disconnected", cid=cid
   finally:
-    info "Sent bytes", cid = cid, bytes = sentBytes, local = local, rangeRequested = range.isOk
+    info "Sent bytes", cid=cid, bytes=sentBytes, local=local, rangeRequested=isRangeRequest, rangeStart=(if isRangeRequest: rangeStart else: 0), rangeEnd=(if isRangeRequest: rangeEnd else: 0)
     if not stream.isNil:
       await stream.close()
 
