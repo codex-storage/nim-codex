@@ -349,7 +349,12 @@ method submitProof*(
     market: OnChainMarket, id: SlotId, proof: Groth16Proof
 ) {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError("Failed to submit proof"):
-    discard await market.contract.submitProof(id, proof).confirm(1)
+    try:
+      discard await market.contract.submitProof(id, proof).confirm(1)
+    except Proofs_InvalidProof as parent:
+      raise newException(
+        ProofInvalidError, "Failed to fill slot because the slot is not free", parent
+      )
 
 method markProofAsMissing*(
     market: OnChainMarket, id: SlotId, period: Period
