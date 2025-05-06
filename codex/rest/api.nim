@@ -41,6 +41,7 @@ import ../streams/asyncstreamwrapper
 import ../stores
 import ../utils/options
 import ../streams/seekablestream
+import ../streams/rangestream
 
 import ./coders
 import ./json
@@ -116,6 +117,37 @@ proc getDefaultRangeError(): Result[(int, Option[int]), string] =
   ## Returns a default error Result for range parsing.
   return err("No range requested")
 
+proc retrieveRange*(
+    node: CodexNodeRef, cid: Cid, rangeStart: int, rangeEnd: int, local: bool = true
+): Future[?!LPStream] {.async.} =
+  ## Retrieve a specific byte range from a file by CID
+  ## This is more efficient than retrieving the whole file and seeking
+  ##
+
+  without manifest =? (await node.fetchManifest(cid)), err:
+    return failure(err)
+
+  # Create a proper stream that only retrieves the necessary blocks
+  let 
+    totalSize = (if manifest.protected: manifest.originalDatasetSize else: manifest.datasetSize).int
+    contentLength = rangeEnd - rangeStart + 1
+    stream = RangeStream.new(
+      node.blockStore(),
+      manifest, 
+      rangeStart, 
+      contentLength,
+      pad = false
+    )
+
+  trace "Range stream created", 
+    cid = cid, 
+    rangeStart = rangeStart, 
+    rangeEnd = rangeEnd, 
+    totalSize = totalSize,
+    contentLength = contentLength
+    
+  return success(LPStream(stream))
+
 proc retrieveCid(
     node: CodexNodeRef, cid: Cid, local: bool = true, resp: HttpResponseRef, range: Result[(int, Option[int]), string] = getDefaultRangeError()
 ): Future[void] {.async: (raises: [CancelledError, HttpWriteError]).} =
@@ -134,7 +166,7 @@ proc retrieveCid(
     # Always indicate acceptance of range requests
     resp.setHeader("Accept-Ranges", "bytes")
 
-    without stream =? (await node.retrieve(cid, local)), error:
+    without manifest =? (await node.fetchManifest(cid)), error:
       if error of BlockNotFoundError:
         resp.status = Http404
         await resp.sendBody(
@@ -146,13 +178,7 @@ proc retrieveCid(
         await resp.sendBody(error.msg)
         return
 
-    # It is ok to fetch again the manifest because it will hit the cache
-    without manifest =? (await node.fetchManifest(cid)), err:
-      error "Failed to fetch manifest", err = err.msg
-      resp.status = Http404
-      await resp.sendBody(err.msg)
-      return
-
+    # Set content type and disposition headers
     if manifest.mimetype.isSome:
       resp.setHeader("Content-Type", manifest.mimetype.get())
     else:
@@ -204,31 +230,34 @@ proc retrieveCid(
 
     let contentLength = rangeEnd - rangeStart + 1
 
+    # Set appropriate headers for the response
     if isRangeRequest:
       resp.status = Http206
       resp.setHeader("Content-Range", "bytes " & $rangeStart & "-" & $rangeEnd & "/" & $totalSize)
       resp.setHeader("Content-Length", $contentLength)
       
-      # Set the starting position in the seekable stream
-      if stream of SeekableStream:
-        try:
-          SeekableStream(stream).setPos(rangeStart)
-          debug "Seekable stream position set", position=rangeStart, cid=cid
-        except CatchableError as seekErr:
-          error "Failed to seek in stream", cid=cid, position=rangeStart, error=seekErr.msg
-          resp.status = Http500
-          await resp.sendBody("Internal error: Failed to seek to requested position")
-          return
-      else:
-        # This should not happen if node.retrieve returns StoreStream or similar
-        error "Stream returned by node.retrieve is not seekable, cannot fulfill range request", streamType = $type(stream), cid=cid
+      # For range requests, get a stream that only retrieves the needed blocks
+      # This is more efficient than retrieving the entire file
+      without rangeStream =? (await retrieveRange(node, cid, rangeStart, rangeEnd, local)), error:
+        error "Failed to create range stream", cid=cid, error=error.msg
         resp.status = Http500
-        await resp.sendBody("Internal error: Cannot seek in content stream")
+        await resp.sendBody("Internal error: Failed to create range stream")
         return
+        
+      stream = rangeStream
+      debug "Range stream created", cid=cid, rangeStart=rangeStart, rangeEnd=rangeEnd
     else:
-      # Full request
+      # Full request - get the entire file
+      without fullStream =? (await node.retrieve(cid, local)), error:
+        resp.status = Http500
+        await resp.sendBody(error.msg)
+        return
+        
+      stream = fullStream
+      # Full request headers
       resp.setHeader("Content-Length", $contentLength) # Here contentLength == totalSize
 
+    # Prepare the response for streaming  
     await resp.prepare(HttpResponseStreamType.Plain)
 
     var bytesToSend = contentLength
