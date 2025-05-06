@@ -215,34 +215,18 @@ proc retrieveCid(
         trace "Requesting network range stream", cid=cid, start=rangeStart, endPos=rangeEnd
         rangeStreamResult = node.retrieveNetworkRange(cid, rangeStart, rangeEnd)
         
-        # ADDED LOG BEFORE AWAIT
-        debug "About to await rangeStreamResult", cid=cid, local=local
-        # Explicitly type rangestream
         let awaitedResult = await rangeStreamResult
         if awaitedResult.isErr:
-          let error = awaitedResult.error # Extract error for logging/use
+          let error = awaitedResult.error
           error "Failed to create range stream", cid=cid, error=error.msg, local=local
           resp.status = Http500
           await resp.sendBody("Internal error: Failed to create range stream")
           responseFinishedOrFailed = true
           return
         
-        # ADDED LOG AFTER SUCCESSFUL AWAIT (Moved here)
-        debug "Successfully awaited rangeStreamResult", cid=cid, local=local
-        
-        let rangestream = awaitedResult.get() # Get the successful result
-        stream = rangestream # Assign the LPStream
-        # ADDED IMMEDIATE LOG (Re-applying)
-        let immediateStreamTypeStr = $typeof(stream)
-        debug "Assigned rangestream to stream variable, before resp.prepare", cid=cid, streamType=immediateStreamTypeStr
-        let streamTypeStr = $typeof(stream)
-        debug "Range stream acquired", cid=cid, rangeStart=rangeStart, rangeEnd=rangeEnd, local=local, streamType=streamTypeStr
-        if stream.isNil:
-          warn "Range stream is nil immediately after acquisition", cid=cid, rangeStart=rangeStart, rangeEnd=rangeEnd
-        elif stream.atEof:
-          warn "Range stream from retrieveNetworkRange is at EOF immediately", cid=cid, rangeStart=rangeStart, rangeEnd=rangeEnd
-        else:
-          debug "Range stream from retrieveNetworkRange is NOT at EOF immediately", cid=cid, rangeStart=rangeStart, rangeEnd=rangeEnd
+        let rangestream = awaitedResult.get()
+        stream = rangestream
+        debug "Assigned rangestream to stream in retrieveCid", streamType = $typeof(stream), objectId = (if stream.isNil: "nil-oid" else: $stream.oid), isNil = stream.isNil
     else:
       # Full request - get the entire file
       without fullStream =? (await node.retrieve(cid, local)), error:
@@ -251,17 +235,7 @@ proc retrieveCid(
         return
         
       stream = fullStream
-      # ADDED IMMEDIATE LOG (Re-applying)
-      let immediateStreamTypeStr = $typeof(stream)
-      debug "Assigned fullStream to stream variable, before resp.prepare", cid=cid, streamType=immediateStreamTypeStr
-      # Full request headers
-      resp.setHeader("Content-Length", $contentLength) # Here contentLength == totalSize
-      if stream.isNil:
-        warn "Full stream is nil immediately after acquisition", cid=cid, local=local
-      elif stream.atEof:
-        warn "Full stream from retrieve is at EOF immediately", cid=cid, local=local
-      else:
-        debug "Full stream from retrieve is NOT at EOF immediately", cid=cid, local=local
+      debug "Assigned fullStream to stream in retrieveCid", streamType = $typeof(stream), objectId = (if stream.isNil: "nil-oid" else: $stream.oid), isNil = stream.isNil
 
     await resp.prepare(HttpResponseStreamType.Plain)
 

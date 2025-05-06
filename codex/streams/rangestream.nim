@@ -12,7 +12,7 @@ import pkg/chronos
 import pkg/libbacktrace
 import pkg/questionable
 import pkg/questionable/results
-import pkg/stew/results as stew_results
+# import pkg/stew/results as stew_results # Removed deprecated import
 
 import ../blocktype as bt
 # import ./asyncstreamwrapper # No longer needed
@@ -77,12 +77,12 @@ proc new*(
     pad: pad
   )
   
-  # Base stream initialization might be needed here if SeekableStream requires it
-  # stream.initStream() # Assuming SeekableStream has initStream
+  # Initialize the base LPStream object
+  stream.initStream()
   
   return stream
 
-method atEof*(self: RangeStream): bool =
+method atEof*(self: RangeStream): bool {.raises: [].} =
   self.leftToProcess <= 0
 
 # Helper proc to initialize the underlying storeStream if needed
@@ -95,17 +95,19 @@ proc ensureStoreStream(self: RangeStream) =
 
 method read*(
   self: RangeStream, pbytes: pointer, nbytes: int
-): Future[int] {.async.} =
+): Future[int] {.async: (raises: [CancelledError, LPStreamError]), base.} =
   ## Read bytes from the specified range within the underlying data.
   
-  if self.atEof: return 0 # Already at end of range
+  if self.atEof:
+    return 0
 
   # Ensure underlying stream is ready
   self.ensureStoreStream()
 
   # Read only as many bytes as needed for the range
   let bytesToRead = min(nbytes, self.leftToProcess)
-  if bytesToRead == 0: return 0 
+  if bytesToRead == 0:
+    return 0
 
   var readBytes = 0
   try:
@@ -118,7 +120,7 @@ method read*(
     readBytes = 0 
   except LPStreamError as exc:
     warn "StoreStream error while reading range", msg=exc.msg, requested=bytesToRead, rangeLeft=self.leftToProcess
-    raise exc # Re-raise other LPStream errors
+    raise exc
 
   if readBytes > 0:
     self.currentPos += readBytes
@@ -130,33 +132,34 @@ method read*(
 
   return readBytes
 
-method close*(self: RangeStream) {.async.} =
+method close*(
+  self: RangeStream
+): Future[void] {.async: (raises: [])} =
   ## Close the RangeStream and its underlying StoreStream if initialized.
   trace "Closing RangeStream", currentPos=self.currentPos, left=self.leftToProcess
   if not self.storeStream.isNil:
     await self.storeStream.close() # Use the async close
     self.storeStream = nil # Clear the reference
-  # Call base close implementation if necessary (LPStream might handle this)
-  # await procCall LPStream(self).closeImpl() 
+  # Call base close implementation
+  await procCall LPStream(self).closeImpl()
 
 method readOnce*(
   self: RangeStream, pbytes: pointer, nbytes: int
-): Future[int] {.async.} =
+): Future[int] {.async: (raises: [CancelledError, LPStreamError])} =
   # Delegate to the main read method
   return await self.read(pbytes, nbytes)
 
 method write*(
-  self: RangeStream, pbytes: pointer, nbytes: int
-): Future[int] {.async.} =
+  self: RangeStream, msg: seq[byte]
+): Future[void] {.async: (raises: [CancelledError, LPStreamError])} =
   # Range streams are read-only
   raise newException(LPStreamError, "RangeStream is read-only")
-  # return 0 # Previous behavior
 
-method getPosition*(self: RangeStream): int =
+method getPosition*(self: RangeStream): int {.base.} =
   ## Get the current position within the defined range (0 to streamLength-1)
   return self.currentPos
 
-method setPos*(self: RangeStream, pos: int): bool = # No longer async
+method setPos*(self: RangeStream, pos: int): bool {.base.} = # No longer async
   ## Set the position within the defined range (0 to streamLength-1)
   
   # Validate position is within the allowed range [0, streamLength)
@@ -180,11 +183,11 @@ method setPos*(self: RangeStream, pos: int): bool = # No longer async
   debug "RangeStream position set", rangePos=pos, absPos=absolutePos, left=self.leftToProcess
   return true
 
-method truncate*(self: RangeStream, size: int): Future[bool] {.async.} =
+method truncate*(self: RangeStream, size: int): Future[bool] {.async: (raises: [CancelledError, LPStreamError]), base.} =
   # Range streams are read-only
   raise newException(LPStreamError, "RangeStream is read-only")
   # return false # Previous behavior
 
-method getLengthSync*(self: RangeStream): int =
+method getLengthSync*(self: RangeStream): int {.base.} =
   ## Get the total length of the defined range.
   return self.streamLength 

@@ -350,7 +350,8 @@ proc retrieveLocalRange*(
     warn "Invalid or zero-length local range requested", cid, rangeStart, rangeEnd, totalSize
     let emptyStream = BufferStream.new() # Use BufferStream
     await emptyStream.pushEof()         # Mark as immediately finished
-    return success(LPStream(emptyStream)) # Return empty stream
+    # Return with correct type signature but preserve instance identity
+    return success(LPStream(emptyStream))
 
   let stream = RangeStream.new(
     self.blockStore(), # Use local store
@@ -359,7 +360,10 @@ proc retrieveLocalRange*(
     contentLength,
     pad = false # Assuming padding is not needed for local retrieval
   )
+  # Initialize the stream to ensure its objName is set to enable tracing
+  stream.initStream()
   trace "Local range stream created", cid, rangeStart, rangeEnd, contentLength
+  # Return with correct type signature but preserve instance identity
   return success(LPStream(stream))
 
 proc retrieveNetworkRange*(
@@ -379,7 +383,8 @@ proc retrieveNetworkRange*(
     warn "Invalid or zero-length network range requested", cid, rangeStart, rangeEnd, totalSize
     let emptyStream = BufferStream.new() # Use BufferStream
     await emptyStream.pushEof()         # Mark as immediately finished
-    return success(LPStream(emptyStream)) # Return empty stream
+    # Return with correct type signature but preserve instance identity
+    return success(LPStream(emptyStream)) 
 
   let stream = RangeStream.new(
     self.networkStore, # Use network store
@@ -388,7 +393,10 @@ proc retrieveNetworkRange*(
     contentLength,
     pad = false # Assuming padding is not needed here either
   )
+  # Initialize the stream to ensure its objName is set to enable tracing 
+  stream.initStream()
   trace "Network range stream created", cid, rangeStart, rangeEnd, contentLength
+  # Return with correct type signature but preserve instance identity
   return success(LPStream(stream))
 
 proc deleteSingleBlock(self: CodexNodeRef, cid: Cid): Future[?!void] {.async.} =
