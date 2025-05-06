@@ -40,7 +40,7 @@ when codex_enable_proof_failures:
         try:
           warn "Submitting INVALID proof", period = currentPeriod, slotId = slot.id
           await market.submitProof(slot.id, Groth16Proof.default)
-        except Proofs_InvalidProof as e:
+        except ProofInvalidError as e:
           discard # expected
         except CancelledError as error:
           raise error
