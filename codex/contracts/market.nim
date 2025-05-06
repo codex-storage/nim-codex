@@ -30,6 +30,18 @@ type
   OnChainMarketSubscription = ref object of MarketSubscription
     eventSubscription: EventSubscription
 
+template withAllowanceLock*(market: OnChainMarket, body: untyped) =
+  if market.allowanceLock.isNil:
+    market.allowanceLock = newAsyncLock()
+  await market.allowanceLock.acquire()
+  try:
+    body
+  finally:
+    try:
+      market.allowanceLock.release()
+    except AsyncLockError as error:
+      raise newException(Defect, error.msg, error)
+
 func new*(
     _: type OnChainMarket,
     contract: Marketplace,
