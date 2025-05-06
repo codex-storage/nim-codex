@@ -21,7 +21,9 @@ type SeekableStream* = ref object of LPStream
   offset*: int
 
 method `size`*(self: SeekableStream): int {.base.} =
-  raiseAssert("method unimplemented")
+  # Base implementation returns -1 to indicate unknown size
+  # Subclasses should override this method to provide the actual size
+  return -1
 
 proc setPos*(self: SeekableStream, pos: int) =
   self.offset = pos

@@ -117,37 +117,6 @@ proc getDefaultRangeError(): Result[(int, Option[int]), string] =
   ## Returns a default error Result for range parsing.
   return err("No range requested")
 
-proc retrieveRange*(
-    node: CodexNodeRef, cid: Cid, rangeStart: int, rangeEnd: int, local: bool = true
-): Future[?!LPStream] {.async.} =
-  ## Retrieve a specific byte range from a file by CID
-  ## This is more efficient than retrieving the whole file and seeking
-  ##
-
-  without manifest =? (await node.fetchManifest(cid)), err:
-    return failure(err)
-
-  # Create a proper stream that only retrieves the necessary blocks
-  let 
-    totalSize = (if manifest.protected: manifest.originalDatasetSize else: manifest.datasetSize).int
-    contentLength = rangeEnd - rangeStart + 1
-    stream = RangeStream.new(
-      node.blockStore(),
-      manifest, 
-      rangeStart, 
-      contentLength,
-      pad = false
-    )
-
-  trace "Range stream created", 
-    cid = cid, 
-    rangeStart = rangeStart, 
-    rangeEnd = rangeEnd, 
-    totalSize = totalSize,
-    contentLength = contentLength
-    
-  return success(LPStream(stream))
-
 proc retrieveCid(
     node: CodexNodeRef, cid: Cid, local: bool = true, resp: HttpResponseRef, range: Result[(int, Option[int]), string] = getDefaultRangeError()
 ): Future[void] {.async: (raises: [CancelledError, HttpWriteError]).} =
@@ -161,6 +130,7 @@ proc retrieveCid(
   var isRangeRequest = false
   var rangeStart = 0
   var rangeEnd = 0
+  var responseFinishedOrFailed = false # Flag to track response state
   
   try:
     # Always indicate acceptance of range requests
@@ -236,16 +206,43 @@ proc retrieveCid(
       resp.setHeader("Content-Range", "bytes " & $rangeStart & "-" & $rangeEnd & "/" & $totalSize)
       resp.setHeader("Content-Length", $contentLength)
       
-      # For range requests, get a stream that only retrieves the needed blocks
-      # This is more efficient than retrieving the entire file
-      without rangeStream =? (await retrieveRange(node, cid, rangeStart, rangeEnd, local)), error:
-        error "Failed to create range stream", cid=cid, error=error.msg
-        resp.status = Http500
-        await resp.sendBody("Internal error: Failed to create range stream")
-        return
+      # Get the appropriate range stream from the node
+      var rangeStreamResult: Future[?!LPStream]
+      if local:
+        trace "Requesting local range stream", cid=cid, start=rangeStart, endPos=rangeEnd
+        rangeStreamResult = node.retrieveLocalRange(cid, rangeStart, rangeEnd)
+      else:
+        trace "Requesting network range stream", cid=cid, start=rangeStart, endPos=rangeEnd
+        rangeStreamResult = node.retrieveNetworkRange(cid, rangeStart, rangeEnd)
         
-      stream = rangeStream
-      debug "Range stream created", cid=cid, rangeStart=rangeStart, rangeEnd=rangeEnd
+        # ADDED LOG BEFORE AWAIT
+        debug "About to await rangeStreamResult", cid=cid, local=local
+        # Explicitly type rangestream
+        let awaitedResult = await rangeStreamResult
+        if awaitedResult.isErr:
+          let error = awaitedResult.error # Extract error for logging/use
+          error "Failed to create range stream", cid=cid, error=error.msg, local=local
+          resp.status = Http500
+          await resp.sendBody("Internal error: Failed to create range stream")
+          responseFinishedOrFailed = true
+          return
+        
+        # ADDED LOG AFTER SUCCESSFUL AWAIT (Moved here)
+        debug "Successfully awaited rangeStreamResult", cid=cid, local=local
+        
+        let rangestream = awaitedResult.get() # Get the successful result
+        stream = rangestream # Assign the LPStream
+        # ADDED IMMEDIATE LOG (Re-applying)
+        let immediateStreamTypeStr = $typeof(stream)
+        debug "Assigned rangestream to stream variable, before resp.prepare", cid=cid, streamType=immediateStreamTypeStr
+        let streamTypeStr = $typeof(stream)
+        debug "Range stream acquired", cid=cid, rangeStart=rangeStart, rangeEnd=rangeEnd, local=local, streamType=streamTypeStr
+        if stream.isNil:
+          warn "Range stream is nil immediately after acquisition", cid=cid, rangeStart=rangeStart, rangeEnd=rangeEnd
+        elif stream.atEof:
+          warn "Range stream from retrieveNetworkRange is at EOF immediately", cid=cid, rangeStart=rangeStart, rangeEnd=rangeEnd
+        else:
+          debug "Range stream from retrieveNetworkRange is NOT at EOF immediately", cid=cid, rangeStart=rangeStart, rangeEnd=rangeEnd
     else:
       # Full request - get the entire file
       without fullStream =? (await node.retrieve(cid, local)), error:
@@ -254,22 +251,39 @@ proc retrieveCid(
         return
         
       stream = fullStream
+      # ADDED IMMEDIATE LOG (Re-applying)
+      let immediateStreamTypeStr = $typeof(stream)
+      debug "Assigned fullStream to stream variable, before resp.prepare", cid=cid, streamType=immediateStreamTypeStr
       # Full request headers
       resp.setHeader("Content-Length", $contentLength) # Here contentLength == totalSize
+      if stream.isNil:
+        warn "Full stream is nil immediately after acquisition", cid=cid, local=local
+      elif stream.atEof:
+        warn "Full stream from retrieve is at EOF immediately", cid=cid, local=local
+      else:
+        debug "Full stream from retrieve is NOT at EOF immediately", cid=cid, local=local
 
-    # Prepare the response for streaming  
     await resp.prepare(HttpResponseStreamType.Plain)
 
+    # *** CRASH HAPPENS SOMEWHERE BETWEEN stream assignment AND HERE (or during resp.prepare) ***
+
     var bytesToSend = contentLength
-    try:
+    debug "Preparing to send data", cid=cid, bytesToSend=bytesToSend, streamIsNil=stream.isNil, streamAtEofInitial= (not stream.isNil and stream.atEof), isRangeRequest=isRangeRequest, rangeStartReport=rangeStart, rangeEndReport=rangeEnd, totalSizeReport=totalSize
+    try: # <-- Start of inner streaming try block
       while bytesToSend > 0 and not stream.atEof:
         var
           buff = newSeqUninitialized[byte](DefaultBlockSize.int)
-          readLen = await stream.readOnce(addr buff[0], min(buff.len, bytesToSend))
+          maxRead = min(buff.len, bytesToSend)
+        
+        debug "Attempting stream.readOnce", cid=cid, maxRead=maxRead, currentBytesToSend=bytesToSend, streamAtEofBeforeRead=stream.atEof
+
+        var readLen = await stream.readOnce(addr buff[0], maxRead)
+
+        debug "Stream readOnce returned", cid=cid, readLen=readLen, requestedRead=maxRead, streamAtEofAfterRead=stream.atEof, currentSentBytes=sentBytes
 
         buff.setLen(readLen)
         if buff.len <= 0:
-          debug "End of stream reached during streaming", cid=cid, remaining=bytesToSend
+          debug "Stream read returned 0 or negative, or buff became empty. Breaking loop.", cid=cid, readLen=readLen, buffLen=buff.len, remainingBytesToSend=bytesToSend
           break
 
         sentBytes += buff.len
@@ -277,36 +291,73 @@ proc retrieveCid(
 
         await resp.send(addr buff[0], buff.len)
 
-      # Check if we sent less than expected (e.g., stream ended early)
       if bytesToSend > 0 and not stream.atEof:
         warn "Stream ended prematurely while sending content", cid=cid, expected=contentLength, sent=sentBytes, missing=bytesToSend
-        # The connection will likely be closed by the client detecting the size mismatch
+        # Consider setting responseFinishedOrFailed = true here? Or let finish() handle it?
 
-      await resp.finish()
+      responseFinishedOrFailed = true
+      await resp.finish() 
       codex_api_downloads.inc()
     except HttpWriteError as writeErr:
-      # This is likely a client disconnection during data transfer
-      # Log and move on, don't try to send more response data
-      warn "Client disconnected during download", cid=cid, sent=sentBytes, expected=contentLength, error=writeErr.msg
+      responseFinishedOrFailed = true
+      warn "Client disconnected during download (inner try)", cid=cid, sent=sentBytes, expected=contentLength, error=writeErr.msg
+    except CancelledError as streamCancelledErr:
+      responseFinishedOrFailed = true
+      warn "Streaming cancelled (inner try)", cid=cid, sent=sentBytes, error=streamCancelledErr.msg
+      raise streamCancelledErr
     except CatchableError as streamErr:
-      # Other streaming errors
-      warn "Error during streaming", cid=cid, sent=sentBytes, error=streamErr.msg
+      responseFinishedOrFailed = true 
+      warn "Error during streaming (inner try)", cid=cid, sent=sentBytes, error=streamErr.msg
+      # Attempt to send a 500 if the response is still pending
+      if resp.isPending():
+        resp.status = Http500
+        await resp.sendBody(streamErr.msg)
+
+  except AssertionDefect as assertExc:
+    # ADDED: Catch AssertionDefect specifically
+    responseFinishedOrFailed = true
+    let excTypeStr = $typeof(assertExc)
+    warn "AssertionDefect in retrieveCid (outer try)", cid=cid, errorContext="AssertionDefect", excMsg=assertExc.msg, excType=excTypeStr
+    if resp.isPending():
+      try:
+        resp.status = Http500
+        await resp.sendBody("Assertion Failed: " & assertExc.msg)
+      except HttpWriteError:
+        warn "Unable to send error response (outer AssertionDefect), client likely disconnected", cid=cid
   except CancelledError as exc:
+    responseFinishedOrFailed = true
+    warn "retrieveCid cancelled (outer try)", cid=cid, error=exc.msg
     raise exc
-  except CatchableError as exc:
-    # Handle other exceptions outside the streaming loop
-    warn "Error preparing stream", exc=exc.msg
+  except Exception as exc: # Broaden catch from CatchableError to Exception (This is the intended change)
+    responseFinishedOrFailed = true # Set it unconditionally here
+    let excTypeStr = $typeof(exc)
+    warn "Error in retrieveCid (outer try)", cid=cid, errorContext="Outer Exception", excMsg=exc.msg, excType=excTypeStr
     if resp.isPending():
       try:
         resp.status = Http500
         await resp.sendBody(exc.msg)
       except HttpWriteError:
-        # Connection might already be closed
-        warn "Unable to send error response, client likely disconnected", cid=cid
+        warn "Unable to send error response (outer try), client likely disconnected", cid=cid
   finally:
+    # Determine stream type for logging
+    let streamType = if stream.isNil: "nil" else: $typeof(stream)
+    info "Finally block reached", cid=cid, streamType=streamType, isStreamNil=(stream.isNil), responseFinishedOrFailed=responseFinishedOrFailed
+    
+    # Original info log
     info "Sent bytes", cid=cid, bytes=sentBytes, local=local, rangeRequested=isRangeRequest, rangeStart=(if isRangeRequest: rangeStart else: 0), rangeEnd=(if isRangeRequest: rangeEnd else: 0)
-    if not stream.isNil:
-      await stream.close()
+    
+    # Safely close the stream only if it wasn't already handled by finish/failure
+    if not stream.isNil and not responseFinishedOrFailed:
+      info "Attempting to close potentially orphaned stream", cid=cid, streamType=streamType
+      try:
+        await stream.close()
+        info "Orphaned stream closed successfully", cid=cid, streamType=streamType
+      except CatchableError as closeExc: # Reverted to CatchableError
+        discard 
+    elif not stream.isNil and responseFinishedOrFailed:
+        trace "Skipping stream.close() because response finished or failed.", cid=cid, streamType=streamType
+    elif stream.isNil:
+        trace "Finally stream check", msg="Stream was nil in finally block, nothing to close."
 
 proc buildCorsHeaders(
     httpMethod: string, allowedOrigin: Option[string]
