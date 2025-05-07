@@ -288,6 +288,14 @@ type
       desc: "Logs to file", defaultValue: string.none, name: "log-file", hidden
     .}: Option[string]
 
+    execTimeThreshold* {.
+      desc: "Threshold for execution time",
+      defaultValue: 200.milliseconds,
+      defaultValueDesc: "0.2s",
+      name: "exec-time-threshold",
+      abbr: "et"
+    .}: Duration
+
     case cmd* {.defaultValue: noCmd, command.}: StartUpCmd
     of persistence:
       ethProvider* {.
@@ -794,7 +802,8 @@ proc setupLogging*(conf: CodexConf) =
 
 proc setupMetrics*(config: CodexConf) =
   when chronosProfiling:
-    enableProfiling(milliseconds(200))
+    notice "Enabling profiling without metrics", execTimeThreshold = config.execTimeThreshold
+    enableProfiling(config.execTimeThreshold)
 
   if config.metricsEnabled:
     let metricsAddress = config.metricsAddress
@@ -802,7 +811,8 @@ proc setupMetrics*(config: CodexConf) =
       url = "http://" & $metricsAddress & ":" & $config.metricsPort & "/metrics"
     try:
       when chronosProfiling:
-        enableProfilerMetrics(k = config.profilerMaxMetrics, 200.milliseconds)
+        notice "Enabling profiling with metrics", execTimeThreshold = config.execTimeThreshold
+        enableProfilerMetrics(k = config.profilerMaxMetrics, config.execTimeThreshold)
 
       startMetricsHttpServer($metricsAddress, config.metricsPort)
     except CatchableError as exc:
