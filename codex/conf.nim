@@ -794,7 +794,7 @@ proc setupLogging*(conf: CodexConf) =
 
 proc setupMetrics*(config: CodexConf) =
   when chronosProfiling:
-    enableProfiling(200.milliseconds)
+    enableProfiling(milliseconds(200))
 
   if config.metricsEnabled:
     let metricsAddress = config.metricsAddress
@@ -802,7 +802,7 @@ proc setupMetrics*(config: CodexConf) =
       url = "http://" & $metricsAddress & ":" & $config.metricsPort & "/metrics"
     try:
       when chronosProfiling:
-        enableProfilerMetrics(k = config.profilerMaxMetrics)
+        enableProfilerMetrics(k = config.profilerMaxMetrics, 200.milliseconds)
 
       startMetricsHttpServer($metricsAddress, config.metricsPort)
     except CatchableError as exc:
