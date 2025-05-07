@@ -31,23 +31,21 @@ method run*(
     raiseAssert "no sale request"
 
   try:
-    debug "Collecting collateral and partial payout",
-      requestId = data.requestId, slotIndex = data.slotIndex
-
-    # The returnedCollateral is needed even if the slot is not filled by the host
-    # because a reservation could be created and the collateral assigned
-    # to that reservation. So if the slot is not filled by that host,
-    # the reservation will be deleted during cleanup and the collateral
-    # must be returned to the host.
-    let slot = Slot(request: request, slotIndex: data.slotIndex)
-    let currentCollateral = await market.currentCollateral(slot.id)
-    let returnedCollateral = currentCollateral.some
+    var returnedCollateral = UInt256.none
 
     if await slotIsFilledByMe(market, data.requestId, data.slotIndex):
+      debug "Collecting collateral and partial payout",
+        requestId = data.requestId, slotIndex = data.slotIndex
+
+      let slot = Slot(request: request, slotIndex: data.slotIndex)
+      let currentCollateral = await market.currentCollateral(slot.id)
+
       try:
         await market.freeSlot(slot.id)
       except SlotStateMismatchError as e:
         warn "Failed to free slot because slot is already free", error = e.msg
+
+      returnedCollateral = currentCollateral.some
 
     if onClear =? agent.context.onClear and request =? data.request:
       onClear(request, data.slotIndex)
