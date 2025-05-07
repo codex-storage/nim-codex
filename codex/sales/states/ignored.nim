@@ -22,10 +22,25 @@ method run*(
     state: SaleIgnored, machine: Machine
 ): Future[?State] {.async: (raises: []).} =
   let agent = SalesAgent(machine)
+  let data = agent.data
+  let market = agent.context.market
+
+  without request =? data.request:
+    raiseAssert "no sale request"
 
   try:
+    # The returnedCollateral is needed because a reservation could
+    # be created and the collateral assigned to that reservation.
+    # The returnedCollateral will be used in the cleanup function
+    # and be passed to the deleteReservation function.
+    let slot = Slot(request: request, slotIndex: data.slotIndex)
+    let currentCollateral = await market.currentCollateral(slot.id)
+    let returnedCollateral = currentCollateral.some
+
     if onCleanUp =? agent.onCleanUp:
-      await onCleanUp(reprocessSlot = state.reprocessSlot)
+      await onCleanUp(
+        reprocessSlot = state.reprocessSlot, returnedCollateral = returnedCollateral
+      )
   except CancelledError as e:
     trace "SaleIgnored.run was cancelled", error = e.msgDetail
   except CatchableError as e:
