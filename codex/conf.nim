@@ -794,7 +794,7 @@ proc setupLogging*(conf: CodexConf) =
 
 proc setupMetrics*(config: CodexConf) =
   when chronosProfiling:
-    enableProfiling()
+    enableProfiling(200.milliseconds)
 
   if config.metricsEnabled:
     let metricsAddress = config.metricsAddress
