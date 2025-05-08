@@ -36,7 +36,7 @@ marketplacesuite "SP Slot Repair":
         # .withLogFile()
         # .withLogTopics("validator").some,
     ):
-    let client0 = clients()[0].client
+    let client0 = clients()[0]
     let provider0 = providers()[0]
     let provider1 = providers()[1]
     let expiry = 10.periods
@@ -45,8 +45,8 @@ marketplacesuite "SP Slot Repair":
     let data = await RandomChunker.example(blocks = blocks)
     let slotSize = slotSize(blocks, ecNodes, ecTolerance)
 
-    # Let's create 2 availabilities 
-    # The first host will be able to host 2 slots with a 
+    # Let's create 2 availabilities
+    # The first host will be able to host 2 slots with a
     # total collateral for 3 slots for later.
     # The second one, sending invalid proofs, will be able
     # to host one slot.
@@ -67,9 +67,9 @@ marketplacesuite "SP Slot Repair":
       )
     ).get
 
-    let cid = (await client0.upload(data)).get
+    let cid = (await client0.client.upload(data)).get
 
-    let purchaseId = await client0.requestStorage(
+    let purchaseId = await client0.client.requestStorage(
       cid,
       expiry = expiry,
       duration = duration,
@@ -80,7 +80,7 @@ marketplacesuite "SP Slot Repair":
       proofProbability = 1.u256,
     )
 
-    let requestId = (await client0.requestId(purchaseId)).get
+    let requestId = (await client0.client.requestId(purchaseId)).get
 
     # Here we are keeping track of the slot filled using their ids.
     var filledSlotIds: seq[SlotId] = @[]
@@ -112,8 +112,11 @@ marketplacesuite "SP Slot Repair":
 
     # Wait for purchase starts, meaning that the slots are filled.
     check eventually(
-      await client0.purchaseStateIs(purchaseId, "started"), timeout = expiry.int * 1000
+      await client0.client.purchaseStateIs(purchaseId, "started"), timeout = expiry.int * 1000
     )
+
+    # stop client so it doesn't serve any blocks anymore
+    await client0.stop()
 
     # Let's disable the second availability in order to not let
     # the second host pick the slot again.
@@ -156,7 +159,7 @@ marketplacesuite "SP Slot Repair":
       # .debug()
       .some,
     ):
-    let client0 = clients()[0].client
+    let client0 = clients()[0]
     let provider0 = providers()[0]
     let provider1 = providers()[1]
     let provider2 = providers()[2]
@@ -192,9 +195,9 @@ marketplacesuite "SP Slot Repair":
       totalCollateral = 100 * slotSize * collateralPerByte,
     )
 
-    let cid = (await client0.upload(data)).get
+    let cid = (await client0.client.upload(data)).get
 
-    let purchaseId = await client0.requestStorage(
+    let purchaseId = await client0.client.requestStorage(
       cid,
       expiry = expiry,
       duration = duration,
@@ -204,7 +207,7 @@ marketplacesuite "SP Slot Repair":
       pricePerBytePerSecond = minPricePerBytePerSecond,
       proofProbability = 1.u256,
     )
-    let requestId = (await client0.requestId(purchaseId)).get
+    let requestId = (await client0.client.requestId(purchaseId)).get
 
     # Here we are keeping track of the slot filled using their ids.
     var filledSlotIds: seq[SlotId] = @[]
@@ -235,14 +238,120 @@ marketplacesuite "SP Slot Repair":
     let slotFreedsubscription = await marketplace.subscribe(SlotFreed, onSlotFreed)
 
     check eventually(
-      await client0.purchaseStateIs(purchaseId, "started"), timeout = expiry.int * 1000
+      await client0.client.purchaseStateIs(purchaseId, "started"), timeout = expiry.int * 1000
     )
+
+    # stop client so it doesn't serve any blocks anymore
+    await client0.stop()
 
     await provider1.client.patchAvailability(availability1.id, enabled = false.some)
 
     await provider0.client.patchAvailability(
       availability0.id, totalSize = (2 * slotSize.truncate(uint64)).some
     )
+
+    check eventually(freedSlotId.isSome, timeout = expiry.int * 1000)
+
+    check eventually(freedSlotId.get in filledSlotIds, timeout = expiry.int * 1000)
+
+    await filledSubscription.unsubscribe()
+    await slotFreedsubscription.unsubscribe()
+
+  test "repair to empty sp",
+    NodeConfigs(
+      clients: CodexConfigs
+        .init(nodes = 1)
+        #.debug()
+        #.withLogTopics("node", "erasure")
+        .some,
+      providers: CodexConfigs
+        .init(nodes = 3)
+        .withSimulateProofFailures(idx = 1, failEveryNProofs = 1)
+        .debug()
+        .withLogFile()
+        .withLogTopics("marketplace", "sales", "statemachine", "reservations").some,
+      validators: CodexConfigs.init(nodes = 1)
+      # .withLogTopics("validator")
+      # .debug()
+      .some,
+    ):
+    let client0 = clients()[0]
+    let provider0 = providers()[0]
+    let provider1 = providers()[1]
+    let provider2 = providers()[2]
+    let expiry = 10.periods
+    let duration = expiry + 10.periods
+
+    let data = await RandomChunker.example(blocks = blocks)
+    let slotSize = slotSize(blocks, ecNodes, ecTolerance)
+
+    discard await provider0.client.postAvailability(
+        totalSize = 2 * slotSize.truncate(uint64),
+        duration = duration,
+        minPricePerBytePerSecond = minPricePerBytePerSecond,
+        totalCollateral = 100 * slotSize * collateralPerByte,
+      )
+    let availability1 = (
+      await provider1.client.postAvailability(
+        totalSize = slotSize.truncate(uint64),
+        duration = duration,
+        minPricePerBytePerSecond = minPricePerBytePerSecond,
+        totalCollateral = 100 * slotSize * collateralPerByte,
+      )
+    ).get
+
+    let cid = (await client0.client.upload(data)).get
+
+    let purchaseId = await client0.client.requestStorage(
+      cid,
+      expiry = expiry,
+      duration = duration,
+      nodes = ecNodes,
+      tolerance = ecTolerance,
+      collateralPerByte = 1.u256,
+      pricePerBytePerSecond = minPricePerBytePerSecond,
+      proofProbability = 1.u256,
+    )
+    let requestId = (await client0.client.requestId(purchaseId)).get
+
+    var filledSlotIds: seq[SlotId] = @[]
+    proc onSlotFilled(eventResult: ?!SlotFilled) =
+      assert not eventResult.isErr
+      let event = !eventResult
+
+      if event.requestId == requestId:
+        let slotId = slotId(event.requestId, event.slotIndex)
+        filledSlotIds.add slotId
+
+    let filledSubscription = await marketplace.subscribe(SlotFilled, onSlotFilled)
+
+    var freedSlotId = none SlotId
+    proc onSlotFreed(eventResult: ?!SlotFreed) =
+      assert not eventResult.isErr
+      let event = !eventResult
+      let slotId = slotId(event.requestId, event.slotIndex)
+
+      if event.requestId == requestId:
+        assert slotId in filledSlotIds
+        filledSlotIds.del(filledSlotIds.find(slotId))
+        freedSlotId = some(slotId)
+
+    let slotFreedsubscription = await marketplace.subscribe(SlotFreed, onSlotFreed)
+
+    check eventually(
+      await client0.client.purchaseStateIs(purchaseId, "started"), timeout = expiry.int * 1000
+    )
+
+    await client0.stop()
+
+    discard await provider2.client.postAvailability(
+      totalSize = slotSize.truncate(uint64),
+      duration = duration,
+      minPricePerBytePerSecond = minPricePerBytePerSecond,
+      totalCollateral = 100 * slotSize * collateralPerByte,
+    )
+
+    await provider1.client.patchAvailability(availability1.id, enabled = false.some)
 
     check eventually(freedSlotId.isSome, timeout = expiry.int * 1000)
 
