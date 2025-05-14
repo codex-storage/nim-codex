@@ -4,7 +4,6 @@ import pkg/chronos
 import pkg/questionable
 import pkg/questionable/results
 import ../errors
-import ../clock
 import ../logutils
 import ../rng
 import ../utils
@@ -16,17 +15,8 @@ logScope:
   topics = "marketplace slotqueue"
 
 type
-  OnProcessSlot* = proc(item: SlotQueueItem, done: Future[void]): Future[void] {.
-    gcsafe, async: (raises: [])
-  .}
-
-  # Non-ref obj copies value when assigned, preventing accidental modification
-  # of values which could cause an incorrect order (eg
-  # ``slotQueue[1].collateral = 1`` would cause ``collateral`` to be updated,
-  # but the heap invariant would no longer be honoured. When non-ref, the
-  # compiler can ensure that statement will fail).
-  SlotQueueWorker = object
-    doneProcessing*: Future[void].Raising([])
+  OnProcessSlot* =
+    proc(item: SlotQueueItem): Future[void] {.gcsafe, async: (raises: []).}
 
   SlotQueueItem* = object
     requestId: RequestId
@@ -47,7 +37,6 @@ type
     onProcessSlot: ?OnProcessSlot
     queue: AsyncHeapQueue[SlotQueueItem]
     running: bool
-    workers: AsyncQueue[SlotQueueWorker]
     trackedFutures: TrackedFutures
     unpaused: AsyncEvent
 
@@ -124,19 +113,6 @@ proc new*(
   )
   # avoid instantiating `workers` in constructor to avoid side effects in
   # `newAsyncQueue` procedure
-
-proc init(_: type SlotQueueWorker): SlotQueueWorker =
-  let workerFut = Future[void].Raising([]).init(
-      "slotqueue.worker.processing", {FutureFlag.OwnCancelSchedule}
-    )
-
-  workerFut.cancelCallback = proc(data: pointer) {.raises: [].} =
-    # this is equivalent to try: ... except CatchableError: ...
-    if not workerFut.finished:
-      workerFut.complete()
-    trace "Cancelling `SlotQueue` worker processing future"
-
-  SlotQueueWorker(doneProcessing: workerFut)
 
 proc init*(
     _: type SlotQueueItem,
@@ -233,13 +209,6 @@ proc `$`*(self: SlotQueue): string =
 proc `onProcessSlot=`*(self: SlotQueue, onProcessSlot: OnProcessSlot) =
   self.onProcessSlot = some onProcessSlot
 
-proc activeWorkers*(self: SlotQueue): int =
-  if not self.running:
-    return 0
-
-  # active = capacity - available
-  self.maxWorkers - self.workers.len
-
 proc contains*(self: SlotQueue, item: SlotQueueItem): bool =
   self.queue.contains(item)
 
@@ -323,52 +292,6 @@ proc delete*(self: SlotQueue, requestId: RequestId) =
 proc `[]`*(self: SlotQueue, i: Natural): SlotQueueItem =
   self.queue[i]
 
-proc addWorker(self: SlotQueue): ?!void =
-  if not self.running:
-    let err = newException(QueueNotRunningError, "queue must be running")
-    return failure(err)
-
-  trace "adding new worker to worker queue"
-
-  let worker = SlotQueueWorker.init()
-  try:
-    self.trackedFutures.track(worker.doneProcessing)
-    self.workers.addLastNoWait(worker)
-  except AsyncQueueFullError:
-    return failure("failed to add worker, worker queue full")
-
-  return success()
-
-proc dispatch(
-    self: SlotQueue, worker: SlotQueueWorker, item: SlotQueueItem
-) {.async: (raises: []).} =
-  logScope:
-    requestId = item.requestId
-    slotIndex = item.slotIndex
-
-  if not self.running:
-    warn "Could not dispatch worker because queue is not running"
-    return
-
-  if onProcessSlot =? self.onProcessSlot:
-    try:
-      self.trackedFutures.track(worker.doneProcessing)
-      await onProcessSlot(item, worker.doneProcessing)
-      await worker.doneProcessing
-
-      if err =? self.addWorker().errorOption:
-        raise err # catch below
-    except QueueNotRunningError as e:
-      info "could not re-add worker to worker queue, queue not running", error = e.msg
-    except CancelledError:
-      # do not bubble exception up as it is called with `asyncSpawn` which would
-      # convert the exception into a `FutureDefect`
-      discard
-    except CatchableError as e:
-      # we don't have any insight into types of errors that `onProcessSlot` can
-      # throw because it is caller-defined
-      warn "Unknown error processing slot in worker", error = e.msg
-
 proc clearSeenFlags*(self: SlotQueue) =
   # Enumerate all items in the queue, overwriting each item with `seen = false`.
   # To avoid issues with new queue items being pushed to the queue while all
@@ -386,25 +309,24 @@ proc clearSeenFlags*(self: SlotQueue) =
 
   trace "all 'seen' flags cleared"
 
-proc run(self: SlotQueue) {.async: (raises: []).} =
-  while self.running:
+proc runWorker(queue: SlotQueue) {.async: (raises: []).} =
+  trace "slot queue worker loop started"
+  while queue.running:
     try:
-      if self.paused:
+      if queue.paused:
         trace "Queue is paused, waiting for new slots or availabilities to be modified/added"
 
       # block until unpaused is true/fired, ie wait for queue to be unpaused
-      await self.unpaused.wait()
+      await queue.unpaused.wait()
 
-      let worker =
-        await self.workers.popFirst() # if workers saturated, wait here for new workers
-      let item = await self.queue.pop() # if queue empty, wait here for new items
+      let item = await queue.queue.pop() # if queue empty, wait here for new items
 
       logScope:
         reqId = item.requestId
         slotIdx = item.slotIndex
         seen = item.seen
 
-      if not self.running: # may have changed after waiting for pop
+      if not queue.running: # may have changed after waiting for pop
         trace "not running, exiting"
         break
 
@@ -413,29 +335,26 @@ proc run(self: SlotQueue) {.async: (raises: []).} =
       if item.seen:
         trace "processing already seen item, pausing queue",
           reqId = item.requestId, slotIdx = item.slotIndex
-        self.pause()
+        queue.pause()
         # put item back in queue so that if other items are pushed while paused,
         # it will be sorted accordingly. Otherwise, this item would be processed
         # immediately (with priority over other items) once unpaused
         trace "readding seen item back into the queue"
-        discard self.push(item) # on error, drop the item and continue
-        worker.doneProcessing.complete()
-        if err =? self.addWorker().errorOption:
-          error "error adding new worker", error = err.msg
+        discard queue.push(item) # on error, drop the item and continue
         await sleepAsync(1.millis) # poll
         continue
 
       trace "processing item"
-
-      let fut = self.dispatch(worker, item)
-      self.trackedFutures.track(fut)
-
-      await sleepAsync(1.millis) # poll
+      without onProcessSlot =? queue.onProcessSlot:
+        error "slot queue onProcessSlot not set?"
+        continue
+      await onProcessSlot(item)
     except CancelledError:
-      trace "slot queue cancelled"
+      trace "slot queue worker cancelled"
       break
-    except CatchableError as e: # raised from self.queue.pop() or self.workers.pop()
-      warn "slot queue error encountered during processing", error = e.msg
+    except CatchableError as e: # raised from self.queue.pop()
+      warn "slot queue worker error encountered during processing", error = e.msg
+  trace "slot queue worker loop stopped"
 
 proc start*(self: SlotQueue) =
   if self.running:
@@ -445,17 +364,11 @@ proc start*(self: SlotQueue) =
 
   self.running = true
 
-  # must be called in `start` to avoid sideeffects in `new`
-  self.workers = newAsyncQueue[SlotQueueWorker](self.maxWorkers)
-
   # Add initial workers to the `AsyncHeapQueue`. Once a worker has completed its
   # task, a new worker will be pushed to the queue
   for i in 0 ..< self.maxWorkers:
-    if err =? self.addWorker().errorOption:
-      error "start: error adding new worker", error = err.msg
-
-  let fut = self.run()
-  self.trackedFutures.track(fut)
+    let worker = self.runWorker()
+    self.trackedFutures.track(worker)
 
 proc stop*(self: SlotQueue) {.async.} =
   if not self.running:
