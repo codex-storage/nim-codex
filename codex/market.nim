@@ -204,9 +204,9 @@ method markProofAsMissing*(
 ) {.base, async: (raises: [CancelledError, MarketError]).} =
   raiseAssert("not implemented")
 
-method canProofBeMarkedAsMissing*(
+method canMarkProofAsMissing*(
     market: Market, id: SlotId, period: Period
-): Future[bool] {.base, async.} =
+): Future[bool] {.base, async: (raises: [CancelledError]).} =
   raiseAssert("not implemented")
 
 method reserveSlot*(
