@@ -51,9 +51,6 @@ suite "Slot queue workers":
   var queue: SlotQueue
 
   proc onProcessSlot(item: SlotQueueItem) {.async: (raises: []).} =
-    # this is not illustrative of the realistic scenario as the
-    # `doneProcessing` future would be passed to another context before being
-    # completed and therefore is not as simple as making the callback async
     try:
       await sleepAsync(1000.millis)
     except CatchableError as exc:

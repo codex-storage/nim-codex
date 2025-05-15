@@ -18,6 +18,11 @@ type
   OnProcessSlot* =
     proc(item: SlotQueueItem): Future[void] {.gcsafe, async: (raises: []).}
 
+  # Non-ref obj copies value when assigned, preventing accidental modification
+  # of values which could cause an incorrect order (eg
+  # ``slotQueue[1].collateral = 1`` would cause ``collateral`` to be updated,
+  # but the heap invariant would no longer be honoured. When non-ref, the
+  # compiler can ensure that statement will fail).
   SlotQueueItem* = object
     requestId: RequestId
     slotIndex: uint16
@@ -309,24 +314,24 @@ proc clearSeenFlags*(self: SlotQueue) =
 
   trace "all 'seen' flags cleared"
 
-proc runWorker(queue: SlotQueue) {.async: (raises: []).} =
+proc runWorker(self: SlotQueue) {.async: (raises: []).} =
   trace "slot queue worker loop started"
-  while queue.running:
+  while self.running:
     try:
-      if queue.paused:
+      if self.paused:
         trace "Queue is paused, waiting for new slots or availabilities to be modified/added"
 
       # block until unpaused is true/fired, ie wait for queue to be unpaused
-      await queue.unpaused.wait()
+      await self.unpaused.wait()
 
-      let item = await queue.queue.pop() # if queue empty, wait here for new items
+      let item = await self.queue.pop() # if queue empty, wait here for new items
 
       logScope:
         reqId = item.requestId
         slotIdx = item.slotIndex
         seen = item.seen
 
-      if not queue.running: # may have changed after waiting for pop
+      if not self.running: # may have changed after waiting for pop
         trace "not running, exiting"
         break
 
@@ -335,19 +340,18 @@ proc runWorker(queue: SlotQueue) {.async: (raises: []).} =
       if item.seen:
         trace "processing already seen item, pausing queue",
           reqId = item.requestId, slotIdx = item.slotIndex
-        queue.pause()
+        self.pause()
         # put item back in queue so that if other items are pushed while paused,
         # it will be sorted accordingly. Otherwise, this item would be processed
         # immediately (with priority over other items) once unpaused
         trace "readding seen item back into the queue"
-        discard queue.push(item) # on error, drop the item and continue
-        await sleepAsync(1.millis) # poll
+        discard self.push(item) # on error, drop the item and continue
         continue
 
       trace "processing item"
-      without onProcessSlot =? queue.onProcessSlot:
-        error "slot queue onProcessSlot not set?"
-        continue
+      without onProcessSlot =? self.onProcessSlot:
+        raiseAssert "slot queue onProcessSlot not set"
+
       await onProcessSlot(item)
     except CancelledError:
       trace "slot queue worker cancelled"
