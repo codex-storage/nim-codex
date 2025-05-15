@@ -403,6 +403,13 @@ asyncchecksuite "Sales":
     await allowRequestToStart()
     await sold
 
+    # Disable the availability; otherwise, it will pick up the
+    # reservation again and we will not be able to check
+    # if the bytes are returned
+    availability.enabled = false
+    let result = await reservations.update(availability)
+    check result.isOk
+
     # complete request
     market.slotState[request.slotId(slotIndex)] = SlotState.Finished
     clock.advance(request.ask.duration.int64)
