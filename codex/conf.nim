@@ -290,11 +290,11 @@ type
 
     execTimeThreshold* {.
       desc: "Threshold for execution time",
-      defaultValue: 200.milliseconds,
-      defaultValueDesc: "0.2s",
+      defaultValue: 200,
+      defaultValueDesc: "200 milliseconds",
       name: "exec-time-threshold",
       abbr: "et"
-    .}: Duration
+    .}: int
 
     case cmd* {.defaultValue: noCmd, command.}: StartUpCmd
     of persistence:
@@ -801,9 +801,10 @@ proc setupLogging*(conf: CodexConf) =
     quit QuitFailure
 
 proc setupMetrics*(config: CodexConf) =
+  let threshold = config.execTimeThreshold.milliseconds
   when chronosProfiling:
-    notice "Enabling profiling without metrics", execTimeThreshold = config.execTimeThreshold
-    enableProfiling(config.execTimeThreshold)
+    notice "Enabling profiling without metrics", execTimeThreshold = threshold
+    enableProfiling(threshold)
 
   if config.metricsEnabled:
     let metricsAddress = config.metricsAddress
@@ -811,8 +812,8 @@ proc setupMetrics*(config: CodexConf) =
       url = "http://" & $metricsAddress & ":" & $config.metricsPort & "/metrics"
     try:
       when chronosProfiling:
-        notice "Enabling profiling with metrics", execTimeThreshold = config.execTimeThreshold
-        enableProfilerMetrics(k = config.profilerMaxMetrics, config.execTimeThreshold)
+        notice "Enabling profiling with metrics", execTimeThreshold = threshold
+        enableProfilerMetrics(k = config.profilerMaxMetrics, threshold)
 
       startMetricsHttpServer($metricsAddress, config.metricsPort)
     except CatchableError as exc:
