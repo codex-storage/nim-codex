@@ -15,6 +15,7 @@ push:
 import std/sequtils
 import std/mimetypes
 import std/os
+import std/strformat
 
 import pkg/questionable
 import pkg/questionable/results
@@ -39,12 +40,53 @@ import ../manifest
 import ../streams/asyncstreamwrapper
 import ../stores
 import ../utils/options
+import ../streams/seekablestream
+import ../streams/rangestream
 
 import ./coders
 import ./json
 
 logScope:
   topics = "codex restapi"
+
+proc parseRangeHeader(rangeHeader: string): Result[(int, Option[int]), string] =
+  ## Parses a "Range: bytes=start-end" or "Range: bytes=start-" header.
+  ## Returns Ok((start, end)) or Err(message).
+  ## 'end' is inclusive. If '-' is used for end, returns none.
+  ## Very basic implementation, only supports single ranges starting with "bytes=".
+  if not rangeHeader.startsWith("bytes="):
+    return err("Invalid Range header format: Does not start with 'bytes='")
+
+  let parts = rangeHeader[6..^1].split('-')
+  if parts.len != 2:
+    return err("Invalid Range header format: Expected 'start-end' or 'start-'")
+
+  let startStr = parts[0].strip()
+  let endStr = parts[1].strip()
+
+  var startPos: int
+  try:
+    startPos = parseInt(startStr)
+    if startPos < 0:
+      return err("Invalid Range header format: Start position cannot be negative")
+  except ValueError:
+    return err("Invalid Range header format: Invalid start position number")
+
+  if endStr == "":
+    # Format "bytes=start-"
+    return ok((startPos, none(int)))
+  else:
+    # Format "bytes=start-end"
+    var endPos: int
+    try:
+      endPos = parseInt(endStr)
+    except ValueError:
+      return err("Invalid Range header format: Invalid end position number")
+
+    if endPos < startPos:
+      return err("Invalid Range header format: End position cannot be less than start position")
+
+    return ok((startPos, some(endPos)))
 
 declareCounter(codex_api_uploads, "codex API uploads")
 declareCounter(codex_api_downloads, "codex API downloads")
@@ -71,18 +113,30 @@ proc isPending(resp: HttpResponseRef): bool =
   ## sendBody(resp: HttpResponseRef, ...) twice, which is illegal.
   return resp.getResponseState() == HttpResponseState.Empty
 
+proc getDefaultRangeError(): Result[(int, Option[int]), string] =
+  ## Returns a default error Result for range parsing.
+  return err("No range requested")
+
 proc retrieveCid(
-    node: CodexNodeRef, cid: Cid, local: bool = true, resp: HttpResponseRef
+    node: CodexNodeRef, cid: Cid, local: bool = true, resp: HttpResponseRef, range: Result[(int, Option[int]), string] = getDefaultRangeError()
 ): Future[void] {.async: (raises: [CancelledError, HttpWriteError]).} =
-  ## Download a file from the node in a streaming
-  ## manner
+  ## Download a file from the node in a streaming manner.
+  ## Supports HTTP Range requests (e.g., "Range: bytes=100-200" or "Range: bytes=100-").
+  ## Invalid range headers are ignored, resulting in a full download.
   ##
 
   var stream: LPStream
-
-  var bytes = 0
+  var sentBytes = 0
+  var isRangeRequest = false
+  var rangeStart = 0
+  var rangeEnd = 0
+  var responseFinishedOrFailed = false # Flag to track response state
+  
   try:
-    without stream =? (await node.retrieve(cid, local)), error:
+    # Always indicate acceptance of range requests
+    resp.setHeader("Accept-Ranges", "bytes")
+
+    without manifest =? (await node.fetchManifest(cid)), error:
       if error of BlockNotFoundError:
         resp.status = Http404
         await resp.sendBody(
@@ -94,13 +148,7 @@ proc retrieveCid(
         await resp.sendBody(error.msg)
         return
 
-    # It is ok to fetch again the manifest because it will hit the cache
-    without manifest =? (await node.fetchManifest(cid)), err:
-      error "Failed to fetch manifest", err = err.msg
-      resp.status = Http404
-      await resp.sendBody(err.msg)
-      return
-
+    # Set content type and disposition headers
     if manifest.mimetype.isSome:
       resp.setHeader("Content-Type", manifest.mimetype.get())
     else:
@@ -117,37 +165,173 @@ proc retrieveCid(
     # For erasure-coded datasets, we need to return the _original_ length; i.e.,
     # the length of the non-erasure-coded dataset, as that's what we will be
     # returning to the client.
-    let contentLength =
-      if manifest.protected: manifest.originalDatasetSize else: manifest.datasetSize
-    resp.setHeader("Content-Length", $(contentLength.int))
+    let totalSize =
+      (if manifest.protected: manifest.originalDatasetSize else: manifest.datasetSize).int
+
+    rangeStart = 0
+    rangeEnd = totalSize - 1 # Inclusive
+    isRangeRequest = false
+
+    if range.isOk:
+      let (startReq, endReqOpt) = range.get()
+      # Validate the requested range
+      if startReq < totalSize:
+        isRangeRequest = true
+        rangeStart = startReq
+        if endReq =? endReqOpt:
+          # bytes=start-end (inclusive end)
+          rangeEnd = min(endReq, totalSize - 1)
+        else:
+          # bytes=start- (rangeEnd remains totalSize - 1)
+          rangeEnd = totalSize - 1
+        
+        debug "Range request", start=rangeStart, endPos=rangeEnd, totalSize=totalSize
+
+        # Ensure end >= start after validation/clamping
+        if rangeEnd < rangeStart:
+          # Requested range is impossible (e.g., start=100, end=50, totalSize=1000)
+          # or fully outside the content (e.g., start=1000, totalSize=500)
+          # Respond with 416 Range Not Satisfiable
+          warn "Invalid range request", start=rangeStart, endPos=rangeEnd, totalSize=totalSize
+          resp.status = Http416
+          resp.setHeader("Content-Range", "bytes */" & $totalSize)
+          await resp.sendBody("Requested range not satisfiable")
+          return
+
+    let contentLength = rangeEnd - rangeStart + 1
+
+    # Set appropriate headers for the response
+    if isRangeRequest:
+      resp.status = Http206
+      resp.setHeader("Content-Range", "bytes " & $rangeStart & "-" & $rangeEnd & "/" & $totalSize)
+      resp.setHeader("Content-Length", $contentLength)
+      
+      # Get the appropriate range stream from the node
+      var rangeStreamResult: Future[?!LPStream]
+      if local:
+        trace "Requesting local range stream", cid=cid, start=rangeStart, endPos=rangeEnd
+        rangeStreamResult = node.retrieveLocalRange(cid, rangeStart, rangeEnd)
+      else:
+        trace "Requesting network range stream", cid=cid, start=rangeStart, endPos=rangeEnd
+        rangeStreamResult = node.retrieveNetworkRange(cid, rangeStart, rangeEnd)
+        
+        let awaitedResult = await rangeStreamResult
+        if awaitedResult.isErr:
+          let error = awaitedResult.error
+          error "Failed to create range stream", cid=cid, error=error.msg, local=local
+          resp.status = Http500
+          await resp.sendBody("Internal error: Failed to create range stream")
+          responseFinishedOrFailed = true
+          return
+        
+        let rangestream = awaitedResult.get()
+        stream = rangestream
+        debug "Assigned rangestream to stream in retrieveCid", streamType = $typeof(stream), objectId = (if stream.isNil: "nil-oid" else: $stream.oid), isNil = stream.isNil
+    else:
+      # Full request - get the entire file
+      without fullStream =? (await node.retrieve(cid, local)), error:
+        resp.status = Http500
+        await resp.sendBody(error.msg)
+        return
+        
+      stream = fullStream
+      debug "Assigned fullStream to stream in retrieveCid", streamType = $typeof(stream), objectId = (if stream.isNil: "nil-oid" else: $stream.oid), isNil = stream.isNil
 
     await resp.prepare(HttpResponseStreamType.Plain)
 
-    while not stream.atEof:
-      var
-        buff = newSeqUninitialized[byte](DefaultBlockSize.int)
-        len = await stream.readOnce(addr buff[0], buff.len)
+    # *** CRASH HAPPENS SOMEWHERE BETWEEN stream assignment AND HERE (or during resp.prepare) ***
 
-      buff.setLen(len)
-      if buff.len <= 0:
-        break
+    var bytesToSend = contentLength
+    debug "Preparing to send data", cid=cid, bytesToSend=bytesToSend, streamIsNil=stream.isNil, streamAtEofInitial= (not stream.isNil and stream.atEof), isRangeRequest=isRangeRequest, rangeStartReport=rangeStart, rangeEndReport=rangeEnd, totalSizeReport=totalSize
+    try: # <-- Start of inner streaming try block
+      while bytesToSend > 0 and not stream.atEof:
+        var
+          buff = newSeqUninitialized[byte](DefaultBlockSize.int)
+          maxRead = min(buff.len, bytesToSend)
+        
+        debug "Attempting stream.readOnce", cid=cid, maxRead=maxRead, currentBytesToSend=bytesToSend, streamAtEofBeforeRead=stream.atEof
 
-      bytes += buff.len
+        var readLen = await stream.readOnce(addr buff[0], maxRead)
 
-      await resp.send(addr buff[0], buff.len)
-    await resp.finish()
-    codex_api_downloads.inc()
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as exc:
-    warn "Error streaming blocks", exc = exc.msg
-    resp.status = Http500
+        debug "Stream readOnce returned", cid=cid, readLen=readLen, requestedRead=maxRead, streamAtEofAfterRead=stream.atEof, currentSentBytes=sentBytes
+
+        buff.setLen(readLen)
+        if buff.len <= 0:
+          debug "Stream read returned 0 or negative, or buff became empty. Breaking loop.", cid=cid, readLen=readLen, buffLen=buff.len, remainingBytesToSend=bytesToSend
+          break
+
+        sentBytes += buff.len
+        bytesToSend -= buff.len
+
+        await resp.send(addr buff[0], buff.len)
+
+      if bytesToSend > 0 and not stream.atEof:
+        warn "Stream ended prematurely while sending content", cid=cid, expected=contentLength, sent=sentBytes, missing=bytesToSend
+        # Consider setting responseFinishedOrFailed = true here? Or let finish() handle it?
+
+      responseFinishedOrFailed = true
+      await resp.finish() 
+      codex_api_downloads.inc()
+    except HttpWriteError as writeErr:
+      responseFinishedOrFailed = true
+      warn "Client disconnected during download (inner try)", cid=cid, sent=sentBytes, expected=contentLength, error=writeErr.msg
+    except CancelledError as streamCancelledErr:
+      responseFinishedOrFailed = true
+      warn "Streaming cancelled (inner try)", cid=cid, sent=sentBytes, error=streamCancelledErr.msg
+      raise streamCancelledErr
+    except CatchableError as streamErr:
+      responseFinishedOrFailed = true 
+      warn "Error during streaming (inner try)", cid=cid, sent=sentBytes, error=streamErr.msg
+      # Attempt to send a 500 if the response is still pending
+      if resp.isPending():
+        resp.status = Http500
+        await resp.sendBody(streamErr.msg)
+
+  except AssertionDefect as assertExc:
+    # ADDED: Catch AssertionDefect specifically
+    responseFinishedOrFailed = true
+    let excTypeStr = $typeof(assertExc)
+    warn "AssertionDefect in retrieveCid (outer try)", cid=cid, errorContext="AssertionDefect", excMsg=assertExc.msg, excType=excTypeStr
     if resp.isPending():
-      await resp.sendBody(exc.msg)
+      try:
+        resp.status = Http500
+        await resp.sendBody("Assertion Failed: " & assertExc.msg)
+      except HttpWriteError:
+        warn "Unable to send error response (outer AssertionDefect), client likely disconnected", cid=cid
+  except CancelledError as exc:
+    responseFinishedOrFailed = true
+    warn "retrieveCid cancelled (outer try)", cid=cid, error=exc.msg
+    raise exc
+  except Exception as exc: # Broaden catch from CatchableError to Exception (This is the intended change)
+    responseFinishedOrFailed = true # Set it unconditionally here
+    let excTypeStr = $typeof(exc)
+    warn "Error in retrieveCid (outer try)", cid=cid, errorContext="Outer Exception", excMsg=exc.msg, excType=excTypeStr
+    if resp.isPending():
+      try:
+        resp.status = Http500
+        await resp.sendBody(exc.msg)
+      except HttpWriteError:
+        warn "Unable to send error response (outer try), client likely disconnected", cid=cid
   finally:
-    info "Sent bytes", cid = cid, bytes
-    if not stream.isNil:
-      await stream.close()
+    # Determine stream type for logging
+    let streamType = if stream.isNil: "nil" else: $typeof(stream)
+    info "Finally block reached", cid=cid, streamType=streamType, isStreamNil=(stream.isNil), responseFinishedOrFailed=responseFinishedOrFailed
+    
+    # Original info log
+    info "Sent bytes", cid=cid, bytes=sentBytes, local=local, rangeRequested=isRangeRequest, rangeStart=(if isRangeRequest: rangeStart else: 0), rangeEnd=(if isRangeRequest: rangeEnd else: 0)
+    
+    # Safely close the stream only if it wasn't already handled by finish/failure
+    if not stream.isNil and not responseFinishedOrFailed:
+      info "Attempting to close potentially orphaned stream", cid=cid, streamType=streamType
+      try:
+        await stream.close()
+        info "Orphaned stream closed successfully", cid=cid, streamType=streamType
+      except CatchableError as closeExc: # Reverted to CatchableError
+        discard 
+    elif not stream.isNil and responseFinishedOrFailed:
+        trace "Skipping stream.close() because response finished or failed.", cid=cid, streamType=streamType
+    elif stream.isNil:
+        trace "Finally stream check", msg="Stream was nil in finally block, nothing to close."
 
 proc buildCorsHeaders(
     httpMethod: string, allowedOrigin: Option[string]
@@ -282,7 +466,16 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
       resp.setCorsHeaders("GET", corsOrigin)
       resp.setHeader("Access-Control-Headers", "X-Requested-With")
 
-    await node.retrieveCid(cid.get(), local = true, resp = resp)
+    # Parse Range header if present
+    var requestedRange: Result[(int, Option[int]), string] = getDefaultRangeError()
+    let rangeHeader = request.headers.getString("Range", "")
+    if rangeHeader != "":
+      requestedRange = parseRangeHeader(rangeHeader)
+      if requestedRange.isErr:
+        warn "Invalid Range header received", header = rangeHeader, error = requestedRange.error
+        requestedRange = getDefaultRangeError() # Reset to indicate no valid range
+
+    await retrieveCid(node, cid.get(), local = true, resp = resp, range = requestedRange)
 
   router.api(MethodDelete, "/api/codex/v1/data/{cid}") do(
     cid: Cid, resp: HttpResponseRef
@@ -329,12 +522,9 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
   router.api(MethodGet, "/api/codex/v1/data/{cid}/network/stream") do(
     cid: Cid, resp: HttpResponseRef
   ) -> RestApiResponse:
+    var headers = buildCorsHeaders("GET", allowedOrigin)
     ## Download a file from the network in a streaming
     ## manner
-    ##
-
-    var headers = buildCorsHeaders("GET", allowedOrigin)
-
     if cid.isErr:
       return RestApiResponse.error(Http400, $cid.error(), headers = headers)
 
@@ -342,8 +532,16 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
       resp.setCorsHeaders("GET", corsOrigin)
       resp.setHeader("Access-Control-Headers", "X-Requested-With")
 
-    resp.setHeader("Access-Control-Expose-Headers", "Content-Disposition")
-    await node.retrieveCid(cid.get(), local = false, resp = resp)
+    # Parse Range header if present
+    var requestedRange: Result[(int, Option[int]), string] = getDefaultRangeError()
+    let rangeHeader = request.headers.getString("Range", "")
+    if rangeHeader != "":
+      requestedRange = parseRangeHeader(rangeHeader)
+      if requestedRange.isErr:
+        warn "Invalid Range header received", header = rangeHeader, error = requestedRange.error
+        requestedRange = getDefaultRangeError() # Reset to indicate no valid range
+
+    await retrieveCid(node, cid.get(), local = false, resp = resp, range = requestedRange)
 
   router.api(MethodGet, "/api/codex/v1/data/{cid}/network/manifest") do(
     cid: Cid, resp: HttpResponseRef
