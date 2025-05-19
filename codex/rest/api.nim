@@ -42,6 +42,7 @@ import ../utils/safeasynciter
 import ../utils/options
 import ../bittorrent/manifest
 import ../bittorrent/torrentdownloader
+import ../bittorrent/magnetlink
 
 import ../tarballs/[directorymanifest, directorydownloader, tarballnodeextensions]
 
@@ -643,6 +644,43 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
 
     resp.setHeader("Access-Control-Expose-Headers", "Content-Disposition")
     await node.retrieveDirectory(cid.get(), resp = resp)
+
+  router.api(MethodOptions, "/api/codex/v1/torrent/magnet") do(
+    resp: HttpResponseRef
+  ) -> RestApiResponse:
+    if corsOrigin =? allowedOrigin:
+      resp.setCorsHeaders("POST", corsOrigin)
+      resp.setHeader(
+        "Access-Control-Allow-Headers", "content-type, content-disposition"
+      )
+
+    resp.status = Http204
+    await resp.sendBody("")
+
+  router.api(MethodPost, "/api/codex/v1/torrent/magnet") do(
+    contentBody: Option[ContentBody], resp: HttpResponseRef
+  ) -> RestApiResponse:
+    let mimeType = request.headers.getString(ContentTypeHeader)
+    echo "mimeType: ", mimeType
+    if mimeType != "text/plain" and mimeType != "application/octet-stream":
+      return RestApiResponse.error(
+        Http422,
+        "Missing \"Content-Type\" header: expected either \"text/plain\" or \"application/octet-stream\".",
+      )
+    without magnetLinkBytes =? contentBody .? data:
+      return RestApiResponse.error(Http422, "No magnet link provided.")
+    echo "magnetLinkBytes: ", bytesToString(magnetLinkBytes).strip
+    without magnetLink =? newMagnetLink(bytesToString(magnetLinkBytes).strip), err:
+      return RestApiResponse.error(Http422, err.msg)
+    if magnetLink.version != TorrentVersion.v1:
+      return RestApiResponse.error(
+        Http422, "Only torrents version 1 are currently supported!"
+      )
+    without infoHash =? magnetLink.infoHashV1:
+      return RestApiResponse.error(
+        Http422, "The magnet link does not contain a valid info hash."
+      )
+    await node.retrieveInfoHash(infoHash, resp = resp)
 
   router.api(MethodGet, "/api/codex/v1/torrent/{infoHash}/network/stream") do(
     infoHash: MultiHash, resp: HttpResponseRef
