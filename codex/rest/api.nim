@@ -290,7 +290,7 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
     cid: Cid, resp: HttpResponseRef
   ) -> RestApiResponse:
     ## Deletes either a single block or an entire dataset
-    ## from the local node. Does nothing and returns 200
+    ## from the local node. Does nothing and returns 204
     ## if the dataset is not locally available.
     ##
     var headers = buildCorsHeaders("DELETE", allowedOrigin)
@@ -478,6 +478,23 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
       if restAv.totalSize == 0:
         return RestApiResponse.error(
           Http422, "Total size must be larger then zero", headers = headers
+        )
+
+      if restAv.duration == 0:
+        return RestApiResponse.error(
+          Http422, "duration must be larger then zero", headers = headers
+        )
+
+      if restAv.minPricePerBytePerSecond == 0:
+        return RestApiResponse.error(
+          Http422,
+          "minPricePerBytePerSecond must be larger then zero",
+          headers = headers,
+        )
+
+      if restAv.totalCollateral == 0:
+        return RestApiResponse.error(
+          Http422, "totalCollateral must be larger then zero", headers = headers
         )
 
       if not reservations.hasAvailable(restAv.totalSize):
@@ -916,7 +933,11 @@ proc initDebugApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
               "",
           "announceAddresses": node.discovery.announceAddrs,
           "table": table,
-          "codex": {"version": $codexVersion, "revision": $codexRevision},
+          "codex": {
+            "version": $codexVersion,
+            "revision": $codexRevision,
+            "contracts": $codexContractsRevision,
+          },
         }
 
       # return pretty json for human readability

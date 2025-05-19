@@ -124,6 +124,9 @@ components:
         revision:
           type: string
           example: 0c647d8
+        contracts:
+          type: string
+          example: 0b537c7
 
     PeersTable:
       type: object
@@ -202,6 +205,7 @@ components:
       required:
         - id
         - totalRemainingCollateral
+        - freeSize
       allOf:
         - $ref: "#/components/schemas/SalesAvailability"
         - type: object
@@ -623,6 +627,26 @@ paths:
           description: Content specified by the CID is unavailable locally
         "500":
           description: Well it was bad-bad
+
+    delete:
+      summary: "Deletes either a single block or an entire dataset from the local node."
+      tags: [Data]
+      operationId: deleteLocal
+      parameters:
+        - in: path
+          name: cid
+          required: true
+          schema:
+            $ref: "#/components/schemas/Cid"
+          description: Block or dataset to be deleted.
+
+      responses:
+        "204":
+          description: Data was successfully deleted.
+        "400":
+          description: Invalid CID is specified
+        "500":
+          description: There was an error during deletion
 
   "/data/{cid}/network":
     post:

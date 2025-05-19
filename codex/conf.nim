@@ -477,17 +477,22 @@ proc getCodexRevision(): string =
   var res = strip(staticExec("git rev-parse --short HEAD"))
   return res
 
+proc getCodexContractsRevision(): string =
+  let res = strip(staticExec("git rev-parse --short HEAD:vendor/codex-contracts-eth"))
+  return res
+
 proc getNimBanner(): string =
   staticExec("nim --version | grep Version")
 
 const
   codexVersion* = getCodexVersion()
   codexRevision* = getCodexRevision()
+  codexContractsRevision* = getCodexContractsRevision()
   nimBanner* = getNimBanner()
 
   codexFullVersion* =
     "Codex version:  " & codexVersion & "\p" & "Codex revision: " & codexRevision & "\p" &
-    nimBanner
+    "Codex contracts revision: " & codexContractsRevision & "\p" & nimBanner
 
 proc parseCmdArg*(
     T: typedesc[MultiAddress], input: string

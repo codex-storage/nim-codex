@@ -1,5 +1,5 @@
 import pkg/contractabi
-import pkg/ethers/fields
+import pkg/ethers/contracts/fields
 import pkg/questionable/results
 
 export contractabi
