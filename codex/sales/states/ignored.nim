@@ -14,6 +14,7 @@ logScope:
 
 type SaleIgnored* = ref object of SaleState
   reprocessSlot*: bool # readd slot to queue with `seen` flag
+  returnsCollateral*: bool # returns collateral when a reservation was created
 
 method `$`*(state: SaleIgnored): string =
   "SaleIgnored"
@@ -28,14 +29,17 @@ method run*(
   without request =? data.request:
     raiseAssert "no sale request"
 
+  var returnedCollateral = UInt256.none
+
   try:
-    # The returnedCollateral is needed because a reservation could
-    # be created and the collateral assigned to that reservation.
-    # The returnedCollateral will be used in the cleanup function
-    # and be passed to the deleteReservation function.
-    let slot = Slot(request: request, slotIndex: data.slotIndex)
-    let currentCollateral = await market.currentCollateral(slot.id)
-    let returnedCollateral = currentCollateral.some
+    if state.returnsCollateral:
+      # The returnedCollateral is needed because a reservation could
+      # be created and the collateral assigned to that reservation.
+      # The returnedCollateral will be used in the cleanup function
+      # and be passed to the deleteReservation function.
+      let slot = Slot(request: request, slotIndex: data.slotIndex)
+      let currentCollateral = await market.currentCollateral(slot.id)
+      returnedCollateral = currentCollateral.some
 
     if onCleanUp =? agent.onCleanUp:
       await onCleanUp(
