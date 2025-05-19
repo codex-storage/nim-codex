@@ -40,16 +40,20 @@ type PortMapping* = object
   internalUdpPort*: Port
   description*: string
 
-type NatManager* = ref object
-  portMappings: seq[PortMapping]
-  thread: Thread[ptr NatManager]
-  config: NatConfig
-  lock: Lock
-  upnp {.guard: lock.}: Miniupnp
-  npmp {.guard: lock.}: NatPmp
-  strategy: NatStrategy
-  threadStarted: bool
-  natClosed: Atomic[bool]
+type
+  NatManagerObj* = object
+    portMappings: seq[PortMapping]
+    thread: Thread[NatManagerPtr]
+    config: NatConfig
+    lock: Lock
+    upnp {.guard: lock.}: Miniupnp
+    npmp {.guard: lock.}: NatPmp
+    strategy: NatStrategy
+    threadStarted: bool
+    natClosed: Atomic[bool]
+
+  NatManager* = ref NatManagerObj
+  NatManagerPtr* = ptr NatManagerObj
 
 export natutils
 
@@ -233,9 +237,10 @@ proc doPortMapping(
             extUdpPort = extPort
   return some((extTcpPort, extUdpPort))
 
-proc repeatPortMapping(self: ptr NatManager) {.thread, raises: [ValueError].} =
+proc repeatPortMapping(self: NatManagerPtr) {.thread, raises: [ValueError].} =
   ignoreSignalsInThread()
 
+  var self = cast[NatManager](self)
   let
     interval = initDuration(seconds = PORT_MAPPING_INTERVAL)
     sleepDuration = 1_000 # in ms, also the maximum delay after pressing Ctrl-C
@@ -251,10 +256,10 @@ proc repeatPortMapping(self: ptr NatManager) {.thread, raises: [ValueError].} =
     # select on Nim channels like on Go ones
     let currTime = now()
     if currTime >= (lastUpdate + interval):
-      for entry in self[].portMappings:
+      for entry in self.portMappings:
         discard doPortMapping(
-          self[],
-          self[].strategy,
+          self,
+          self.strategy,
           entry.externalTcpPort,
           entry.externalUdpPort,
           entry.description,
@@ -275,6 +280,8 @@ proc stop*(self: NatManager) {.async.} =
     self.thread.joinThread()
   except Exception as exc:
     warn "Failed to stop NAT port mapping renewal thread", exc = exc.msg
+  finally:
+    GC_unref(self)
 
   # delete our port mappings
 
@@ -401,7 +408,9 @@ proc startPortMappingThread*(self: NatManager) =
   if self.portMappings.len > 0:
     self.natClosed.store(false)
     try:
-      self.thread.createThread(repeatPortMapping, (self.addr))
+      let mngrPtr = cast[NatManagerPtr](self)
+      GC_ref(self)
+      self.thread.createThread(repeatPortMapping, mngrPtr)
       self.threadStarted = true
     except Exception as exc:
       warn "Failed to create NAT port mapping renewal thread", exc = exc.msg
