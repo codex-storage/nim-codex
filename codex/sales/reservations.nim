@@ -351,7 +351,8 @@ proc updateAvailability(
 
   if oldAvailability.freeSize < obj.freeSize or oldAvailability.duration < obj.duration or
       oldAvailability.minPricePerBytePerSecond < obj.minPricePerBytePerSecond or
-      oldAvailability.totalCollateral < obj.totalCollateral: # availability updated
+      oldAvailability.totalRemainingCollateral < obj.totalRemainingCollateral:
+    # availability updated
     # inform subscribers that Availability has been modified (with increased
     # size)
     if OnAvailabilitySaved =? self.OnAvailabilitySaved:
