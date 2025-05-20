@@ -105,14 +105,14 @@ proc new*(
     subscriptions: @[],
   )
 
-proc remove(sales: Sales, agent: SalesAgent) {.async.} =
+proc remove(sales: Sales, agent: SalesAgent) {.async: (raises: [CancelledError]).} =
   await agent.stop()
   if sales.running:
     sales.agents.keepItIf(it != agent)
 
 proc cleanUp(
     sales: Sales, agent: SalesAgent, reprocessSlot: bool, returnedCollateral: ?UInt256
-) {.async.} =
+) {.async: (raises: [CancelledError]).} =
   let data = agent.data
 
   logScope:
@@ -193,9 +193,12 @@ proc processSlot(
 
   agent.onCleanUp = proc(
       reprocessSlot = false, returnedCollateral = UInt256.none
-  ) {.async.} =
+  ) {.async: (raises: []).} =
     trace "slot cleanup"
-    await sales.cleanUp(agent, reprocessSlot, returnedCollateral)
+    try:
+      await sales.cleanUp(agent, reprocessSlot, returnedCollateral)
+    except CancelledError as e:
+      trace "slot cleanup was cancelled", error = e.msgDetail
     completed.fire()
 
   agent.onFilled = some proc(request: StorageRequest, slotIndex: uint64) =
@@ -269,8 +272,11 @@ proc load*(sales: Sales) {.async.} =
 
     agent.onCleanUp = proc(
         reprocessSlot = false, returnedCollateral = UInt256.none
-    ) {.async.} =
-      await sales.cleanUp(agent, reprocessSlot, returnedCollateral)
+    ) {.async: (raises: []).} =
+      try:
+        await sales.cleanUp(agent, reprocessSlot, returnedCollateral)
+      except CancelledError as e:
+        trace "slot cleanup was cancelled", error = e.msgDetail
 
     # There is no need to assign agent.onFilled as slots loaded from `mySlots`
     # are inherently already filled and so assigning agent.onFilled would be
