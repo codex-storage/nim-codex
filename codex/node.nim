@@ -158,7 +158,7 @@ proc updateExpiry*(
         self.networkStore.localStore.ensureExpiry(manifest.treeCid, it, expiry)
       )
 
-    let res = await allFinishedFailed(cast[seq[Future[?!void]]](ensuringFutures))
+    let res = await allFinishedFailed[?!void](ensuringFutures)
     if res.failure.len > 0:
       trace "Some blocks failed to update expiry", len = res.failure.len
       return failure("Some blocks failed to update expiry (" & $res.failure.len & " )")
@@ -665,7 +665,7 @@ proc onStore(
     let ensureExpiryFutures =
       blocks.mapIt(self.networkStore.ensureExpiry(it.cid, expiry.toSecondsSince1970))
 
-    let res = await allFinishedFailed(cast[seq[Future[?!void]]](ensureExpiryFutures))
+    let res = await allFinishedFailed[?!void](ensureExpiryFutures)
     if res.failure.len > 0:
       trace "Some blocks failed to update expiry", len = res.failure.len
       return failure("Some blocks failed to update expiry (" & $res.failure.len & " )")

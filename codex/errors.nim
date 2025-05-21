@@ -47,7 +47,7 @@ func toFailure*[T](exp: Option[T]): Result[T, ref CatchableError] {.inline.} =
     T.failure("Option is None")
 
 proc allFinishedFailed*[T](
-    futs: seq[Future[T]]
+    futs: auto
 ): Future[FinishedFailed[T]] {.async: (raises: [CancelledError]).} =
   ## Check if all futures have finished or failed
   ##
