@@ -131,7 +131,7 @@ method hasBlock*(
 
   await self.hasBlock(cidAndProof[0])
 
-func cids(self: CacheStore): (iterator (): Cid {.gcsafe.}) =
+func cids(self: CacheStore): (iterator (): Cid {.gcsafe, raises: [].}) =
   return
     iterator (): Cid =
       for cid in self.cache.keys:
@@ -149,11 +149,7 @@ method listBlocks*(
     return finished(cids)
 
   proc genNext(): Future[?!Cid] {.async: (raises: [CancelledError]).} =
-    try:
-      let cid = cids()
-      success(cid)
-    except Exception as err:
-      failure(err.msg)
+    success(cids())
 
   let iter = await (
     SafeAsyncIter[Cid].new(genNext, isFinished).filter(
