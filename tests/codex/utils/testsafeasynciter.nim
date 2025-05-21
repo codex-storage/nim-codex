@@ -356,6 +356,31 @@ asyncchecksuite "Test SafeAsyncIter":
       iter3.finished
 
   test "Should propagate cancellation error immediately":
+    # This test can be a bit tricky to understand because it is
+    # quite tightly coupled with the way the iterator is implemented.
+    # When `mapFilter` is called, it already performs first iteration
+    # step: this is necessary, so that if there is nothing there left
+    # after filtering, the iterator state should be market as "finished"
+    # before event trying to call `next()` for the very first time (a standard
+    # practice is for the called to check if the iterator is finished before
+    # attempting to call `next()`). Thus, internally, the value that is to be
+    # returned for the first iteration is already resolved and ready to be returned.
+    # And this follows in the same for the next iterations. On calling `next()`
+    # the iterator first makes a temporary copy of the value already captured in
+    # the precious step, awaits for the next value (and if there is no more values
+    # to be returned it marks the iterator as finished), and then returns the
+    # local copy of the previously captured value.
+    # Now, to make sure that this mechanism works, and to document its
+    # cancellation semantics, this test shows that when the async predicate
+    # function is cancelled, this cancellation has immediate effect, which means
+    # that `next()` (or more precisely `getNext()` in `mapFilter` function), is 
+    # interrupted immediately. If this is the case, the the iterator be interrupted
+    # before `next()` returns this locally captured value from the previous
+    # iteration and this is exactly the reason why at the end of the test
+    # we expect only values "0" and "1" to be collected while value "2" - although
+    # already resolved and ready to be returned, is not returned because of the
+    # cancellation of the async predicate function.
+
     let fut: Future[Option[?!string]].Raising([CancelledError]) =
       Future[Option[?!string]].Raising([CancelledError]).init("testsafeasynciter")
 
@@ -385,5 +410,8 @@ asyncchecksuite "Test SafeAsyncIter":
           fail()
 
     check:
+      # We expect only values "0" and "1" to be collected
+      # and not value "2" that - although resolved and ready to be returned -
+      # will not be returned because of the cancellation.
       collected == @["0", "1"]
       iter2.finished
