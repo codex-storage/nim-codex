@@ -125,7 +125,7 @@ method readOnce*(
 
   return read
 
-method closeImpl*(self: StoreStream) {.async.} =
+method closeImpl*(self: StoreStream) {.async: (raises: []).} =
   trace "Closing StoreStream"
   self.offset = self.size # set Eof
   await procCall LPStream(self).closeImpl()

@@ -120,7 +120,9 @@ asyncchecksuite "Test Node - Host contracts":
       (getTime() + DefaultBlockTtl.toTimesDuration + 1.hours).toUnix.uint64
     var fetchedBytes: uint = 0
 
-    let onBlocks = proc(blocks: seq[bt.Block]): Future[?!void] {.async.} =
+    let onBlocks = proc(
+        blocks: seq[bt.Block]
+    ): Future[?!void] {.async: (raises: [CancelledError]).} =
       for blk in blocks:
         fetchedBytes += blk.data.len.uint
       return success()

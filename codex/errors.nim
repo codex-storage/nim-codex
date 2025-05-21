@@ -7,6 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+{.push raises: [].}
+
 import std/options
 import std/sugar
 import std/sequtils
@@ -45,7 +47,7 @@ func toFailure*[T](exp: Option[T]): Result[T, ref CatchableError] {.inline.} =
     T.failure("Option is None")
 
 proc allFinishedFailed*[T](
-    futs: seq[Future[T]]
+    futs: auto
 ): Future[FinishedFailed[T]] {.async: (raises: [CancelledError]).} =
   ## Check if all futures have finished or failed
   ##
@@ -63,7 +65,7 @@ proc allFinishedFailed*[T](
   return res
 
 proc allFinishedValues*[T](
-    futs: seq[Future[T]]
+    futs: auto
 ): Future[?!seq[T]] {.async: (raises: [CancelledError]).} =
   ## If all futures have finished, return corresponding values,
   ## otherwise return failure

@@ -26,7 +26,7 @@ method start*(mockTimer: MockTimer, callback: timer.TimerCallback, interval: Dur
   mockTimer.mockInterval = interval
   inc mockTimer.startCalled
 
-method stop*(mockTimer: MockTimer) {.async.} =
+method stop*(mockTimer: MockTimer) {.async: (raises: []).} =
   inc mockTimer.stopCalled
 
 method invokeCallback*(mockTimer: MockTimer) {.async, base.} =
