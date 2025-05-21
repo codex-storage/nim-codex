@@ -117,6 +117,7 @@ proc new*[U, V: Ordinal](
     iter,
     proc(i: U): Future[?!U] {.async: (raises: [CancelledError]).} =
       success[U](i),
+    finishOnErr = finishOnErr,
   )
 
 proc new*[U, V, S: Ordinal](
