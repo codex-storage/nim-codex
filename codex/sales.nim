@@ -128,30 +128,36 @@ proc cleanUp(
   # that the cleanUp was called before the sales process really started, so
   # there are not really any bytes to be returned
   if request =? data.request and reservation =? data.reservation:
-    if returnErr =? (
-      await sales.context.reservations.returnBytesToAvailability(
-        reservation.availabilityId, reservation.id, request.ask.slotSize
-      )
-    ).errorOption:
-      error "failure returning bytes",
-        error = returnErr.msg, bytes = request.ask.slotSize
-
-  # delete reservation and return reservation bytes back to the availability
-  if reservation =? data.reservation and
-      deleteErr =? (
-        await sales.context.reservations.deleteReservation(
-          reservation.id, reservation.availabilityId, returnedCollateral
+    try:
+      if returnErr =? (
+        await sales.context.reservations.returnBytesToAvailability(
+          reservation.availabilityId, reservation.id, request.ask.slotSize
         )
       ).errorOption:
-    error "failure deleting reservation", error = deleteErr.msg
+        error "failure returning bytes",
+          error = returnErr.msg, bytes = request.ask.slotSize
+    except CancelledError:
+      debug "returning bytes was cancelled"
+    except CatchableError as e:
+      error "failure returning bytes", error = e.msg
 
-  if data.slotIndex > uint16.high.uint64:
-    error "Cannot cast slot index to uint16", slotIndex = data.slotIndex
-    return
+  try:
+    # delete reservation and return reservation bytes back to the availability
+    if reservation =? data.reservation and
+        deleteErr =? (
+          await sales.context.reservations.deleteReservation(
+            reservation.id, reservation.availabilityId, returnedCollateral
+          )
+        ).errorOption:
+      error "failure deleting reservation", error = deleteErr.msg
+  except CancelledError:
+    debug "deleting reservation was cancelled"
+  except CatchableError as e:
+    error "failure deleting reservation", error = e.msg
 
   # Re-add items back into the queue to prevent small availabilities from
   # draining the queue. Seen items will be ordered last.
-  if reprocessSlot and request =? data.request:
+  if data.slotIndex <= uint16.high.uint64 and reprocessSlot and request =? data.request:
     try:
       without collateral =?
         await sales.context.market.slotCollateral(data.requestId, data.slotIndex), err:
@@ -171,11 +177,16 @@ proc cleanUp(
       trace "pushing ignored item to queue, marked as seen"
       if err =? queue.push(seenItem).errorOption:
         error "failed to readd slot to queue", errorType = $(type err), error = err.msg
-    except MarketError as e:
+    except CatchableError as e:
       error "Failed to re-add item back to the slot queue.", error = e.msg
       return
 
-  await sales.remove(agent)
+  try:
+    await sales.remove(agent)
+  except CancelledError:
+    debug "sales remove was cancelled"
+  except CatchableError as e:
+    error "failure removing sales", error = e.msg
 
 proc filled(sales: Sales, request: StorageRequest, slotIndex: uint64) =
   if onSale =? sales.context.onSale:

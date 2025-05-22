@@ -133,6 +133,87 @@ marketplacesuite "Marketplace":
       timeout = 10 * 1000, # give client a bit of time to withdraw its funds
     )
 
+  test "SP are able to process slots after workers were busy with other slots and ignored them",
+    NodeConfigs(
+      clients: CodexConfigs.init(nodes = 1)
+      # .debug()
+      .some,
+      providers: CodexConfigs.init(nodes = 2)
+      # .debug()
+      # .withLogFile()
+      # .withLogTopics("marketplace", "sales", "statemachine","slotqueue", "reservations")
+      .some,
+    ):
+    let client0 = clients()[0]
+    let provider0 = providers()[0]
+    let provider1 = providers()[1]
+    let duration = 20 * 60.uint64
+
+    let data = await RandomChunker.example(blocks = blocks)
+    let slotSize = slotSize(blocks, ecNodes, ecTolerance)
+
+    # We create an avavilability allowing the first SP to host the 3 slots.
+    # So the second SP will not have any availability so it will just process
+    # the slots and ignore them.
+    discard await provider0.client.postAvailability(
+      totalSize = 3 * slotSize.truncate(uint64),
+      duration = duration,
+      minPricePerBytePerSecond = minPricePerBytePerSecond,
+      totalCollateral = 3 * slotSize * minPricePerBytePerSecond,
+    )
+
+    let cid = (await client0.client.upload(data)).get
+
+    let purchaseId = await client0.client.requestStorage(
+      cid,
+      duration = duration,
+      pricePerBytePerSecond = minPricePerBytePerSecond,
+      proofProbability = 1.u256,
+      expiry = 10 * 60.uint64,
+      collateralPerByte = collateralPerByte,
+      nodes = ecNodes,
+      tolerance = ecTolerance,
+    )
+
+    let requestId = (await client0.client.requestId(purchaseId)).get
+
+    # We wait that the 3 slots are filled by the first SP
+    check eventually(
+      await client0.client.purchaseStateIs(purchaseId, "started"),
+      timeout = 10 * 60.int * 1000,
+    )
+
+    # Here we create the same availability as previously but for the second SP.
+    # Meaning that, after ignoring all the slots for the first request, the second SP will process
+    # and host the slots for the second request.
+    discard await provider1.client.postAvailability(
+      totalSize = 3 * slotSize.truncate(uint64),
+      duration = duration,
+      minPricePerBytePerSecond = minPricePerBytePerSecond,
+      totalCollateral = 3 * slotSize * collateralPerByte,
+    )
+
+    let purchaseId2 = await client0.client.requestStorage(
+      cid,
+      duration = duration,
+      pricePerBytePerSecond = minPricePerBytePerSecond,
+      proofProbability = 3.u256,
+      expiry = 10 * 60.uint64,
+      collateralPerByte = collateralPerByte,
+      nodes = ecNodes,
+      tolerance = ecTolerance,
+    )
+    let requestId2 = (await client0.client.requestId(purchaseId2)).get
+
+    # Wait that the slots of the second request are filled
+    check eventually(
+      await client0.client.purchaseStateIs(purchaseId2, "started"),
+      timeout = 10 * 60.int * 1000,
+    )
+
+    # Double check, verify that our second SP hosts the 3 slots
+    check eventually ((await provider1.client.getSlots()).get).len == 3
+
 marketplacesuite "Marketplace payouts":
   const minPricePerBytePerSecond = 1.u256
   const collateralPerByte = 1.u256
