@@ -226,14 +226,14 @@ marketplacesuite "Marketplace payouts":
       # Uncomment to start Hardhat automatically, typically so logs can be inspected locally
       hardhat: HardhatConfig.none,
       clients: CodexConfigs.init(nodes = 1)
-      # .debug() # uncomment to enable console log output.debug()
-      # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-      # .withLogTopics("node", "erasure")
+      #  .debug() # uncomment to enable console log output.debug()
+      #  .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+      #  .withLogTopics("node", "erasure")
       .some,
       providers: CodexConfigs.init(nodes = 1)
-      # .debug() # uncomment to enable console log output
-      # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-      # .withLogTopics("node", "marketplace", "sales", "reservations", "node", "proving", "clock")
+      #  .debug() # uncomment to enable console log output
+      #  .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+      #  .withLogTopics("node", "marketplace", "sales", "reservations", "node", "statemachine")
       .some,
     ):
     let duration = 20.periods
@@ -284,7 +284,10 @@ marketplacesuite "Marketplace payouts":
 
     # wait until sale is cancelled
     await ethProvider.advanceTime(expiry.u256)
-    check eventually await providerApi.saleStateIs(slotId, "SaleCancelled")
+    check eventually(
+      await providerApi.saleStateIs(slotId, "SaleCancelled"),
+      timeout = expiry.int * 1000,
+    )
 
     await advanceToNextPeriod()
 
