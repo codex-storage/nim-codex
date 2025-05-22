@@ -105,8 +105,12 @@ proc new*(
     subscriptions: @[],
   )
 
-proc remove(sales: Sales, agent: SalesAgent) {.async: (raises: [CancelledError]).} =
-  await agent.stop()
+proc remove(sales: Sales, agent: SalesAgent) {.async: (raises: []).} =
+  try:
+    await agent.stop()
+  except CancelledError:
+    trace "Agent stop was cancelled"
+
   if sales.running:
     sales.agents.keepItIf(it != agent)
 
@@ -128,20 +132,14 @@ proc cleanUp(
   # that the cleanUp was called before the sales process really started, so
   # there are not really any bytes to be returned
   if request =? data.request and reservation =? data.reservation:
-    try:
-      if returnErr =? (
-        await sales.context.reservations.returnBytesToAvailability(
-          reservation.availabilityId, reservation.id, request.ask.slotSize
-        )
-      ).errorOption:
-        error "failure returning bytes",
-          error = returnErr.msg, bytes = request.ask.slotSize
-    except CancelledError:
-      debug "returning bytes was cancelled"
-    except CatchableError as e:
-      error "failure returning bytes", error = e.msg
+    if returnErr =? (
+      await sales.context.reservations.returnBytesToAvailability(
+        reservation.availabilityId, reservation.id, request.ask.slotSize
+      )
+    ).errorOption:
+      error "failure returning bytes",
+        error = returnErr.msg, bytes = request.ask.slotSize
 
-  try:
     # delete reservation and return reservation bytes back to the availability
     if reservation =? data.reservation and
         deleteErr =? (
@@ -150,10 +148,6 @@ proc cleanUp(
           )
         ).errorOption:
       error "failure deleting reservation", error = deleteErr.msg
-  except CancelledError:
-    debug "deleting reservation was cancelled"
-  except CatchableError as e:
-    error "failure deleting reservation", error = e.msg
 
   # Re-add items back into the queue to prevent small availabilities from
   # draining the queue. Seen items will be ordered last.
@@ -181,12 +175,8 @@ proc cleanUp(
       error "Failed to re-add item back to the slot queue.", error = e.msg
       return
 
-  try:
-    await sales.remove(agent)
-  except CancelledError:
-    debug "sales remove was cancelled"
-  except CatchableError as e:
-    error "failure removing sales", error = e.msg
+  let fut = sales.remove(agent)
+  sales.trackedFutures.track(fut)
 
 proc filled(sales: Sales, request: StorageRequest, slotIndex: uint64) =
   if onSale =? sales.context.onSale:
