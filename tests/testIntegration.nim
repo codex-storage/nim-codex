@@ -9,5 +9,6 @@ import ./integration/testmarketplace
 import ./integration/testproofs
 import ./integration/testvalidator
 import ./integration/testecbug
+import ./integration/testslotrepair
 
 {.warning[UnusedImport]: off.}
