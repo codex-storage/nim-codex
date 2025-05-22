@@ -9,7 +9,7 @@
 {.push raises: [].}
 
 import
-  std/[options, os, strutils, times, net],
+  std/[options, os, strutils, times, net, atomics],
   stew/shims/net as stewNet,
   stew/[objects, results],
   nat_traversal/[miniupnpc, natpmp],
@@ -28,14 +28,18 @@ const
   PORT_MAPPING_INTERVAL = 20 * 60 # seconds
   NATPMP_LIFETIME = 60 * 60 # in seconds, must be longer than PORT_MAPPING_INTERVAL
 
-var
-  upnp {.threadvar.}: Miniupnp
-  npmp {.threadvar.}: NatPmp
-  strategy = NatStrategy.NatNone
+type PortMappings* = object
   internalTcpPort: Port
   externalTcpPort: Port
   internalUdpPort: Port
   externalUdpPort: Port
+
+var
+  upnp {.threadvar.}: Miniupnp
+  npmp {.threadvar.}: NatPmp
+  strategy = NatStrategy.NatNone
+  natClosed: Atomic[bool]
+  mappings: seq[PortMappings]
 
 logScope:
   topics = "nat"
@@ -233,30 +237,23 @@ proc repeatPortMapping(args: PortMappingArgs) {.thread, raises: [ValueError].} =
   # even though we don't need the external IP's value.
   let ipres = getExternalIP(strategy, quiet = true)
   if ipres.isSome:
-    while true:
-      # we're being silly here with this channel polling because we can't
-      # select on Nim channels like on Go ones
-      let (dataAvailable, _) =
-        try:
-          natCloseChan.tryRecv()
-        except Exception:
-          (false, false)
-      if dataAvailable:
-        return
-      else:
-        let currTime = now()
-        if currTime >= (lastUpdate + interval):
-          discard doPortMapping(tcpPort, udpPort, description)
-          lastUpdate = currTime
+    while natClosed.load() == false:
+      let
+        # we're being silly here with this channel polling because we can't
+        # select on Nim channels like on Go ones
+        currTime = now()
+      if currTime >= (lastUpdate + interval):
+        discard doPortMapping(tcpPort, udpPort, description)
+        lastUpdate = currTime
+
         sleep(sleepDuration)
 
 proc stopNatThread() {.noconv.} =
   # stop the thread
 
   try:
-    natCloseChan.send(true)
+    natClosed.store(true)
     natThread.joinThread()
-    natCloseChan.close()
   except Exception as exc:
     warn "Failed to stop NAT port mapping renewal thread", exc = exc.msg
 
@@ -271,44 +268,53 @@ proc stopNatThread() {.noconv.} =
   let ipres = getExternalIP(strategy, quiet = true)
   if ipres.isSome:
     if strategy == NatStrategy.NatUpnp:
-      for t in [
-        (externalTcpPort, internalTcpPort, UPNPProtocol.TCP),
-        (externalUdpPort, internalUdpPort, UPNPProtocol.UDP),
-      ]:
-        let
-          (eport, iport, protocol) = t
-          pmres = upnp.deletePortMapping(externalPort = $eport, protocol = protocol)
-        if pmres.isErr:
-          error "UPnP port mapping deletion", msg = pmres.error
-        else:
-          debug "UPnP: deleted port mapping",
-            externalPort = eport, internalPort = iport, protocol = protocol
+      for entry in mappings:
+        for t in [
+          (entry.externalTcpPort, entry.internalTcpPort, UPNPProtocol.TCP),
+          (entry.externalUdpPort, entry.internalUdpPort, UPNPProtocol.UDP),
+        ]:
+          let
+            (eport, iport, protocol) = t
+            pmres = upnp.deletePortMapping(externalPort = $eport, protocol = protocol)
+          if pmres.isErr:
+            error "UPnP port mapping deletion", msg = pmres.error
+          else:
+            debug "UPnP: deleted port mapping",
+              externalPort = eport, internalPort = iport, protocol = protocol
     elif strategy == NatStrategy.NatPmp:
-      for t in [
-        (externalTcpPort, internalTcpPort, NatPmpProtocol.TCP),
-        (externalUdpPort, internalUdpPort, NatPmpProtocol.UDP),
-      ]:
-        let
-          (eport, iport, protocol) = t
-          pmres = npmp.deletePortMapping(
-            eport = eport.cushort, iport = iport.cushort, protocol = protocol
-          )
-        if pmres.isErr:
-          error "NAT-PMP port mapping deletion", msg = pmres.error
-        else:
-          debug "NAT-PMP: deleted port mapping",
-            externalPort = eport, internalPort = iport, protocol = protocol
+      for entry in mappings:
+        for t in [
+          (entry.externalTcpPort, entry.internalTcpPort, NatPmpProtocol.TCP),
+          (entry.externalUdpPort, entry.internalUdpPort, NatPmpProtocol.UDP),
+        ]:
+          let
+            (eport, iport, protocol) = t
+            pmres = npmp.deletePortMapping(
+              eport = eport.cushort, iport = iport.cushort, protocol = protocol
+            )
+          if pmres.isErr:
+            error "NAT-PMP port mapping deletion", msg = pmres.error
+          else:
+            debug "NAT-PMP: deleted port mapping",
+              externalPort = eport, internalPort = iport, protocol = protocol
 
 proc redirectPorts*(tcpPort, udpPort: Port, description: string): Option[(Port, Port)] =
   result = doPortMapping(tcpPort, udpPort, description)
   if result.isSome:
-    (externalTcpPort, externalUdpPort) = result.get()
+    let (externalTcpPort, externalUdpPort) = result.get()
     # needed by NAT-PMP on port mapping deletion
-    internalTcpPort = tcpPort
-    internalUdpPort = udpPort
     # Port mapping works. Let's launch a thread that repeats it, in case the
     # NAT-PMP lease expires or the router is rebooted and forgets all about
     # these mappings.
+    mappings.add(
+      PortMappings(
+        internalTcpPort: tcpPort,
+        externalTcpPort: externalTcpPort,
+        internalUdpPort: udpPort,
+        externalUdpPort: externalUdpPort,
+      )
+    )
+
     natCloseChan.open()
     try:
       natThread.createThread(
@@ -389,7 +395,7 @@ proc nattedAddress*(
     natConfig: NatConfig, addrs: seq[MultiAddress], udpPort: Port
 ): tuple[libp2p, discovery: seq[MultiAddress]] =
   ## Takes a NAT configuration, sequence of multiaddresses and UDP port and returns:
-  ## - Modified multiaddresses with NAT-mapped addresses for libp2p 
+  ## - Modified multiaddresses with NAT-mapped addresses for libp2p
   ## - Discovery addresses with NAT-mapped UDP ports
 
   var discoveryAddrs = newSeq[MultiAddress](0)
