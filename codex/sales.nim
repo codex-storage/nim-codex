@@ -152,13 +152,12 @@ proc cleanUp(
   # Re-add items back into the queue to prevent small availabilities from
   # draining the queue. Seen items will be ordered last.
   if data.slotIndex <= uint16.high.uint64 and reprocessSlot and request =? data.request:
-    try:
-      without collateral =?
-        await sales.context.market.slotCollateral(data.requestId, data.slotIndex), err:
-        error "Failed to re-add item back to the slot queue: unable to calculate collateral",
-          error = err.msg
-        return
-
+    let res = await sales.context.market.slotCollateral(data.requestId, data.slotIndex)
+    if res.isErr:
+      error "Failed to re-add item back to the slot queue: unable to calculate collateral",
+        error = res.error.msg
+    else:
+      let collateral = res.get()
       let queue = sales.context.slotQueue
       var seenItem = SlotQueueItem.init(
         data.requestId,
@@ -171,9 +170,6 @@ proc cleanUp(
       trace "pushing ignored item to queue, marked as seen"
       if err =? queue.push(seenItem).errorOption:
         error "failed to readd slot to queue", errorType = $(type err), error = err.msg
-    except CatchableError as e:
-      error "Failed to re-add item back to the slot queue.", error = e.msg
-      return
 
   let fut = sales.remove(agent)
   sales.trackedFutures.track(fut)
