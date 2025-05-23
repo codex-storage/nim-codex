@@ -382,14 +382,14 @@ marketplacesuite "Marketplace payouts":
     # We wait that the 3 slots are filled by the first SP
     check eventually(
       await client0.client.purchaseStateIs(purchaseId, "started"),
-      timeout = duration * 1000,
+      timeout = 10 * 60.int * 1000,
     )
 
     # Here we will check that for each provider, the total remaining collateral
     # will match the available slots.
     # So if a SP hosts 1 slot, it should have enough total remaining collateral
     # to host 2 more slots.
-    for i, provider in providers():
+    for provider in providers():
       let availabilities = (await provider.client.getAvailabilities()).get
       let availability = availabilities[0]
       let slots = (await provider.client.getSlots()).get
@@ -397,5 +397,5 @@ marketplacesuite "Marketplace payouts":
       check eventually(
         availability.totalRemainingCollateral ==
           availableSlots * slotSize * minPricePerBytePerSecond,
-        timeout = duration * 1000,
+        timeout = 10 * 60.int * 1000,
       )
