@@ -76,6 +76,7 @@ asyncchecksuite "sales state 'cancelled'":
     check eventually returnedCollateralValue == some currentCollateral
 
   test "completes the cancelled state when free slot error is raised and the collateral is not returned when a host is not hosting a slot":
+    discard market.reserveSlot(requestId = request.id, slotIndex = slotIndex)
     market.fillSlot(
       requestId = request.id,
       slotIndex = slotIndex,

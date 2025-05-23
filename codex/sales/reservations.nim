@@ -390,6 +390,7 @@ proc deleteReservation*(
     availabilityId
 
   trace "deleting reservation"
+
   without key =? key(reservationId, availabilityId), error:
     return failure(error)
 
@@ -400,23 +401,24 @@ proc deleteReservation*(
       else:
         return failure(error)
 
+    without availabilityKey =? availabilityId.key, error:
+      return failure(error)
+
+    without var availability =? await self.get(availabilityKey, Availability), error:
+      return failure(error)
+
     if reservation.size > 0.uint64:
       trace "returning remaining reservation bytes to availability",
         size = reservation.size
 
-      without availabilityKey =? availabilityId.key, error:
-        return failure(error)
-
-      without var availability =? await self.get(availabilityKey, Availability), error:
-        return failure(error)
-
       availability.freeSize += reservation.size
 
-      if collateral =? returnedCollateral:
-        availability.totalRemainingCollateral += collateral
+    if collateral =? returnedCollateral:
+      availability.totalRemainingCollateral += collateral
+      trace "returning collateral", collateral = collateral
 
-      if updateErr =? (await self.updateAvailability(availability)).errorOption:
-        return failure(updateErr)
+    if updateErr =? (await self.updateAvailability(availability)).errorOption:
+      return failure(updateErr)
 
     if err =? (await self.repo.metaDs.ds.delete(key)).errorOption:
       return failure(err.toErr(DeleteFailedError))
@@ -503,7 +505,7 @@ method createReservation*(
     availability.totalRemainingCollateral -= slotSize.u256 * collateralPerByte
 
     # update availability with reduced size
-    trace "Updating availability with reduced size"
+    trace "Updating availability with reduced size", freeSize = availability.freeSize
     if updateErr =? (await self.updateAvailability(availability)).errorOption:
       trace "Updating availability failed, rolling back reservation creation"
 
