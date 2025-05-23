@@ -316,3 +316,86 @@ marketplacesuite "Marketplace payouts":
     )
 
     await subscription.unsubscribe()
+
+  test "the collatal is returned after a sale is ignored",
+    NodeConfigs(
+      hardhat: HardhatConfig.none,
+      clients: CodexConfigs.init(nodes = 1).some,
+      providers: CodexConfigs.init(nodes = 3)
+      # .debug()
+      # uncomment to enable console log output
+      # .withLogFile()
+      # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+      # .withLogTopics(
+      #   "node", "marketplace", "sales", "reservations", "node", "proving", "clock"
+      # )
+      .some,
+    ):
+    let data = await RandomChunker.example(blocks = blocks)
+    let client0 = clients()[0]
+    let provider0 = providers()[0]
+    let provider1 = providers()[1]
+    let provider2 = providers()[2]
+    let duration = 20 * 60.uint64
+    let slotSize = slotSize(blocks, ecNodes, ecTolerance)
+
+    # Here we create 3 SP which can host 3 slot.
+    # While they will process the slot, each SP will
+    # create a reservation for each slot.
+    # Likely we will have 1 slot by SP and the other reservations
+    # will be ignored. In that case, the collateral assigned for
+    # the reservation should return to the availability.
+    discard await provider0.client.postAvailability(
+      totalSize = 3 * slotSize.truncate(uint64),
+      duration = duration,
+      minPricePerBytePerSecond = minPricePerBytePerSecond,
+      totalCollateral = 3 * slotSize * minPricePerBytePerSecond,
+    )
+    discard await provider1.client.postAvailability(
+      totalSize = 3 * slotSize.truncate(uint64),
+      duration = duration,
+      minPricePerBytePerSecond = minPricePerBytePerSecond,
+      totalCollateral = 3 * slotSize * minPricePerBytePerSecond,
+    )
+    discard await provider2.client.postAvailability(
+      totalSize = 3 * slotSize.truncate(uint64),
+      duration = duration,
+      minPricePerBytePerSecond = minPricePerBytePerSecond,
+      totalCollateral = 3 * slotSize * minPricePerBytePerSecond,
+    )
+
+    let cid = (await client0.client.upload(data)).get
+
+    let purchaseId = await client0.client.requestStorage(
+      cid,
+      duration = duration,
+      pricePerBytePerSecond = minPricePerBytePerSecond,
+      proofProbability = 1.u256,
+      expiry = 10 * 60.uint64,
+      collateralPerByte = collateralPerByte,
+      nodes = ecNodes,
+      tolerance = ecTolerance,
+    )
+
+    let requestId = (await client0.client.requestId(purchaseId)).get
+
+    # We wait that the 3 slots are filled by the first SP
+    check eventually(
+      await client0.client.purchaseStateIs(purchaseId, "started"),
+      timeout = duration * 1000,
+    )
+
+    # Here we will check that for each provider, the total remaining collateral
+    # will match the available slots.
+    # So if a SP hosts 1 slot, it should have enough total remaining collateral
+    # to host 2 more slots.
+    for i, provider in providers():
+      let availabilities = (await provider.client.getAvailabilities()).get
+      let availability = availabilities[0]
+      let slots = (await provider.client.getSlots()).get
+      let availableSlots = (3 - slots.len).u256
+      check eventually(
+        availability.totalRemainingCollateral ==
+          availableSlots * slotSize * minPricePerBytePerSecond,
+        timeout = duration * 1000,
+      )
