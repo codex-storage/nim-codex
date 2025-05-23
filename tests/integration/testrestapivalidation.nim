@@ -380,5 +380,44 @@ asyncchecksuite "Rest API validation":
       response.status == 422
       (await response.body) == "Cannot set until to a negative value"
 
+  test "creating availability fails when duration is zero":
+    let response = await client.postAvailabilityRaw(
+      totalSize = 12.uint64,
+      duration = 0.uint64,
+      minPricePerBytePerSecond = 1.u256,
+      totalCollateral = 22.u256,
+      until = -1.SecondsSince1970.some,
+    )
+
+    check:
+      response.status == 422
+      (await response.body) == "duration must be larger then zero"
+
+  test "creating availability fails when minPricePerBytePerSecond is zero":
+    let response = await client.postAvailabilityRaw(
+      totalSize = 12.uint64,
+      duration = 1.uint64,
+      minPricePerBytePerSecond = 0.u256,
+      totalCollateral = 22.u256,
+      until = -1.SecondsSince1970.some,
+    )
+
+    check:
+      response.status == 422
+      (await response.body) == "minPricePerBytePerSecond must be larger then zero"
+
+  test "creating availability fails when totalCollateral is zero":
+    let response = await client.postAvailabilityRaw(
+      totalSize = 12.uint64,
+      duration = 1.uint64,
+      minPricePerBytePerSecond = 2.u256,
+      totalCollateral = 0.u256,
+      until = -1.SecondsSince1970.some,
+    )
+
+    check:
+      response.status == 422
+      (await response.body) == "totalCollateral must be larger then zero"
+
   waitFor node.stop()
   node.removeDataDir()
