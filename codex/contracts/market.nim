@@ -23,24 +23,11 @@ type
     rewardRecipient: ?Address
     configuration: ?MarketplaceConfig
     requestCache: LruCache[string, StorageRequest]
-    allowanceLock: AsyncLock
 
   MarketSubscription = market.Subscription
   EventSubscription = ethers.Subscription
   OnChainMarketSubscription = ref object of MarketSubscription
     eventSubscription: EventSubscription
-
-template withAllowanceLock*(market: OnChainMarket, body: untyped) =
-  if market.allowanceLock.isNil:
-    market.allowanceLock = newAsyncLock()
-  await market.allowanceLock.acquire()
-  try:
-    body
-  finally:
-    try:
-      market.allowanceLock.release()
-    except AsyncLockError as error:
-      raise newException(Defect, error.msg, error)
 
 func new*(
     _: type OnChainMarket,
@@ -96,11 +83,7 @@ proc approveFunds(
   convertEthersError("Failed to approve funds"):
     let tokenAddress = await market.contract.token()
     let token = Erc20Token.new(tokenAddress, market.signer)
-    let owner = await market.signer.getAddress()
-    let spender = market.contract.address
-    market.withAllowanceLock:
-      let allowance = await token.allowance(owner, spender)
-      discard await token.approve(spender, allowance + amount).confirm(1)
+    discard await token.increaseAllowance(market.contract.address(), amount).confirm(1)
 
 method loadConfig*(
     market: OnChainMarket
