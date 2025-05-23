@@ -46,8 +46,9 @@ import ./errors
 import ./logutils
 import ./utils/asynciter
 import ./utils/trackedfutures
+import ./nat
 
-export logutils
+export logutils, nat
 
 logScope:
   topics = "codex node"
@@ -63,6 +64,7 @@ type
     ]
 
   CodexNode* = object
+    nat: NatManager
     switch: Switch
     networkId: PeerId
     networkStore: NetworkStore
@@ -84,6 +86,9 @@ type
 
 func switch*(self: CodexNodeRef): Switch =
   return self.switch
+
+func nat*(self: CodexNodeRef): NatManager =
+  return self.nat
 
 func blockStore*(self: CodexNodeRef): BlockStore =
   return self.networkStore
@@ -868,6 +873,9 @@ proc stop*(self: CodexNodeRef) {.async.} =
   if not self.networkStore.isNil:
     await self.networkStore.close
 
+  if not self.nat.isNil:
+    await self.nat.stop
+
 proc new*(
     T: type CodexNodeRef,
     switch: Switch,
@@ -875,6 +883,7 @@ proc new*(
     engine: BlockExcEngine,
     discovery: Discovery,
     taskpool: Taskpool,
+    nat: NatManager,
     prover = Prover.none,
     contracts = Contracts.default,
 ): CodexNodeRef =
@@ -890,4 +899,5 @@ proc new*(
     taskPool: taskpool,
     contracts: contracts,
     trackedFutures: TrackedFutures(),
+    nat: nat,
   )
