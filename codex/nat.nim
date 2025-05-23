@@ -33,13 +33,24 @@ type PortMappings* = object
   externalTcpPort: Port
   internalUdpPort: Port
   externalUdpPort: Port
+  description: string
+
+type PortMappingArgs =
+  tuple[strategy: NatStrategy, tcpPort, udpPort: Port, description: string]
+
+type NatConfig* = object
+  case hasExtIp*: bool
+  of true: extIp*: IpAddress
+  of false: nat*: NatStrategy
 
 var
   upnp {.threadvar.}: Miniupnp
   npmp {.threadvar.}: NatPmp
   strategy = NatStrategy.NatNone
   natClosed: Atomic[bool]
-  mappings: seq[PortMappings]
+  extIp: Option[IpAddress]
+  activeMappings: seq[PortMappings]
+  natThreads: seq[Thread[PortMappingArgs]]
 
 logScope:
   topics = "nat"
@@ -111,7 +122,7 @@ proc getExternalIP*(natStrategy: NatStrategy, quiet = false): Option[IpAddress] 
       else:
         try:
           externalIP = parseIpAddress($(nires.value))
-          strategy = NatPmp
+          strategy = NatStrategy.NatPmp
           return some(externalIP)
         except ValueError as e:
           error "parseIpAddress() exception", err = e.msg
@@ -157,7 +168,7 @@ proc getPublicRoutePrefSrcOrExternalIP*(
       return some(extIp.get)
 
 proc doPortMapping(
-    tcpPort, udpPort: Port, description: string
+    strategy: NatStrategy, tcpPort, udpPort: Port, description: string
 ): Option[(Port, Port)] {.gcsafe.} =
   var
     extTcpPort: Port
@@ -217,15 +228,10 @@ proc doPortMapping(
           extUdpPort = extPort
   return some((extTcpPort, extUdpPort))
 
-type PortMappingArgs = tuple[tcpPort, udpPort: Port, description: string]
-var
-  natThread: Thread[PortMappingArgs]
-  natCloseChan: Channel[bool]
-
 proc repeatPortMapping(args: PortMappingArgs) {.thread, raises: [ValueError].} =
   ignoreSignalsInThread()
   let
-    (tcpPort, udpPort, description) = args
+    (strategy, tcpPort, udpPort, description) = args
     interval = initDuration(seconds = PORT_MAPPING_INTERVAL)
     sleepDuration = 1_000 # in ms, also the maximum delay after pressing Ctrl-C
 
@@ -243,7 +249,7 @@ proc repeatPortMapping(args: PortMappingArgs) {.thread, raises: [ValueError].} =
         # select on Nim channels like on Go ones
         currTime = now()
       if currTime >= (lastUpdate + interval):
-        discard doPortMapping(tcpPort, udpPort, description)
+        discard doPortMapping(strategy, tcpPort, udpPort, description)
         lastUpdate = currTime
 
         sleep(sleepDuration)
@@ -253,7 +259,7 @@ proc stopNatThread() {.noconv.} =
 
   try:
     natClosed.store(true)
-    natThread.joinThread()
+    joinThreads(natThreads)
   except Exception as exc:
     warn "Failed to stop NAT port mapping renewal thread", exc = exc.msg
 
@@ -265,10 +271,11 @@ proc stopNatThread() {.noconv.} =
 
   # In Windows, a new thread is created for the signal handler, so we need to
   # initialise our threadvars again.
+
   let ipres = getExternalIP(strategy, quiet = true)
   if ipres.isSome:
     if strategy == NatStrategy.NatUpnp:
-      for entry in mappings:
+      for entry in activeMappings:
         for t in [
           (entry.externalTcpPort, entry.internalTcpPort, UPNPProtocol.TCP),
           (entry.externalUdpPort, entry.internalUdpPort, UPNPProtocol.UDP),
@@ -282,7 +289,7 @@ proc stopNatThread() {.noconv.} =
             debug "UPnP: deleted port mapping",
               externalPort = eport, internalPort = iport, protocol = protocol
     elif strategy == NatStrategy.NatPmp:
-      for entry in mappings:
+      for entry in activeMappings:
         for t in [
           (entry.externalTcpPort, entry.internalTcpPort, NatPmpProtocol.TCP),
           (entry.externalUdpPort, entry.internalUdpPort, NatPmpProtocol.UDP),
@@ -298,30 +305,38 @@ proc stopNatThread() {.noconv.} =
             debug "NAT-PMP: deleted port mapping",
               externalPort = eport, internalPort = iport, protocol = protocol
 
-proc redirectPorts*(tcpPort, udpPort: Port, description: string): Option[(Port, Port)] =
-  result = doPortMapping(tcpPort, udpPort, description)
+proc redirectPorts*(
+    strategy: NatStrategy, tcpPort, udpPort: Port, description: string
+): Option[(Port, Port)] =
+  result = doPortMapping(strategy, tcpPort, udpPort, description)
   if result.isSome:
     let (externalTcpPort, externalUdpPort) = result.get()
     # needed by NAT-PMP on port mapping deletion
     # Port mapping works. Let's launch a thread that repeats it, in case the
     # NAT-PMP lease expires or the router is rebooted and forgets all about
     # these mappings.
-    mappings.add(
+    activeMappings.add(
       PortMappings(
         internalTcpPort: tcpPort,
         externalTcpPort: externalTcpPort,
         internalUdpPort: udpPort,
         externalUdpPort: externalUdpPort,
+        description: description,
       )
     )
 
-    natCloseChan.open()
     try:
+      var natThread: Thread[PortMappingArgs]
       natThread.createThread(
-        repeatPortMapping, (externalTcpPort, externalUdpPort, description)
+        repeatPortMapping, (strategy, externalTcpPort, externalUdpPort, description)
       )
+
+      natThreads.add(natThread)
+
       # atexit() in disguise
-      addQuitProc(stopNatThread)
+      if natThreads.len == 1:
+        # we should register the thread termination function only once
+        addQuitProc(stopNatThread)
     except Exception as exc:
       warn "Failed to create NAT port mapping renewal thread", exc = exc.msg
 
@@ -332,12 +347,15 @@ proc setupNat*(
   ## If any of this fails, we don't return any IP address but do return the
   ## original ports as best effort.
   ## TODO: Allow for tcp or udp port mapping to be optional.
-  let extIp = getExternalIP(natStrategy)
+  if extIp.isNone:
+    extIp = getExternalIP(natStrategy)
   if extIp.isSome:
     let ip = extIp.get
     let extPorts = (
       {.gcsafe.}:
-        redirectPorts(tcpPort = tcpPort, udpPort = udpPort, description = clientId)
+        redirectPorts(
+          strategy, tcpPort = tcpPort, udpPort = udpPort, description = clientId
+        )
     )
     if extPorts.isSome:
       let (extTcpPort, extUdpPort) = extPorts.get()
@@ -348,11 +366,6 @@ proc setupNat*(
   else:
     warn "UPnP/NAT-PMP not available"
     (ip: none(IpAddress), tcpPort: some(tcpPort), udpPort: some(udpPort))
-
-type NatConfig* = object
-  case hasExtIp*: bool
-  of true: extIp*: IpAddress
-  of false: nat*: NatStrategy
 
 proc setupAddress*(
     natConfig: NatConfig, bindIp: IpAddress, tcpPort, udpPort: Port, clientId: string
