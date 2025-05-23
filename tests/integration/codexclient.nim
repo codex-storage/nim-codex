@@ -425,3 +425,10 @@ proc requestId*(
 
 proc buildUrl*(client: CodexClient, path: string): string =
   return client.baseurl & path
+
+proc getSlots*(
+    client: CodexClient
+): Future[?!seq[Slot]] {.async: (raises: [CancelledError, HttpError]).} =
+  let url = client.baseurl & "/sales/slots"
+  let body = await client.getContent(url)
+  seq[Slot].fromJson(body)
