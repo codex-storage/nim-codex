@@ -116,7 +116,7 @@ proc remove(sales: Sales, agent: SalesAgent) {.async: (raises: []).} =
 
 proc cleanUp(
     sales: Sales, agent: SalesAgent, reprocessSlot: bool, returnedCollateral: ?UInt256
-) {.async: (raises: [CancelledError]).} =
+) {.async: (raises: []).} =
   let data = agent.data
 
   logScope:
@@ -133,7 +133,7 @@ proc cleanUp(
   # there are not really any bytes to be returned
   if request =? data.request and reservation =? data.reservation:
     if returnErr =? (
-      await sales.context.reservations.returnBytesToAvailability(
+      await noCancel sales.context.reservations.returnBytesToAvailability(
         reservation.availabilityId, reservation.id, request.ask.slotSize
       )
     ).errorOption:
@@ -143,7 +143,7 @@ proc cleanUp(
     # delete reservation and return reservation bytes back to the availability
     if reservation =? data.reservation and
         deleteErr =? (
-          await sales.context.reservations.deleteReservation(
+          await noCancel sales.context.reservations.deleteReservation(
             reservation.id, reservation.availabilityId, returnedCollateral
           )
         ).errorOption:
@@ -152,7 +152,8 @@ proc cleanUp(
   # Re-add items back into the queue to prevent small availabilities from
   # draining the queue. Seen items will be ordered last.
   if data.slotIndex <= uint16.high.uint64 and reprocessSlot and request =? data.request:
-    let res = await sales.context.market.slotCollateral(data.requestId, data.slotIndex)
+    let res =
+      await noCancel sales.context.market.slotCollateral(data.requestId, data.slotIndex)
     if res.isErr:
       error "Failed to re-add item back to the slot queue: unable to calculate collateral",
         error = res.error.msg
@@ -192,10 +193,7 @@ proc processSlot(
       reprocessSlot = false, returnedCollateral = UInt256.none
   ) {.async: (raises: []).} =
     trace "slot cleanup"
-    try:
-      await sales.cleanUp(agent, reprocessSlot, returnedCollateral)
-    except CancelledError as e:
-      trace "slot cleanup was cancelled", error = e.msgDetail
+    await sales.cleanUp(agent, reprocessSlot, returnedCollateral)
     completed.fire()
 
   agent.onFilled = some proc(request: StorageRequest, slotIndex: uint64) =
@@ -270,10 +268,7 @@ proc load*(sales: Sales) {.async.} =
     agent.onCleanUp = proc(
         reprocessSlot = false, returnedCollateral = UInt256.none
     ) {.async: (raises: []).} =
-      try:
-        await sales.cleanUp(agent, reprocessSlot, returnedCollateral)
-      except CancelledError as e:
-        trace "slot cleanup was cancelled", error = e.msgDetail
+      await sales.cleanUp(agent, reprocessSlot, returnedCollateral)
 
     # There is no need to assign agent.onFilled as slots loaded from `mySlots`
     # are inherently already filled and so assigning agent.onFilled would be

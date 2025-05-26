@@ -132,7 +132,7 @@ proc subscribe*(agent: SalesAgent) {.async.} =
   await agent.subscribeCancellation()
   agent.subscribed = true
 
-proc unsubscribe*(agent: SalesAgent) {.async: (raises: [CancelledError]).} =
+proc unsubscribe*(agent: SalesAgent) {.async: (raises: []).} =
   if not agent.subscribed:
     return
 
@@ -143,6 +143,6 @@ proc unsubscribe*(agent: SalesAgent) {.async: (raises: [CancelledError]).} =
 
   agent.subscribed = false
 
-proc stop*(agent: SalesAgent) {.async: (raises: [CancelledError]).} =
+proc stop*(agent: SalesAgent) {.async: (raises: []).} =
   await Machine(agent).stop()
   await agent.unsubscribe()
