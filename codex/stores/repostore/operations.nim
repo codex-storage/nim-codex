@@ -34,7 +34,7 @@ declareGauge(codex_repostore_bytes_reserved, "codex repostore bytes reserved")
 
 proc putLeafMetadata*(
     self: RepoStore, treeCid: Cid, index: Natural, blkCid: Cid, proof: CodexProof
-): Future[?!StoreResultKind] {.async.} =
+): Future[?!StoreResultKind] {.async: (raises: [CancelledError]).} =
   without key =? createBlockCidAndProofMetadataKey(treeCid, index), err:
     return failure(err)
 
@@ -59,7 +59,7 @@ proc putLeafMetadata*(
 
 proc delLeafMetadata*(
     self: RepoStore, treeCid: Cid, index: Natural
-): Future[?!void] {.async.} =
+): Future[?!void] {.async: (raises: [CancelledError]).} =
   without key =? createBlockCidAndProofMetadataKey(treeCid, index), err:
     return failure(err)
 
@@ -70,7 +70,7 @@ proc delLeafMetadata*(
 
 proc getLeafMetadata*(
     self: RepoStore, treeCid: Cid, index: Natural
-): Future[?!LeafMetadata] {.async.} =
+): Future[?!LeafMetadata] {.async: (raises: [CancelledError]).} =
   without key =? createBlockCidAndProofMetadataKey(treeCid, index), err:
     return failure(err)
 
@@ -84,7 +84,7 @@ proc getLeafMetadata*(
 
 proc updateTotalBlocksCount*(
     self: RepoStore, plusCount: Natural = 0, minusCount: Natural = 0
-): Future[?!void] {.async.} =
+): Future[?!void] {.async: (raises: [CancelledError]).} =
   await self.metaDs.modify(
     CodexTotalBlocksKey,
     proc(maybeCurrCount: ?Natural): Future[?Natural] {.async.} =
@@ -139,7 +139,7 @@ proc updateBlockMetadata*(
     plusRefCount: Natural = 0,
     minusRefCount: Natural = 0,
     minExpiry: SecondsSince1970 = 0,
-): Future[?!void] {.async.} =
+): Future[?!void] {.async: (raises: [CancelledError]).} =
   if cid.isEmpty:
     return success()
 
@@ -163,7 +163,7 @@ proc updateBlockMetadata*(
 
 proc storeBlock*(
     self: RepoStore, blk: Block, minExpiry: SecondsSince1970
-): Future[?!StoreResult] {.async.} =
+): Future[?!StoreResult] {.async: (raises: [CancelledError]).} =
   if blk.isEmpty:
     return success(StoreResult(kind: AlreadyInStore))
 
@@ -189,7 +189,7 @@ proc storeBlock*(
           )
           res = StoreResult(kind: AlreadyInStore)
 
-          # making sure that the block acutally is stored in the repoDs
+          # making sure that the block actually is stored in the repoDs
           without hasBlock =? await self.repoDs.has(blkKey), err:
             raise err
 
@@ -215,7 +215,7 @@ proc storeBlock*(
 
 proc tryDeleteBlock*(
     self: RepoStore, cid: Cid, expiryLimit = SecondsSince1970.low
-): Future[?!DeleteResult] {.async.} =
+): Future[?!DeleteResult] {.async: (raises: [CancelledError]).} =
   without metaKey =? createBlockExpirationMetadataKey(cid), err:
     return failure(err)
 

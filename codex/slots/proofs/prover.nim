@@ -50,7 +50,7 @@ type
 
 proc prove*(
     self: Prover, slotIdx: int, manifest: Manifest, challenge: ProofChallenge
-): Future[?!(AnyProofInputs, AnyProof)] {.async.} =
+): Future[?!(AnyProofInputs, AnyProof)] {.async: (raises: [CancelledError]).} =
   ## Prove a statement using backend.
   ## Returns a future that resolves to a proof.
 

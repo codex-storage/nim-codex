@@ -73,7 +73,9 @@ asyncchecksuite "Test Node - Basic":
         await node.fetchBatched(
           manifest,
           batchSize = batchSize,
-          proc(blocks: seq[bt.Block]): Future[?!void] {.gcsafe, async.} =
+          proc(
+              blocks: seq[bt.Block]
+          ): Future[?!void] {.gcsafe, async: (raises: [CancelledError]).} =
             check blocks.len > 0 and blocks.len <= batchSize
             return success(),
         )
@@ -96,7 +98,9 @@ asyncchecksuite "Test Node - Basic":
       await node.fetchBatched(
         manifest,
         batchSize = batchSize,
-        proc(blocks: seq[bt.Block]): Future[?!void] {.gcsafe, async.} =
+        proc(
+            blocks: seq[bt.Block]
+        ): Future[?!void] {.gcsafe, async: (raises: [CancelledError]).} =
           return failure("Should not be called"),
       )
     )
