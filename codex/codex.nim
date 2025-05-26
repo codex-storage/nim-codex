@@ -177,7 +177,7 @@ proc start*(s: CodexServer) {.async.} =
 proc stop*(s: CodexServer) {.async.} =
   notice "Stopping codex node"
 
-  let res = await noCancel allFinishedFailed(
+  let res = await noCancel allFinishedFailed[void](
     @[
       s.restServer.stop(),
       s.codexNode.switch.stop(),

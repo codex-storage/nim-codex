@@ -21,16 +21,13 @@ asyncchecksuite "Timer":
   var numbersState = 0
   var lettersState = 'a'
 
-  proc numbersCallback(): Future[void] {.async.} =
+  proc numbersCallback(): Future[void] {.async: (raises: []).} =
     output &= $numbersState
     inc numbersState
 
-  proc lettersCallback(): Future[void] {.async.} =
+  proc lettersCallback(): Future[void] {.async: (raises: []).} =
     output &= $lettersState
     inc lettersState
-
-  proc exceptionCallback(): Future[void] {.async.} =
-    raise newException(CatchableError, "Test Exception")
 
   proc startNumbersTimer() =
     timer1.start(numbersCallback, 10.milliseconds)
@@ -72,11 +69,6 @@ asyncchecksuite "Timer":
     let stoppedOutput = output
     await sleepAsync(30.milliseconds)
     check output == stoppedOutput
-
-  test "Exceptions raised in timer callback are handled":
-    timer1.start(exceptionCallback, 10.milliseconds)
-    await sleepAsync(30.milliseconds)
-    await timer1.stop()
 
   test "Starting both timers should execute callbacks sequentially":
     startNumbersTimer()
