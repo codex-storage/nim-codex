@@ -379,7 +379,6 @@ marketplacesuite "Marketplace payouts":
 
     let requestId = (await client0.client.requestId(purchaseId)).get
 
-    # We wait that the 3 slots are filled by the first SP
     check eventually(
       await client0.client.purchaseStateIs(purchaseId, "started"),
       timeout = 10 * 60.int * 1000,
