@@ -36,9 +36,7 @@ asyncchecksuite "sales state 'ignored'":
     agent.onCleanUp = onCleanUp
     state = SaleIgnored.new()
     returnedCollateralValue = UInt256.none
-  teardown:
     reprocessSlotWas = false
-    returnedCollateralValue = UInt256.none
 
   test "calls onCleanUp with values assigned to SaleIgnored":
     state = SaleIgnored(reprocessSlot: true)
