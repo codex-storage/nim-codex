@@ -50,7 +50,7 @@ var
   natClosed: Atomic[bool]
   extIp: Option[IpAddress]
   activeMappings: seq[PortMappings]
-  natThreads: seq[Thread[PortMappingArgs]]
+  natThreads: seq[Thread[PortMappingArgs]] = @[]
 
 logScope:
   topics = "nat"
@@ -256,7 +256,7 @@ proc repeatPortMapping(args: PortMappingArgs) {.thread, raises: [ValueError].} =
 
 proc stopNatThread() {.noconv.} =
   # stop the thread
-
+  debug "Stopping NAT port mapping renewal threads"
   try:
     natClosed.store(true)
     joinThreads(natThreads)
@@ -324,15 +324,11 @@ proc redirectPorts*(
         description: description,
       )
     )
-
     try:
-      var natThread: Thread[PortMappingArgs]
-      natThread.createThread(
+      natThreads.add(Thread[PortMappingArgs]())
+      natThreads[^1].createThread(
         repeatPortMapping, (strategy, externalTcpPort, externalUdpPort, description)
       )
-
-      natThreads.add(natThread)
-
       # atexit() in disguise
       if natThreads.len == 1:
         # we should register the thread termination function only once
