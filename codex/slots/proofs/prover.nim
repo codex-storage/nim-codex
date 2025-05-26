@@ -82,7 +82,7 @@ proc prove*(
 
 proc verify*(
     self: Prover, proof: AnyProof, inputs: AnyProofInputs
-): Future[?!bool] {.async.} =
+): Future[?!bool] {.async: (raises: [CancelledError]).} =
   ## Prove a statement using backend.
   ## Returns a future that resolves to a proof.
   self.backend.verify(proof, inputs)
