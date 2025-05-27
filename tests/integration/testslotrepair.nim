@@ -105,10 +105,8 @@ marketplacesuite "SP Slot Repair":
     let duration = 20.periods
 
     # Let's create 2 availabilities
-    # The first host will be able to host 2 slots with a
-    # total collateral for 3 slots for later.
-    # The second one, sending invalid proofs, will be able
-    # to host one slot.
+    # SP 1 will hosts 2 slots
+    # SP 2 will hosts 1 slot
     let availability0 = (
       await provider0.client.postAvailability(
         totalSize = 2 * size.truncate(uint64),
@@ -140,23 +138,24 @@ marketplacesuite "SP Slot Repair":
     # stop client so it doesn't serve any blocks anymore
     await client0.stop()
 
-    # Let's disable the second availability in order to not let
-    # the second host pick the slot again.
+    # Let's disable the second availability,
+    # SP 2 will not pick the slot again.
     await provider1.client.patchAvailability(
       availabilityId = availability1.id, enabled = false.some
     )
 
-    # Update the size of the availability for the first host, 
-    # in order the store the freed slot.
+    # Update the size of the availability for the SP 1,
+    # he will repair and host the freed slot
     await provider0.client.patchAvailability(
       availabilityId = availability0.id,
       totalSize = (3 * size.truncate(uint64)).uint64.some,
     )
 
+    # Let's free the slot to speed up the process
     await freeSlot(provider1.client)
 
     # We expect that the freed slot is added in the filled slot id list, 
-    # meaning that the slot was repaired by the first host and filled. 
+    # meaning that the slot was repaired locally by SP 1.
     check eventually(
       freedSlotId.get in filledSlotIds, timeout = (duration - expiry).int * 1000
     )
@@ -164,7 +163,7 @@ marketplacesuite "SP Slot Repair":
     await filledSubscription.unsubscribe()
     await slotFreedsubscription.unsubscribe()
 
-  test "repair from remote store",
+  test "repair from local and remote store",
     NodeConfigs(
       clients: CodexConfigs
         .init(nodes = 1)
@@ -183,8 +182,7 @@ marketplacesuite "SP Slot Repair":
     let expiry = 10.periods
     let duration = 20.periods
 
-    # Let's create an availability capable to store one slot
-    # for each SP
+    # SP 1, SP 2 and SP 3 will host one slot
     let availability0 = (
       await provider0.client.postAvailability(
         totalSize = size.truncate(uint64),
@@ -222,25 +220,28 @@ marketplacesuite "SP Slot Repair":
     # stop client so it doesn't serve any blocks anymore
     await client0.stop()
 
-    # Let's disable the availability of the provider 1 to make sure that he
-    # will not pick the slot again.
+    # Let's disable the availability,
+    # SP 2 will not pick the slot again.
     await provider1.client.patchAvailability(availability1.id, enabled = false.some)
 
-    # Let's allow the first SP to host 2 slots.
+    # Update the size of the availability for the SP 1,
+    # he will repair and host the freed slot
     await provider0.client.patchAvailability(
       availability0.id, totalSize = (2 * size.truncate(uint64)).some
     )
 
+    # Let's free the slot to speed up the process
     await freeSlot(provider1.client)
 
+    # We expect that the freed slot is added in the filled slot id list,
+    # meaning that the slot was repaired locally and remotely (using SP 3) by SP 1.
     check eventually(freedSlotId.isSome, timeout = expiry.int * 1000)
-
     check eventually(freedSlotId.get in filledSlotIds, timeout = expiry.int * 1000)
 
     await filledSubscription.unsubscribe()
     await slotFreedsubscription.unsubscribe()
 
-  test "repair to empty sp",
+  test "repair from remote store only",
     NodeConfigs(
       clients: CodexConfigs.init(nodes = 1)
       # .debug()
@@ -260,9 +261,8 @@ marketplacesuite "SP Slot Repair":
     let expiry = 10.periods
     let duration = expiry + 10.periods
 
-    # Let's create an availability for only two hosts,
-    # the first one will host 2 slots and
-    # the second one will host 1
+    # SP 1 will host 2 slots
+    # SP 2 will host 1 slot
     discard await provider0.client.postAvailability(
       totalSize = 2 * size.truncate(uint64),
       duration = duration,
@@ -292,7 +292,8 @@ marketplacesuite "SP Slot Repair":
     # stop client so it doesn't serve any blocks anymore
     await client0.stop()
 
-    # Let's allow the third SP to participate.
+    # Let's create an availability for SP3,
+    # he will host the repaired slot.
     discard await provider2.client.postAvailability(
       totalSize = size.truncate(uint64),
       duration = duration,
@@ -300,109 +301,16 @@ marketplacesuite "SP Slot Repair":
       totalCollateral = 100 * size * collateralPerByte,
     )
 
-    # And let's disable the availability for the second host so he
-    # will not pick the slot.
+    # Let's disable the availability,
+    # SP 2 will not pick the slot again.
     await provider1.client.patchAvailability(availability1.id, enabled = false.some)
 
     # Let's free the slot to speed up the process
     await freeSlot(provider1.client)
 
-    # At this point, the third SP should repair the repair from the other SP
+    # At this point, SP 3 should repair the slot from SP 1 and host it.
     check eventually(freedSlotId.isSome, timeout = expiry.int * 1000)
     check eventually(freedSlotId.get in filledSlotIds, timeout = expiry.int * 1000)
 
     await filledSubscription.unsubscribe()
     await slotFreedsubscription.unsubscribe()
-
-  # test "storage provider slot repair",
-  #   NodeConfigs(
-  #     clients: CodexConfigs
-  #       .init(nodes = 1)
-  #       .debug()
-  #       .withLogFile()
-  #       .withLogTopics("node", "erasure").some,
-  #     providers: CodexConfigs
-  #       .init(nodes = 4)
-  #       .debug()
-  #       .withLogFile()
-  #       .withLogTopics("marketplace", "sales", "reservations", "node").some,
-  #     validators: CodexConfigs
-  #       .init(nodes = 1)
-  #       .debug()
-  #       .withLogFile()
-  #       .withLogTopics("validator").some,
-  #   ):
-  #   let client0 = clients()[0].client
-  #   let expiry = 10.periods
-  #   let duration = expiry + 10.periods
-  #   let size = 0xFFFFFF.uint64
-
-  #   let data = await RandomChunker.example(blocks = blocks)
-  #   let datasetSize =
-  #     datasetSize(blocks = blocks, nodes = ecNodes, tolerance = ecTolerance)
-
-  #   await createAvailabilities(
-  #     size, duration, datasetSize * collateralPerByte, minPricePerBytePerSecond
-  #   )
-
-  #   let cid = (await client0.upload(data)).get
-
-  #   let purchaseId = await client0.requestStorage(
-  #     cid,
-  #     expiry = expiry,
-  #     duration = duration,
-  #     collateralPerByte = collateralPerByte,
-  #     nodes = ecNodes,
-  #     tolerance = ecTolerance,
-  #     proofProbability = 1.u256,
-  #     pricePerBytePerSecond = minPricePerBytePerSecond,
-  #   )
-
-  #   let requestId = (await client0.requestId(purchaseId)).get
-
-  #   var filledSlotIds: seq[SlotId] = @[]
-  #   proc onSlotFilled(eventResult: ?!SlotFilled) =
-  #     assert not eventResult.isErr
-  #     let event = !eventResult
-  #     if event.requestId == requestId:
-  #       let slotId = slotId(event.requestId, event.slotIndex)
-  #       filledSlotIds.add slotId
-
-  #   let filledSubscription = await marketplace.subscribe(SlotFilled, onSlotFilled)
-
-  #   check eventually(
-  #     await client0.purchaseStateIs(purchaseId, "started"), timeout = expiry.int * 100
-  #   )
-
-  #   check eventually(
-  #     filledSlotIds.len == blocks, timeout = (duration - expiry).int * 100
-  #   )
-  #   trace "all slots have been filled"
-
-  #   var slotWasFreed = false
-  #   proc onSlotFreed(event: ?!SlotFreed) =
-  #     if event.isOk and event.value.requestId == requestId:
-  #       trace "slot was freed", slotIndex = $event.value.slotIndex
-  #       slotWasFreed = true
-
-  #   let slotFreedsubscription = await marketplace.subscribe(SlotFreed, onSlotFreed)
-
-  #   block provider_search:
-  #     while true:
-  #       for slotId in filledSlotIds:
-  #         for provider in providers():
-  #           if (await provider.client.saleStateIs(slotId, "SaleProving")):
-  #             await provider.stop()
-  #             break provider_search
-  #       await sleepAsync(100.milliseconds)
-
-  #   check eventually(slotWasFreed, timeout = (duration - expiry).int * 100)
-
-  #   await slotFreedsubscription.unsubscribe()
-
-  #   check eventually(
-  #     filledSlotIds.len > blocks, timeout = (duration - expiry).int * 100
-  #   )
-  #   trace "freed slot was filled"
-
-  #   await filledSubscription.unsubscribe()
