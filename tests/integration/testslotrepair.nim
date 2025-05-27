@@ -165,10 +165,10 @@ marketplacesuite "SP Slot Repair":
 
   test "repair from local and remote store",
     NodeConfigs(
-      clients: CodexConfigs
-        .init(nodes = 1)
-        # .debug()
-        .withLogTopics("node", "erasure").some,
+      clients: CodexConfigs.init(nodes = 1)
+      # .debug()
+      # .withLogTopics("node", "erasure")
+      .some,
       providers: CodexConfigs.init(nodes = 3)
       # .debug()
       # .withLogFile()
@@ -188,7 +188,7 @@ marketplacesuite "SP Slot Repair":
         totalSize = size.truncate(uint64),
         duration = duration,
         minPricePerBytePerSecond = minPricePerBytePerSecond,
-        totalCollateral = 100 * size * collateralPerByte,
+        totalCollateral = size * collateralPerByte,
       )
     ).get
     let availability1 = (
@@ -196,14 +196,14 @@ marketplacesuite "SP Slot Repair":
         totalSize = size.truncate(uint64),
         duration = duration,
         minPricePerBytePerSecond = minPricePerBytePerSecond,
-        totalCollateral = 100 * size * collateralPerByte,
+        totalCollateral = size * collateralPerByte,
       )
     ).get
     discard await provider2.client.postAvailability(
       totalSize = size.truncate(uint64),
       duration = duration,
       minPricePerBytePerSecond = minPricePerBytePerSecond,
-      totalCollateral = 100 * size * collateralPerByte,
+      totalCollateral = size * collateralPerByte,
     )
 
     let purchaseId = await createPurchase(client0.client)
@@ -227,7 +227,9 @@ marketplacesuite "SP Slot Repair":
     # Update the size of the availability for the SP 1,
     # he will repair and host the freed slot
     await provider0.client.patchAvailability(
-      availability0.id, totalSize = (2 * size.truncate(uint64)).some
+      availability0.id,
+      totalSize = (2 * size.truncate(uint64)).some,
+      totalCollateral = (2 * size * collateralPerByte).some,
     )
 
     # Let's free the slot to speed up the process
@@ -267,14 +269,14 @@ marketplacesuite "SP Slot Repair":
       totalSize = 2 * size.truncate(uint64),
       duration = duration,
       minPricePerBytePerSecond = minPricePerBytePerSecond,
-      totalCollateral = 100 * size * collateralPerByte,
+      totalCollateral = 2 * size * collateralPerByte,
     )
     let availability1 = (
       await provider1.client.postAvailability(
         totalSize = size.truncate(uint64),
         duration = duration,
         minPricePerBytePerSecond = minPricePerBytePerSecond,
-        totalCollateral = 100 * size * collateralPerByte,
+        totalCollateral = size * collateralPerByte,
       )
     ).get
 
@@ -298,7 +300,7 @@ marketplacesuite "SP Slot Repair":
       totalSize = size.truncate(uint64),
       duration = duration,
       minPricePerBytePerSecond = minPricePerBytePerSecond,
-      totalCollateral = 100 * size * collateralPerByte,
+      totalCollateral = size * collateralPerByte,
     )
 
     # Let's disable the availability,
