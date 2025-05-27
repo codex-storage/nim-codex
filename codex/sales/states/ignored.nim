@@ -38,8 +38,7 @@ method run*(
       # The returnedCollateral will be used in the cleanup function
       # and be passed to the deleteReservation function.
       let slot = Slot(request: request, slotIndex: data.slotIndex)
-      let currentCollateral = await market.currentCollateral(slot.id)
-      returnedCollateral = currentCollateral.some
+      returnedCollateral = request.ask.collateralPerSlot.some
 
     if onCleanUp =? agent.onCleanUp:
       await onCleanUp(
