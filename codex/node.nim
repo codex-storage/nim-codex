@@ -233,7 +233,7 @@ proc fetchBatched*(
   self.fetchBatched(manifest.treeCid, iter, batchSize, onBatch, fetchLocal)
 
 proc fetchDatasetAsync*(
-    self: CodexNodeRef, manifest: Manifest, fetchLocal = true
+    self: CodexNodeRef, manifest: Manifest, fetchLocal = true, onBatch: BatchProc = nil
 ): Future[void] {.async: (raises: []).} =
   ## Asynchronously fetch a dataset in the background.
   ## This task will be tracked and cleaned up on node shutdown.
@@ -241,7 +241,10 @@ proc fetchDatasetAsync*(
   try:
     if err =? (
       await self.fetchBatched(
-        manifest = manifest, batchSize = DefaultFetchBatch, fetchLocal = fetchLocal
+        manifest = manifest,
+        batchSize = DefaultFetchBatch,
+        fetchLocal = fetchLocal,
+        onBatch = onBatch,
       )
     ).errorOption:
       error "Unable to fetch blocks", err = err.msg
@@ -403,6 +406,7 @@ proc store*(
     filename: ?string = string.none,
     mimetype: ?string = string.none,
     blockSize = DefaultBlockSize,
+    pad = true,
 ): Future[?!Cid] {.async.} =
   ## Save stream contents as dataset with given blockSize
   ## to nodes's BlockStore, and return Cid of its manifest
@@ -412,7 +416,7 @@ proc store*(
   let
     hcodec = Sha256HashCodec
     dataCodec = BlockCodec
-    chunker = LPStreamChunker.new(stream, chunkSize = blockSize)
+    chunker = LPStreamChunker.new(stream, chunkSize = blockSize, pad)
 
   var cids: seq[Cid]
 
