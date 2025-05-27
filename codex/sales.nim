@@ -106,10 +106,7 @@ proc new*(
   )
 
 proc remove(sales: Sales, agent: SalesAgent) {.async: (raises: []).} =
-  try:
-    await agent.stop()
-  except CancelledError:
-    trace "Agent stop was cancelled"
+  await agent.stop()
 
   if sales.running:
     sales.agents.keepItIf(it != agent)
