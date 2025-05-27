@@ -254,7 +254,7 @@ proc repeatPortMapping(args: PortMappingArgs) {.thread, raises: [ValueError].} =
 
         sleep(sleepDuration)
 
-proc stopNatThread() {.noconv.} =
+proc stopNatThreads() {.noconv.} =
   # stop the thread
   debug "Stopping NAT port mapping renewal threads"
   try:
@@ -332,7 +332,7 @@ proc redirectPorts*(
       # atexit() in disguise
       if natThreads.len == 1:
         # we should register the thread termination function only once
-        addQuitProc(stopNatThread)
+        addQuitProc(stopNatThreads)
     except Exception as exc:
       warn "Failed to create NAT port mapping renewal thread", exc = exc.msg
 
