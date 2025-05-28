@@ -43,6 +43,7 @@ import ../utils/options
 import ../bittorrent/manifest
 import ../bittorrent/torrentdownloader
 import ../bittorrent/magnetlink
+import ../bittorrent/torrentparser
 
 import ../tarballs/[directorymanifest, directorydownloader, tarballnodeextensions]
 
@@ -681,6 +682,57 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
         Http422, "The magnet link does not contain a valid info hash."
       )
     await node.retrieveInfoHash(infoHash, resp = resp)
+    # return
+    #   RestApiResponse.response($magnetLink, Http200, "text/plain")
+
+  router.api(MethodOptions, "/api/codex/v1/torrent/torrent-file") do(
+    resp: HttpResponseRef
+  ) -> RestApiResponse:
+    if corsOrigin =? allowedOrigin:
+      resp.setCorsHeaders("POST", corsOrigin)
+      resp.setHeader(
+        "Access-Control-Allow-Headers", "content-type, content-disposition"
+      )
+
+    resp.status = Http204
+    await resp.sendBody("")
+
+  router.api(MethodPost, "/api/codex/v1/torrent/torrent-file") do(
+    contentBody: Option[ContentBody], resp: HttpResponseRef
+  ) -> RestApiResponse:
+    let mimeType = request.headers.getString(ContentTypeHeader)
+    echo "mimeType: ", mimeType
+    if mimeType != "application/json" and mimeType != "application/octet-stream":
+      return RestApiResponse.error(
+        Http422,
+        "Missing \"Content-Type\" header: expected either \"application/json\" or \"application/octet-stream\".",
+      )
+    without torrentBytes =? contentBody .? data:
+      return RestApiResponse.error(Http422, "No torrent file content provided.")
+    var infoBytes: seq[byte]
+    if mimeType == "application/json":
+      without torrentManifest =? BitTorrentManifest.fromJson(torrentBytes):
+        return RestApiResponse.error(Http422, "Invalid torrent JSON file content.")
+      echo "torrentManifest: ", torrentManifest
+      let torrentInfo = torrentManifest.info
+      # very basic validation for now
+      if torrentInfo.length == 0 or torrentInfo.pieceLength == 0 or
+          torrentInfo.pieces.len == 0:
+        return
+          RestApiResponse.error(Http422, "The torrent file is invalid or incomplete.")
+      # return RestApiResponse.response($torrentInfo, contentType = "text/plain")
+      infoBytes = bencode(torrentInfo)
+    else:
+      without infoBencoded =? extractInfoFromTorrent(torrentBytes), err:
+        return RestApiResponse.error(
+          Http422, "Failed extracting info directory from the torrent file."
+        )
+      infoBytes = infoBencoded
+    without infoHash =? MultiHash.digest($Sha1HashCodec, infoBytes).mapFailure, err:
+      return RestApiResponse.error(
+        Http422, "The torrent file does not contain a valid info hash."
+      )
+    return await node.retrieveInfoHash(infoHash, resp = resp)
 
   router.api(MethodGet, "/api/codex/v1/torrent/{infoHash}/network/stream") do(
     infoHash: MultiHash, resp: HttpResponseRef
