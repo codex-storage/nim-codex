@@ -321,15 +321,15 @@ marketplacesuite "Marketplace payouts":
     NodeConfigs(
       hardhat: HardhatConfig.none,
       clients: CodexConfigs.init(nodes = 1).some,
-      providers: CodexConfigs
-        .init(nodes = 3)
-        .debug()
-        # uncomment to enable console log output
-        .withLogFile()
-        # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        .withLogTopics(
-          "node", "marketplace", "sales", "reservations", "node", "proving", "clock"
-        ).some,
+      providers: CodexConfigs.init(nodes = 3)
+      # .debug()
+      # uncomment to enable console log output
+      # .withLogFile()
+      # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+      # .withLogTopics(
+      #   "node", "marketplace", "sales", "reservations", "statemachine"
+      # )
+      .some,
     ):
     let data = await RandomChunker.example(blocks = blocks)
     let client0 = clients()[0]
@@ -389,12 +389,15 @@ marketplacesuite "Marketplace payouts":
     # So if a SP hosts 1 slot, it should have enough total remaining collateral
     # to host 2 more slots.
     for provider in providers():
-      let availabilities = (await provider.client.getAvailabilities()).get
-      let availability = availabilities[0]
-      let slots = (await provider.client.getSlots()).get
-      let availableSlots = (3 - slots.len).u256
+      let client = provider.client
       check eventually(
-        availability.totalRemainingCollateral ==
-          availableSlots * slotSize * minPricePerBytePerSecond,
-        timeout = 10 * 60.int * 1000,
+        block:
+          let availabilities = (await client.getAvailabilities()).get
+          let availability = availabilities[0]
+          let slots = (await client.getSlots()).get
+          let availableSlots = (3 - slots.len).u256
+
+          availability.totalRemainingCollateral ==
+            availableSlots * slotSize * minPricePerBytePerSecond,
+        timeout = 10 * 1000,
       )
