@@ -7,7 +7,6 @@ import pkg/questionable
 import pkg/questionable/results
 
 import ../errors
-import ../codextypes
 import ./manifest/manifest
 
 type
