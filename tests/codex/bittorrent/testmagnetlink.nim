@@ -11,15 +11,14 @@ import ../examples
 import pkg/codex/bittorrent/magnetlink
 
 suite "bittorrent magnet links":
-  test "tt":
-    let magnetLinkStr = "magnet:?xt=urn:btih:1902d602db8c350f4f6d809ed01eff32f030da95"
+  test "creates correct magnet link object from provided string":
+    let infoHash = "1902d602db8c350f4f6d809ed01eff32f030da95".toUpperAscii
+    let magnetLinkStr = fmt"magnet:?xt=urn:btih:{infoHash}"
     let magnetLink = newMagnetLink(magnetLinkStr).tryGet()
     check $magnetLink == magnetLinkStr
   test "correctly parses magnet link version 1":
     let multiHash = MultiHash.example(Sha1HashCodec)
     let hash = multiHash.data.buffer[multiHash.dpos .. ^1]
-    # echo byteutils.toHex(hash)
-    # echo multiHash.hex
     let magnetLinkStr =
       fmt"magnet:?xt=urn:btih:{byteutils.toHex(hash).toUpperAscii}&dn=example.txt&tr=udp://tracker.example.com/announce&x.pe=31.205.250.200:8080"
     let magnetLink = newMagnetLink(magnetLinkStr).tryGet()
