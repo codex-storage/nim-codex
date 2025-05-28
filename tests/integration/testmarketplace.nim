@@ -321,15 +321,15 @@ marketplacesuite "Marketplace payouts":
     NodeConfigs(
       hardhat: HardhatConfig.none,
       clients: CodexConfigs.init(nodes = 1).some,
-      providers: CodexConfigs.init(nodes = 3)
-      # .debug()
-      # uncomment to enable console log output
-      # .withLogFile()
-      # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-      # .withLogTopics(
-      #   "node", "marketplace", "sales", "reservations", "node", "proving", "clock"
-      # )
-      .some,
+      providers: CodexConfigs
+        .init(nodes = 3)
+        .debug()
+        # uncomment to enable console log output
+        .withLogFile()
+        # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        .withLogTopics(
+          "node", "marketplace", "sales", "reservations", "node", "proving", "clock"
+        ).some,
     ):
     let data = await RandomChunker.example(blocks = blocks)
     let client0 = clients()[0]
