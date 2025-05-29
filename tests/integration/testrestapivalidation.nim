@@ -1,45 +1,23 @@
-import std/httpclient
 import std/times
 import pkg/ethers
-import pkg/codex/manifest
 import pkg/codex/conf
 import pkg/codex/contracts
-from pkg/codex/stores/repostore/types import DefaultQuotaBytes
 import ../asynctest
 import ../checktest
 import ../examples
 import ../codex/examples
 import ./codexconfig
-import ./codexprocess
+import ./codexclient
+import ./multinodes
 
-from ./multinodes import Role, getTempDirName, jsonRpcProviderUrl, nextFreePort
+multinodesuite "Rest API validation":
+  let config = NodeConfigs(clients: CodexConfigs.init(nodes = 1).some)
+  var client: CodexClient
 
-# This suite allows to run fast the basic rest api validation.
-# It starts only one node for all the checks in order to speed up 
-# the execution.
-asyncchecksuite "Rest API validation":
-  var node: CodexProcess
-  var config = CodexConfigs.init(nodes = 1).configs[0]
-  let starttime = now().format("yyyy-MM-dd'_'HH:mm:ss")
-  let nodexIdx = 0
-  let datadir = getTempDirName(starttime, Role.Client, nodexIdx)
+  setup:
+    client = clients()[0].client
 
-  config.addCliOption("--api-port", $(waitFor nextFreePort(8081)))
-  config.addCliOption("--data-dir", datadir)
-  config.addCliOption("--nat", "none")
-  config.addCliOption("--listen-addrs", "/ip4/127.0.0.1/tcp/0")
-  config.addCliOption("--disc-port", $(waitFor nextFreePort(8081)))
-  config.addCliOption(StartUpCmd.persistence, "--eth-provider", jsonRpcProviderUrl)
-  config.addCliOption(StartUpCmd.persistence, "--eth-account", $EthAddress.example)
-
-  node =
-    waitFor CodexProcess.startNode(config.cliArgs, config.debugEnabled, $Role.Client)
-
-  waitFor node.waitUntilStarted()
-
-  let client = node.client()
-
-  test "should return 422 when attempting delete of non-existing dataset":
+  test "should return 422 when attempting delete of non-existing dataset", config:
     let data = await RandomChunker.example(blocks = 2)
     let cid = (await client.upload(data)).get
     let duration = 100.uint64
@@ -58,7 +36,7 @@ asyncchecksuite "Rest API validation":
     check responseBefore.status == 422
     check (await responseBefore.body) == "Tolerance needs to be bigger then zero"
 
-  test "request storage fails for datasets that are too small":
+  test "request storage fails for datasets that are too small", config:
     let cid = (await client.upload("some file contents")).get
     let response = (
       await client.requestStorageRaw(
@@ -77,7 +55,7 @@ asyncchecksuite "Rest API validation":
         "Dataset too small for erasure parameters, need at least " &
         $(2 * DefaultBlockSize.int) & " bytes"
 
-  test "request storage fails if nodes and tolerance aren't correct":
+  test "request storage fails if nodes and tolerance aren't correct", config:
     let data = await RandomChunker.example(blocks = 2)
     let cid = (await client.upload(data)).get
     let duration = 100.uint64
@@ -101,7 +79,7 @@ asyncchecksuite "Rest API validation":
       check (await responseBefore.body) ==
         "Invalid parameters: parameters must satify `1 < (nodes - tolerance) ≥ tolerance`"
 
-  test "request storage fails if tolerance > nodes (underflow protection)":
+  test "request storage fails if tolerance > nodes (underflow protection)", config:
     let data = await RandomChunker.example(blocks = 2)
     let cid = (await client.upload(data)).get
     let duration = 100.uint64
@@ -122,21 +100,21 @@ asyncchecksuite "Rest API validation":
     check responseBefore.status == 422
     check (await responseBefore.body) == "Tolerance needs to be bigger then zero"
 
-  test "upload fails if content disposition contains bad filename":
+  test "upload fails if content disposition contains bad filename", config:
     let headers = @[("Content-Disposition", "attachment; filename=\"exam*ple.txt\"")]
     let response = await client.uploadRaw("some file contents", headers)
 
     check response.status == 422
     check (await response.body) == "The filename is not valid."
 
-  test "upload fails if content type is invalid":
+  test "upload fails if content type is invalid", config:
     let headers = @[("Content-Type", "hello/world")]
     let response = await client.uploadRaw("some file contents", headers)
 
     check response.status == 422
     check (await response.body) == "The MIME type 'hello/world' is not valid."
 
-  test "updating non-existing availability":
+  test "updating non-existing availability", config:
     let nonExistingResponse = await client.patchAvailabilityRaw(
       AvailabilityId.example,
       duration = 100.uint64.some,
@@ -145,7 +123,7 @@ asyncchecksuite "Rest API validation":
     )
     check nonExistingResponse.status == 404
 
-  test "updating availability - freeSize is not allowed to be changed":
+  test "updating availability - freeSize is not allowed to be changed", config:
     let availability = (
       await client.postAvailability(
         totalSize = 140000.uint64,
@@ -159,7 +137,7 @@ asyncchecksuite "Rest API validation":
     check freeSizeResponse.status == 422
     check "not allowed" in (await freeSizeResponse.body)
 
-  test "creating availability above the node quota returns 422":
+  test "creating availability above the node quota returns 422", config:
     let response = await client.postAvailabilityRaw(
       totalSize = 24000000000.uint64,
       duration = 200.uint64,
@@ -170,7 +148,7 @@ asyncchecksuite "Rest API validation":
     check response.status == 422
     check (await response.body) == "Not enough storage quota"
 
-  test "updating availability above the node quota returns 422":
+  test "updating availability above the node quota returns 422", config:
     let availability = (
       await client.postAvailability(
         totalSize = 140000.uint64,
@@ -186,7 +164,7 @@ asyncchecksuite "Rest API validation":
     check response.status == 422
     check (await response.body) == "Not enough storage quota"
 
-  test "creating availability when total size is zero returns 422":
+  test "creating availability when total size is zero returns 422", config:
     let response = await client.postAvailabilityRaw(
       totalSize = 0.uint64,
       duration = 200.uint64,
@@ -197,7 +175,7 @@ asyncchecksuite "Rest API validation":
     check response.status == 422
     check (await response.body) == "Total size must be larger then zero"
 
-  test "updating availability when total size is zero returns 422":
+  test "updating availability when total size is zero returns 422", config:
     let availability = (
       await client.postAvailability(
         totalSize = 140000.uint64,
@@ -212,7 +190,7 @@ asyncchecksuite "Rest API validation":
     check response.status == 422
     check (await response.body) == "Total size must be larger then zero"
 
-  test "creating availability when total size is negative returns 422":
+  test "creating availability when total size is negative returns 422", config:
     let json =
       %*{
         "totalSize": "-1",
@@ -225,7 +203,7 @@ asyncchecksuite "Rest API validation":
     check response.status == 400
     check (await response.body) == "Parsed integer outside of valid range"
 
-  test "updating availability when total size is negative returns 422":
+  test "updating availability when total size is negative returns 422", config:
     let availability = (
       await client.postAvailability(
         totalSize = 140000.uint64,
@@ -243,7 +221,7 @@ asyncchecksuite "Rest API validation":
     check response.status == 400
     check (await response.body) == "Parsed integer outside of valid range"
 
-  test "request storage fails if tolerance is zero":
+  test "request storage fails if tolerance is zero", config:
     let data = await RandomChunker.example(blocks = 2)
     let cid = (await client.upload(data)).get
     let duration = 100.uint64
@@ -264,7 +242,7 @@ asyncchecksuite "Rest API validation":
     check responseBefore.status == 422
     check (await responseBefore.body) == "Tolerance needs to be bigger then zero"
 
-  test "request storage fails if duration exceeds limit":
+  test "request storage fails if duration exceeds limit", config:
     let data = await RandomChunker.example(blocks = 2)
     let cid = (await client.upload(data)).get
     let duration = (31 * 24 * 60 * 60).uint64
@@ -286,7 +264,7 @@ asyncchecksuite "Rest API validation":
     check responseBefore.status == 422
     check "Duration exceeds limit of" in (await responseBefore.body)
 
-  test "request storage fails if expiry is zero":
+  test "request storage fails if expiry is zero", config:
     let data = await RandomChunker.example(blocks = 2)
     let cid = (await client.upload(data)).get
     let duration = 100.uint64
@@ -306,7 +284,7 @@ asyncchecksuite "Rest API validation":
     check (await responseBefore.body) ==
       "Expiry must be greater than zero and less than the request's duration"
 
-  test "request storage fails if proof probability is zero":
+  test "request storage fails if proof probability is zero", config:
     let data = await RandomChunker.example(blocks = 2)
     let cid = (await client.upload(data)).get
     let duration = 100.uint64
@@ -325,7 +303,7 @@ asyncchecksuite "Rest API validation":
     check responseBefore.status == 422
     check (await responseBefore.body) == "Proof probability must be greater than zero"
 
-  test "request storage fails if price per byte per second is zero":
+  test "request storage fails if price per byte per second is zero", config:
     let data = await RandomChunker.example(blocks = 2)
     let cid = (await client.upload(data)).get
     let duration = 100.uint64
@@ -345,7 +323,7 @@ asyncchecksuite "Rest API validation":
     check (await responseBefore.body) ==
       "Price per byte per second must be greater than zero"
 
-  test "request storage fails if collareral per byte is zero":
+  test "request storage fails if collareral per byte is zero", config:
     let data = await RandomChunker.example(blocks = 2)
     let cid = (await client.upload(data)).get
     let duration = 100.uint64
@@ -364,7 +342,7 @@ asyncchecksuite "Rest API validation":
     check responseBefore.status == 422
     check (await responseBefore.body) == "Collateral per byte must be greater than zero"
 
-  test "creating availability fails when until is negative":
+  test "creating availability fails when until is negative", config:
     let totalSize = 12.uint64
     let minPricePerBytePerSecond = 1.u256
     let totalCollateral = totalSize.u256 * minPricePerBytePerSecond
@@ -380,5 +358,41 @@ asyncchecksuite "Rest API validation":
       response.status == 422
       (await response.body) == "Cannot set until to a negative value"
 
-  waitFor node.stop()
-  node.removeDataDir()
+  test "creating availability fails when duration is zero", config:
+    let response = await client.postAvailabilityRaw(
+      totalSize = 12.uint64,
+      duration = 0.uint64,
+      minPricePerBytePerSecond = 1.u256,
+      totalCollateral = 22.u256,
+      until = -1.SecondsSince1970.some,
+    )
+
+    check:
+      response.status == 422
+      (await response.body) == "duration must be larger then zero"
+
+  test "creating availability fails when minPricePerBytePerSecond is zero", config:
+    let response = await client.postAvailabilityRaw(
+      totalSize = 12.uint64,
+      duration = 1.uint64,
+      minPricePerBytePerSecond = 0.u256,
+      totalCollateral = 22.u256,
+      until = -1.SecondsSince1970.some,
+    )
+
+    check:
+      response.status == 422
+      (await response.body) == "minPricePerBytePerSecond must be larger then zero"
+
+  test "creating availability fails when totalCollateral is zero", config:
+    let response = await client.postAvailabilityRaw(
+      totalSize = 12.uint64,
+      duration = 1.uint64,
+      minPricePerBytePerSecond = 2.u256,
+      totalCollateral = 0.u256,
+      until = -1.SecondsSince1970.some,
+    )
+
+    check:
+      response.status == 422
+      (await response.body) == "totalCollateral must be larger then zero"

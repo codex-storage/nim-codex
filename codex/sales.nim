@@ -111,11 +111,7 @@ proc remove(sales: Sales, agent: SalesAgent) {.async.} =
     sales.agents.keepItIf(it != agent)
 
 proc cleanUp(
-    sales: Sales,
-    agent: SalesAgent,
-    reprocessSlot: bool,
-    returnedCollateral: ?UInt256,
-    processing: Future[void],
+    sales: Sales, agent: SalesAgent, reprocessSlot: bool, returnedCollateral: ?UInt256
 ) {.async.} =
   let data = agent.data
 
@@ -181,36 +177,38 @@ proc cleanUp(
 
   await sales.remove(agent)
 
-  # signal back to the slot queue to cycle a worker
-  if not processing.isNil and not processing.finished():
-    processing.complete()
-
-proc filled(
-    sales: Sales, request: StorageRequest, slotIndex: uint64, processing: Future[void]
-) =
+proc filled(sales: Sales, request: StorageRequest, slotIndex: uint64) =
   if onSale =? sales.context.onSale:
     onSale(request, slotIndex)
 
-  # signal back to the slot queue to cycle a worker
-  if not processing.isNil and not processing.finished():
-    processing.complete()
-
-proc processSlot(sales: Sales, item: SlotQueueItem, done: Future[void]) =
+proc processSlot(
+    sales: Sales, item: SlotQueueItem
+) {.async: (raises: [CancelledError]).} =
   debug "Processing slot from queue", requestId = item.requestId, slot = item.slotIndex
 
   let agent =
     newSalesAgent(sales.context, item.requestId, item.slotIndex, none StorageRequest)
 
+  let completed = newAsyncEvent()
+
   agent.onCleanUp = proc(
       reprocessSlot = false, returnedCollateral = UInt256.none
   ) {.async.} =
-    await sales.cleanUp(agent, reprocessSlot, returnedCollateral, done)
+    trace "slot cleanup"
+    await sales.cleanUp(agent, reprocessSlot, returnedCollateral)
+    completed.fire()
 
   agent.onFilled = some proc(request: StorageRequest, slotIndex: uint64) =
-    sales.filled(request, slotIndex, done)
+    trace "slot filled"
+    sales.filled(request, slotIndex)
+    completed.fire()
 
   agent.start(SalePreparing())
   sales.agents.add agent
+
+  trace "waiting for slot processing to complete"
+  await completed.wait()
+  trace "slot processing completed"
 
 proc deleteInactiveReservations(sales: Sales, activeSlots: seq[Slot]) {.async.} =
   let reservations = sales.context.reservations
@@ -272,10 +270,7 @@ proc load*(sales: Sales) {.async.} =
     agent.onCleanUp = proc(
         reprocessSlot = false, returnedCollateral = UInt256.none
     ) {.async.} =
-      # since workers are not being dispatched, this future has not been created
-      # by a worker. Create a dummy one here so we can call sales.cleanUp
-      let done: Future[void] = nil
-      await sales.cleanUp(agent, reprocessSlot, returnedCollateral, done)
+      await sales.cleanUp(agent, reprocessSlot, returnedCollateral)
 
     # There is no need to assign agent.onFilled as slots loaded from `mySlots`
     # are inherently already filled and so assigning agent.onFilled would be
@@ -526,11 +521,12 @@ proc startSlotQueue(sales: Sales) =
   let slotQueue = sales.context.slotQueue
   let reservations = sales.context.reservations
 
-  slotQueue.onProcessSlot = proc(
-      item: SlotQueueItem, done: Future[void]
-  ) {.async: (raises: []).} =
+  slotQueue.onProcessSlot = proc(item: SlotQueueItem) {.async: (raises: []).} =
     trace "processing slot queue item", reqId = item.requestId, slotIdx = item.slotIndex
-    sales.processSlot(item, done)
+    try:
+      await sales.processSlot(item)
+    except CancelledError:
+      discard
 
   slotQueue.start()
 
