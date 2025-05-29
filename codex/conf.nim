@@ -372,7 +372,7 @@ type
 
       maxPriorityFeePerGas* {.
         desc:
-          "Sets the maximum priority fee per gas for Ethereum EIP-1559 transactions in wei.",
+          "Sets the default maximum priority fee per gas for Ethereum EIP-1559 transactions, in wei, when not provided by the network.",
         defaultValue: DefaultMaxPriorityFeePerGas,
         defaultValueDesc: $DefaultMaxPriorityFeePerGas,
         name: "max-priority-fee-per-gas",
