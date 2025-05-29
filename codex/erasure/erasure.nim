@@ -666,7 +666,7 @@ proc decode*(self: Erasure, encoded: Manifest): Future[?!Manifest] {.async.} =
   return decoded.success
 
 proc repair*(self: Erasure, encoded: Manifest): Future[?!void] {.async.} =
-  ## Repair a protected manifest slot
+  ## Repair a protected manifest by reconstructing the full dataset
   ##
   ## `encoded` - the encoded (protected) manifest to
   ##             be repaired
