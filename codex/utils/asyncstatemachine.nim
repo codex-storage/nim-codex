@@ -2,7 +2,6 @@ import pkg/questionable
 import pkg/chronos
 import ../logutils
 import ./trackedfutures
-import ./exceptions
 
 {.push raises: [].}
 
@@ -89,7 +88,7 @@ proc start*(machine: Machine, initialState: State) =
   machine.trackedFutures.track(fut)
   machine.schedule(Event.transition(machine.state, initialState))
 
-proc stop*(machine: Machine) {.async.} =
+proc stop*(machine: Machine) {.async: (raises: []).} =
   if not machine.started:
     return
 
