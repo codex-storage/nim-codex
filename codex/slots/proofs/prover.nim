@@ -12,6 +12,7 @@ import pkg/chronos
 import pkg/chronicles
 import pkg/circomcompat
 import pkg/poseidon2
+import pkg/taskpools
 import pkg/questionable/results
 
 import pkg/libp2p/cid
@@ -35,22 +36,24 @@ logScope:
   topics = "codex prover"
 
 type
-  AnyProof* = CircomProof
-
-  AnySampler* = Poseidon2Sampler
-    # add any other generic type here, eg. Poseidon2Sampler | ReinforceConcreteSampler
-  AnyBuilder* = Poseidon2Builder
-    # add any other generic type here, eg. Poseidon2Builder | ReinforceConcreteBuilder
-
-  AnyProofInputs* = ProofInputs[Poseidon2Hash]
-  Prover* = ref object of RootObj
-    backend: AnyBackend
-    store: BlockStore
+  Prover* = ref object
+    case backendKind: ProverBackendCmd
+    of ProverBackendCmd.nimGroth16:
+      groth16Backend*: NimGroth16BackendRef
+    of ProverBackendCmd.circomCompat:
+      circomCompatBackend*: CircomCompatBackendRef
     nSamples: int
+    tp: Taskpool
 
-proc prove*(
-    self: Prover, slotIdx: int, manifest: Manifest, challenge: ProofChallenge
-): Future[?!(AnyProofInputs, AnyProof)] {.async: (raises: [CancelledError]).} =
+  AnyBackend* = NimGroth16BackendRef or CircomCompatBackendRef
+
+proc prove*[SomeSampler](
+    self: Prover,
+    sampler: SomeSampler,
+    manifest: Manifest,
+    challenge: ProofChallenge,
+    verify = false,
+): Future[?!(Groth16Proof, ?bool)] {.async: (raises: [CancelledError]).} =
   ## Prove a statement using backend.
   ## Returns a future that resolves to a proof.
 
@@ -61,33 +64,46 @@ proc prove*(
 
   trace "Received proof challenge"
 
-  without builder =? AnyBuilder.new(self.store, manifest), err:
-    error "Unable to create slots builder", err = err.msg
-    return failure(err)
+  let
+    proofInput = ?await sampler.getProofInput(challenge, self.nSamples)
+    # prove slot
 
-  without sampler =? AnySampler.new(slotIdx, self.store, builder), err:
-    error "Unable to create data sampler", err = err.msg
-    return failure(err)
-
-  without proofInput =? await sampler.getProofInput(challenge, self.nSamples), err:
-    error "Unable to get proof input for slot", err = err.msg
-    return failure(err)
-
-  # prove slot
-  without proof =? self.backend.prove(proofInput), err:
-    error "Unable to prove slot", err = err.msg
-    return failure(err)
-
-  success (proofInput, proof)
-
-proc verify*(
-    self: Prover, proof: AnyProof, inputs: AnyProofInputs
-): Future[?!bool] {.async: (raises: [CancelledError]).} =
-  ## Prove a statement using backend.
-  ## Returns a future that resolves to a proof.
-  self.backend.verify(proof, inputs)
+  case self.backendKind
+  of ProverBackendCmd.nimGroth16:
+    let
+      proof = ?await self.groth16Backend.prove(proofInput)
+      verified =
+        if verify:
+          (?await self.groth16Backend.verify(proof)).some
+        else:
+          bool.none
+    return success (proof.toGroth16Proof, verified)
+  of ProverBackendCmd.circomCompat:
+    let
+      proof = ?await self.circomCompatBackend.prove(proofInput)
+      verified =
+        if verify:
+          (?await self.circomCompatBackend.verify(proof, proofInput)).some
+        else:
+          bool.none
+    return success (proof.toGroth16Proof, verified)
 
 proc new*(
-    _: type Prover, store: BlockStore, backend: AnyBackend, nSamples: int
+    _: type Prover, backend: CircomCompatBackendRef, nSamples: int, tp: Taskpool
 ): Prover =
-  Prover(store: store, backend: backend, nSamples: nSamples)
+  Prover(
+    circomCompatBackend: backend,
+    backendKind: ProverBackendCmd.circomCompat,
+    nSamples: nSamples,
+    tp: tp,
+  )
+
+proc new*(
+    _: type Prover, backend: NimGroth16BackendRef, nSamples: int, tp: Taskpool
+): Prover =
+  Prover(
+    groth16Backend: backend,
+    backendKind: ProverBackendCmd.nimGroth16,
+    nSamples: nSamples,
+    tp: tp,
+  )
