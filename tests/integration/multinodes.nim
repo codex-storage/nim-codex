@@ -146,6 +146,14 @@ template multinodesuite*(name: string, body: untyped) =
         raiseMultiNodeSuiteError "hardhat node not started: " & e.msg
 
       trace "hardhat node started"
+
+      try:
+        await node.postStart()
+      except NodeProcessError as e:
+        raiseMultiNodeSuiteError "cannot run the post start scripts: " & e.msg
+
+      trace "hardhat post start scripts executed"
+
       return node
 
     proc newCodexProcess(
