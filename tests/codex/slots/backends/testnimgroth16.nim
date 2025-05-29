@@ -50,70 +50,70 @@ suite "Test NimGoth16 Backend - control inputs":
     let proof = (await nimGroth16.prove(proofInputs)).tryGet
     check (await nimGroth16.verify(proof)).tryGet
 
-#   test "Should not verify with incorrect inputs":
-#     proofInputs.slotIndex = 1 # change slot index
+  test "Should not verify with incorrect inputs":
+    proofInputs.slotIndex = 1 # change slot index
 
-#     let proof = (await nimGroth16.prove(proofInputs)).tryGet
-#     check (await nimGroth16.verify(proof)).tryGet == false
+    let proof = (await nimGroth16.prove(proofInputs)).tryGet
+    check (await nimGroth16.verify(proof)).tryGet == false
 
-# suite "Test NimGoth16 Backend":
-#   let
-#     ecK = 2
-#     ecM = 2
-#     slotId = 3
-#     samples = 5
-#     numDatasetBlocks = 8
-#     blockSize = DefaultBlockSize
-#     cellSize = DefaultCellSize
+suite "Test NimGoth16 Backend":
+  let
+    ecK = 2
+    ecM = 2
+    slotId = 3
+    samples = 5
+    numDatasetBlocks = 8
+    blockSize = DefaultBlockSize
+    cellSize = DefaultCellSize
 
-#     graph = "tests/circuits/fixtures/proof_main.bin"
-#     r1cs = "tests/circuits/fixtures/proof_main.r1cs"
-#     zkey = "tests/circuits/fixtures/proof_main.zkey"
+    graph = "tests/circuits/fixtures/proof_main.bin"
+    r1cs = "tests/circuits/fixtures/proof_main.r1cs"
+    zkey = "tests/circuits/fixtures/proof_main.zkey"
 
-#     repoTmp = TempLevelDb.new()
-#     metaTmp = TempLevelDb.new()
+    repoTmp = TempLevelDb.new()
+    metaTmp = TempLevelDb.new()
 
-#   var
-#     store: BlockStore
-#     manifest: Manifest
-#     protected: Manifest
-#     verifiable: Manifest
-#     nimGroth16: NimGroth16BackendRef
-#     proofInputs: ProofInputs[Poseidon2Hash]
-#     challenge: array[32, byte]
-#     builder: Poseidon2Builder
-#     sampler: Poseidon2Sampler
+  var
+    store: BlockStore
+    manifest: Manifest
+    protected: Manifest
+    verifiable: Manifest
+    nimGroth16: NimGroth16BackendRef
+    proofInputs: ProofInputs[Poseidon2Hash]
+    challenge: array[32, byte]
+    builder: Poseidon2Builder
+    sampler: Poseidon2Sampler
 
-#   setup:
-#     let
-#       repoDs = repoTmp.newDb()
-#       metaDs = metaTmp.newDb()
+  setup:
+    let
+      repoDs = repoTmp.newDb()
+      metaDs = metaTmp.newDb()
 
-#     store = RepoStore.new(repoDs, metaDs)
+    store = RepoStore.new(repoDs, metaDs)
 
-#     (manifest, protected, verifiable) = await createVerifiableManifest(
-#       store, numDatasetBlocks, ecK, ecM, blockSize, cellSize
-#     )
+    (manifest, protected, verifiable) = await createVerifiableManifest(
+      store, numDatasetBlocks, ecK, ecM, blockSize, cellSize
+    )
 
-#     builder = Poseidon2Builder.new(store, verifiable).tryGet
-#     sampler = Poseidon2Sampler.new(slotId, store, builder).tryGet
+    builder = Poseidon2Builder.new(store, verifiable).tryGet
+    sampler = Poseidon2Sampler.new(slotId, store, builder).tryGet
 
-#     nimGroth16 = NimGroth16BackendRef.new(graph, r1cs, zkey, tp = Taskpool.new()).tryGet
-#     challenge = 1234567.toF.toBytes.toArray32
+    nimGroth16 = NimGroth16BackendRef.new(graph, r1cs, zkey, tp = Taskpool.new()).tryGet
+    challenge = 1234567.toF.toBytes.toArray32
 
-#     proofInputs = (await sampler.getProofInput(challenge, samples)).tryGet
+    proofInputs = (await sampler.getProofInput(challenge, samples)).tryGet
 
-#   teardown:
-#     nimGroth16.release()
-#     await repoTmp.destroyDb()
-#     await metaTmp.destroyDb()
+  teardown:
+    nimGroth16.release()
+    await repoTmp.destroyDb()
+    await metaTmp.destroyDb()
 
-#   test "Should verify with correct input":
-#     var proof = (await nimGroth16.prove(proofInputs)).tryGet
-#     check (await nimGroth16.verify(proof)).tryGet
+  test "Should verify with correct input":
+    var proof = (await nimGroth16.prove(proofInputs)).tryGet
+    check (await nimGroth16.verify(proof)).tryGet
 
-#   test "Should not verify with incorrect input":
-#     proofInputs.slotIndex = 1 # change slot index
+  test "Should not verify with incorrect input":
+    proofInputs.slotIndex = 1 # change slot index
 
-#     let proof = (await nimGroth16.prove(proofInputs)).tryGet
-#     check (await nimGroth16.verify(proof)).tryGet == false
+    let proof = (await nimGroth16.prove(proofInputs)).tryGet
+    check (await nimGroth16.verify(proof)).tryGet == false
