@@ -74,7 +74,7 @@ suite "Test BackendFactory":
     check:
       getR1csFile(config).tryGet == config.circuitDir / "proof_main.r1cs"
       getWasmFile(config).tryGet == config.circuitDir / "proof_main.wasm"
-      getZKeyFile(config).tryGet == config.circuitDir / "proof_main.zkey"
+      getZkeyFile(config).tryGet == config.circuitDir / "proof_main.zkey"
 
   test "Should initialize nim groth16 from local directory":
     let config = CodexConf(
@@ -92,7 +92,7 @@ suite "Test BackendFactory":
     check:
       getGraphFile(config).tryGet == config.circuitDir / "proof_main.bin"
       getR1csFile(config).tryGet == config.circuitDir / "proof_main.r1cs"
-      getZKeyFile(config).tryGet == config.circuitDir / "proof_main.zkey"
+      getZkeyFile(config).tryGet == config.circuitDir / "proof_main.zkey"
 
   test "Should suggest usage of downloader tool when files not available":
     let
