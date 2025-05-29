@@ -317,7 +317,7 @@ marketplacesuite "Marketplace payouts":
 
     await subscription.unsubscribe()
 
-  test "the collatal is returned after a sale is ignored",
+  test "the collateral is returned after a sale is ignored",
     NodeConfigs(
       hardhat: HardhatConfig.none,
       clients: CodexConfigs.init(nodes = 1).some,
