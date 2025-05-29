@@ -214,22 +214,13 @@ proc new*(
     .withTcpTransport({ServerFlags.ReuseAddr})
     .build()
 
-  var
-    cache: CacheStore = nil
-    taskpool: Taskpool
+  var tp =
+    try:
+      Taskpool.new(numThreads = int(config.numThreads))
+    except CatchableError as exc:
+      raiseAssert("Failure in tp initialization:" & exc.msg)
 
-  try:
-    if config.numThreads == ThreadCount(0):
-      taskpool = Taskpool.new(numThreads = min(countProcessors(), 16))
-    else:
-      taskpool = Taskpool.new(numThreads = int(config.numThreads))
-    info "Threadpool started", numThreads = taskpool.numThreads
-  except CatchableError as exc:
-    raiseAssert("Failure in taskpool initialization:" & exc.msg)
-
-  if config.cacheSize > 0'nb:
-    cache = CacheStore.new(cacheSize = config.cacheSize)
-    ## Is unused?
+  info "Threadpool started", numThreads = tp.numThreads
 
   let discoveryDir = config.dataDir / CodexDhtNamespace
 
@@ -305,9 +296,8 @@ proc new*(
     store = NetworkStore.new(engine, repoStore)
     prover =
       if config.prover:
-        let backend =
-          config.initializeBackend().expect("Unable to create prover backend.")
-        some Prover.new(store, backend, config.numProofSamples)
+        let prover = config.initializeProver(tp).expect("Unable to create prover.")
+        some prover
       else:
         none Prover
 
@@ -317,7 +307,7 @@ proc new*(
       engine = engine,
       discovery = discovery,
       prover = prover,
-      taskPool = taskpool,
+      taskPool = tp,
     )
 
     restServer = RestServerRef
@@ -337,5 +327,5 @@ proc new*(
     restServer: restServer,
     repoStore: repoStore,
     maintenance: maintenance,
-    taskpool: taskpool,
+    taskpool: tp,
   )

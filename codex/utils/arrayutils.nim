@@ -1,5 +1,3 @@
-import std/sequtils
-
 proc createDoubleArray*(
     outerLen, innerLen: int
 ): ptr UncheckedArray[ptr UncheckedArray[byte]] =
