@@ -8,23 +8,23 @@
 ## those terms.
 
 type
-  Sample*[H] = object
-    cellData*: seq[H]
-    merklePaths*: seq[H]
+  Sample*[SomeHash] = object
+    cellData*: seq[SomeHash]
+    merklePaths*: seq[SomeHash]
 
-  PublicInputs*[H] = object
+  PublicInputs*[SomeHash] = object
     slotIndex*: int
-    datasetRoot*: H
-    entropy*: H
+    datasetRoot*: SomeHash
+    entropy*: SomeHash
 
-  ProofInputs*[H] = object
-    entropy*: H
-    datasetRoot*: H
+  ProofInputs*[SomeHash] = object
+    entropy*: SomeHash
+    datasetRoot*: SomeHash
     slotIndex*: Natural
-    slotRoot*: H
+    slotRoot*: SomeHash
     nCellsPerSlot*: Natural
     nSlotsPerDataSet*: Natural
-    slotProof*: seq[H]
+    slotProof*: seq[SomeHash]
       # inclusion proof that shows that the slot root (leaf) is part of the dataset (root)
-    samples*: seq[Sample[H]]
+    samples*: seq[Sample[SomeHash]]
       # inclusion proofs which show that the selected cells (leafs) are part of the slot (roots)
