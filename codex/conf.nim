@@ -87,6 +87,10 @@ type
     noCmd
     prover
 
+  ProverBackendCmd* {.pure.} = enum
+    nimGroth16
+    circomCompat
+
   LogKind* {.pure.} = enum
     Auto = "auto"
     Colors = "colors"
@@ -396,12 +400,28 @@ type
           name: "circom-r1cs"
         .}: InputFile
 
-        circomWasm* {.
-          desc: "The wasm file for the storage circuit",
-          defaultValue: $DefaultCircuitDir / "proof_main.wasm",
-          defaultValueDesc: $DefaultDataDir & "/circuits/proof_main.wasm",
-          name: "circom-wasm"
-        .}: InputFile
+        case proverBackendCmd*: ProverBackendCmd
+        of ProverBackendCmd.nimGroth16:
+          nimGroth16Curve* {.
+            desc: "The curve to use for the storage circuit",
+            defaultValue: "bn128",
+            name: "nim-groth16-curve"
+          .}: string
+
+          circomGraph* {.
+            desc: "The graph file for the storage circuit",
+            defaultValue: $DefaultCircuitDir / "graph.bin",
+            defaultValueDesc: $DefaultDataDir & "/circuits/graph.bin",
+            name: "nim-groth16-graph"
+          .}: InputFile
+        of ProverBackendCmd.circomCompat:
+          circomWasm* {.
+            desc:
+              "The wasm file for the storage circuit - DEPRECATED: use the default nimGroth16 backend",
+            defaultValue: $DefaultCircuitDir / "proof_main.wasm",
+            defaultValueDesc: $DefaultDataDir & "/circuits/proof_main.wasm",
+            name: "circom-wasm"
+          .}: InputFile
 
         circomZkey* {.
           desc: "The zkey file for the storage circuit",
