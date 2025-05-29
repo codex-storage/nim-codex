@@ -1,5 +1,4 @@
 import ./backends/circomcompat
+import ./backends/nimgroth16
 
-export circomcompat
-
-type AnyBackend* = CircomCompat
+export circomcompat, nimgroth16
