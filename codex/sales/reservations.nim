@@ -231,6 +231,11 @@ func key*(availability: Availability): ?!Key =
   return availability.id.key
 
 func maxCollateralPerByte*(availability: Availability): UInt256 =
+  # If freeSize happens to be zero, we convention that the maxCollateralPerByte
+  # should be equal to totalRemainingCollateral.
+  if availability.freeSize == 0.uint64:
+    return availability.totalRemainingCollateral
+
   return availability.totalRemainingCollateral div availability.freeSize.stuint(256)
 
 func key*(reservation: Reservation): ?!Key =

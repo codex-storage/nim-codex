@@ -28,7 +28,7 @@ import pkg/stew/io2
 
 import ./node
 import ./conf
-import ./rng
+import ./rng as random
 import ./rest/api
 import ./stores
 import ./slots
@@ -199,7 +199,7 @@ proc new*(
     .new()
     .withPrivateKey(privateKey)
     .withAddresses(config.listenAddrs)
-    .withRng(Rng.instance())
+    .withRng(random.Rng.instance())
     .withNoise()
     .withMplex(5.minutes, 5.minutes)
     .withMaxConnections(config.maxPeers)
