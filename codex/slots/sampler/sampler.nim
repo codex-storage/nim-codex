@@ -29,14 +29,14 @@ import ./utils
 logScope:
   topics = "codex datasampler"
 
-type DataSampler*[T, H] = ref object of RootObj
+type DataSampler*[SomeTree, SomeHash] = ref object of RootObj
   index: Natural
   blockStore: BlockStore
-  builder: SlotsBuilder[T, H]
+  builder: SlotsBuilder[SomeTree, SomeHash]
 
-func getCell*[T, H](
-    self: DataSampler[T, H], blkBytes: seq[byte], blkCellIdx: Natural
-): seq[H] =
+func getCell*[SomeTree, SomeHash](
+    self: DataSampler[SomeTree, SomeHash], blkBytes: seq[byte], blkCellIdx: Natural
+): seq[SomeHash] =
   let
     cellSize = self.builder.cellSize.uint64
     dataStart = cellSize * blkCellIdx.uint64
@@ -44,11 +44,14 @@ func getCell*[T, H](
 
   doAssert (dataEnd - dataStart) == cellSize, "Invalid cell size"
 
-  blkBytes[dataStart ..< dataEnd].elements(H).toSeq()
+  blkBytes[dataStart ..< dataEnd].elements(SomeHash).toSeq()
 
-proc getSample*[T, H](
-    self: DataSampler[T, H], cellIdx: int, slotTreeCid: Cid, slotRoot: H
-): Future[?!Sample[H]] {.async: (raises: [CancelledError]).} =
+proc getSample*[SomeTree, SomeHash](
+    self: DataSampler[SomeTree, SomeHash],
+    cellIdx: int,
+    slotTreeCid: Cid,
+    slotRoot: SomeHash,
+): Future[?!Sample[SomeHash]] {.async: (raises: [CancelledError]).} =
   let
     cellsPerBlock = self.builder.numBlockCells
     blkCellIdx = cellIdx.toCellInBlk(cellsPerBlock) # block cell index
@@ -77,27 +80,22 @@ proc getSample*[T, H](
     cellProof = blkTree.getProof(blkCellIdx).valueOr:
       return failure("Failed to get proof from block tree")
 
-  success Sample[H](cellData: cellData, merklePaths: (cellProof.path & slotProof.path))
+  success Sample[SomeHash](
+    cellData: cellData, merklePaths: (cellProof.path & slotProof.path)
+  )
 
-proc getProofInput*[T, H](
-    self: DataSampler[T, H], entropy: ProofChallenge, nSamples: Natural
-): Future[?!ProofInputs[H]] {.async: (raises: [CancelledError]).} =
+proc getProofInput*[SomeTree, SomeHash](
+    self: DataSampler[SomeTree, SomeHash], entropy: ProofChallenge, nSamples: Natural
+): Future[?!ProofInputs[SomeHash]] {.async: (raises: [CancelledError]).} =
   ## Generate proofs as input to the proving circuit.
   ##
 
   let
-    entropy = H.fromBytes(array[31, byte].initCopyFrom(entropy[0 .. 30]))
-      # truncate to 31 bytes, otherwise it _might_ be greater than mod
-
-    verifyTree = self.builder.verifyTree.toFailure.valueOr:
-      return failure("Failed to get verify tree")
-
-    slotProof = verifyTree.getProof(self.index).valueOr:
-      return failure("Failed to get slot proof")
-
-    datasetRoot = verifyTree.root().valueOr:
-      return failure("Failed to get dataset root")
-
+    # truncate to 31 bytes, otherwise it _might_ be greater than mod
+    entropy = SomeHash.fromBytes(array[31, byte].initCopyFrom(entropy[0 .. 30]))
+    verifyTree = ?self.builder.verifyTree.toFailure
+    slotProof = ?verifyTree.getProof(self.index)
+    datasetRoot = ?verifyTree.root()
     slotTreeCid = self.builder.manifest.slotRoots[self.index]
     slotRoot = self.builder.slotRoots[self.index]
     cellIdxs = entropy.cellIndices(slotRoot, self.builder.numSlotCells, nSamples)
@@ -108,10 +106,9 @@ proc getProofInput*[T, H](
   trace "Collecting input for proof"
   let samples = collect(newSeq):
     for cellIdx in cellIdxs:
-      (await self.getSample(cellIdx, slotTreeCid, slotRoot)).valueOr:
-        return failure("Failed to get sample")
+      ?(await self.getSample(cellIdx, slotTreeCid, slotRoot))
 
-  success ProofInputs[H](
+  success ProofInputs[SomeHash](
     entropy: entropy,
     datasetRoot: datasetRoot,
     slotProof: slotProof.path,
@@ -122,12 +119,12 @@ proc getProofInput*[T, H](
     samples: samples,
   )
 
-proc new*[T, H](
-    _: type DataSampler[T, H],
+proc new*[SomeTree, SomeHash](
+    _: type DataSampler[SomeTree, SomeHash],
     index: Natural,
     blockStore: BlockStore,
-    builder: SlotsBuilder[T, H],
-): ?!DataSampler[T, H] =
+    builder: SlotsBuilder[SomeTree, SomeHash],
+): ?!DataSampler[SomeTree, SomeHash] =
   if index > builder.slotRoots.high:
     error "Slot index is out of range"
     return failure("Slot index is out of range")
@@ -135,4 +132,6 @@ proc new*[T, H](
   if not builder.verifiable:
     return failure("Cannot instantiate DataSampler for non-verifiable builder")
 
-  success DataSampler[T, H](index: index, blockStore: blockStore, builder: builder)
+  success DataSampler[SomeTree, SomeHash](
+    index: index, blockStore: blockStore, builder: builder
+  )
