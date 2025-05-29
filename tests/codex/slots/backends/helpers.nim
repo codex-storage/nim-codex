@@ -19,13 +19,13 @@ func toJsonDecimal*(big: BigInt[254]): string =
   let s = big.toDecimal.strip(leading = true, trailing = false, chars = {'0'})
   if s.len == 0: "0" else: s
 
-func toJson*(g1: CircomG1): JsonNode =
+func toJson*(g1: CircomCompatG1): JsonNode =
   %*{
     "x": Bn254Fr.fromBytes(g1.x).get.toBig.toJsonDecimal,
     "y": Bn254Fr.fromBytes(g1.y).get.toBig.toJsonDecimal,
   }
 
-func toJson*(g2: CircomG2): JsonNode =
+func toJson*(g2: CircomCompatG2): JsonNode =
   %*{
     "x": [
       Bn254Fr.fromBytes(g2.x[0]).get.toBig.toJsonDecimal,
@@ -38,8 +38,9 @@ func toJson*(g2: CircomG2): JsonNode =
   }
 
 proc toJson*(vpk: VerifyingKey): JsonNode =
-  let ic =
-    toSeq(cast[ptr UncheckedArray[CircomG1]](vpk.ic).toOpenArray(0, vpk.icLen.int - 1))
+  let ic = toSeq(
+    cast[ptr UncheckedArray[CircomCompatG1]](vpk.ic).toOpenArray(0, vpk.icLen.int - 1)
+  )
 
   echo ic.len
   %*{

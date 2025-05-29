@@ -24,7 +24,7 @@ suite "Test Circom Compat Backend - control inputs":
     zkey = "tests/circuits/fixtures/proof_main.zkey"
 
   var
-    circom: CircomCompat
+    circom: CircomCompatBackendRef
     proofInputs: ProofInputs[Poseidon2Hash]
 
   setup:
@@ -33,22 +33,20 @@ suite "Test Circom Compat Backend - control inputs":
       inputJson = !JsonNode.parse(inputData)
 
     proofInputs = Poseidon2Hash.jsonToProofInput(inputJson)
-    circom = CircomCompat.init(r1cs, wasm, zkey)
+    circom = CircomCompatBackendRef.new(r1cs, wasm, zkey).tryGet
 
   teardown:
     circom.release() # this comes from the rust FFI
 
   test "Should verify with correct inputs":
-    let proof = circom.prove(proofInputs).tryGet
-
-    check circom.verify(proof, proofInputs).tryGet
+    let proof = (await circom.prove(proofInputs)).tryGet
+    check (await circom.verify(proof, proofInputs)).tryGet
 
   test "Should not verify with incorrect inputs":
     proofInputs.slotIndex = 1 # change slot index
 
-    let proof = circom.prove(proofInputs).tryGet
-
-    check circom.verify(proof, proofInputs).tryGet == false
+    let proof = (await circom.prove(proofInputs)).tryGet
+    check (await circom.verify(proof, proofInputs)).tryGet == false
 
 suite "Test Circom Compat Backend":
   let
@@ -72,7 +70,7 @@ suite "Test Circom Compat Backend":
     manifest: Manifest
     protected: Manifest
     verifiable: Manifest
-    circom: CircomCompat
+    circom: CircomCompatBackendRef
     proofInputs: ProofInputs[Poseidon2Hash]
     challenge: array[32, byte]
     builder: Poseidon2Builder
@@ -92,7 +90,7 @@ suite "Test Circom Compat Backend":
     builder = Poseidon2Builder.new(store, verifiable).tryGet
     sampler = Poseidon2Sampler.new(slotId, store, builder).tryGet
 
-    circom = CircomCompat.init(r1cs, wasm, zkey)
+    circom = CircomCompatBackendRef.new(r1cs, wasm, zkey).tryGet
     challenge = 1234567.toF.toBytes.toArray32
 
     proofInputs = (await sampler.getProofInput(challenge, samples)).tryGet
@@ -103,13 +101,11 @@ suite "Test Circom Compat Backend":
     await metaTmp.destroyDb()
 
   test "Should verify with correct input":
-    var proof = circom.prove(proofInputs).tryGet
-
-    check circom.verify(proof, proofInputs).tryGet
+    var proof = (await circom.prove(proofInputs)).tryGet
+    check (await circom.verify(proof, proofInputs)).tryGet
 
   test "Should not verify with incorrect input":
     proofInputs.slotIndex = 1 # change slot index
 
-    let proof = circom.prove(proofInputs).tryGet
-
-    check circom.verify(proof, proofInputs).tryGet == false
+    let proof = (await circom.prove(proofInputs)).tryGet
+    check (await circom.verify(proof, proofInputs)).tryGet == false
