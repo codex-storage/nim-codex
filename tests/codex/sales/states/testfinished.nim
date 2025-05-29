@@ -31,7 +31,7 @@ asyncchecksuite "sales state 'finished'":
     market = MockMarket.new()
     let onCleanUp = proc(
         reprocessSlot = false, returnedCollateral = UInt256.none
-    ) {.async.} =
+    ) {.async: (raises: []).} =
       reprocessSlotWas = some reprocessSlot
       returnedCollateralValue = returnedCollateral
 

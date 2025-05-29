@@ -82,7 +82,7 @@ method run*(
     info "Availability found for request, creating reservation"
 
     without reservation =?
-      await reservations.createReservation(
+      await noCancel reservations.createReservation(
         availability.id, request.ask.slotSize, request.id, data.slotIndex,
         request.ask.collateralPerByte, requestEnd,
       ), error:

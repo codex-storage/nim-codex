@@ -26,10 +26,10 @@ type
     onCleanUp*: OnCleanUp
     onFilled*: ?OnFilled
 
-  OnCleanUp* = proc(
-    reprocessSlot = false, returnedCollateral = UInt256.none
-  ): Future[void] {.gcsafe, upraises: [].}
-  OnFilled* = proc(request: StorageRequest, slotIndex: uint64) {.gcsafe, upraises: [].}
+  OnCleanUp* = proc(reprocessSlot = false, returnedCollateral = UInt256.none) {.
+    async: (raises: [])
+  .}
+  OnFilled* = proc(request: StorageRequest, slotIndex: uint64) {.gcsafe, raises: [].}
 
   SalesAgentError = object of CodexError
   AllSlotsFilledError* = object of SalesAgentError
@@ -132,7 +132,7 @@ proc subscribe*(agent: SalesAgent) {.async.} =
   await agent.subscribeCancellation()
   agent.subscribed = true
 
-proc unsubscribe*(agent: SalesAgent) {.async.} =
+proc unsubscribe*(agent: SalesAgent) {.async: (raises: []).} =
   if not agent.subscribed:
     return
 
@@ -143,6 +143,6 @@ proc unsubscribe*(agent: SalesAgent) {.async.} =
 
   agent.subscribed = false
 
-proc stop*(agent: SalesAgent) {.async.} =
+proc stop*(agent: SalesAgent) {.async: (raises: []).} =
   await Machine(agent).stop()
   await agent.unsubscribe()
