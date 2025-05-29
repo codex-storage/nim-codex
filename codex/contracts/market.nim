@@ -370,7 +370,7 @@ method submitProof*(
       discard await market.contract.submitProof(id, proof).confirm(1)
     except Proofs_InvalidProof as parent:
       raise newException(
-        ProofInvalidError, "Failed to fill slot because the slot is not free", parent
+        ProofInvalidError, "Failed to submit proof because the proof is invalid", parent
       )
 
 method markProofAsMissing*(
