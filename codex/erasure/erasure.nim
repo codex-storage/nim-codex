@@ -121,14 +121,14 @@ func indexToPos(steps, idx, step: int): int {.inline.} =
   (idx - step) div steps
 
 proc getPendingBlocks(
-    self: Erasure, manifest: Manifest, indicies: seq[int]
+    self: Erasure, manifest: Manifest, indices: seq[int]
 ): AsyncIter[(?!bt.Block, int)] =
   ## Get pending blocks iterator
   ##
 
   var
     # request blocks from the store
-    pendingBlocks = indicies.map(
+    pendingBlocks = indices.map(
       (i: int) =>
         self.store.getBlock(BlockAddress.init(manifest.treeCid, i)).map(
           (r: ?!bt.Block) => (r, i)
@@ -169,9 +169,9 @@ proc prepareEncodingData(
     strategy = params.strategy.init(
       firstIndex = 0, lastIndex = params.rounded - 1, iterations = params.steps
     )
-    indicies = toSeq(strategy.getIndicies(step))
+    indices = toSeq(strategy.getIndices(step))
     pendingBlocksIter =
-      self.getPendingBlocks(manifest, indicies.filterIt(it < manifest.blocksCount))
+      self.getPendingBlocks(manifest, indices.filterIt(it < manifest.blocksCount))
 
   var resolved = 0
   for fut in pendingBlocksIter:
@@ -186,7 +186,7 @@ proc prepareEncodingData(
 
     resolved.inc()
 
-  for idx in indicies.filterIt(it >= manifest.blocksCount):
+  for idx in indices.filterIt(it >= manifest.blocksCount):
     let pos = indexToPos(params.steps, idx, step)
     trace "Padding with empty block", idx
     shallowCopy(data[pos], emptyBlock)
@@ -219,8 +219,8 @@ proc prepareDecodingData(
     strategy = encoded.protectedStrategy.init(
       firstIndex = 0, lastIndex = encoded.blocksCount - 1, iterations = encoded.steps
     )
-    indicies = toSeq(strategy.getIndicies(step))
-    pendingBlocksIter = self.getPendingBlocks(encoded, indicies)
+    indices = toSeq(strategy.getIndices(step))
+    pendingBlocksIter = self.getPendingBlocks(encoded, indices)
 
   var
     dataPieces = 0

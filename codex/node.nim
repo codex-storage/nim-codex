@@ -697,8 +697,8 @@ proc onStore(
       trace "Unable to create indexing strategy from protected manifest", err = err.msg
       return failure(err)
 
-    without blksIter =? indexer.getIndicies(slotIdx.int).catch, err:
-      trace "Unable to get indicies from strategy", err = err.msg
+    without blksIter =? indexer.getIndices(slotIdx.int).catch, err:
+      trace "Unable to get indices from strategy", err = err.msg
       return failure(err)
 
     if err =? (
