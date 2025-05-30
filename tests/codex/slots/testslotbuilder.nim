@@ -27,7 +27,7 @@ import pkg/codex/slots {.all.}
 privateAccess(Poseidon2Builder) # enable access to private fields
 privateAccess(Manifest) # enable access to private fields
 
-const Strategy = SteppedStrategy
+const Strategy = LinearStrategy
 
 suite "Slot builder":
   let
@@ -67,7 +67,6 @@ suite "Slot builder":
 
   var
     datasetBlocks: seq[bt.Block]
-    padBlocks: seq[bt.Block]
     localStore: BlockStore
     manifest: Manifest
     protectedManifest: Manifest
@@ -167,7 +166,9 @@ suite "Slot builder":
 
   test "Should build slot hashes for all slots":
     let
-      steppedStrategy = Strategy.init(0, numBlocksTotal - 1, numSlots)
+      linearStrategy = Strategy.init(
+        0, protectedManifest.blocksCount - 1, numSlots, numSlots, numPadSlotBlocks
+      )
 
       builder = Poseidon2Builder
         .new(localStore, protectedManifest, cellSize = cellSize)
@@ -176,7 +177,7 @@ suite "Slot builder":
     for i in 0 ..< numSlots:
       let
         expectedHashes = collect(newSeq):
-          for j, idx in steppedStrategy.getIndicies(i):
+          for j, idx in linearStrategy.getIndices(i):
             if j > (protectedManifest.numSlotBlocks - 1):
               emptyDigest
             else:
@@ -190,7 +191,9 @@ suite "Slot builder":
 
   test "Should build slot trees for all slots":
     let
-      steppedStrategy = Strategy.init(0, numBlocksTotal - 1, numSlots)
+      linearStrategy = Strategy.init(
+        0, protectedManifest.blocksCount - 1, numSlots, numSlots, numPadSlotBlocks
+      )
 
       builder = Poseidon2Builder
         .new(localStore, protectedManifest, cellSize = cellSize)
@@ -199,7 +202,7 @@ suite "Slot builder":
     for i in 0 ..< numSlots:
       let
         expectedHashes = collect(newSeq):
-          for j, idx in steppedStrategy.getIndicies(i):
+          for j, idx in linearStrategy.getIndices(i):
             if j > (protectedManifest.numSlotBlocks - 1):
               emptyDigest
             else:
@@ -235,7 +238,9 @@ suite "Slot builder":
 
   test "Should build correct verification root":
     let
-      steppedStrategy = Strategy.init(0, numBlocksTotal - 1, numSlots)
+      linearStrategy = Strategy.init(
+        0, protectedManifest.blocksCount - 1, numSlots, numSlots, numPadSlotBlocks
+      )
       builder = Poseidon2Builder
         .new(localStore, protectedManifest, cellSize = cellSize)
         .tryGet()
@@ -245,7 +250,7 @@ suite "Slot builder":
       slotsHashes = collect(newSeq):
         for i in 0 ..< numSlots:
           let slotHashes = collect(newSeq):
-            for j, idx in steppedStrategy.getIndicies(i):
+            for j, idx in linearStrategy.getIndices(i):
               if j > (protectedManifest.numSlotBlocks - 1):
                 emptyDigest
               else:
@@ -261,7 +266,9 @@ suite "Slot builder":
 
   test "Should build correct verification root manifest":
     let
-      steppedStrategy = Strategy.init(0, numBlocksTotal - 1, numSlots)
+      linearStrategy = Strategy.init(
+        0, protectedManifest.blocksCount - 1, numSlots, numSlots, numPadSlotBlocks
+      )
       builder = Poseidon2Builder
         .new(localStore, protectedManifest, cellSize = cellSize)
         .tryGet()
@@ -269,7 +276,7 @@ suite "Slot builder":
       slotsHashes = collect(newSeq):
         for i in 0 ..< numSlots:
           let slotHashes = collect(newSeq):
-            for j, idx in steppedStrategy.getIndicies(i):
+            for j, idx in linearStrategy.getIndices(i):
               if j > (protectedManifest.numSlotBlocks - 1):
                 emptyDigest
               else:
