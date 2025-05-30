@@ -29,7 +29,7 @@ suite "Test BackendFactory":
       metricsAddress: parseIpAddress("127.0.0.1"),
       persistenceCmd: PersistenceCmd.prover,
       marketplaceAddress: EthAddress.example.some,
-      proverBackendCmd: ProverBackendCmd.nimGroth16,
+      proverBackend: ProverBackendCmd.nimgroth16,
       circomGraph: InputFile("tests/circuits/fixtures/proof_main.bin"),
       circomR1cs: InputFile("tests/circuits/fixtures/proof_main.r1cs"),
       circomZkey: InputFile("tests/circuits/fixtures/proof_main.zkey"),
@@ -47,7 +47,7 @@ suite "Test BackendFactory":
       metricsAddress: parseIpAddress("127.0.0.1"),
       persistenceCmd: PersistenceCmd.prover,
       marketplaceAddress: EthAddress.example.some,
-      proverBackendCmd: ProverBackendCmd.circomCompat,
+      proverBackend: ProverBackendCmd.circomcompat,
       circomWasm: InputFile("tests/circuits/fixtures/proof_main.wasm"),
       circomR1cs: InputFile("tests/circuits/fixtures/proof_main.r1cs"),
       circomZkey: InputFile("tests/circuits/fixtures/proof_main.zkey"),
@@ -65,7 +65,7 @@ suite "Test BackendFactory":
       metricsAddress: parseIpAddress("127.0.0.1"),
       persistenceCmd: PersistenceCmd.prover,
       marketplaceAddress: EthAddress.example.some,
-      proverBackendCmd: ProverBackendCmd.circomCompat,
+      proverBackend: ProverBackendCmd.circomcompat,
       # Set the circuitDir such that the tests/circuits/fixtures/ files
       # will be picked up as local files:
       circuitDir: OutDir("tests/circuits/fixtures"),
@@ -83,7 +83,7 @@ suite "Test BackendFactory":
       metricsAddress: parseIpAddress("127.0.0.1"),
       persistenceCmd: PersistenceCmd.prover,
       marketplaceAddress: EthAddress.example.some,
-      proverBackendCmd: ProverBackendCmd.nimGroth16,
+      proverBackend: ProverBackendCmd.nimgroth16,
       # Set the circuitDir such that the tests/circuits/fixtures/ files
       # will be picked up as local files:
       circuitDir: OutDir("tests/circuits/fixtures"),
@@ -101,7 +101,7 @@ suite "Test BackendFactory":
         nat: NatConfig(hasExtIp: false, nat: NatNone),
         metricsAddress: parseIpAddress("127.0.0.1"),
         persistenceCmd: PersistenceCmd.prover,
-        proverBackendCmd: ProverBackendCmd.nimGroth16,
+        proverBackend: ProverBackendCmd.nimgroth16,
         marketplaceAddress: EthAddress.example.some,
         circuitDir: OutDir(circuitDir),
       )
