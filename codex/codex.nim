@@ -208,9 +208,15 @@ proc new*(
     .withTcpTransport({ServerFlags.ReuseAddr})
     .build()
 
+  let numThreads =
+    if int(config.numThreads) == 0:
+      countProcessors()
+    else:
+      int(config.numThreads)
+
   var tp =
     try:
-      Taskpool.new(numThreads = int(config.numThreads))
+      Taskpool.new(numThreads)
     except CatchableError as exc:
       raiseAssert("Failure in tp initialization:" & exc.msg)
 
