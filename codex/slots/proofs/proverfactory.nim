@@ -14,6 +14,9 @@ import ../../conf
 import ./backends
 import ./prover
 
+logScope:
+  topics = "codex slots proverfactory"
+
 template graphFilePath(config: CodexConf): string =
   config.circuitDir / "proof_main.bin"
 
@@ -82,6 +85,8 @@ proc suggestDownloadTool(config: CodexConf) =
 proc initializeNimGroth16Backend(
     config: CodexConf, tp: Taskpool
 ): ?!NimGroth16BackendRef =
+  trace "Initializing NimGroth16 backend"
+
   let
     graphFile = ?getGraphFile(config)
     r1csFile = ?getR1csFile(config)
@@ -103,6 +108,8 @@ proc initializeNimGroth16Backend(
 proc initializeCircomCompatBackend(
     config: CodexConf, tp: Taskpool
 ): ?!CircomCompatBackendRef =
+  trace "Initializing CircomCompat backend"
+
   let
     r1csFile = ?getR1csFile(config)
     wasmFile = ?getWasmFile(config)
@@ -124,14 +131,16 @@ proc initializeProver*(config: CodexConf, tp: Taskpool): ?!Prover =
     case config.proverBackend
     of ProverBackendCmd.nimgroth16:
       without backend =? initializeNimGroth16Backend(config, tp), err:
+        trace "Unable to initialize NimGroth16 backend: ", err = err.msg
         suggestDownloadTool(config)
-        return failure("Unable to initialize NimGroth16 backend")
+        return failure(err)
 
       Prover.new(backend, config.numProofSamples, tp)
     of ProverBackendCmd.circomcompat:
       without backend =? initializeCircomCompatBackend(config, tp), err:
+        trace "Unable to initialize CircomCompat backend: ", err = err.msg
         suggestDownloadTool(config)
-        return failure("Unable to initialize CircomCompat backend")
+        return failure(err)
 
       Prover.new(backend, config.numProofSamples, tp)
 
