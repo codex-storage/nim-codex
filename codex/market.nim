@@ -20,6 +20,7 @@ type
   MarketError* = object of CodexError
   SlotStateMismatchError* = object of MarketError
   SlotReservationNotAllowedError* = object of MarketError
+  ProofInvalidError* = object of MarketError
   Subscription* = ref object of RootObj
   OnRequest* =
     proc(id: RequestId, ask: StorageAsk, expiry: uint64) {.gcsafe, upraises: [].}
