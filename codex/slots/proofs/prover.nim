@@ -56,7 +56,6 @@ proc prove*[SomeSampler](
 
   logScope:
     cid = manifest.treeCid
-    slot = slotIdx
     challenge = challenge
 
   trace "Received proof challenge"
