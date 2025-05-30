@@ -175,7 +175,7 @@ proc verify*(
 
 proc new*(
     _: type NimGroth16BackendRef,
-    graph: string,
+    graphPath: string,
     r1csPath: string,
     zkeyPath: string,
     curve = DefaultCurve,
@@ -190,7 +190,7 @@ proc new*(
   ##
 
   let
-    graph = ?loadGraph(graph).catch
+    graph = ?loadGraph(graphPath).catch
     r1cs = ?parseR1CS(r1csPath).catch
     zkey = ?parseZKey(zkeyPath).catch
 
