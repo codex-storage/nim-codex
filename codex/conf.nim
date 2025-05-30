@@ -18,6 +18,7 @@ import std/terminal # Is not used in tests
 import std/options
 import std/strutils
 import std/typetraits
+import std/cpuinfo
 
 import pkg/chronos
 import pkg/chronicles/helpers
@@ -54,9 +55,7 @@ export
   DefaultQuotaBytes, DefaultBlockTtl, DefaultBlockInterval, DefaultNumBlocksPerInterval,
   DefaultRequestCacheSize
 
-type ThreadCount* = distinct Natural
-
-proc `==`*(a, b: ThreadCount): bool {.borrow.}
+type ThreadCount* = range[0 .. 256]
 
 proc defaultDataDir*(): string =
   let dataDir =
@@ -76,7 +75,6 @@ const
 
   DefaultDataDir* = defaultDataDir()
   DefaultCircuitDir* = defaultDataDir() / "circuits"
-  DefaultThreadCount* = ThreadCount(0)
 
 type
   StartUpCmd* {.pure.} = enum
@@ -88,8 +86,11 @@ type
     prover
 
   ProverBackendCmd* {.pure.} = enum
-    nimGroth16
-    circomCompat
+    nimgroth16
+    circomcompat
+
+  Curves* {.pure.} = enum
+    bn128 = "bn128"
 
   LogKind* {.pure.} = enum
     Auto = "auto"
@@ -197,7 +198,8 @@ type
     numThreads* {.
       desc:
         "Number of worker threads (\"0\" = use as many threads as there are CPU cores available)",
-      defaultValue: DefaultThreadCount,
+      defaultValueDesc: "0",
+      defaultValue: ThreadCount(0),
       name: "num-threads"
     .}: ThreadCount
 
@@ -384,6 +386,22 @@ type
           name: "circuit-dir"
         .}: OutDir
 
+        proverBackend* {.
+          desc:
+            "The backend to use for the prover. " &
+            "Must be one of: nimgroth16, circomcompat",
+          defaultValue: ProverBackendCmd.nimgroth16,
+          defaultValueDesc: "nimgroth16",
+          name: "prover-backend"
+        .}: ProverBackendCmd
+
+        curve* {.
+          desc: "The curve to use for the storage circuit",
+          defaultValue: Curves.bn128,
+          defaultValueDesc: $Curves.bn128,
+          name: "curve"
+        .}: Curves
+
         circomR1cs* {.
           desc: "The r1cs file for the storage circuit",
           defaultValue: $DefaultCircuitDir / "proof_main.r1cs",
@@ -391,28 +409,21 @@ type
           name: "circom-r1cs"
         .}: InputFile
 
-        case proverBackendCmd*: ProverBackendCmd
-        of ProverBackendCmd.nimGroth16:
-          nimGroth16Curve* {.
-            desc: "The curve to use for the storage circuit",
-            defaultValue: "bn128",
-            name: "nim-groth16-curve"
-          .}: string
+        circomGraph* {.
+          desc:
+            "The graph file for the storage circuit (only used with nimgroth16 backend)",
+          defaultValue: $DefaultCircuitDir / "proof_main.bin",
+          defaultValueDesc: $DefaultDataDir & "/circuits/proof_main.bin",
+          name: "circom-graph"
+        .}: InputFile
 
-          circomGraph* {.
-            desc: "The graph file for the storage circuit",
-            defaultValue: $DefaultCircuitDir / "graph.bin",
-            defaultValueDesc: $DefaultDataDir & "/circuits/graph.bin",
-            name: "nim-groth16-graph"
-          .}: InputFile
-        of ProverBackendCmd.circomCompat:
-          circomWasm* {.
-            desc:
-              "The wasm file for the storage circuit - DEPRECATED: use the default nimGroth16 backend",
-            defaultValue: $DefaultCircuitDir / "proof_main.wasm",
-            defaultValueDesc: $DefaultDataDir & "/circuits/proof_main.wasm",
-            name: "circom-wasm"
-          .}: InputFile
+        circomWasm* {.
+          desc:
+            "The wasm file for the storage circuit (only used with circomcompat backend)",
+          defaultValue: $DefaultCircuitDir / "proof_main.wasm",
+          defaultValueDesc: $DefaultDataDir & "/circuits/proof_main.wasm",
+          name: "circom-wasm"
+        .}: InputFile
 
         circomZkey* {.
           desc: "The zkey file for the storage circuit",
@@ -421,11 +432,11 @@ type
           name: "circom-zkey"
         .}: InputFile
 
-        # TODO: should probably be hidden and behind a feature flag
         circomNoZkey* {.
           desc: "Ignore the zkey file - use only for testing!",
           defaultValue: false,
-          name: "circom-no-zkey"
+          name: "circom-no-zkey",
+          hidden
         .}: bool
 
         numProofSamples* {.
@@ -516,7 +527,7 @@ const
 
 proc parseCmdArg*(
     T: typedesc[MultiAddress], input: string
-): MultiAddress {.upraises: [ValueError].} =
+): MultiAddress {.raises: [ValueError].} =
   var ma: MultiAddress
   try:
     let res = MultiAddress.init(input)
@@ -530,12 +541,8 @@ proc parseCmdArg*(
     quit QuitFailure
   ma
 
-proc parseCmdArg*(T: type ThreadCount, input: string): T {.upraises: [ValueError].} =
-  let count = parseInt(input)
-  if count != 0 and count < 2:
-    warn "Invalid number of threads", input = input
-    quit QuitFailure
-  ThreadCount(count)
+proc parseCmdArg*(T: type ThreadCount, val: string): T {.raises: [ValueError].} =
+  ThreadCount(val.parseUInt())
 
 proc parseCmdArg*(T: type SignedPeerRecord, uri: string): T =
   var res: SignedPeerRecord
@@ -597,7 +604,7 @@ proc parseCmdArg*(T: type Duration, val: string): T =
 
 proc readValue*(
     r: var TomlReader, val: var EthAddress
-) {.upraises: [SerializationError, IOError].} =
+) {.raises: [SerializationError, IOError].} =
   val = EthAddress.init(r.readValue(string)).get()
 
 proc readValue*(r: var TomlReader, val: var SignedPeerRecord) =
@@ -625,7 +632,7 @@ proc readValue*(r: var TomlReader, val: var MultiAddress) =
 
 proc readValue*(
     r: var TomlReader, val: var NBytes
-) {.upraises: [SerializationError, IOError].} =
+) {.raises: [SerializationError, IOError].} =
   var value = 0'i64
   var str = r.readValue(string)
   let count = parseSize(str, value, alwaysBin = true)
@@ -636,7 +643,7 @@ proc readValue*(
 
 proc readValue*(
     r: var TomlReader, val: var ThreadCount
-) {.upraises: [SerializationError, IOError].} =
+) {.raises: [SerializationError, IOError].} =
   var str = r.readValue(string)
   try:
     val = parseCmdArg(ThreadCount, str)
@@ -645,7 +652,7 @@ proc readValue*(
 
 proc readValue*(
     r: var TomlReader, val: var Duration
-) {.upraises: [SerializationError, IOError].} =
+) {.raises: [SerializationError, IOError].} =
   var str = r.readValue(string)
   var dur: Duration
   let count = parseDuration(str, dur)
@@ -712,7 +719,7 @@ proc stripAnsi*(v: string): string =
 
   res
 
-proc updateLogLevel*(logLevel: string) {.upraises: [ValueError].} =
+proc updateLogLevel*(logLevel: string) {.raises: [ValueError].} =
   # Updates log levels (without clearing old ones)
   let directives = logLevel.split(";")
   try:
