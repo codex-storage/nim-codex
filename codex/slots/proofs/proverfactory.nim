@@ -91,7 +91,7 @@ proc initializeNimGroth16Backend(
     $graphFile,
     $r1csFile,
     $zkeyFile,
-    config.nimGroth16Curve,
+    $config.curve,
     config.maxSlotDepth,
     config.maxDatasetDepth,
     config.maxBlockDepth,
@@ -121,14 +121,14 @@ proc initializeCircomCompatBackend(
 
 proc initializeProver*(config: CodexConf, tp: Taskpool): ?!Prover =
   let prover =
-    case config.proverBackendCmd
-    of ProverBackendCmd.nimGroth16:
+    case config.proverBackend
+    of ProverBackendCmd.nimgroth16:
       without backend =? initializeNimGroth16Backend(config, tp), err:
         suggestDownloadTool(config)
         return failure("Unable to initialize NimGroth16 backend")
 
       Prover.new(backend, config.numProofSamples, tp)
-    of ProverBackendCmd.circomCompat:
+    of ProverBackendCmd.circomcompat:
       without backend =? initializeCircomCompatBackend(config, tp), err:
         suggestDownloadTool(config)
         return failure("Unable to initialize CircomCompat backend")
