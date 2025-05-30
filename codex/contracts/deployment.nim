@@ -18,9 +18,9 @@ const knownAddresses = {
   # Taiko Alpha-3 Testnet
   "167005":
     {"Marketplace": Address.init("0x948CF9291b77Bd7ad84781b9047129Addf1b894F")}.toTable,
-  # Codex Testnet - Apr 22 2025 12:42:16 PM (+00:00 UTC)
+  # Codex Testnet - May 30 2025 07:33:06 AM (+00:00 UTC)
   "789987":
-    {"Marketplace": Address.init("0xDB2908d724a15d05c0B6B8e8441a8b36E67476d3")}.toTable,
+    {"Marketplace": Address.init("0x7c7a749DE7156305E55775e7Ab3931abd6f7300E")}.toTable,
 }.toTable
 
 proc getKnownAddress(T: type, chainId: UInt256): ?Address =
