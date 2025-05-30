@@ -133,7 +133,7 @@ asyncchecksuite "Test Node - Host contracts":
       0, verifiable.blocksCount - 1, verifiable.numSlots
     )
 
-    for index in indexer.getIndicies(1):
+    for index in indexer.getIndices(1):
       let
         blk = (await localStore.getBlock(verifiable.treeCid, index)).tryGet
         key = (createBlockExpirationMetadataKey(blk.cid)).tryGet

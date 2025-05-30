@@ -48,35 +48,35 @@ func getIter(first, last, step: int): Iter[int] =
   {.cast(noSideEffect).}:
     Iter[int].new(first, last, step)
 
-func getLinearIndicies(self: IndexingStrategy, iteration: int): Iter[int] =
+func getLinearIndices(self: IndexingStrategy, iteration: int): Iter[int] =
   let
     first = self.firstIndex + iteration * self.step
     last = min(first + self.step - 1, self.lastIndex)
 
   getIter(first, last, 1)
 
-func getSteppedIndicies(self: IndexingStrategy, iteration: int): Iter[int] =
+func getSteppedIndices(self: IndexingStrategy, iteration: int): Iter[int] =
   let
     first = self.firstIndex + iteration
     last = self.lastIndex
 
   getIter(first, last, self.iterations)
 
-func getStrategyIndicies(self: IndexingStrategy, iteration: int): Iter[int] =
+func getStrategyIndices(self: IndexingStrategy, iteration: int): Iter[int] =
   case self.strategyType
   of StrategyType.LinearStrategy:
-    self.getLinearIndicies(iteration)
+    self.getLinearIndices(iteration)
   of StrategyType.SteppedStrategy:
-    self.getSteppedIndicies(iteration)
+    self.getSteppedIndices(iteration)
 
-func getIndicies*(
+func getIndices*(
     self: IndexingStrategy, iteration: int
 ): Iter[int] {.raises: [IndexingError].} =
   self.checkIteration(iteration)
   {.cast(noSideEffect).}:
     Iter[int].new(
       iterator (): int {.gcsafe.} =
-        for value in self.getStrategyIndicies(iteration):
+        for value in self.getStrategyIndices(iteration):
           yield value
 
         for i in 0 ..< self.padBlockCount:
