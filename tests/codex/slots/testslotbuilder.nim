@@ -177,7 +177,7 @@ suite "Slot builder":
     for i in 0 ..< numSlots:
       let
         expectedHashes = collect(newSeq):
-          for j, idx in linearStrategy.getIndicies(i):
+          for j, idx in linearStrategy.getIndices(i):
             if j > (protectedManifest.numSlotBlocks - 1):
               emptyDigest
             else:
@@ -202,7 +202,7 @@ suite "Slot builder":
     for i in 0 ..< numSlots:
       let
         expectedHashes = collect(newSeq):
-          for j, idx in linearStrategy.getIndicies(i):
+          for j, idx in linearStrategy.getIndices(i):
             if j > (protectedManifest.numSlotBlocks - 1):
               emptyDigest
             else:
@@ -250,7 +250,7 @@ suite "Slot builder":
       slotsHashes = collect(newSeq):
         for i in 0 ..< numSlots:
           let slotHashes = collect(newSeq):
-            for j, idx in linearStrategy.getIndicies(i):
+            for j, idx in linearStrategy.getIndices(i):
               if j > (protectedManifest.numSlotBlocks - 1):
                 emptyDigest
               else:
@@ -276,7 +276,7 @@ suite "Slot builder":
       slotsHashes = collect(newSeq):
         for i in 0 ..< numSlots:
           let slotHashes = collect(newSeq):
-            for j, idx in linearStrategy.getIndicies(i):
+            for j, idx in linearStrategy.getIndices(i):
               if j > (protectedManifest.numSlotBlocks - 1):
                 emptyDigest
               else:

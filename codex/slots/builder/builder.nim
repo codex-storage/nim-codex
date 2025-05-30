@@ -113,17 +113,17 @@ func numSlotCells*[T, H](self: SlotsBuilder[T, H]): Natural =
 
   self.numBlockCells * self.numSlotBlocks
 
-func slotIndiciesIter*[T, H](self: SlotsBuilder[T, H], slot: Natural): ?!Iter[int] =
+func slotIndicesIter*[T, H](self: SlotsBuilder[T, H], slot: Natural): ?!Iter[int] =
   ## Returns the slot indices.
   ##
 
-  self.strategy.getIndicies(slot).catch
+  self.strategy.getIndices(slot).catch
 
-func slotIndicies*[T, H](self: SlotsBuilder[T, H], slot: Natural): seq[int] =
+func slotIndices*[T, H](self: SlotsBuilder[T, H], slot: Natural): seq[int] =
   ## Returns the slot indices.
   ##
 
-  if iter =? self.strategy.getIndicies(slot).catch:
+  if iter =? self.strategy.getIndices(slot).catch:
     return toSeq(iter)
 
 func manifest*[T, H](self: SlotsBuilder[T, H]): Manifest =
@@ -184,7 +184,7 @@ proc getCellHashes*[T, H](
     slotIndex = slotIndex
 
   let hashes = collect(newSeq):
-    for i, blkIdx in self.strategy.getIndicies(slotIndex):
+    for i, blkIdx in self.strategy.getIndices(slotIndex):
       logScope:
         blkIdx = blkIdx
         pos = i
