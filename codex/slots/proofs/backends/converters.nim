@@ -61,8 +61,8 @@ func toGroth16Proof*(proof: CircomCompatProof): Groth16Proof =
 
 func toG1*(g: NimGroth16G1): G1Point =
   var
-    x: seq[byte]
-    y: seq[byte]
+    x: array[32, byte]
+    y: array[32, byte]
 
   assert x.marshal(g.x, Endianness.littleEndian)
   assert y.marshal(g.y, Endianness.littleEndian)
@@ -71,8 +71,8 @@ func toG1*(g: NimGroth16G1): G1Point =
 
 func toG2*(g: NimGroth16G2): G2Point =
   var
-    x: array[2, seq[byte]]
-    y: array[2, seq[byte]]
+    x: array[2, array[32, byte]]
+    y: array[2, array[32, byte]]
 
   assert x[0].marshal(g.x.coords[0], Endianness.littleEndian)
   assert x[1].marshal(g.x.coords[1], Endianness.littleEndian)
