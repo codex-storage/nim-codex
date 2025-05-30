@@ -271,8 +271,8 @@ template multinodesuite*(suiteName: string, body: untyped) =
           "vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.r1cs",
         )
         config.addCliOption(
-          PersistenceCmd.prover, "--circom-wasm",
-          "vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.wasm",
+          PersistenceCmd.prover, "--circom-graph",
+          "vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.bin",
         )
         config.addCliOption(
           PersistenceCmd.prover, "--circom-zkey",
