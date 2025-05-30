@@ -427,22 +427,24 @@ asyncchecksuite "Reservations module":
 
     check not called
 
-  test "OnAvailabilitySaved called when availability totalCollateral is increased":
+  test "OnAvailabilitySaved called when availability totalRemainingCollateral is increased":
     var availability = createAvailability()
     var added: Availability
     reservations.OnAvailabilitySaved = proc(a: Availability) {.async: (raises: []).} =
       added = a
-    availability.totalCollateral = availability.totalCollateral + 1.u256
+    availability.totalRemainingCollateral =
+      availability.totalRemainingCollateral + 1.u256
     discard await reservations.update(availability)
 
     check added == availability
 
-  test "OnAvailabilitySaved is not called when availability totalCollateral is decreased":
+  test "OnAvailabilitySaved is not called when availability totalRemainingCollateral is decreased":
     var availability = createAvailability()
     var called = false
     reservations.OnAvailabilitySaved = proc(a: Availability) {.async: (raises: []).} =
       called = true
-    availability.totalCollateral = availability.totalCollateral - 1.u256
+    availability.totalRemainingCollateral =
+      availability.totalRemainingCollateral - 1.u256
     discard await reservations.update(availability)
 
     check not called
