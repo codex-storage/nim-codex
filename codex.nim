@@ -10,7 +10,6 @@
 import pkg/chronos
 import pkg/questionable
 import pkg/confutils
-import pkg/confutils/defs
 import pkg/confutils/std/net
 import pkg/confutils/toml/defs as confTomlDefs
 import pkg/confutils/toml/std/net as confTomlNet

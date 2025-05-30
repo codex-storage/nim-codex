@@ -35,17 +35,14 @@ export backends
 logScope:
   topics = "codex prover"
 
-type
-  Prover* = ref object
-    case backendKind: ProverBackendCmd
-    of ProverBackendCmd.nimGroth16:
-      groth16Backend*: NimGroth16BackendRef
-    of ProverBackendCmd.circomCompat:
-      circomCompatBackend*: CircomCompatBackendRef
-    nSamples: int
-    tp: Taskpool
-
-  AnyBackend* = NimGroth16BackendRef or CircomCompatBackendRef
+type Prover* = ref object
+  case backendKind: ProverBackendCmd
+  of ProverBackendCmd.nimgroth16:
+    groth16Backend*: NimGroth16BackendRef
+  of ProverBackendCmd.circomcompat:
+    circomCompatBackend*: CircomCompatBackendRef
+  nSamples: int
+  tp: Taskpool
 
 proc prove*[SomeSampler](
     self: Prover,
@@ -69,7 +66,7 @@ proc prove*[SomeSampler](
     # prove slot
 
   case self.backendKind
-  of ProverBackendCmd.nimGroth16:
+  of ProverBackendCmd.nimgroth16:
     let
       proof = ?await self.groth16Backend.prove(proofInput)
       verified =
@@ -78,7 +75,7 @@ proc prove*[SomeSampler](
         else:
           bool.none
     return success (proof.toGroth16Proof, verified)
-  of ProverBackendCmd.circomCompat:
+  of ProverBackendCmd.circomcompat:
     let
       proof = ?await self.circomCompatBackend.prove(proofInput)
       verified =
@@ -93,7 +90,7 @@ proc new*(
 ): Prover =
   Prover(
     circomCompatBackend: backend,
-    backendKind: ProverBackendCmd.circomCompat,
+    backendKind: ProverBackendCmd.circomcompat,
     nSamples: nSamples,
     tp: tp,
   )
@@ -103,7 +100,7 @@ proc new*(
 ): Prover =
   Prover(
     groth16Backend: backend,
-    backendKind: ProverBackendCmd.nimGroth16,
+    backendKind: ProverBackendCmd.nimgroth16,
     nSamples: nSamples,
     tp: tp,
   )
