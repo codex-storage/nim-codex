@@ -423,10 +423,12 @@ proc nattedAddress*(
           it.remapAddr(ip = newIP, port = tcp)
         else:
           # NAT mapping failed - use original address
-          echo "Failed to get external IP, using original address", it
+          # TODO: `trace` breaks in the mapIt template
+          # trace "Failed to get external IP, using original address", it
           discoveryAddrs.add(getMultiAddrWithIPAndUDPPort(ipPart.get, udpPort))
           it
       else:
         # Invalid multiaddress format - return as is
         it
+
   (newAddrs, discoveryAddrs)
