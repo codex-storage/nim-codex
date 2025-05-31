@@ -71,9 +71,7 @@ proc getZkeyFile*(config: CodexConf): ?!string =
 
 proc suggestDownloadTool(config: CodexConf) =
   without address =? config.marketplaceAddress:
-    raise (ref Defect)(
-      msg: "Proving backend initializing while marketplace address not set."
-    )
+    raiseAssert("Proving backend initializing while marketplace address not set.")
 
   let
     tokens = ["cirdl", "\"" & $config.circuitDir & "\"", config.ethProvider, $address]
