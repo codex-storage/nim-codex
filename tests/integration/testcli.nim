@@ -1,5 +1,7 @@
 import std/tempfiles
 import std/times
+import std/appdirs
+import std/paths
 import codex/conf
 import codex/utils/fileutils
 import ../asynctest
@@ -65,8 +67,11 @@ asyncchecksuite "Command line interface":
 
   test "complains when persistence is enabled without ethereum account":
     let node = await startCodex(@["persistence"])
+
+    defer:
+      await node.stop(expectedErrCode = 1)
+
     await node.waitUntilOutput("Persistence enabled, but no Ethereum account was set")
-    await node.stop(expectedErrCode = 1)
 
   test "complains when ethereum private key file has wrong permissions":
     let unsafeKeyFile = genTempPath("", "")
@@ -78,45 +83,66 @@ asyncchecksuite "Command line interface":
         "--eth-private-key=" & unsafeKeyFile,
       ]
     )
+
+    defer:
+      await node.stop(expectedErrCode = 1)
+      discard removeFile(unsafeKeyFile)
+
     await node.waitUntilOutput(
       "Ethereum private key file does not have safe file permissions"
     )
-    await node.stop(expectedErrCode = 1)
-    discard removeFile(unsafeKeyFile)
 
-  let
-    marketplaceArg = "--marketplace-address=" & $EthAddress.example
-    expectedDownloadInstruction =
-      "Proving circuit files are not found. Please run the following to download them:"
+  let expectedDownloadInstruction =
+    "Proving circuit files are not found. Please run the following to download them:"
 
   test "suggests downloading of circuit files when persistence is enabled without accessible r1cs file":
-    let node = await startCodex(@["persistence", "prover", marketplaceArg])
-    await node.waitUntilOutput(expectedDownloadInstruction)
-    await node.stop(expectedErrCode = 1)
-
-  test "suggests downloading of circuit files when persistence is enabled without accessible wasm file":
     let node = await startCodex(
       @[
         "persistence",
-        "--eth-provider=" & "ws://localhost:" & $HardhatPort,
         "prover",
-        marketplaceArg,
-        "--circom-r1cs=tests/circuits/fixtures/proof_main.r1cs",
+        "--marketplace-address=" & $EthAddress.example,
+        "--prover-backend=nimgroth16",
       ]
     )
+
+    defer:
+      await node.stop(expectedErrCode = 1)
+
     await node.waitUntilOutput(expectedDownloadInstruction)
-    await node.stop(expectedErrCode = 1)
 
   test "suggests downloading of circuit files when persistence is enabled without accessible zkey file":
     let node = await startCodex(
       @[
         "persistence",
         "--eth-provider=" & "ws://localhost:" & $HardhatPort,
+
         "prover",
-        marketplaceArg,
+
+        "--marketplace-address=" & $EthAddress.example,
+        "--prover-backend=nimgroth16",
         "--circom-r1cs=tests/circuits/fixtures/proof_main.r1cs",
-        "--circom-wasm=tests/circuits/fixtures/proof_main.wasm",
       ]
     )
+
+    defer:
+      await node.stop(expectedErrCode = 1)
+
     await node.waitUntilOutput(expectedDownloadInstruction)
-    await node.stop(expectedErrCode = 1)
+
+  test "suggests downloading of circuit files when persistence is enabled without accessible graph file":
+    let node = await startCodex(
+      @[
+        "persistence",
+        "--eth-provider=" & "ws://localhost:" & $HardhatPort,
+        "prover",
+        "--marketplace-address=" & $EthAddress.example,
+        "--prover-backend=nimgroth16",
+        "--circom-r1cs=tests/circuits/fixtures/proof_main.r1cs",
+        "--circom-zkey=tests/circuits/fixtures/proof_main.zkey",
+      ]
+    )
+
+    defer:
+      await node.stop(expectedErrCode = 1)
+
+    await node.waitUntilOutput(expectedDownloadInstruction)
