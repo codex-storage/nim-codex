@@ -65,6 +65,10 @@ asyncchecksuite "Command line interface":
 
   test "complains when persistence is enabled without ethereum account":
     let node = await startCodex(@["persistence"])
+
+    defer:
+      await node.stop()
+
     await node.waitUntilOutput("Persistence enabled, but no Ethereum account was set")
     await node.stop(expectedErrCode = 1)
 
@@ -84,10 +88,8 @@ asyncchecksuite "Command line interface":
     await node.stop(expectedErrCode = 1)
     discard removeFile(unsafeKeyFile)
 
-  let
-    marketplaceArg = "--marketplace-address=" & $EthAddress.example
-    expectedDownloadInstruction =
-      "Proving circuit files are not found. Please run the following to download them:"
+  let expectedDownloadInstruction =
+    "Proving circuit files are not found. Please run the following to download them:"
 
   test "suggests downloading of circuit files when persistence is enabled without accessible r1cs file":
     let node = await startCodex(@["persistence", "prover", marketplaceArg])
@@ -104,6 +106,10 @@ asyncchecksuite "Command line interface":
         "--circom-r1cs=tests/circuits/fixtures/proof_main.r1cs",
       ]
     )
+
+    defer:
+      await node.stop()
+
     await node.waitUntilOutput(expectedDownloadInstruction)
     await node.stop(expectedErrCode = 1)
 
@@ -115,8 +121,11 @@ asyncchecksuite "Command line interface":
         "prover",
         marketplaceArg,
         "--circom-r1cs=tests/circuits/fixtures/proof_main.r1cs",
-        "--circom-wasm=tests/circuits/fixtures/proof_main.wasm",
       ]
     )
+
+    defer:
+      await node.stop()
+
     await node.waitUntilOutput(expectedDownloadInstruction)
     await node.stop(expectedErrCode = 1)
