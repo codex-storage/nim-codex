@@ -1,7 +1,9 @@
 import std/net
+import std/strformat
 import std/sequtils
+import std/json except `%`, `%*`
 import pkg/nimcrypto
-from pkg/libp2p import `==`, `$`, MultiHash, init
+from pkg/libp2p import `==`, `$`, MultiHash, init, digest, hex
 import pkg/codex/units
 import pkg/codex/utils/iter
 import pkg/codex/manifest
@@ -10,7 +12,6 @@ import pkg/codex/bittorrent/manifest
 import ./twonodes
 import ../examples
 import ../codex/examples
-import json
 
 proc createInfoDictionaryForContent(
     content: seq[byte], pieceLength = DefaultPieceLength.int, name = string.none
@@ -55,10 +56,91 @@ proc createInfoDictionaryForContent(
   success info
 
 twonodessuite "BitTorrent API":
+  setup:
+    # why we do not seem to need this? yet it is twice as fast with this
+    let infoPeer1 = (await client1.info()).tryGet
+    let peerId1 = infoPeer1["id"].getStr()
+    let announceAddress1 = infoPeer1["announceAddresses"][0].getStr()
+    (await client2.connect(peerId1, announceAddress1)).tryGet
+
   test "uploading and downloading the content", twoNodesConfig:
     let exampleContent = exampleString(100)
     let infoHash = (await client1.uploadTorrent(exampleContent)).tryGet
     let downloadedContent = (await client2.downloadTorrent(infoHash)).tryGet
+    check downloadedContent == exampleContent
+
+  test "downloading content using magnet link", twoNodesConfig:
+    let exampleContent = exampleString(100)
+    let multiHash = (await client1.uploadTorrent(exampleContent)).tryGet
+    let infoHash = byteutils.toHex(multiHash.data.buffer[multiHash.dpos .. ^1])
+    let magnetLink = fmt"magnet:?xt=urn:btih:{infoHash}"
+    let downloadedContent = (await client2.downloadTorrent(magnetLink)).tryGet
+    check downloadedContent == exampleContent
+
+  test "downloading content using torrent file", twoNodesConfig:
+    let exampleFileName = "example.txt"
+    let exampleContent = exampleString(100)
+    let multiHash = (
+      await client1.uploadTorrent(
+        contents = exampleContent,
+        filename = some exampleFileName,
+        contentType = "text/plain",
+      )
+    ).tryGet
+
+    let expectedInfo = createInfoDictionaryForContent(
+      content = exampleContent.toBytes, name = some exampleFileName
+    ).tryGet
+
+    let expectedInfoBencoded = expectedInfo.bencode()
+    let expectedMultiHash =
+      MultiHash.digest($Sha1HashCodec, expectedInfoBencoded).mapFailure.tryGet()
+
+    assert expectedMultiHash == multiHash
+
+    let torrentFileContent = "d4:info" & string.fromBytes(expectedInfoBencoded) & "e"
+
+    let downloadedContent = (
+      await client2.downloadTorrent(
+        contents = torrentFileContent,
+        contentType = "application/octet-stream",
+        endpoint = "torrent-file",
+      )
+    ).tryGet
+    check downloadedContent == exampleContent
+
+  test "downloading content using torrent file (JSON format)", twoNodesConfig:
+    let exampleFileName = "example.txt"
+    let exampleContent = exampleString(100)
+    let multiHash = (
+      await client1.uploadTorrent(
+        contents = exampleContent,
+        filename = some exampleFileName,
+        contentType = "text/plain",
+      )
+    ).tryGet
+
+    let expectedInfo = createInfoDictionaryForContent(
+      content = exampleContent.toBytes, name = some exampleFileName
+    ).tryGet
+
+    let expectedInfoBencoded = expectedInfo.bencode()
+    let expectedMultiHash =
+      MultiHash.digest($Sha1HashCodec, expectedInfoBencoded).mapFailure.tryGet()
+
+    assert expectedMultiHash == multiHash
+
+    let infoJson = %*{"info": %expectedInfo}
+
+    let torrentJson = $infoJson
+
+    let downloadedContent = (
+      await client2.downloadTorrent(
+        contents = torrentJson,
+        contentType = "application/json",
+        endpoint = "torrent-file",
+      )
+    ).tryGet
     check downloadedContent == exampleContent
 
   test "uploading and downloading the content (exactly one piece long)", twoNodesConfig:
