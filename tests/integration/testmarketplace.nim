@@ -291,8 +291,7 @@ marketplacesuite "Marketplace payouts":
 
     check eventually(
       await providerApi.saleStateIs(slotId, "SaleCancelled"),
-      timeout = 5 * 1000,
-      pollInterval = 200,
+      pollInterval = 100,
     )
 
     await advanceToNextPeriod()
