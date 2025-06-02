@@ -296,7 +296,7 @@ asyncchecksuite "RepoStore":
         beIter: auto
     ): Future[seq[BlockExpiration]] {.async: (raises: [CancelledError]).} =
       var expirations = newSeq[BlockExpiration](0)
-      without iter =? (await beIter), err:
+      without iter =? (await beIter):
         return expirations
       for beFut in toSeq(iter):
         if value =? (await beFut):
