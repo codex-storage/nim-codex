@@ -20,14 +20,21 @@ suite "sales state 'unknown'":
   let slotId = slotId(request.id, slotIndex)
 
   var market: MockMarket
+  var context: SalesContext
   var agent: SalesAgent
   var state: SaleUnknown
 
   setup:
     market = MockMarket.new()
-    let context = SalesContext(market: market)
-    agent = newSalesAgent(context, request.id, slotIndex, StorageRequest.none)
+    context = SalesContext(market: market)
+    agent = newSalesAgent(context, request.id, slotIndex, request.some)
     state = SaleUnknown.new()
+
+  test "switches to error state when the request cannot be retrieved":
+    agent = newSalesAgent(context, request.id, slotIndex, StorageRequest.none)
+    let next = await state.run(agent)
+    check !next of SaleErrored
+    check SaleErrored(!next).error.msg == "request could not be retrieved"
 
   test "switches to error state when on chain state cannot be fetched":
     let next = await state.run(agent)
@@ -37,6 +44,7 @@ suite "sales state 'unknown'":
     market.slotState[slotId] = SlotState.Free
     let next = await state.run(agent)
     check !next of SaleErrored
+    check SaleErrored(!next).error.msg == "Slot state on chain should not be 'free'"
 
   test "switches to filled state when on chain state is 'filled'":
     market.slotState[slotId] = SlotState.Filled
