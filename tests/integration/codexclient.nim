@@ -94,6 +94,16 @@ proc info*(
   let response = await client.get(client.baseurl & "/debug/info")
   return JsonNode.parse(await response.body)
 
+proc connect*(
+    client: CodexClient, peerId: string, address: string
+): Future[?!void] {.async: (raises: [CancelledError, HttpError]).} =
+  let url = client.baseurl & "/connect/" & peerId & "?addrs=" & address
+  let response = await client.get(url)
+  if response.status != 200:
+    return
+      failure("Cannot connect to node with peerId: " & peerId & ": " & $response.status)
+  return success()
+
 proc setLogLevel*(
     client: CodexClient, level: string
 ): Future[void] {.async: (raises: [CancelledError, HttpError]).} =
@@ -192,6 +202,43 @@ proc downloadTorrent*(
     await client.get(client.baseurl & "/torrent/" & infoHash.hex & "/network/stream")
 
   if response.status != 200:
+    return failure($response.status)
+
+  success await response.body
+
+proc downloadTorrent*(
+    client: CodexClient,
+    contents: string,
+    contentType = "text/plain",
+    endpoint = "magnet",
+): Future[?!string] {.async: (raises: [CancelledError, HttpError]).} =
+  if contents.len == 0:
+    return failure("No content provided!")
+  if endpoint != "magnet" and endpoint != "torrent-file":
+    return failure(
+      "Invalid endpoint: has to be either 'magnet' or 'torrent-file' but got: " &
+        endpoint
+    )
+  if endpoint == "magnet" and
+      (contentType != "application/octet-stream" and contentType != "text/plain"):
+    return failure(
+      "Invalid content type: for 'magnet' endpoint has to be either 'application/octet-stream' or 'text/plain' but got: " &
+        contentType
+    )
+  if endpoint == "torrent-file" and
+      (contentType != "application/octet-stream" and contentType != "application/json"):
+    return failure(
+      "Invalid content type: for 'torrent-file' endpoint has to be either 'application/octet-stream' or 'application/json' but got: " &
+        contentType
+    )
+
+  var headers = newSeq[HttpHeaderTuple]()
+  headers = @[("Content-Type", contentType)]
+
+  let response = await client.post(
+    client.baseurl & "/torrent/" & endpoint, body = contents, headers = headers
+  )
+  if not response.status == 200:
     return failure($response.status)
 
   success await response.body
