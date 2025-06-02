@@ -67,6 +67,7 @@ runs:
           mingw-w64-ucrt-x86_64-cmake
           mingw-w64-ucrt-x86_64-ntldd-git
           mingw-w64-ucrt-x86_64-rust
+          mingw-w64-pcre
 
     - name: MSYS2 (Windows i386)
       if: inputs.os == 'windows' && inputs.cpu == 'i386'
