@@ -37,6 +37,7 @@ runs:
         sudo apt-get update -qq
         sudo DEBIAN_FRONTEND='noninteractive' apt-get install \
           --no-install-recommends -yq lcov
+        sudo apt install libpcre3
 
     - name: APT (Linux i386)
       if: inputs.os == 'linux' && inputs.cpu == 'i386'
