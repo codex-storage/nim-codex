@@ -31,6 +31,9 @@ import ./converters
 
 export converters
 
+logScope:
+  topics = "codex backend nimgroth16"
+
 const DefaultCurve* = "bn128"
 
 type

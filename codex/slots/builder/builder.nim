@@ -32,7 +32,7 @@ import ../converters
 export converters, asynciter
 
 logScope:
-  topics = "codex slotsbuilder"
+  topics = "codex slots builder"
 
 type SlotsBuilder*[SomeTree, SomeHash] = ref object of RootObj
   store: BlockStore
