@@ -27,7 +27,7 @@ import ../types
 import ./utils
 
 logScope:
-  topics = "codex datasampler"
+  topics = "codex slots sampler"
 
 type DataSampler*[SomeTree, SomeHash] = ref object of RootObj
   index: Natural
