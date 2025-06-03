@@ -85,7 +85,7 @@ proc markProofAsMissing(
     currentPeriod = validation.getCurrentPeriod()
 
   try:
-    if await validation.market.canProofBeMarkedAsMissing(slotId, period):
+    if await validation.market.canMarkProofAsMissing(slotId, period):
       trace "Marking proof as missing", slotId, periodProofMissed = period
       await validation.market.markProofAsMissing(slotId, period)
     else:
