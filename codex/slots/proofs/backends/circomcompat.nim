@@ -25,6 +25,9 @@ import ./converters
 
 export circomcompat, converters
 
+logScope:
+  topics = "codex backend circomcompat"
+
 type
   CircomCompatBackend* = object
     slotDepth: int # max depth of the slot tree
