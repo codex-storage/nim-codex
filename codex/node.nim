@@ -699,8 +699,6 @@ proc onStore(
     trace "Unable to build slot", err = err.msg
     return failure(err)
 
-  trace "Slot successfully retrieved and reconstructed"
-
   if cid =? slotRoot.toSlotCid() and cid != manifest.slotRoots[slotIdx]:
     trace "Slot root mismatch",
       manifest = manifest.slotRoots[slotIdx.int], recovered = slotRoot.toSlotCid()
