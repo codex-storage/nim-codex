@@ -102,8 +102,8 @@ runs:
       if: inputs.os == 'linux' || inputs.os == 'macos'
       uses: hendrikmuhs/ccache-action@v1.2
       with:
-        create-symlink: true
-        key: ${{ matrix.os }}-${{ matrix.builder }}-${{ matrix.cpu }}-${{ matrix.tests }}-${{ matrix.nim_version }}
+        create-symlink: false
+        key: ${{ inputs.os }}-${{ inputs.builder }}-${{ inputs.cpu }}-${{ inputs.tests }}-${{ inputs.nim_version }}
         evict-old-files: 7d
 
     - name: Add ccache to path on Linux/Mac
