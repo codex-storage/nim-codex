@@ -90,7 +90,7 @@ template multinodesuite*(suiteName: string, body: untyped) =
     #         .withEthProvider("ws://localhost:8545")
     #         .some,
     #     ...
-    var jsonRpcProviderUrl = "http://127.0.0.1:" & $HardhatPort
+    var jsonRpcProviderUrl = "ws://localhost:" & $HardhatPort
     var running {.inject, used.}: seq[RunningNode]
     var bootstrapNodes: seq[string]
     let starttime = now().format("yyyy-MM-dd'_'HH:mm:ss")
@@ -324,7 +324,11 @@ template multinodesuite*(suiteName: string, body: untyped) =
         except ProviderError as e:
           error "Failed to revert hardhat state during teardown", error = e.msg
 
-        await ethProvider.close()
+        # TODO: JsonRpcProvider.close should NOT raise any exceptions
+        try:
+          await ethProvider.close()
+        except CatchableError:
+          discard
 
       running = @[]
 
