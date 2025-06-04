@@ -74,7 +74,7 @@ asyncchecksuite "Command line interface":
     let node = await startCodex(
       @[
         "persistence",
-        "--eth-provider=" & "http://127.0.0.1:" & $HardhatPort,
+        "--eth-provider=" & "ws://localhost:" & $HardhatPort,
         "--eth-private-key=" & unsafeKeyFile,
       ]
     )
@@ -98,7 +98,7 @@ asyncchecksuite "Command line interface":
     let node = await startCodex(
       @[
         "persistence",
-        "--eth-provider=" & "http://127.0.0.1:" & $HardhatPort,
+        "--eth-provider=" & "ws://localhost:" & $HardhatPort,
         "prover",
         marketplaceArg,
         "--circom-r1cs=tests/circuits/fixtures/proof_main.r1cs",
@@ -111,7 +111,7 @@ asyncchecksuite "Command line interface":
     let node = await startCodex(
       @[
         "persistence",
-        "--eth-provider=" & "http://127.0.0.1:" & $HardhatPort,
+        "--eth-provider=" & "ws://localhost:" & $HardhatPort,
         "prover",
         marketplaceArg,
         "--circom-r1cs=tests/circuits/fixtures/proof_main.r1cs",
