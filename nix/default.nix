@@ -3,7 +3,7 @@
   src ? ../.,
   targets ? ["all"],
   # Options: 0,1,2
-  verbosity ? 1,
+  verbosity ? 2,
   commit ? builtins.substring 0 7 (src.rev or "dirty"),
   # These are the only platforms tested in CI and considered stable.
   stableSystems ? [
@@ -11,6 +11,7 @@
     "x86_64-darwin" "aarch64-darwin"
   ],
   # Perform 2-stage bootstrap instead of 3-stage to save time.
+  useSystemNim ? false,
   quickAndDirty ? true,
   circomCompatPkg ? (
     builtins.getFlake "github:codex-storage/circom-compat-ffi"
@@ -32,7 +33,8 @@ in pkgs.gcc13Stdenv.mkDerivation rec {
 
   version = "${tools.findKeyValue "version = \"([0-9]+\.[0-9]+\.[0-9]+)\"" ../codex.nimble}-${revision}";
 
-  inherit src;
+  # Improve caching of sources
+  src = builtins.path { path = ./..; name = "nim-codex"; };
 
   # Dependencies that should exist in the runtime environment.
   buildInputs = with pkgs; [
@@ -52,6 +54,7 @@ in pkgs.gcc13Stdenv.mkDerivation rec {
       which
       lsb-release
       circomCompatPkg
+      nim
       fakeGit
       fakeCargo
   ];
@@ -65,19 +68,32 @@ in pkgs.gcc13Stdenv.mkDerivation rec {
     "V=${toString verbosity}"
     "QUICK_AND_DIRTY_COMPILER=${if quickAndDirty then "1" else "0"}"
     "QUICK_AND_DIRTY_NIMBLE=${if quickAndDirty then "1" else "0"}"
+    "USE_SYSTEM_NIM=${if useSystemNim then "1" else "0"}"
   ];
 
   configurePhase = ''
     patchShebangs . vendor/nimbus-build-system > /dev/null
     make nimbus-build-system-paths
+    make nimbus-build-system-nimble-dir
   '';
 
   preBuild = ''
     pushd vendor/nimbus-build-system/vendor/Nim
     mkdir dist
     cp -r ${callPackage ./nimble.nix {}}    dist/nimble
-    cp -r ${callPackage ./checksums.nix {}} dist/checksums
+    chmod 777 -R dist/nimble
+    mkdir -p dist/nimble/dist
+    mkdir -p dist/atlas/dist
+    cp -r ${callPackage ./checksums.nix {}} dist/checksums  # need both
+    cp -r ${callPackage ./checksums.nix {}} dist/nimble/dist/checksums
+    cp -r ${callPackage ./checksums.nix {}}/. dist/nimble/vendor/checksums
+    cp -r ${callPackage ./atlas.nix {}}     dist/atlas
+    chmod 777 -R dist/atlas
+    cp -r ${callPackage ./sat.nix {}}       dist/nimble/dist/sat
+    cp -r ${callPackage ./sat.nix {}}/.       dist/nimble/vendor/sat
+    cp -r ${callPackage ./sat.nix {}}/.       dist/atlas/dist/sat
     cp -r ${callPackage ./csources.nix {}}  csources_v2
+    cp -r ${callPackage ./zippy.nix {}}/.     dist/nimble/vendor/zippy
     chmod 777 -R dist/nimble csources_v2
     popd
   '';

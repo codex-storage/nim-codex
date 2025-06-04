@@ -1,8 +1,13 @@
 {
   description = "Nim Codex build flake";
 
+  nixConfig = {
+    extra-substituters = [ "https://nix-cache.status.im/" ];
+    extra-trusted-public-keys = [ "nix-cache.status.im-1:x/93lOfLU+duPplwMSBR+OlY4+mo+dCN7n0mr4oPwgY=" ];
+  };
+
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
+    nixpkgs.url = "github:NixOS/nixpkgs?rev=f44bd8ca21e026135061a0a57dcf3d0775b67a49";
     circom-compat = {
       url = "github:codex-storage/circom-compat-ffi";
       inputs.nixpkgs.follows = "nixpkgs";

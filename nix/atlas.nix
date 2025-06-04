@@ -5,8 +5,8 @@ let
   sourceFile = ../vendor/nimbus-build-system/vendor/Nim/koch.nim;
 in pkgs.fetchFromGitHub {
   owner = "nim-lang";
-  repo = "nimble";
-  rev = "b1dc28450f028aead0b7cf5da8adf2267db65f89";
+  repo = "atlas";
+  rev = "26cecf4d0cc038d5422fc1aa737eec9c8803a82b";
   # WARNING: Requires manual updates when Nim compiler version changes.
-  hash = "sha256-8iutVgNzDtttZ7V+7S11KfLEuwhKA9TsgS51mlUI08k=";
+  hash = "sha256-k5/42XFjIMWYL1bxTKkHIOgjaEEqB68hOIpW3N/ub3E=";
 }

@@ -16,6 +16,7 @@
 # If NIM_COMMIT is set to "nimbusbuild", this will use the
 # version pinned by nimbus-build-system.
 PINNED_NIM_VERSION := v2.2.4
+export BUILD_SYSTEM_DIR := vendor/nimbus-build-system
 
 ifeq ($(NIM_COMMIT),)
 NIM_COMMIT := $(PINNED_NIM_VERSION)
@@ -30,9 +31,6 @@ export NIM_COMMIT
 endif
 
 SHELL := bash # the shell used internally by Make
-
-# used inside the included makefiles
-BUILD_SYSTEM_DIR := vendor/nimbus-build-system
 
 # -d:insecure - Necessary to enable Prometheus HTTP endpoint for metrics
 # -d:chronicles_colors:none - Necessary to disable colors in logs for Docker
@@ -198,6 +196,11 @@ clean: | clean-common
 ifneq ($(USE_LIBBACKTRACE), 0)
 	+ $(MAKE) -C vendor/nim-libbacktrace clean $(HANDLE_OUTPUT)
 endif
+
+nimbus-build-system-nimble-dir:
+	NIMBLE_DIR="$(CURDIR)/$(NIMBLE_DIR)" \
+	PWD_CMD="$(PWD)" \
+	$(CURDIR)/scripts/generate_nimble_links.sh
 
 ############
 ## Format ##
