@@ -12,7 +12,7 @@ env:
   nim_version: v2.2.4
   builder_integration_from_vars: true
   builder_integration_linux: runner-node-01-linux-03-eu-hel1
-  builder_integration_macos: macos-14-large
+  builder_integration_macos: macos-14-xlarge
   builder_integration_windows: windows-latest-amd64-32vcpu
 
 concurrency:
