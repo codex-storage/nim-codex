@@ -133,6 +133,87 @@ marketplacesuite "Marketplace":
       timeout = 10 * 1000, # give client a bit of time to withdraw its funds
     )
 
+  test "SP are able to process slots after workers were busy with other slots and ignored them",
+    NodeConfigs(
+      clients: CodexConfigs.init(nodes = 1)
+      # .debug()
+      .some,
+      providers: CodexConfigs.init(nodes = 2)
+      # .debug()
+      # .withLogFile()
+      # .withLogTopics("marketplace", "sales", "statemachine","slotqueue", "reservations")
+      .some,
+    ):
+    let client0 = clients()[0]
+    let provider0 = providers()[0]
+    let provider1 = providers()[1]
+    let duration = 20 * 60.uint64
+
+    let data = await RandomChunker.example(blocks = blocks)
+    let slotSize = slotSize(blocks, ecNodes, ecTolerance)
+
+    # We create an avavilability allowing the first SP to host the 3 slots.
+    # So the second SP will not have any availability so it will just process
+    # the slots and ignore them.
+    discard await provider0.client.postAvailability(
+      totalSize = 3 * slotSize.truncate(uint64),
+      duration = duration,
+      minPricePerBytePerSecond = minPricePerBytePerSecond,
+      totalCollateral = 3 * slotSize * minPricePerBytePerSecond,
+    )
+
+    let cid = (await client0.client.upload(data)).get
+
+    let purchaseId = await client0.client.requestStorage(
+      cid,
+      duration = duration,
+      pricePerBytePerSecond = minPricePerBytePerSecond,
+      proofProbability = 1.u256,
+      expiry = 10 * 60.uint64,
+      collateralPerByte = collateralPerByte,
+      nodes = ecNodes,
+      tolerance = ecTolerance,
+    )
+
+    let requestId = (await client0.client.requestId(purchaseId)).get
+
+    # We wait that the 3 slots are filled by the first SP
+    check eventually(
+      await client0.client.purchaseStateIs(purchaseId, "started"),
+      timeout = 10 * 60.int * 1000,
+    )
+
+    # Here we create the same availability as previously but for the second SP.
+    # Meaning that, after ignoring all the slots for the first request, the second SP will process
+    # and host the slots for the second request.
+    discard await provider1.client.postAvailability(
+      totalSize = 3 * slotSize.truncate(uint64),
+      duration = duration,
+      minPricePerBytePerSecond = minPricePerBytePerSecond,
+      totalCollateral = 3 * slotSize * collateralPerByte,
+    )
+
+    let purchaseId2 = await client0.client.requestStorage(
+      cid,
+      duration = duration,
+      pricePerBytePerSecond = minPricePerBytePerSecond,
+      proofProbability = 3.u256,
+      expiry = 10 * 60.uint64,
+      collateralPerByte = collateralPerByte,
+      nodes = ecNodes,
+      tolerance = ecTolerance,
+    )
+    let requestId2 = (await client0.client.requestId(purchaseId2)).get
+
+    # Wait that the slots of the second request are filled
+    check eventually(
+      await client0.client.purchaseStateIs(purchaseId2, "started"),
+      timeout = 10 * 60.int * 1000,
+    )
+
+    # Double check, verify that our second SP hosts the 3 slots
+    check eventually ((await provider1.client.getSlots()).get).len == 3
+
 marketplacesuite "Marketplace payouts":
   const minPricePerBytePerSecond = 1.u256
   const collateralPerByte = 1.u256
@@ -145,14 +226,18 @@ marketplacesuite "Marketplace payouts":
       # Uncomment to start Hardhat automatically, typically so logs can be inspected locally
       hardhat: HardhatConfig.none,
       clients: CodexConfigs.init(nodes = 1)
-      # .debug() # uncomment to enable console log output.debug()
-      # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+      #  .debug() # uncomment to enable console log output.debug()
+      # .withLogFile()
+      # # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
       # .withLogTopics("node", "erasure")
       .some,
       providers: CodexConfigs.init(nodes = 1)
-      # .debug() # uncomment to enable console log output
-      # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-      # .withLogTopics("node", "marketplace", "sales", "reservations", "node", "proving", "clock")
+      #  .debug() # uncomment to enable console log output
+      # .withLogFile()
+      # # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+      # .withLogTopics(
+      #   "node", "marketplace", "sales", "reservations", "node", "statemachine"
+      # )
       .some,
     ):
     let duration = 20.periods
@@ -203,7 +288,10 @@ marketplacesuite "Marketplace payouts":
 
     # wait until sale is cancelled
     await ethProvider.advanceTime(expiry.u256)
-    check eventually await providerApi.saleStateIs(slotId, "SaleCancelled")
+
+    check eventually(
+      await providerApi.saleStateIs(slotId, "SaleCancelled"), pollInterval = 100
+    )
 
     await advanceToNextPeriod()
 
@@ -226,3 +314,88 @@ marketplacesuite "Marketplace payouts":
     )
 
     await subscription.unsubscribe()
+
+  test "the collateral is returned after a sale is ignored",
+    NodeConfigs(
+      hardhat: HardhatConfig.none,
+      clients: CodexConfigs.init(nodes = 1).some,
+      providers: CodexConfigs.init(nodes = 3)
+      # .debug()
+      # uncomment to enable console log output
+      # .withLogFile()
+      # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+      # .withLogTopics(
+      #   "node", "marketplace", "sales", "reservations", "statemachine"
+      # )
+      .some,
+    ):
+    let data = await RandomChunker.example(blocks = blocks)
+    let client0 = clients()[0]
+    let provider0 = providers()[0]
+    let provider1 = providers()[1]
+    let provider2 = providers()[2]
+    let duration = 20 * 60.uint64
+    let slotSize = slotSize(blocks, ecNodes, ecTolerance)
+
+    # Here we create 3 SP which can host 3 slot.
+    # While they will process the slot, each SP will
+    # create a reservation for each slot.
+    # Likely we will have 1 slot by SP and the other reservations
+    # will be ignored. In that case, the collateral assigned for
+    # the reservation should return to the availability.
+    discard await provider0.client.postAvailability(
+      totalSize = 3 * slotSize.truncate(uint64),
+      duration = duration,
+      minPricePerBytePerSecond = minPricePerBytePerSecond,
+      totalCollateral = 3 * slotSize * minPricePerBytePerSecond,
+    )
+    discard await provider1.client.postAvailability(
+      totalSize = 3 * slotSize.truncate(uint64),
+      duration = duration,
+      minPricePerBytePerSecond = minPricePerBytePerSecond,
+      totalCollateral = 3 * slotSize * minPricePerBytePerSecond,
+    )
+    discard await provider2.client.postAvailability(
+      totalSize = 3 * slotSize.truncate(uint64),
+      duration = duration,
+      minPricePerBytePerSecond = minPricePerBytePerSecond,
+      totalCollateral = 3 * slotSize * minPricePerBytePerSecond,
+    )
+
+    let cid = (await client0.client.upload(data)).get
+
+    let purchaseId = await client0.client.requestStorage(
+      cid,
+      duration = duration,
+      pricePerBytePerSecond = minPricePerBytePerSecond,
+      proofProbability = 1.u256,
+      expiry = 10 * 60.uint64,
+      collateralPerByte = collateralPerByte,
+      nodes = ecNodes,
+      tolerance = ecTolerance,
+    )
+
+    let requestId = (await client0.client.requestId(purchaseId)).get
+
+    check eventually(
+      await client0.client.purchaseStateIs(purchaseId, "started"),
+      timeout = 10 * 60.int * 1000,
+    )
+
+    # Here we will check that for each provider, the total remaining collateral
+    # will match the available slots.
+    # So if a SP hosts 1 slot, it should have enough total remaining collateral
+    # to host 2 more slots.
+    for provider in providers():
+      let client = provider.client
+      check eventually(
+        block:
+          let availabilities = (await client.getAvailabilities()).get
+          let availability = availabilities[0]
+          let slots = (await client.getSlots()).get
+          let availableSlots = (3 - slots.len).u256
+
+          availability.totalRemainingCollateral ==
+            availableSlots * slotSize * minPricePerBytePerSecond,
+        timeout = 30 * 1000,
+      )

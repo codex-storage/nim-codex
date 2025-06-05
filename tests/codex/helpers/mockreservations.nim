@@ -30,7 +30,7 @@ method createReservation*(
     slotIndex: uint64,
     collateralPerByte: UInt256,
     validUntil: SecondsSince1970,
-): Future[?!Reservation] {.async.} =
+): Future[?!Reservation] {.async: (raises: [CancelledError]).} =
   if self.createReservationThrowBytesOutOfBoundsError:
     let error = newException(
       BytesOutOfBoundsError,

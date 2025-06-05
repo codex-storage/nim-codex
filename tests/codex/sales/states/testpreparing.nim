@@ -72,6 +72,12 @@ asyncchecksuite "sales state 'preparing'":
     let next = state.onSlotFilled(request.id, slotIndex)
     check !next of SaleFilled
 
+  test "run switches to errored when the request cannot be retrieved":
+    agent = newSalesAgent(context, request.id, slotIndex, StorageRequest.none)
+    let next = !(await state.run(agent))
+    check next of SaleErrored
+    check SaleErrored(next).error.msg == "request could not be retrieved"
+
   proc createAvailability(enabled = true) {.async.} =
     let a = await reservations.createAvailability(
       availability.totalSize,

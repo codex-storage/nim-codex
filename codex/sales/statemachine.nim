@@ -12,7 +12,7 @@ export asyncstatemachine
 
 type
   SaleState* = ref object of State
-  SaleError* = ref object of CodexError
+  SaleError* = object of CodexError
 
 method onCancelled*(
     state: SaleState, request: StorageRequest

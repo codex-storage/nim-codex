@@ -105,14 +105,15 @@ proc new*(
     subscriptions: @[],
   )
 
-proc remove(sales: Sales, agent: SalesAgent) {.async.} =
+proc remove(sales: Sales, agent: SalesAgent) {.async: (raises: []).} =
   await agent.stop()
+
   if sales.running:
     sales.agents.keepItIf(it != agent)
 
 proc cleanUp(
     sales: Sales, agent: SalesAgent, reprocessSlot: bool, returnedCollateral: ?UInt256
-) {.async.} =
+) {.async: (raises: []).} =
   let data = agent.data
 
   logScope:
@@ -129,36 +130,32 @@ proc cleanUp(
   # there are not really any bytes to be returned
   if request =? data.request and reservation =? data.reservation:
     if returnErr =? (
-      await sales.context.reservations.returnBytesToAvailability(
+      await noCancel sales.context.reservations.returnBytesToAvailability(
         reservation.availabilityId, reservation.id, request.ask.slotSize
       )
     ).errorOption:
       error "failure returning bytes",
         error = returnErr.msg, bytes = request.ask.slotSize
 
-  # delete reservation and return reservation bytes back to the availability
-  if reservation =? data.reservation and
-      deleteErr =? (
-        await sales.context.reservations.deleteReservation(
-          reservation.id, reservation.availabilityId, returnedCollateral
-        )
-      ).errorOption:
-    error "failure deleting reservation", error = deleteErr.msg
-
-  if data.slotIndex > uint16.high.uint64:
-    error "Cannot cast slot index to uint16", slotIndex = data.slotIndex
-    return
+    # delete reservation and return reservation bytes back to the availability
+    if reservation =? data.reservation and
+        deleteErr =? (
+          await noCancel sales.context.reservations.deleteReservation(
+            reservation.id, reservation.availabilityId, returnedCollateral
+          )
+        ).errorOption:
+      error "failure deleting reservation", error = deleteErr.msg
 
   # Re-add items back into the queue to prevent small availabilities from
   # draining the queue. Seen items will be ordered last.
-  if reprocessSlot and request =? data.request:
-    try:
-      without collateral =?
-        await sales.context.market.slotCollateral(data.requestId, data.slotIndex), err:
-        error "Failed to re-add item back to the slot queue: unable to calculate collateral",
-          error = err.msg
-        return
-
+  if data.slotIndex <= uint16.high.uint64 and reprocessSlot and request =? data.request:
+    let res =
+      await noCancel sales.context.market.slotCollateral(data.requestId, data.slotIndex)
+    if res.isErr:
+      error "Failed to re-add item back to the slot queue: unable to calculate collateral",
+        error = res.error.msg
+    else:
+      let collateral = res.get()
       let queue = sales.context.slotQueue
       var seenItem = SlotQueueItem.init(
         data.requestId,
@@ -171,11 +168,9 @@ proc cleanUp(
       trace "pushing ignored item to queue, marked as seen"
       if err =? queue.push(seenItem).errorOption:
         error "failed to readd slot to queue", errorType = $(type err), error = err.msg
-    except MarketError as e:
-      error "Failed to re-add item back to the slot queue.", error = e.msg
-      return
 
-  await sales.remove(agent)
+  let fut = sales.remove(agent)
+  sales.trackedFutures.track(fut)
 
 proc filled(sales: Sales, request: StorageRequest, slotIndex: uint64) =
   if onSale =? sales.context.onSale:
@@ -193,7 +188,7 @@ proc processSlot(
 
   agent.onCleanUp = proc(
       reprocessSlot = false, returnedCollateral = UInt256.none
-  ) {.async.} =
+  ) {.async: (raises: []).} =
     trace "slot cleanup"
     await sales.cleanUp(agent, reprocessSlot, returnedCollateral)
     completed.fire()
@@ -269,7 +264,7 @@ proc load*(sales: Sales) {.async.} =
 
     agent.onCleanUp = proc(
         reprocessSlot = false, returnedCollateral = UInt256.none
-    ) {.async.} =
+    ) {.async: (raises: []).} =
       await sales.cleanUp(agent, reprocessSlot, returnedCollateral)
 
     # There is no need to assign agent.onFilled as slots loaded from `mySlots`

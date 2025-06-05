@@ -231,6 +231,11 @@ func key*(availability: Availability): ?!Key =
   return availability.id.key
 
 func maxCollateralPerByte*(availability: Availability): UInt256 =
+  # If freeSize happens to be zero, we convention that the maxCollateralPerByte
+  # should be equal to totalRemainingCollateral.
+  if availability.freeSize == 0.uint64:
+    return availability.totalRemainingCollateral
+
   return availability.totalRemainingCollateral div availability.freeSize.stuint(256)
 
 func key*(reservation: Reservation): ?!Key =
@@ -248,7 +253,7 @@ proc exists*(
   let exists = await self.repo.metaDs.ds.contains(key)
   return exists
 
-iterator items(self: StorableIter): Future[?seq[byte]] =
+iterator items(self: StorableIter): auto =
   while not self.finished:
     yield self.next()
 
@@ -346,7 +351,8 @@ proc updateAvailability(
 
   if oldAvailability.freeSize < obj.freeSize or oldAvailability.duration < obj.duration or
       oldAvailability.minPricePerBytePerSecond < obj.minPricePerBytePerSecond or
-      oldAvailability.totalCollateral < obj.totalCollateral: # availability updated
+      oldAvailability.totalRemainingCollateral < obj.totalRemainingCollateral:
+    # availability updated
     # inform subscribers that Availability has been modified (with increased
     # size)
     if OnAvailabilitySaved =? self.OnAvailabilitySaved:
@@ -368,7 +374,9 @@ proc update*(
     error "Lock error when trying to update the availability", err = e.msg
     return failure(e)
 
-proc delete(self: Reservations, key: Key): Future[?!void] {.async.} =
+proc delete(
+    self: Reservations, key: Key
+): Future[?!void] {.async: (raises: [CancelledError]).} =
   trace "deleting object", key
 
   if not await self.exists(key):
@@ -384,25 +392,23 @@ proc deleteReservation*(
     reservationId: ReservationId,
     availabilityId: AvailabilityId,
     returnedCollateral: ?UInt256 = UInt256.none,
-): Future[?!void] {.async.} =
+): Future[?!void] {.async: (raises: [CancelledError]).} =
   logScope:
     reservationId
     availabilityId
 
   trace "deleting reservation"
+
   without key =? key(reservationId, availabilityId), error:
     return failure(error)
 
-  withLock(self.availabilityLock):
-    without reservation =? (await self.get(key, Reservation)), error:
-      if error of NotExistsError:
-        return success()
-      else:
-        return failure(error)
-
-    if reservation.size > 0.uint64:
-      trace "returning remaining reservation bytes to availability",
-        size = reservation.size
+  try:
+    withLock(self.availabilityLock):
+      without reservation =? (await self.get(key, Reservation)), error:
+        if error of NotExistsError:
+          return success()
+        else:
+          return failure(error)
 
       without availabilityKey =? availabilityId.key, error:
         return failure(error)
@@ -410,7 +416,10 @@ proc deleteReservation*(
       without var availability =? await self.get(availabilityKey, Availability), error:
         return failure(error)
 
-      availability.freeSize += reservation.size
+      if reservation.size > 0.uint64:
+        trace "returning remaining reservation bytes to availability",
+          size = reservation.size
+        availability.freeSize += reservation.size
 
       if collateral =? returnedCollateral:
         availability.totalRemainingCollateral += collateral
@@ -418,10 +427,13 @@ proc deleteReservation*(
       if updateErr =? (await self.updateAvailability(availability)).errorOption:
         return failure(updateErr)
 
-    if err =? (await self.repo.metaDs.ds.delete(key)).errorOption:
-      return failure(err.toErr(DeleteFailedError))
+      if err =? (await self.repo.metaDs.ds.delete(key)).errorOption:
+        return failure(err.toErr(DeleteFailedError))
 
-    return success()
+      return success()
+  except AsyncLockError as e:
+    error "Lock error when trying to delete the availability", err = e.msg
+    return failure(e)
 
 # TODO: add support for deleting availabilities
 # To delete, must not have any active sales.
@@ -434,7 +446,7 @@ proc createAvailability*(
     totalCollateral: UInt256,
     enabled: bool,
     until: SecondsSince1970,
-): Future[?!Availability] {.async.} =
+): Future[?!Availability] {.async: (raises: [CancelledError]).} =
   trace "creating availability",
     size, duration, minPricePerBytePerSecond, totalCollateral, enabled, until
 
@@ -470,109 +482,116 @@ method createReservation*(
     slotIndex: uint64,
     collateralPerByte: UInt256,
     validUntil: SecondsSince1970,
-): Future[?!Reservation] {.async, base.} =
-  withLock(self.availabilityLock):
-    without availabilityKey =? availabilityId.key, error:
-      return failure(error)
+): Future[?!Reservation] {.async: (raises: [CancelledError]), base.} =
+  try:
+    withLock(self.availabilityLock):
+      without availabilityKey =? availabilityId.key, error:
+        return failure(error)
 
-    without availability =? await self.get(availabilityKey, Availability), error:
-      return failure(error)
+      without availability =? await self.get(availabilityKey, Availability), error:
+        return failure(error)
 
-    # Check that the found availability has enough free space after the lock has been acquired, to prevent asynchronous Availiability modifications
-    if availability.freeSize < slotSize:
-      let error = newException(
-        BytesOutOfBoundsError,
-        "trying to reserve an amount of bytes that is greater than the free size of the Availability",
-      )
-      return failure(error)
+      # Check that the found availability has enough free space after the lock has been acquired, to prevent asynchronous Availiability modifications
+      if availability.freeSize < slotSize:
+        let error = newException(
+          BytesOutOfBoundsError,
+          "trying to reserve an amount of bytes that is greater than the free size of the Availability",
+        )
+        return failure(error)
 
-    trace "Creating reservation",
-      availabilityId, slotSize, requestId, slotIndex, validUntil = validUntil
+      trace "Creating reservation",
+        availabilityId, slotSize, requestId, slotIndex, validUntil = validUntil
 
-    let reservation =
-      Reservation.init(availabilityId, slotSize, requestId, slotIndex, validUntil)
+      let reservation =
+        Reservation.init(availabilityId, slotSize, requestId, slotIndex, validUntil)
 
-    if createResErr =? (await self.update(reservation)).errorOption:
-      return failure(createResErr)
+      if createResErr =? (await self.update(reservation)).errorOption:
+        return failure(createResErr)
 
-    # reduce availability freeSize by the slot size, which is now accounted for in
-    # the newly created Reservation
-    availability.freeSize -= slotSize
+      # reduce availability freeSize by the slot size, which is now accounted for in
+      # the newly created Reservation
+      availability.freeSize -= slotSize
 
-    # adjust the remaining totalRemainingCollateral
-    availability.totalRemainingCollateral -= slotSize.u256 * collateralPerByte
+      # adjust the remaining totalRemainingCollateral
+      availability.totalRemainingCollateral -= slotSize.u256 * collateralPerByte
 
-    # update availability with reduced size
-    trace "Updating availability with reduced size"
-    if updateErr =? (await self.updateAvailability(availability)).errorOption:
-      trace "Updating availability failed, rolling back reservation creation"
+      # update availability with reduced size
+      trace "Updating availability with reduced size", freeSize = availability.freeSize
+      if updateErr =? (await self.updateAvailability(availability)).errorOption:
+        trace "Updating availability failed, rolling back reservation creation"
 
-      without key =? reservation.key, keyError:
-        keyError.parent = updateErr
-        return failure(keyError)
+        without key =? reservation.key, keyError:
+          keyError.parent = updateErr
+          return failure(keyError)
 
-      # rollback the reservation creation
-      if rollbackErr =? (await self.delete(key)).errorOption:
-        rollbackErr.parent = updateErr
-        return failure(rollbackErr)
+        # rollback the reservation creation
+        if rollbackErr =? (await self.delete(key)).errorOption:
+          rollbackErr.parent = updateErr
+          return failure(rollbackErr)
 
-      return failure(updateErr)
+        return failure(updateErr)
 
-    trace "Reservation succesfully created"
-    return success(reservation)
+      trace "Reservation succesfully created"
+      return success(reservation)
+  except AsyncLockError as e:
+    error "Lock error when trying to delete the availability", err = e.msg
+    return failure(e)
 
 proc returnBytesToAvailability*(
     self: Reservations,
     availabilityId: AvailabilityId,
     reservationId: ReservationId,
     bytes: uint64,
-): Future[?!void] {.async.} =
+): Future[?!void] {.async: (raises: [CancelledError]).} =
   logScope:
     reservationId
     availabilityId
+  try:
+    withLock(self.availabilityLock):
+      without key =? key(reservationId, availabilityId), error:
+        return failure(error)
 
-  withLock(self.availabilityLock):
-    without key =? key(reservationId, availabilityId), error:
-      return failure(error)
+      without var reservation =? (await self.get(key, Reservation)), error:
+        return failure(error)
 
-    without var reservation =? (await self.get(key, Reservation)), error:
-      return failure(error)
+      # We are ignoring bytes that are still present in the Reservation because
+      # they will be returned to Availability through `deleteReservation`.
+      let bytesToBeReturned = bytes - reservation.size
 
-    # We are ignoring bytes that are still present in the Reservation because
-    # they will be returned to Availability through `deleteReservation`.
-    let bytesToBeReturned = bytes - reservation.size
+      if bytesToBeReturned == 0:
+        trace "No bytes are returned",
+          requestSizeBytes = bytes, returningBytes = bytesToBeReturned
+        return success()
 
-    if bytesToBeReturned == 0:
-      trace "No bytes are returned",
+      trace "Returning bytes",
         requestSizeBytes = bytes, returningBytes = bytesToBeReturned
+
+      # First lets see if we can re-reserve the bytes, if the Repo's quota
+      # is depleted then we will fail-fast as there is nothing to be done atm.
+      if reserveErr =? (await self.repo.reserve(bytesToBeReturned.NBytes)).errorOption:
+        return failure(reserveErr.toErr(ReserveFailedError))
+
+      without availabilityKey =? availabilityId.key, error:
+        return failure(error)
+
+      without var availability =? await self.get(availabilityKey, Availability), error:
+        return failure(error)
+
+      availability.freeSize += bytesToBeReturned
+
+      # Update availability with returned size
+      if updateErr =? (await self.updateAvailability(availability)).errorOption:
+        trace "Rolling back returning bytes"
+        if rollbackErr =? (await self.repo.release(bytesToBeReturned.NBytes)).errorOption:
+          rollbackErr.parent = updateErr
+          return failure(rollbackErr)
+
+        return failure(updateErr)
+
       return success()
-
-    trace "Returning bytes",
-      requestSizeBytes = bytes, returningBytes = bytesToBeReturned
-
-    # First lets see if we can re-reserve the bytes, if the Repo's quota
-    # is depleted then we will fail-fast as there is nothing to be done atm.
-    if reserveErr =? (await self.repo.reserve(bytesToBeReturned.NBytes)).errorOption:
-      return failure(reserveErr.toErr(ReserveFailedError))
-
-    without availabilityKey =? availabilityId.key, error:
-      return failure(error)
-
-    without var availability =? await self.get(availabilityKey, Availability), error:
-      return failure(error)
-
-    availability.freeSize += bytesToBeReturned
-
-    # Update availability with returned size
-    if updateErr =? (await self.updateAvailability(availability)).errorOption:
-      trace "Rolling back returning bytes"
-      if rollbackErr =? (await self.repo.release(bytesToBeReturned.NBytes)).errorOption:
-        rollbackErr.parent = updateErr
-        return failure(rollbackErr)
-
-      return failure(updateErr)
-
-    return success()
+  except AsyncLockError as e:
+    error "Lock error when returning bytes to the availability", err = e.msg
+    return failure(e)
 
 proc release*(
     self: Reservations,
@@ -698,7 +717,7 @@ proc findAvailability*(
     size, duration: uint64,
     pricePerBytePerSecond, collateralPerByte: UInt256,
     validUntil: SecondsSince1970,
-): Future[?Availability] {.async.} =
+): Future[?Availability] {.async: (raises: [CancelledError]).} =
   without storables =? (await self.storables(Availability)), e:
     error "failed to get all storables", error = e.msg
     return none Availability

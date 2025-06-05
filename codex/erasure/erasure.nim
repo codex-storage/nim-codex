@@ -338,11 +338,9 @@ proc asyncEncode*(
     signal: threadPtr,
   )
 
-  let t = addr task
-
   doAssert self.taskPool.numThreads > 1,
     "Must have at least one separate thread or signal will never be fired"
-  self.taskPool.spawn leopardEncodeTask(self.taskPool, t)
+  self.taskPool.spawn leopardEncodeTask(self.taskPool, addr task)
   let threadFut = threadPtr.wait()
 
   if joinErr =? catch(await threadFut.join()).errorOption:
@@ -353,7 +351,7 @@ proc asyncEncode*(
     else:
       return failure(joinErr)
 
-  if not t.success.load():
+  if not task.success.load():
     return failure("Leopard encoding failed")
 
   success()
@@ -532,11 +530,9 @@ proc asyncDecode*(
     signal: threadPtr,
   )
 
-  # Hold the task pointer until the signal is received
-  let t = addr task
   doAssert self.taskPool.numThreads > 1,
     "Must have at least one separate thread or signal will never be fired"
-  self.taskPool.spawn leopardDecodeTask(self.taskPool, t)
+  self.taskPool.spawn leopardDecodeTask(self.taskPool, addr task)
   let threadFut = threadPtr.wait()
 
   if joinErr =? catch(await threadFut.join()).errorOption:
@@ -547,7 +543,7 @@ proc asyncDecode*(
     else:
       return failure(joinErr)
 
-  if not t.success.load():
+  if not task.success.load():
     return failure("Leopard encoding failed")
 
   success()

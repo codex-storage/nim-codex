@@ -23,6 +23,7 @@ type
     rewardRecipient: ?Address
     configuration: ?MarketplaceConfig
     requestCache: LruCache[string, StorageRequest]
+    allowanceLock: AsyncLock
 
   MarketSubscription = market.Subscription
   EventSubscription = ethers.Subscription
@@ -76,6 +77,18 @@ proc config(
 
   return resolvedConfig
 
+template withAllowanceLock*(market: OnChainMarket, body: untyped) =
+  if market.allowanceLock.isNil:
+    market.allowanceLock = newAsyncLock()
+  await market.allowanceLock.acquire()
+  try:
+    body
+  finally:
+    try:
+      market.allowanceLock.release()
+    except AsyncLockError as error:
+      raise newException(Defect, error.msg, error)
+
 proc approveFunds(
     market: OnChainMarket, amount: UInt256
 ) {.async: (raises: [CancelledError, MarketError]).} =
@@ -83,7 +96,11 @@ proc approveFunds(
   convertEthersError("Failed to approve funds"):
     let tokenAddress = await market.contract.token()
     let token = Erc20Token.new(tokenAddress, market.signer)
-    discard await token.increaseAllowance(market.contract.address(), amount).confirm(1)
+    let owner = await market.signer.getAddress()
+    let spender = market.contract.address
+    market.withAllowanceLock:
+      let allowance = await token.allowance(owner, spender)
+      discard await token.approve(spender, allowance + amount).confirm(1)
 
 method loadConfig*(
     market: OnChainMarket
@@ -349,7 +366,12 @@ method submitProof*(
     market: OnChainMarket, id: SlotId, proof: Groth16Proof
 ) {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError("Failed to submit proof"):
-    discard await market.contract.submitProof(id, proof).confirm(1)
+    try:
+      discard await market.contract.submitProof(id, proof).confirm(1)
+    except Proofs_InvalidProof as parent:
+      raise newException(
+        ProofInvalidError, "Failed to submit proof because the proof is invalid", parent
+      )
 
 method markProofAsMissing*(
     market: OnChainMarket, id: SlotId, period: Period
@@ -362,14 +384,12 @@ method markProofAsMissing*(
 
     discard await market.contract.markProofAsMissing(id, period, overrides).confirm(1)
 
-method canProofBeMarkedAsMissing*(
+method canMarkProofAsMissing*(
     market: OnChainMarket, id: SlotId, period: Period
-): Future[bool] {.async.} =
-  let provider = market.contract.provider
-  let contractWithoutSigner = market.contract.connect(provider)
-  let overrides = CallOverrides(blockTag: some BlockTag.pending)
+): Future[bool] {.async: (raises: [CancelledError]).} =
   try:
-    discard await contractWithoutSigner.markProofAsMissing(id, period, overrides)
+    let overrides = CallOverrides(blockTag: some BlockTag.pending)
+    discard await market.contract.canMarkProofAsMissing(id, period, overrides)
     return true
   except EthersError as e:
     trace "Proof cannot be marked as missing", msg = e.msg
