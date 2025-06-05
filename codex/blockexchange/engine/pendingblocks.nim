@@ -34,7 +34,7 @@ declareGauge(
 
 const
   DefaultBlockRetries* = 3000
-  DefaultRetryInterval* = 500.millis
+  DefaultRetryInterval* = 10.seconds
 
 type
   RetriesExhaustedError* = object of CatchableError
@@ -50,6 +50,7 @@ type
     blockRetries*: int = DefaultBlockRetries
     retryInterval*: Duration = DefaultRetryInterval
     blocks*: Table[BlockAddress, BlockReq] # pending Block requests
+    lastInclusion*: Moment # time at which we last included a block into our wantlist
 
 proc updatePendingBlockGauge(p: PendingBlocksManager) =
   codex_block_exchange_pending_block_requests.set(p.blocks.len.int64)
@@ -70,6 +71,8 @@ proc getWantHandle*(
       startTime: getMonoTime().ticks,
     )
     self.blocks[address] = blk
+    self.lastInclusion = Moment.now()
+
     let handle = blk.handle
 
     proc cleanUpBlock(data: pointer) {.raises: [].} =
