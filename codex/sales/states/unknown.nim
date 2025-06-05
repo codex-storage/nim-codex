@@ -38,6 +38,11 @@ method run*(
     await agent.retrieveRequest()
     await agent.subscribe()
 
+    without request =? data.request:
+      error "request could not be retrieved", id = data.requestId
+      let error = newException(SaleError, "request could not be retrieved")
+      return some State(SaleErrored(error: error))
+
     let slotId = slotId(data.requestId, data.slotIndex)
     let slotState = await market.slotState(slotId)
 

@@ -51,7 +51,9 @@ method run*(
     await agent.subscribe()
 
     without request =? data.request:
-      raiseAssert "no sale request"
+      error "request could not be retrieved", id = data.requestId
+      let error = newException(SaleError, "request could not be retrieved")
+      return some State(SaleErrored(error: error))
 
     let slotId = slotId(data.requestId, data.slotIndex)
     let state = await market.slotState(slotId)
