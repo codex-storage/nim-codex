@@ -140,10 +140,24 @@ testContracts: | build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
 		$(ENV_SCRIPT) nim testContracts $(NIM_PARAMS) --define:ws_resubscribe=240 build.nims
 
+TEST_PARAMS :=
+ifdef DEBUG
+	TEST_PARAMS := $(TEST_PARAMS) -d:DebugTestHarness=$(DEBUG)
+  TEST_PARAMS := $(TEST_PARAMS) -d:NoCodexLogFilters=$(DEBUG)
+  TEST_PARAMS := $(TEST_PARAMS) -d:ShowContinuousStatusUpdates=$(DEBUG)
+  TEST_PARAMS := $(TEST_PARAMS) -d:DebugHardhat=$(DEBUG)
+endif
+ifdef TEST_TIMEOUT
+  TEST_PARAMS := $(TEST_PARAMS) -d:TestTimeout=$(TEST_TIMEOUT)
+endif
+ifdef PARALLEL
+  TEST_PARAMS := $(TEST_PARAMS) -d:EnableParallelTests=$(PARALLEL)
+endif
+
 # Builds and runs the integration tests
 testIntegration: | build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
-		$(ENV_SCRIPT) nim testIntegration $(NIM_PARAMS) --define:ws_resubscribe=240 build.nims
+		$(ENV_SCRIPT) nim testIntegration $(TEST_PARAMS) $(NIM_PARAMS) --define:ws_resubscribe=240 build.nims
 
 # Builds and runs all tests (except for Taiko L2 tests)
 testAll: | build deps

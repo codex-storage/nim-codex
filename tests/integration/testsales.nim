@@ -141,7 +141,7 @@ multinodesuite "Sales":
       )
     ).get
 
-    check eventually(
+    check eventuallySafe(
       await client.purchaseStateIs(id, "started"), timeout = 10 * 60 * 1000
     )
     let updatedAvailability =

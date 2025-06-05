@@ -61,7 +61,7 @@ marketplacesuite "Marketplace":
       tolerance = ecTolerance,
     )
 
-    check eventually(
+    check eventuallySafe(
       await client.purchaseStateIs(id, "started"), timeout = 10 * 60 * 1000
     )
     let purchase = (await client.getPurchase(id)).get
@@ -108,7 +108,7 @@ marketplacesuite "Marketplace":
       tolerance = ecTolerance,
     )
 
-    check eventually(
+    check eventuallySafe(
       await client.purchaseStateIs(id, "started"), timeout = 10 * 60 * 1000
     )
     let purchase = (await client.getPurchase(id)).get
@@ -124,11 +124,11 @@ marketplacesuite "Marketplace":
     # Checking that the hosting node received reward for at least the time between <expiry;end>
     let slotSize = slotSize(blocks, ecNodes, ecTolerance)
     let pricePerSlotPerSecond = minPricePerBytePerSecond * slotSize
-    check eventually (await token.balanceOf(hostAccount)) - startBalanceHost >=
+    check eventuallySafe (await token.balanceOf(hostAccount)) - startBalanceHost >=
       (duration - 5 * 60).u256 * pricePerSlotPerSecond * ecNodes.u256
 
     # Checking that client node receives some funds back that were not used for the host nodes
-    check eventually(
+    check eventuallySafe(
       (await token.balanceOf(clientAccount)) - clientBalanceBeforeFinished > 0,
       timeout = 10 * 1000, # give client a bit of time to withdraw its funds
     )
@@ -298,12 +298,12 @@ marketplacesuite "Marketplace payouts":
     let slotSize = slotSize(blocks, ecNodes, ecTolerance)
     let pricePerSlotPerSecond = minPricePerBytePerSecond * slotSize
 
-    check eventually (
+    check eventuallySafe (
       let endBalanceProvider = (await token.balanceOf(provider.ethAccount))
       endBalanceProvider > startBalanceProvider and
         endBalanceProvider < startBalanceProvider + expiry.u256 * pricePerSlotPerSecond
     )
-    check eventually(
+    check eventuallySafe(
       (
         let endBalanceClient = (await token.balanceOf(client.ethAccount))
         let endBalanceProvider = (await token.balanceOf(provider.ethAccount))
