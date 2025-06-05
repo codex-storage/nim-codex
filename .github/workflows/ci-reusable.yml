@@ -61,6 +61,8 @@ jobs:
         run: |
           npm install
           npm start &
+          # Wait for the contracts to be deployed
+          sleep 5
 
       ## Part 2 Tests ##
       - name: Contract tests
