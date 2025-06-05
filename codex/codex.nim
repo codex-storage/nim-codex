@@ -83,7 +83,9 @@ proc bootstrapInteractions(s: CodexServer): Future[void] {.async.} =
       error "Persistence enabled, but no Ethereum account was set"
       quit QuitFailure
 
-    let provider = JsonRpcProvider.new(config.ethProvider)
+    let provider = JsonRpcProvider.new(
+      config.ethProvider, maxPriorityFeePerGas = config.maxPriorityFeePerGas.u256
+    )
     await waitForSync(provider)
     var signer: Signer
     if account =? config.ethAccount:
