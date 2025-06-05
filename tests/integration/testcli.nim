@@ -88,8 +88,10 @@ asyncchecksuite "Command line interface":
     await node.stop(expectedErrCode = 1)
     discard removeFile(unsafeKeyFile)
 
-  let expectedDownloadInstruction =
-    "Proving circuit files are not found. Please run the following to download them:"
+  let
+    marketplaceArg = "--marketplace-address=" & $EthAddress.example
+    expectedDownloadInstruction =
+      "Proving circuit files are not found. Please run the following to download them:"
 
   test "suggests downloading of circuit files when persistence is enabled without accessible r1cs file":
     let node = await startCodex(@["persistence", "prover", marketplaceArg])
