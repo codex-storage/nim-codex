@@ -623,6 +623,7 @@ proc requestStorage*(
 proc onStore(
     self: CodexNodeRef,
     request: StorageRequest,
+    expiry: SecondsSince1970,
     slotIdx: uint64,
     blocksCb: BlocksCb,
     isRepairing: bool = false,
@@ -651,8 +652,6 @@ proc onStore(
     trace "Unable to create slots builder", err = err.msg
     return failure(err)
 
-  let expiry = request.expiry
-
   if slotIdx > manifest.slotRoots.high.uint64:
     trace "Slot index not in manifest", slotIdx
     return failure(newException(CodexError, "Slot index not in manifest"))
@@ -663,7 +662,7 @@ proc onStore(
     trace "Updating expiry for blocks", blocks = blocks.len
 
     let ensureExpiryFutures =
-      blocks.mapIt(self.networkStore.ensureExpiry(it.cid, expiry.toSecondsSince1970))
+      blocks.mapIt(self.networkStore.ensureExpiry(it.cid, expiry))
 
     let res = await allFinishedFailed[?!void](ensureExpiryFutures)
     if res.failure.len > 0:
@@ -789,11 +788,12 @@ proc start*(self: CodexNodeRef) {.async.} =
   if hostContracts =? self.contracts.host:
     hostContracts.sales.onStore = proc(
         request: StorageRequest,
+        expiry: SecondsSince1970,
         slot: uint64,
         onBatch: BatchProc,
         isRepairing: bool = false,
     ): Future[?!void] {.async: (raw: true, raises: [CancelledError]).} =
-      self.onStore(request, slot, onBatch, isRepairing)
+      self.onStore(request, expiry, slot, onBatch, isRepairing)
 
     hostContracts.sales.onExpiryUpdate = proc(
         rootCid: Cid, expiry: SecondsSince1970

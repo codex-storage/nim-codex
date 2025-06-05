@@ -50,7 +50,7 @@ asyncchecksuite "validation":
   setup:
     groupIndex = groupIndexForSlotId(slot.id, !validationGroups)
     clock = MockClock.new()
-    market = MockMarket.new(clock = Clock(clock).some)
+    market = MockMarket.new(clock)
     market.config.proofs.period = period
     market.config.proofs.timeout = timeout
     validation = newValidation(clock, market, maxSlots, validationGroups, groupIndex)

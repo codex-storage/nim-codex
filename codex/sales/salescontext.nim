@@ -28,7 +28,11 @@ type
     gcsafe, async: (raises: [CancelledError])
   .}
   OnStore* = proc(
-    request: StorageRequest, slot: uint64, blocksCb: BlocksCb, isRepairing: bool
+    request: StorageRequest,
+    expiry: SecondsSince1970,
+    slot: uint64,
+    blocksCb: BlocksCb,
+    isRepairing: bool,
   ): Future[?!void] {.gcsafe, async: (raises: [CancelledError]).}
   OnProve* = proc(slot: Slot, challenge: ProofChallenge): Future[?!Groth16Proof] {.
     gcsafe, async: (raises: [CancelledError])
