@@ -213,9 +213,7 @@ marketplacesuite "Marketplace":
     )
 
     # Double check, verify that our second SP hosts the 3 slots
-    check eventually (
-      ((await provider1.client.getSlots()).get).len == 3, pollInterval = 100
-    )
+    check (await provider1.client.getSlots()).get.len == 3
 
 marketplacesuite "Marketplace payouts":
   const minPricePerBytePerSecond = 1.u256
