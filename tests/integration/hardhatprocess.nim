@@ -53,6 +53,7 @@ proc openLogFile(node: HardhatProcess, logFilePath: string): IoHandle =
 
 method start*(node: HardhatProcess) {.async.} =
   let poptions = node.processOptions + {AsyncProcessOption.StdErrToStdOut}
+
   trace "starting node",
     args = node.arguments,
     executable = node.executable,
@@ -63,10 +64,28 @@ method start*(node: HardhatProcess) {.async.} =
     node.process = await startProcess(
       node.executable,
       node.workingDir,
-      @["node", "--export", "deployment-localhost.json"].concat(node.arguments),
+      @["node"].concat(node.arguments),
       options = poptions,
       stdoutHandle = AsyncProcess.Pipe,
     )
+
+    await node.waitUntilStarted()
+
+    var execResult = await execCommandEx(
+      "cd " & node.workingDir() & " && " & node.workingDir() / node.executable() &
+        " run " & node.workingDir() / "scripts" / "mine.js --network localhost"
+    )
+
+    assert execResult.status == 0
+
+    execResult = await execCommandEx(
+      "cd " & node.workingDir() & " && " & node.workingDir() / node.executable() &
+        " ignition deploy ignition/modules/marketplace.js --network localhost"
+    )
+
+    assert execResult.status == 0
+
+    trace "hardhat post start scripts executed"
   except CancelledError as error:
     raise error
   except CatchableError as e:
