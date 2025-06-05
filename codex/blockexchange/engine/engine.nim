@@ -154,6 +154,28 @@ proc sendWantBlock(
   ) # we want this remote to send us a block
   codex_block_exchange_want_block_lists_sent.inc()
 
+proc refreshBlockKnowledge(self: BlockExcEngine, peer: BlockExcPeerCtx) {.async: (raises: [CancelledError]).} =
+  # broadcast our want list, the other peer will do the same
+  if self.pendingBlocks.wantListLen > 0:
+    let cids = toSeq(self.pendingBlocks.wantList)
+    trace "Sending our want list to a peer", peer = peer.id, length = cids.len
+    await self.network.request.sendWantList(peer.id, cids, full = true)
+
+proc refreshBlockKnowledge(self: BlockExcEngine) {.async: (raises: [CancelledError]).} =
+  for peer in self.peers.peers.values:
+    # We refresh block knowledge if:
+    # 1. the peer hasn't been refreshed in a while;
+    # 2. the list of blocks we care about has actually changed.
+    #
+    # Note that because of (2), it is important that we update our
+    # want list in the coarsest way possible instead of over many
+    # small updates.
+    #
+    # In dynamic swarms, staleness will dominate latency.
+    if peer.lastRefresh < self.pendingBlocks.lastInclusion or peer.isKnowledgeStale:
+      await self.refreshBlockKnowledge(peer)
+      peer.refreshed()
+
 proc randomPeer(peers: seq[BlockExcPeerCtx]): BlockExcPeerCtx =
   Rng.instance.sample(peers)
 
@@ -189,7 +211,7 @@ proc downloadInternal(
       else:
         self.pendingBlocks.setInFlight(address, false)
         if peers.without.len > 0:
-          await self.sendWantHave(@[address], peers.without)
+          await self.refreshBlockKnowledge()
         self.discovery.queueFindBlocksReq(@[address.cidOrTreeCid])
 
       await (handle or sleepAsync(self.pendingBlocks.retryInterval))
@@ -208,6 +230,32 @@ proc downloadInternal(
       handle.fail(exc)
   finally:
     self.pendingBlocks.setInFlight(address, false)
+
+proc requestBlocks*(self: BlockExcEngine, addresses: seq[BlockAddress]): Future[seq[?!Block]] {.async: (raises: [CancelledError]).} =
+  var handles: seq[BlockHandle]
+  # Adds all blocks to pendingBlocks before calling the first downloadInternal. This will
+  # ensure that we don't send incomplete want lists.
+  for address in addresses:
+    if address notin self.pendingBlocks:
+      handles.add(self.pendingBlocks.getWantHandle(address))
+
+  for address in addresses:
+    self.trackedFutures.track(self.downloadInternal(address))
+
+  # TODO: we can reduce latency and improve download times
+  #   by returning blocks out of order as futures complete.
+  var blocks: seq[?!Block]
+  for handle in handles:
+    try:
+      blocks.add(success await handle)
+    except CancelledError as err:
+      warn "Block request cancelled", addresses, err = err.msg
+      raise err
+    except CatchableError as err:
+      error "Error getting blocks from exchange engine", addresses, err = err.msg
+      blocks.add(Block.failure err)
+
+  return blocks
 
 proc requestBlock*(
     self: BlockExcEngine, address: BlockAddress
@@ -233,7 +281,7 @@ proc requestBlock*(
 proc blockPresenceHandler*(
     self: BlockExcEngine, peer: PeerId, blocks: seq[BlockPresence]
 ) {.async: (raises: []).} =
-  trace "Received block presence from peer", peer, blocks = blocks.mapIt($it)
+  trace "Received block presence from peer", peer, len = blocks.len
   let
     peerCtx = self.peers.get(peer)
     ourWantList = toSeq(self.pendingBlocks.wantList)
@@ -476,12 +524,14 @@ proc wantListHandler*(
         case e.wantType
         of WantType.WantHave:
           if have:
+            trace "We HAVE the block", address = e.address
             presence.add(
               BlockPresence(
                 address: e.address, `type`: BlockPresenceType.Have, price: price
               )
             )
           else:
+            trace "We DON'T HAVE the block", address = e.address
             if e.sendDontHave:
               presence.add(
                 BlockPresence(
@@ -554,15 +604,11 @@ proc setupPeer*(
   trace "Setting up peer", peer
 
   if peer notin self.peers:
+    let peerCtx = BlockExcPeerCtx(id: peer)
     trace "Setting up new peer", peer
-    self.peers.add(BlockExcPeerCtx(id: peer))
+    self.peers.add(peerCtx)
     trace "Added peer", peers = self.peers.len
-
-  # broadcast our want list, the other peer will do the same
-  if self.pendingBlocks.wantListLen > 0:
-    trace "Sending our want list to a peer", peer
-    let cids = toSeq(self.pendingBlocks.wantList)
-    await self.network.request.sendWantList(peer, cids, full = true)
+    await self.refreshBlockKnowledge(peerCtx)
 
   if address =? self.pricing .? address:
     trace "Sending account to peer", peer

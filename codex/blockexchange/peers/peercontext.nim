@@ -31,8 +31,15 @@ type BlockExcPeerCtx* = ref object of RootObj
   peerWants*: seq[WantListEntry] # remote peers want lists
   exchanged*: int # times peer has exchanged with us
   lastExchange*: Moment # last time peer has exchanged with us
+  lastRefresh*: Moment # last time we refreshed our knowledge of the blocks this peer has
   account*: ?Account # ethereum account of this peer
   paymentChannel*: ?ChannelId # payment channel id
+
+proc isKnowledgeStale*(self: BlockExcPeerCtx): bool =
+  self.lastRefresh + 15.seconds < Moment.now()
+
+proc refreshed*(self: BlockExcPeerCtx) =
+  self.lastRefresh = Moment.now()
 
 proc peerHave*(self: BlockExcPeerCtx): seq[BlockAddress] =
   toSeq(self.blocks.keys)
