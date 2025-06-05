@@ -53,6 +53,7 @@ proc openLogFile(node: HardhatProcess, logFilePath: string): IoHandle =
 
 method start*(node: HardhatProcess) {.async.} =
   let poptions = node.processOptions + {AsyncProcessOption.StdErrToStdOut}
+
   trace "starting node",
     args = node.arguments,
     executable = node.executable,
@@ -67,30 +68,28 @@ method start*(node: HardhatProcess) {.async.} =
       options = poptions,
       stdoutHandle = AsyncProcess.Pipe,
     )
-  except CancelledError as error:
-    raise error
-  except CatchableError as e:
-    error "failed to start hardhat process", error = e.msg
 
-proc postStart*(
-    node: HardhatProcess
-): Future[void] {.async: (raises: [CancelledError, NodeProcessError]).} =
-  try:
+    await node.waitUntilStarted()
+
     var execResult = await execCommandEx(
       "cd " & node.workingDir() & " && " & node.workingDir() / node.executable() &
         " run " & node.workingDir() / "scripts" / "mine.js --network localhost"
     )
+
     assert execResult.status == 0
 
     execResult = await execCommandEx(
       "cd " & node.workingDir() & " && " & node.workingDir() / node.executable() &
         " ignition deploy ignition/modules/marketplace.js --network localhost"
     )
+
     assert execResult.status == 0
-  except CancelledError as e:
-    raise e
-  except Exception as e:
-    raise newException(NodeProcessError, e.msg)
+
+    trace "hardhat post start scripts executed"
+  except CancelledError as error:
+    raise error
+  except CatchableError as e:
+    error "failed to start hardhat process", error = e.msg
 
 proc startNode*(
     _: type HardhatProcess,
