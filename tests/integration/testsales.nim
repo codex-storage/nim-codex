@@ -218,7 +218,9 @@ multinodesuite "Sales":
     ).get
 
     check eventually(
-      await client.purchaseStateIs(id, "started"), timeout = 10 * 60 * 1000
+      await client.purchaseStateIs(id, "started"),
+      timeout = 10 * 60 * 1000,
+      pollInterval = 100,
     )
     let purchase = (await client.getPurchase(id)).get
     check purchase.error == none string

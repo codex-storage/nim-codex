@@ -178,7 +178,7 @@ marketplacesuite "Marketplace":
     let requestId = (await client0.client.requestId(purchaseId)).get
 
     # We wait that the 3 slots are filled by the first SP
-    check eventually(
+    check eventuallySafe(
       await client0.client.purchaseStateIs(purchaseId, "started"),
       timeout = 10 * 60.int * 1000,
     )
@@ -209,10 +209,13 @@ marketplacesuite "Marketplace":
     check eventually(
       await client0.client.purchaseStateIs(purchaseId2, "started"),
       timeout = 10 * 60.int * 1000,
+      pollInterval = 100,
     )
 
     # Double check, verify that our second SP hosts the 3 slots
-    check eventually ((await provider1.client.getSlots()).get).len == 3
+    check eventually (
+      ((await provider1.client.getSlots()).get).len == 3, pollInterval = 100
+    )
 
 marketplacesuite "Marketplace payouts":
   const minPricePerBytePerSecond = 1.u256
@@ -380,6 +383,7 @@ marketplacesuite "Marketplace payouts":
     check eventually(
       await client0.client.purchaseStateIs(purchaseId, "started"),
       timeout = 10 * 60.int * 1000,
+      pollInterval = 100,
     )
 
     # Here we will check that for each provider, the total remaining collateral
@@ -398,4 +402,5 @@ marketplacesuite "Marketplace payouts":
           availability.totalRemainingCollateral ==
             availableSlots * slotSize * minPricePerBytePerSecond,
         timeout = 30 * 1000,
+        pollInterval = 100
       )
