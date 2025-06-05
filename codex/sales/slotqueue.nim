@@ -30,7 +30,7 @@ type
     duration: uint64
     pricePerBytePerSecond: UInt256
     collateral: UInt256 # Collateral computed
-    expiry: uint64
+    expiry: ?uint64
     seen: bool
 
   # don't need to -1 to prevent overflow when adding 1 (to always allow push)
@@ -89,8 +89,9 @@ proc `<`*(a, b: SlotQueueItem): bool =
   scoreA.addIf(a.collateral < b.collateral, 2)
   scoreB.addIf(a.collateral > b.collateral, 2)
 
-  scoreA.addIf(a.expiry > b.expiry, 1)
-  scoreB.addIf(a.expiry < b.expiry, 1)
+  if expiryA =? a.expiry and expiryB =? b.expiry:
+    scoreA.addIf(expiryA > expiryB, 1)
+    scoreB.addIf(expiryA < expiryB, 1)
 
   return scoreA > scoreB
 
@@ -124,7 +125,7 @@ proc init*(
     requestId: RequestId,
     slotIndex: uint16,
     ask: StorageAsk,
-    expiry: uint64,
+    expiry: ?uint64,
     collateral: UInt256,
     seen = false,
 ): SlotQueueItem =
@@ -141,6 +142,17 @@ proc init*(
 
 proc init*(
     _: type SlotQueueItem,
+    requestId: RequestId,
+    slotIndex: uint16,
+    ask: StorageAsk,
+    expiry: uint64,
+    collateral: UInt256,
+    seen = false,
+): SlotQueueItem =
+  SlotQueueItem.init(requestId, slotIndex, ask, some expiry, collateral, seen)
+
+proc init*(
+    _: type SlotQueueItem,
     request: StorageRequest,
     slotIndex: uint16,
     collateral: UInt256,
@@ -151,7 +163,7 @@ proc init*(
     _: type SlotQueueItem,
     requestId: RequestId,
     ask: StorageAsk,
-    expiry: uint64,
+    expiry: ?uint64,
     collateral: UInt256,
 ): seq[SlotQueueItem] {.raises: [SlotsOutOfRangeError].} =
   if not ask.slots.inRange:
@@ -168,9 +180,18 @@ proc init*(
   return items
 
 proc init*(
+    _: type SlotQueueItem,
+    requestId: RequestId,
+    ask: StorageAsk,
+    expiry: uint64,
+    collateral: UInt256,
+): seq[SlotQueueItem] {.raises: [SlotsOutOfRangeError].} =
+  SlotQueueItem.init(requestId, ask, some expiry, collateral)
+
+proc init*(
     _: type SlotQueueItem, request: StorageRequest, collateral: UInt256
 ): seq[SlotQueueItem] =
-  return SlotQueueItem.init(request.id, request.ask, request.expiry, collateral)
+  return SlotQueueItem.init(request.id, request.ask, uint64.none, collateral)
 
 proc inRange*(val: SomeUnsignedInt): bool =
   val.uint16 in SlotQueueSize.low .. SlotQueueSize.high
