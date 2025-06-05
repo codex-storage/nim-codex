@@ -139,22 +139,12 @@ template multinodesuite*(name: string, body: untyped) =
         let updatedLogFile = getLogFile(role, none int)
         args.add "--log-file=" & updatedLogFile
 
-      let node = await HardhatProcess.startNode(args, config.debugEnabled, "hardhat")
       try:
-        await node.waitUntilStarted()
+        let node = await HardhatProcess.startNode(args, config.debugEnabled, "hardhat")
+        trace "hardhat node started"
+        return node
       except NodeProcessError as e:
-        raiseMultiNodeSuiteError "hardhat node not started: " & e.msg
-
-      trace "hardhat node started"
-
-      try:
-        await node.postStart()
-      except NodeProcessError as e:
-        raiseMultiNodeSuiteError "cannot run the post start scripts: " & e.msg
-
-      trace "hardhat post start scripts executed"
-
-      return node
+        raiseMultiNodeSuiteError "cannot start hardhat process: " & e.msg
 
     proc newCodexProcess(
         roleIdx: int, conf: CodexConfig, role: Role
