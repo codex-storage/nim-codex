@@ -290,7 +290,7 @@ marketplacesuite "Marketplace payouts":
     await ethProvider.advanceTime(expiry.u256)
 
     check eventually(
-      await providerApi.saleStateIs(slotId, "SaleCancelled"), pollInterval = 100
+      await providerApi.saleStateIs(slotId, "SaleCancelled"), pollInterval = 20
     )
 
     await advanceToNextPeriod()
