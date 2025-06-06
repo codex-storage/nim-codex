@@ -148,7 +148,7 @@ marketplacesuite "Sales":
       tolerance = 1,
     )
 
-    await requestStartedFut
+    await requestStartedFut.wait(timeout = chronos.seconds((10 * 60) + 10))
 
     let updatedAvailability =
       ((await host.getAvailabilities()).get).findItem(availability).get
@@ -231,7 +231,7 @@ marketplacesuite "Sales":
       )
     ).get
 
-    await requestStartedFut
+    await requestStartedFut.wait(timeout = chronos.seconds((10 * 60) + 10))
 
     let purchase = (await client.getPurchase(id)).get
     check purchase.error == none string
