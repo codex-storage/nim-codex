@@ -87,12 +87,20 @@ proc getContent(
     client: CodexClient, url: string, headers: seq[HttpHeaderTuple] = @[]
 ): Future[string] {.async: (raises: [CancelledError, HttpError]).} =
   let response = await client.get(url, headers)
+
+  defer:
+    await response.closeWait()
+
   return await response.body
 
 proc info*(
     client: CodexClient
 ): Future[?!JsonNode] {.async: (raises: [CancelledError, HttpError]).} =
   let response = await client.get(client.baseurl & "/debug/info")
+
+  defer:
+    await response.closeWait()
+
   return JsonNode.parse(await response.body)
 
 proc setLogLevel*(
@@ -102,6 +110,10 @@ proc setLogLevel*(
     url = client.baseurl & "/debug/chronicles/loglevel?level=" & level
     headers = @[("Content-Type", "text/plain")]
     response = await client.post(url, headers = headers, body = "")
+
+  defer:
+    await response.closeWait()
+
   assert response.status == 200
 
 proc uploadRaw*(
@@ -115,6 +127,10 @@ proc upload*(
     client: CodexClient, contents: string
 ): Future[?!Cid] {.async: (raises: [CancelledError, HttpError]).} =
   let response = await client.uploadRaw(contents)
+
+  defer:
+    await response.closeWait()
+
   assert response.status == 200
   Cid.init(await response.body).mapFailure
 
@@ -136,6 +152,9 @@ proc downloadBytes*(
 ): Future[?!seq[byte]] {.async: (raises: [CancelledError, HttpError]).} =
   let response = await client.downloadRaw($cid, local = local)
 
+  defer:
+    await response.closeWait()
+
   if response.status != 200:
     return failure($response.status)
 
@@ -153,6 +172,9 @@ proc downloadNoStream*(
 ): Future[?!string] {.async: (raises: [CancelledError, HttpError]).} =
   let response = await client.post(client.baseurl & "/data/" & $cid & "/network")
 
+  defer:
+    await response.closeWait()
+
   if response.status != 200:
     return failure($response.status)
 
@@ -163,6 +185,9 @@ proc downloadManifestOnly*(
 ): Future[?!string] {.async: (raises: [CancelledError, HttpError]).} =
   let response =
     await client.get(client.baseurl & "/data/" & $cid & "/network/manifest")
+
+  defer:
+    await response.closeWait()
 
   if response.status != 200:
     return failure($response.status)
@@ -181,6 +206,9 @@ proc delete*(
 ): Future[?!void] {.async: (raises: [CancelledError, HttpError]).} =
   let response = await client.deleteRaw($cid)
 
+  defer:
+    await response.closeWait()
+
   if response.status != 204:
     return failure($response.status)
 
@@ -198,6 +226,9 @@ proc list*(
 ): Future[?!RestContentList] {.async: (raises: [CancelledError, HttpError]).} =
   let response = await client.listRaw()
 
+  defer:
+    await response.closeWait()
+
   if response.status != 200:
     return failure($response.status)
 
@@ -208,6 +239,9 @@ proc space*(
 ): Future[?!RestRepoStore] {.async: (raises: [CancelledError, HttpError]).} =
   let url = client.baseurl & "/space"
   let response = await client.get(url)
+
+  defer:
+    await response.closeWait()
 
   if response.status != 200:
     return failure($response.status)
@@ -264,6 +298,9 @@ proc requestStorage*(
       nodes, tolerance,
     )
     body = await response.body
+
+  defer:
+    await response.closeWait()
 
   if response.status != 200:
     doAssert(false, body)
@@ -325,6 +362,9 @@ proc postAvailability*(
     enabled = enabled,
     until = until,
   )
+
+  defer:
+    await response.closeWait()
 
   let body = await response.body
 
@@ -389,6 +429,10 @@ proc patchAvailability*(
     enabled = enabled,
     until = until,
   )
+
+  defer:
+    await response.closeWait()
+
   doAssert response.status == 204, "expected No Content, got " & $response.status
 
 proc getAvailabilities*(
