@@ -72,6 +72,7 @@ jobs:
         if: matrix.tests == 'integration' || matrix.tests == 'all'
         # run: make -j${ncpu} testIntegration
         run: |
+          make -j12
           ./env.sh nim c -r tests/integration/testmarketplace.nim
 
       - name: Upload integration tests log files
