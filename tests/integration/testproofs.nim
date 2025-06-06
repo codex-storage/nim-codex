@@ -120,7 +120,7 @@ marketplacesuite "Simulate invalid proofs":
       .some,
     ):
     let client0 = clients()[0].client
-    let expiry = 10.periods
+    let expiry = 15.periods
     let duration = expiry + 10.periods
 
     let data = await RandomChunker.example(blocks = blocks)
