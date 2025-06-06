@@ -34,9 +34,22 @@ type BlockExcPeerCtx* = ref object of RootObj
   lastRefresh*: Moment # last time we refreshed our knowledge of the blocks this peer has
   account*: ?Account # ethereum account of this peer
   paymentChannel*: ?ChannelId # payment channel id
+  blocksInFlight*: seq[BlockAddress] # blocks in flight towards peer
 
 proc isKnowledgeStale*(self: BlockExcPeerCtx): bool =
   self.lastRefresh + 15.seconds < Moment.now()
+
+proc isInFlight*(self: BlockExcPeerCtx, address: BlockAddress): bool =
+  address in self.blocksInFlight
+
+proc addInFlight*(self: BlockExcPeerCtx, address: BlockAddress) =
+  if not self.isInFlight(address):
+    self.blocksInFlight.add(address)
+
+proc removeInFlight*(self: BlockExcPeerCtx, address: BlockAddress) =
+  let index = self.blocksInFlight.find(address)
+  if index != -1:
+    self.blocksInFlight.delete(index)
 
 proc refreshed*(self: BlockExcPeerCtx) =
   self.lastRefresh = Moment.now()
