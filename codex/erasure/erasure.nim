@@ -358,7 +358,7 @@ proc asyncEncode*(
 
 proc encodeData(
     self: Erasure, manifest: Manifest, params: EncodingParams
-): Future[?!Manifest] {.async.} =
+): Future[?!Manifest] {.async: (raises: [CancelledError]).} =
   ## Encode blocks pointed to by the protected manifest
   ##
   ## `manifest` - the manifest to encode
@@ -457,7 +457,7 @@ proc encode*(
     blocks: Natural,
     parity: Natural,
     strategy = SteppedStrategy,
-): Future[?!Manifest] {.async.} =
+): Future[?!Manifest] {.async: (raises: [CancelledError]).} =
   ## Encode a manifest into one that is erasure protected.
   ##
   ## `manifest`   - the original manifest to be encoded
@@ -548,7 +548,9 @@ proc asyncDecode*(
 
   success()
 
-proc decode*(self: Erasure, encoded: Manifest): Future[?!Manifest] {.async.} =
+proc decode*(
+    self: Erasure, encoded: Manifest
+): Future[?!Manifest] {.async: (raises: [CancelledError]).} =
   ## Decode a protected manifest into it's original
   ## manifest
   ##

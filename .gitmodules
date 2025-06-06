@@ -231,3 +231,16 @@
 	url = https://github.com/vacp2p/nim-ngtcp2.git
 	ignore = untracked
 	branch = master
+[submodule "vendor/nim-groth16"]
+	path = vendor/nim-groth16
+	url = https://github.com/codex-storage/nim-groth16.git
+	ignore = untracked
+	branch = master
+[submodule "vendor/nim-goldilocks-hash"]
+	path = vendor/nim-goldilocks-hash
+	url = https://github.com/codex-storage/nim-goldilocks-hash.git
+	ignore = untracked
+	branch = master
+[submodule "vendor/circom-witnessgen"]
+	path = vendor/circom-witnessgen
+	url = https://github.com/codex-storage/circom-witnessgen.git

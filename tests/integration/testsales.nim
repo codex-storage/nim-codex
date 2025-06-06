@@ -8,6 +8,7 @@ import ../contracts/time
 import ./codexconfig
 import ./codexclient
 import ./nodeconfigs
+import ./marketplacesuite
 
 proc findItem[T](items: seq[T], item: T): ?!T =
   for tmp in items:
@@ -16,7 +17,7 @@ proc findItem[T](items: seq[T], item: T): ?!T =
 
   return failure("Not found")
 
-multinodesuite "Sales":
+marketplacesuite "Sales":
   let salesConfig = NodeConfigs(
     clients: CodexConfigs.init(nodes = 1).some,
     providers: CodexConfigs.init(nodes = 1)
@@ -128,22 +129,27 @@ multinodesuite "Sales":
 
     # Lets create storage request that will utilize some of the availability's space
     let cid = (await client.upload(data)).get
-    let id = (
-      await client.requestStorage(
-        cid,
-        duration = 20 * 60.uint64,
-        pricePerBytePerSecond = minPricePerBytePerSecond,
-        proofProbability = 3.u256,
-        expiry = (10 * 60).uint64,
-        collateralPerByte = collateralPerByte,
-        nodes = 3,
-        tolerance = 1,
-      )
-    ).get
 
-    check eventually(
-      await client.purchaseStateIs(id, "started"), timeout = 10 * 60 * 1000
+    var requestStartedFut = Future[void].Raising([CancelledError]).init()
+    proc onRequestStarted(eventResult: ?!RequestFulfilled) {.raises: [].} =
+      requestStartedFut.complete()
+
+    let startedSubscription =
+      await marketplace.subscribe(RequestFulfilled, onRequestStarted)
+
+    let id = await client.requestStorage(
+      cid,
+      duration = 20 * 60.uint64,
+      pricePerBytePerSecond = minPricePerBytePerSecond,
+      proofProbability = 3.u256,
+      expiry = (10 * 60).uint64,
+      collateralPerByte = collateralPerByte,
+      nodes = 3,
+      tolerance = 1,
     )
+
+    await requestStartedFut.wait(timeout = chronos.seconds((10 * 60) + 10))
+
     let updatedAvailability =
       ((await host.getAvailabilities()).get).findItem(availability).get
     check updatedAvailability.totalSize != updatedAvailability.freeSize
@@ -165,6 +171,7 @@ multinodesuite "Sales":
       ((await host.getAvailabilities()).get).findItem(availability).get
     check newUpdatedAvailability.totalSize == originalSize + 20000
     check newUpdatedAvailability.freeSize - updatedAvailability.freeSize == 20000
+    await startedSubscription.unsubscribe()
 
   test "updating availability fails with until negative", salesConfig:
     let availability = (
@@ -202,6 +209,13 @@ multinodesuite "Sales":
       )
     ).get
 
+    var requestStartedFut = Future[void].Raising([CancelledError]).init()
+    proc onRequestStarted(eventResult: ?!RequestFulfilled) {.raises: [].} =
+      requestStartedFut.complete()
+
+    let startedSubscription =
+      await marketplace.subscribe(RequestFulfilled, onRequestStarted)
+
     # client requests storage
     let cid = (await client.upload(data)).get
     let id = (
@@ -217,9 +231,8 @@ multinodesuite "Sales":
       )
     ).get
 
-    check eventually(
-      await client.purchaseStateIs(id, "started"), timeout = 10 * 60 * 1000
-    )
+    await requestStartedFut.wait(timeout = chronos.seconds((10 * 60) + 10))
+
     let purchase = (await client.getPurchase(id)).get
     check purchase.error == none string
 
@@ -234,3 +247,5 @@ multinodesuite "Sales":
       response.status == 422
       (await response.body) ==
         "Until parameter must be greater or equal to the longest currently hosted slot"
+
+    await startedSubscription.unsubscribe()
