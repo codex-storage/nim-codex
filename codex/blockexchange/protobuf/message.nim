@@ -29,7 +29,6 @@ type
     cancel*: bool # Whether this revokes an entry
     wantType*: WantType # Note: defaults to enum 0, ie Block
     sendDontHave*: bool # Note: defaults to false
-    inFlight*: bool # Whether block sending is in progress. Not serialized.
 
   WantList* = object
     entries*: seq[WantListEntry] # A list of wantList entries

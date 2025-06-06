@@ -34,7 +34,7 @@ declareGauge(
 
 const
   DefaultBlockRetries* = 3000
-  DefaultRetryInterval* = 10.seconds
+  DefaultRetryInterval* = 180.seconds
 
 type
   RetriesExhaustedError* = object of CatchableError
@@ -124,9 +124,6 @@ proc resolve*(
         blockReq.handle.complete(bd.blk)
 
         codex_block_exchange_retrieval_time_us.set(retrievalDurationUs)
-
-        if retrievalDurationUs > 500000:
-          warn "High block retrieval time", retrievalDurationUs, address = bd.address
       else:
         trace "Block handle already finished", address = bd.address
 
