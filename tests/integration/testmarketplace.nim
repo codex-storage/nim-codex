@@ -274,9 +274,9 @@ marketplacesuite "Marketplace payouts":
       trace "cancelling request", eventResult
       requestCancelledFut.complete()
 
-    let cancelledSubscription = await marketplace.subscribe(RequestCancelled, onRequestCancelled)
+    let cancelledSubscription =
+      await marketplace.subscribe(RequestCancelled, onRequestCancelled)
     let filledSubscription = await marketplace.subscribe(SlotFilled, onSlotFilled)
-
 
     # client requests storage but requires multiple slots to host the content
     let id = await clientApi.requestStorage(
@@ -318,8 +318,8 @@ marketplacesuite "Marketplace payouts":
     )
 
     await allFuturesThrowing(
-      filledSubscription.unsubscribe(),
-      cancelledSubscription.unsubscribe())
+      filledSubscription.unsubscribe(), cancelledSubscription.unsubscribe()
+    )
 
   test "the collateral is returned after a sale is ignored",
     NodeConfigs(
