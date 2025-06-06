@@ -10,8 +10,22 @@ import ../nodeconfigs
 
 marketplacesuite(name = "Marketplace", stopOnRequestFail = true):
   let marketplaceConfig = NodeConfigs(
-    clients: CodexConfigs.init(nodes = 1).some,
-    providers: CodexConfigs.init(nodes = 1).some,
+    clients: CodexConfigs
+      .init(nodes = 1)
+      .debug()
+      .withLogFile()
+      .withLogTopics(
+        "codex", "codex slots builder", "codex slots sampler", "marketplace", "sales",
+        "statemachine", "slotqueue", "reservations",
+      ).some,
+    providers: CodexConfigs
+      .init(nodes = 1)
+      .debug()
+      .withLogFile()
+      .withLogTopics(
+        "codex", "codex slots builder", "codex slots sampler", "marketplace", "sales",
+        "statemachine", "slotqueue", "reservations",
+      ).some,
   )
 
   var host: CodexClient
@@ -135,14 +149,22 @@ marketplacesuite(name = "Marketplace", stopOnRequestFail = true):
 
   test "SP are able to process slots after workers were busy with other slots and ignored them",
     NodeConfigs(
-      clients: CodexConfigs.init(nodes = 1)
-      # .debug()
-      .some,
-      providers: CodexConfigs.init(nodes = 2)
-      # .debug()
-      # .withLogFile()
-      # .withLogTopics("marketplace", "sales", "statemachine","slotqueue", "reservations")
-      .some,
+      clients: CodexConfigs
+        .init(nodes = 1)
+        .debug()
+        .withLogFile()
+        .withLogTopics(
+          "codex", "codex slots builder", "codex slots sampler", "marketplace", "sales",
+          "statemachine", "slotqueue", "reservations",
+        ).some,
+      providers: CodexConfigs
+        .init(nodes = 2)
+        .debug()
+        .withLogFile()
+        .withLogTopics(
+          "codex", "codex slots builder", "codex slots sampler", "marketplace", "sales",
+          "statemachine", "slotqueue", "reservations",
+        ).some,
     ):
     let client0 = clients()[0]
     let provider0 = providers()[0]
@@ -219,20 +241,22 @@ marketplacesuite(name = "Marketplace payouts", stopOnRequestFail = true):
     NodeConfigs(
       # Uncomment to start Hardhat automatically, typically so logs can be inspected locally
       hardhat: HardhatConfig.none,
-      clients: CodexConfigs.init(nodes = 1)
-      #  .debug() # uncomment to enable console log output.debug()
-      # .withLogFile()
-      # # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-      # .withLogTopics("node", "erasure")
-      .some,
-      providers: CodexConfigs.init(nodes = 1)
-      #  .debug() # uncomment to enable console log output
-      # .withLogFile()
-      # # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-      # .withLogTopics(
-      #   "node", "marketplace", "sales", "reservations", "node", "statemachine"
-      # )
-      .some,
+      clients: CodexConfigs
+        .init(nodes = 1)
+        .debug()
+        .withLogFile()
+        .withLogTopics(
+          "codex", "codex slots builder", "codex slots sampler", "marketplace", "sales",
+          "statemachine", "slotqueue", "reservations", "erasure",
+        ).some,
+      providers: CodexConfigs
+        .init(nodes = 1)
+        .debug()
+        .withLogFile()
+        .withLogTopics(
+          "codex", "codex slots builder", "codex slots sampler", "marketplace", "sales",
+          "statemachine", "slotqueue", "reservations", "erasure",
+        ).some,
     ):
     let duration = 6.periods
     let expiry = 4.periods
@@ -317,16 +341,22 @@ marketplacesuite(name = "Marketplace payouts", stopOnRequestFail = true):
   test "the collateral is returned after a sale is ignored",
     NodeConfigs(
       hardhat: HardhatConfig.none,
-      clients: CodexConfigs.init(nodes = 1).some,
-      providers: CodexConfigs.init(nodes = 3)
-      # .debug()
-      # uncomment to enable console log output
-      # .withLogFile()
-      # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-      # .withLogTopics(
-      #   "node", "marketplace", "sales", "reservations", "statemachine"
-      # )
-      .some,
+      clients: CodexConfigs
+        .init(nodes = 1)
+        .debug()
+        .withLogFile()
+        .withLogTopics(
+          "codex", "codex slots builder", "codex slots sampler", "marketplace", "sales",
+          "statemachine", "slotqueue", "reservations", "erasure",
+        ).some,
+      providers: CodexConfigs
+        .init(nodes = 3)
+        .debug()
+        .withLogFile()
+        .withLogTopics(
+          "codex", "codex slots builder", "codex slots sampler", "marketplace", "sales",
+          "statemachine", "slotqueue", "reservations", "erasure",
+        ).some,
     ):
     let data = await RandomChunker.example(blocks = blocks)
     let client0 = clients()[0]
