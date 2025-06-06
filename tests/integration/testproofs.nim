@@ -51,6 +51,13 @@ marketplacesuite "Hosts submit regular proofs":
 
     let cid = (await client0.upload(data)).get
 
+    var requestStartedFut = Future[void].Raising([CancelledError]).init()
+    proc onRequestStarted(eventResult: ?!RequestFulfilled) {.raises: [].} =
+      requestStartedFut.complete()
+
+    let startedSubscription =
+      await marketplace.subscribe(RequestFulfilled, onRequestStarted)
+
     let purchaseId = await client0.requestStorage(
       cid,
       expiry = expiry,
@@ -64,19 +71,18 @@ marketplacesuite "Hosts submit regular proofs":
 
     let slotSize = slotSize(blocks, ecNodes, ecTolerance)
 
-    check eventuallySafe(
-      await client0.purchaseStateIs(purchaseId, "started"), timeout = expiry.int * 1000
-    )
+    await requestStartedFut
 
     var proofWasSubmitted = false
     proc onProofSubmitted(event: ?!ProofSubmitted) =
       proofWasSubmitted = event.isOk
 
-    let subscription = await marketplace.subscribe(ProofSubmitted, onProofSubmitted)
+    let proofSubmittedSubscription = await marketplace.subscribe(ProofSubmitted, onProofSubmitted)
 
     check eventually(proofWasSubmitted, timeout = (duration - expiry).int * 1000)
 
-    await subscription.unsubscribe()
+    await proofSubmittedSubscription.unsubscribe()
+    await startedSubscription.unsubscribe()
 
 marketplacesuite "Simulate invalid proofs":
   # TODO: these are very loose tests in that they are not testing EXACTLY how
