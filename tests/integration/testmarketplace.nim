@@ -70,7 +70,7 @@ marketplacesuite "Marketplace":
     )
 
     # wait for request to start
-    await requestStartedFut
+    await requestStartedFut.wait(timeout = chronos.seconds((10 * 60) + 10))
 
     let purchase = (await client.getPurchase(id)).get
     check purchase.error == none string
@@ -126,7 +126,7 @@ marketplacesuite "Marketplace":
       tolerance = ecTolerance,
     )
 
-    await requestStartedFut
+    await requestStartedFut.wait(timeout = chronos.seconds((10 * 60) + 10))
 
     let purchase = (await client.getPurchase(id)).get
     check purchase.error == none string
@@ -322,7 +322,7 @@ marketplacesuite "Marketplace payouts":
     # wait until sale is cancelled
     await ethProvider.advanceTime(expiry.u256)
 
-    await requestCancelledFut.wait(timeout = (expiry.uint32 + 10'u32).seconds)
+    await requestCancelledFut.wait(timeout = chronos.seconds(expiry.int + 10))
 
     await advanceToNextPeriod()
 
