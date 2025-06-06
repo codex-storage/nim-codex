@@ -6,6 +6,7 @@ import ../contracts/deployment
 import ./marketplacesuite
 import ./twonodes
 import ./nodeconfigs
+import ../helpers
 
 marketplacesuite "Marketplace":
   let marketplaceConfig = NodeConfigs(
@@ -240,8 +241,8 @@ marketplacesuite "Marketplace payouts":
       # )
       .some,
     ):
-    let duration = 20.periods
-    let expiry = 10.periods
+    let duration = 6.periods
+    let expiry = 4.periods
     let data = await RandomChunker.example(blocks = blocks)
     let client = clients()[0]
     let provider = providers()[0]
@@ -251,15 +252,14 @@ marketplacesuite "Marketplace payouts":
     let startBalanceClient = await token.balanceOf(client.ethAccount)
 
     # provider makes storage available
-    let datasetSize = datasetSize(blocks, ecNodes, ecTolerance)
-    let totalAvailabilitySize = (datasetSize div 2).truncate(uint64)
+    let slotSize = slotSize(blocks, ecNodes, ecTolerance)
     discard await providerApi.postAvailability(
       # make availability size small enough that we can't fill all the slots,
       # thus causing a cancellation
-      totalSize = totalAvailabilitySize,
+      totalSize = slotSize.truncate(uint64),
       duration = duration.uint64,
       minPricePerBytePerSecond = minPricePerBytePerSecond,
-      totalCollateral = collateralPerByte * totalAvailabilitySize.u256,
+      totalCollateral = collateralPerByte * slotSize,
     )
 
     let cid = (await clientApi.upload(data)).get
@@ -269,7 +269,14 @@ marketplacesuite "Marketplace payouts":
       assert not eventResult.isErr
       slotIdxFilled = some (!eventResult).slotIndex
 
-    let subscription = await marketplace.subscribe(SlotFilled, onSlotFilled)
+    var requestCancelledFut = Future[void].Raising([CancelledError]).init()
+    proc onRequestCancelled(eventResult: ?!RequestCancelled) {.raises: [].} =
+      trace "cancelling request", eventResult
+      requestCancelledFut.complete()
+
+    let cancelledSubscription = await marketplace.subscribe(RequestCancelled, onRequestCancelled)
+    let filledSubscription = await marketplace.subscribe(SlotFilled, onSlotFilled)
+
 
     # client requests storage but requires multiple slots to host the content
     let id = await clientApi.requestStorage(
@@ -289,13 +296,10 @@ marketplacesuite "Marketplace payouts":
     # wait until sale is cancelled
     await ethProvider.advanceTime(expiry.u256)
 
-    check eventually(
-      await providerApi.saleStateIs(slotId, "SaleCancelled"), pollInterval = 100
-    )
+    await requestCancelledFut.wait(timeout = (expiry.uint32 + 1'u32).seconds)
 
     await advanceToNextPeriod()
 
-    let slotSize = slotSize(blocks, ecNodes, ecTolerance)
     let pricePerSlotPerSecond = minPricePerBytePerSecond * slotSize
 
     check eventually (
@@ -313,7 +317,9 @@ marketplacesuite "Marketplace payouts":
       timeout = 10 * 1000, # give client a bit of time to withdraw its funds
     )
 
-    await subscription.unsubscribe()
+    await allFuturesThrowing(
+      filledSubscription.unsubscribe(),
+      cancelledSubscription.unsubscribe())
 
   test "the collateral is returned after a sale is ignored",
     NodeConfigs(
