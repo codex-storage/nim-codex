@@ -620,7 +620,8 @@ asyncchecksuite "Task Handler":
     proc sendBlocksDelivery(
         id: PeerId, blocksDelivery: seq[BlockDelivery]
     ) {.async: (raises: [CancelledError]).} =
-      check peersCtx[0].peerWants[0].inFlight
+      let blockAddress = peersCtx[0].peerWants[0].address
+      check peersCtx[0].isInFlight(blockAddress)
 
     for blk in blocks:
       (await engine.localStore.putBlock(blk)).tryGet()
@@ -633,7 +634,6 @@ asyncchecksuite "Task Handler":
         cancel: false,
         wantType: WantType.WantBlock,
         sendDontHave: false,
-        inFlight: false,
       )
     )
     await engine.taskHandler(peersCtx[0])
@@ -646,12 +646,12 @@ asyncchecksuite "Task Handler":
         cancel: false,
         wantType: WantType.WantBlock,
         sendDontHave: false,
-        inFlight: false,
       )
     )
     await engine.taskHandler(peersCtx[0])
 
-    check not peersCtx[0].peerWants[0].inFlight
+    let blockAddress = peersCtx[0].peerWants[0].address
+    check not peersCtx[0].isInFlight(blockAddress)
 
   test "Should send presence":
     let present = blocks
