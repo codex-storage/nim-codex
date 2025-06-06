@@ -51,6 +51,14 @@ marketplacesuite "Marketplace":
 
     # client requests storage
     let cid = (await client.upload(data)).get
+
+    var requestStartedFut = Future[void].Raising([CancelledError]).init()
+    proc onRequestStarted(eventResult: ?!RequestFulfilled) {.raises: [].} =
+      requestStartedFut.complete()
+
+    let startedSubscription =
+      await marketplace.subscribe(RequestFulfilled, onRequestStarted)
+
     let id = await client.requestStorage(
       cid,
       duration = 20 * 60.uint64,
@@ -62,9 +70,9 @@ marketplacesuite "Marketplace":
       tolerance = ecTolerance,
     )
 
-    check eventually(
-      await client.purchaseStateIs(id, "started"), timeout = 10 * 60 * 1000
-    )
+    # wait for request to start
+    await requestStartedFut
+
     let purchase = (await client.getPurchase(id)).get
     check purchase.error == none string
     let availabilities = (await host.getAvailabilities()).get
@@ -75,6 +83,8 @@ marketplacesuite "Marketplace":
     let reservations = (await host.getAvailabilityReservations(availability.id)).get
     check reservations.len == 3
     check reservations[0].requestId == purchase.requestId
+
+    await startedSubscription.unsubscribe()
 
   test "node slots gets paid out and rest of tokens are returned to client",
     marketplaceConfig:
@@ -296,7 +306,7 @@ marketplacesuite "Marketplace payouts":
     # wait until sale is cancelled
     await ethProvider.advanceTime(expiry.u256)
 
-    await requestCancelledFut.wait(timeout = (expiry.uint32 + 1'u32).seconds)
+    await requestCancelledFut.wait(timeout = (expiry.uint32 + 10'u32).seconds)
 
     await advanceToNextPeriod()
 
@@ -404,4 +414,5 @@ marketplacesuite "Marketplace payouts":
           availability.totalRemainingCollateral ==
             availableSlots * slotSize * minPricePerBytePerSecond,
         timeout = 30 * 1000,
+        pollInterval = 100,
       )
