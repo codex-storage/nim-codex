@@ -71,7 +71,7 @@ marketplacesuite "Hosts submit regular proofs":
 
     let slotSize = slotSize(blocks, ecNodes, ecTolerance)
 
-    await requestStartedFut
+    await requestStartedFut.wait(timeout = chronos.seconds(10.periods.int + 10))
 
     var proofWasSubmitted = false
     proc onProofSubmitted(event: ?!ProofSubmitted) =
