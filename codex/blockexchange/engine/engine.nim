@@ -18,6 +18,7 @@ import pkg/libp2p/[cid, switch, multihash, multicodec]
 import pkg/metrics
 import pkg/stint
 import pkg/questionable
+import pkg/stew/shims/sets
 
 import ../../rng
 import ../../stores/blockstore
@@ -303,46 +304,30 @@ proc blockPresenceHandler*(
   trace "Received block presence from peer", peer, len = blocks.len
   let
     peerCtx = self.peers.get(peer)
-    ourWantList = toSeq(self.pendingBlocks.wantList)
+    ourWantList = toHashSet(self.pendingBlocks.wantList.toSeq)
 
   if peerCtx.isNil:
     return
-
-  trace "Build presence list"
 
   for blk in blocks:
     if presence =? Presence.init(blk):
       peerCtx.setPresence(presence)
 
-  trace "Built presence list"
-
-  trace "Remove dont want cids"
-
   let
-    peerHave = peerCtx.peerHave
-    dontWantCids = peerHave.filterIt(it notin ourWantList)
-
-  trace "Removed dont want cids"
+    peerHave = peerCtx.peerHave.toHashSet
+    dontWantCids = peerHave - ourWantList
 
   if dontWantCids.len > 0:
-    peerCtx.cleanPresence(dontWantCids)
-
-  trace "Remove want cids"
+    peerCtx.cleanPresence(dontWantCids.toSeq)
 
   let ourWantCids = ourWantList.filterIt(
     it in peerHave and not self.pendingBlocks.retriesExhausted(it) and
       not self.pendingBlocks.isInFlight(it)
-  )
-
-  trace "Removed want cids"
-
-  trace "Update pending blocks"
+  ).toSeq
 
   for address in ourWantCids:
     self.pendingBlocks.setInFlight(address, true)
     self.pendingBlocks.decRetries(address)
-
-  trace "Updated pending blocks"
 
   if ourWantCids.len > 0:
     trace "Peer has blocks in our wantList", peer, wants = ourWantCids
