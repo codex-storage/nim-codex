@@ -78,6 +78,8 @@ proc discoveryTaskLoop(b: DiscoveryEngine) {.async: (raises: []).} =
         trace "Discovery request already in progress", cid
         continue
 
+      trace "Running discovery task for cid", cid
+
       let haves = b.peers.peersHave(cid)
 
       if haves.len < b.minPeersPerBlock:
