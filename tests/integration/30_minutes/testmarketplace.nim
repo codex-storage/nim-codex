@@ -4,6 +4,7 @@ import ../../examples
 import ../../contracts/time
 import ../../contracts/deployment
 import ./../marketplacesuite
+import ../../helpers
 import ../twonodes
 import ../nodeconfigs
 
@@ -232,8 +233,8 @@ marketplacesuite(name = "Marketplace payouts", stopOnRequestFail = true):
       # )
       .some,
     ):
-    let duration = 20.periods
-    let expiry = 10.periods
+    let duration = 6.periods
+    let expiry = 4.periods
     let data = await RandomChunker.example(blocks = blocks)
     let client = clients()[0]
     let provider = providers()[0]
@@ -243,15 +244,14 @@ marketplacesuite(name = "Marketplace payouts", stopOnRequestFail = true):
     let startBalanceClient = await token.balanceOf(client.ethAccount)
 
     # provider makes storage available
-    let datasetSize = datasetSize(blocks, ecNodes, ecTolerance)
-    let totalAvailabilitySize = (datasetSize div 2).truncate(uint64)
+    let slotSize = slotSize(blocks, ecNodes, ecTolerance)
     discard await providerApi.postAvailability(
       # make availability size small enough that we can't fill all the slots,
       # thus causing a cancellation
-      totalSize = totalAvailabilitySize,
+      totalSize = slotSize.truncate(uint64),
       duration = duration.uint64,
       minPricePerBytePerSecond = minPricePerBytePerSecond,
-      totalCollateral = collateralPerByte * totalAvailabilitySize.u256,
+      totalCollateral = collateralPerByte * slotSize,
     )
 
     let cid = (await clientApi.upload(data)).get
@@ -293,7 +293,6 @@ marketplacesuite(name = "Marketplace payouts", stopOnRequestFail = true):
 
     await advanceToNextPeriod()
 
-    let slotSize = slotSize(blocks, ecNodes, ecTolerance)
     let pricePerSlotPerSecond = minPricePerBytePerSecond * slotSize
 
     check eventually (
