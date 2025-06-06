@@ -51,6 +51,7 @@ marketplacesuite(name = "Marketplace", stopOnRequestFail = true):
 
     # client requests storage
     let cid = (await client.upload(data)).get
+
     let id = await client.requestStorage(
       cid,
       duration = 20 * 60.uint64,
@@ -393,4 +394,5 @@ marketplacesuite(name = "Marketplace payouts", stopOnRequestFail = true):
           availability.totalRemainingCollateral ==
             availableSlots * slotSize * minPricePerBytePerSecond,
         timeout = 30 * 1000,
+        pollInterval = 100,
       )

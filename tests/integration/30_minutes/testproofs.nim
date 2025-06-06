@@ -70,11 +70,12 @@ marketplacesuite(name = "Hosts submit regular proofs", stopOnRequestFail = false
     proc onProofSubmitted(event: ?!ProofSubmitted) =
       proofWasSubmitted = event.isOk
 
-    let subscription = await marketplace.subscribe(ProofSubmitted, onProofSubmitted)
+    let proofSubmittedSubscription =
+      await marketplace.subscribe(ProofSubmitted, onProofSubmitted)
 
     check eventually(proofWasSubmitted, timeout = (duration - expiry).int * 1000)
 
-    await subscription.unsubscribe()
+    await proofSubmittedSubscription.unsubscribe()
 
 marketplacesuite(name = "Simulate invalid proofs", stopOnRequestFail = false):
   # TODO: these are very loose tests in that they are not testing EXACTLY how
