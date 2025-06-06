@@ -64,7 +64,7 @@ marketplacesuite(name = "Hosts submit regular proofs", stopOnRequestFail = false
 
     let slotSize = slotSize(blocks, ecNodes, ecTolerance)
 
-    discard await waitForRequestToStart(expiry.int)
+    discard await waitForRequestToStart(expiry.int + 10)
 
     var proofWasSubmitted = false
     proc onProofSubmitted(event: ?!ProofSubmitted) =

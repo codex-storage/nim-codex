@@ -290,7 +290,7 @@ marketplacesuite(name = "Marketplace payouts", stopOnRequestFail = true):
     # wait until sale is cancelled
     await ethProvider.advanceTime(expiry.u256)
 
-    await requestCancelledEvent.wait().wait(timeout = chronos.seconds(5))
+    await requestCancelledEvent.wait().wait(timeout = chronos.seconds(expiry.int + 10))
 
     await advanceToNextPeriod()
 
