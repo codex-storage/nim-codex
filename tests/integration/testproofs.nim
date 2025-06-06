@@ -77,7 +77,8 @@ marketplacesuite "Hosts submit regular proofs":
     proc onProofSubmitted(event: ?!ProofSubmitted) =
       proofWasSubmitted = event.isOk
 
-    let proofSubmittedSubscription = await marketplace.subscribe(ProofSubmitted, onProofSubmitted)
+    let proofSubmittedSubscription =
+      await marketplace.subscribe(ProofSubmitted, onProofSubmitted)
 
     check eventually(proofWasSubmitted, timeout = (duration - expiry).int * 1000)
 
@@ -119,7 +120,7 @@ marketplacesuite "Simulate invalid proofs":
       .some,
     ):
     let client0 = clients()[0].client
-    let expiry = 10.periods
+    let expiry = 15.periods
     let duration = expiry + 10.periods
 
     let data = await RandomChunker.example(blocks = blocks)

@@ -107,6 +107,14 @@ marketplacesuite "Marketplace":
 
     # client requests storage
     let cid = (await client.upload(data)).get
+
+    var requestStartedFut = Future[void].Raising([CancelledError]).init()
+    proc onRequestStarted(eventResult: ?!RequestFulfilled) {.raises: [].} =
+      requestStartedFut.complete()
+
+    let startedSubscription =
+      await marketplace.subscribe(RequestFulfilled, onRequestStarted)
+
     let id = await client.requestStorage(
       cid,
       duration = duration,
@@ -118,9 +126,8 @@ marketplacesuite "Marketplace":
       tolerance = ecTolerance,
     )
 
-    check eventuallySafe(
-      await client.purchaseStateIs(id, "started"), timeout = 10 * 60 * 1000
-    )
+    await requestStartedFut
+
     let purchase = (await client.getPurchase(id)).get
     check purchase.error == none string
 
@@ -142,6 +149,7 @@ marketplacesuite "Marketplace":
       (await token.balanceOf(clientAccount)) - clientBalanceBeforeFinished > 0,
       timeout = 10 * 1000, # give client a bit of time to withdraw its funds
     )
+    await startedSubscription.unsubscribe()
 
   test "SP are able to process slots after workers were busy with other slots and ignored them",
     NodeConfigs(

@@ -129,6 +129,14 @@ marketplacesuite "Sales":
 
     # Lets create storage request that will utilize some of the availability's space
     let cid = (await client.upload(data)).get
+
+    var requestStartedFut = Future[void].Raising([CancelledError]).init()
+    proc onRequestStarted(eventResult: ?!RequestFulfilled) {.raises: [].} =
+      requestStartedFut.complete()
+
+    let startedSubscription =
+      await marketplace.subscribe(RequestFulfilled, onRequestStarted)
+
     let id = await client.requestStorage(
       cid,
       duration = 20 * 60.uint64,
@@ -140,9 +148,8 @@ marketplacesuite "Sales":
       tolerance = 1,
     )
 
-    check eventuallySafe(
-      await client.purchaseStateIs(id, "started"), timeout = 10 * 60 * 1000
-    )
+    await requestStartedFut
+
     let updatedAvailability =
       ((await host.getAvailabilities()).get).findItem(availability).get
     check updatedAvailability.totalSize != updatedAvailability.freeSize
@@ -164,6 +171,7 @@ marketplacesuite "Sales":
       ((await host.getAvailabilities()).get).findItem(availability).get
     check newUpdatedAvailability.totalSize == originalSize + 20000
     check newUpdatedAvailability.freeSize - updatedAvailability.freeSize == 20000
+    await startedSubscription.unsubscribe()
 
   test "updating availability fails with until negative", salesConfig:
     let availability = (
