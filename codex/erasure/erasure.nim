@@ -122,18 +122,24 @@ func indexToPos(steps, idx, step: int): int {.inline.} =
 
 proc getPendingBlocks(
     self: Erasure, manifest: Manifest, indices: seq[int]
-): AsyncIter[(?!bt.Block, int)] =
+): (AsyncIter[(?!bt.Block, int)], seq[Future[?!bt.Block]]) =
   ## Get pending blocks iterator
   ##
-
   var
+    pendingBlockFutures: seq[Future[?!bt.Block]] = @[]
+    pendingBlocks: seq[Future[(?!bt.Block, int)]] = @[]
+
+  proc attachIndex(
+      fut: Future[?!bt.Block], i: int
+  ): Future[(?!bt.Block, int)] {.async.} =
+    ## avoids closure capture issues
+    return (await fut, i)
+
+  for blockIndex in indices:
     # request blocks from the store
-    pendingBlocks = indices.map(
-      (i: int) =>
-        self.store.getBlock(BlockAddress.init(manifest.treeCid, i)).map(
-          (r: ?!bt.Block) => (r, i)
-        ) # Get the data blocks (first K)
-    )
+    let fut = self.store.getBlock(BlockAddress.init(manifest.treeCid, blockIndex))
+    pendingBlockFutures.add(fut)
+    pendingBlocks.add(attachIndex(fut, blockIndex))
 
   proc isFinished(): bool =
     pendingBlocks.len == 0
@@ -151,7 +157,7 @@ proc getPendingBlocks(
           $index,
       )
 
-  AsyncIter[(?!bt.Block, int)].new(genNext, isFinished)
+  (AsyncIter[(?!bt.Block, int)].new(genNext, isFinished), pendingBlockFutures)
 
 proc prepareEncodingData(
     self: Erasure,
@@ -170,15 +176,15 @@ proc prepareEncodingData(
       firstIndex = 0, lastIndex = params.rounded - 1, iterations = params.steps
     )
     indices = toSeq(strategy.getIndices(step))
-    pendingBlocksIter =
+    (pendingBlocksIter, _) =
       self.getPendingBlocks(manifest, indices.filterIt(it < manifest.blocksCount))
 
   var resolved = 0
   for fut in pendingBlocksIter:
     let (blkOrErr, idx) = await fut
     without blk =? blkOrErr, err:
-      warn "Failed retreiving a block", treeCid = manifest.treeCid, idx, msg = err.msg
-      continue
+      warn "Failed retrieving a block", treeCid = manifest.treeCid, idx, msg = err.msg
+      return failure(err)
 
     let pos = indexToPos(params.steps, idx, step)
     shallowCopy(data[pos], if blk.isEmpty: emptyBlock else: blk.data)
@@ -220,7 +226,7 @@ proc prepareDecodingData(
       firstIndex = 0, lastIndex = encoded.blocksCount - 1, iterations = encoded.steps
     )
     indices = toSeq(strategy.getIndices(step))
-    pendingBlocksIter = self.getPendingBlocks(encoded, indices)
+    (pendingBlocksIter, pendingBlockFutures) = self.getPendingBlocks(encoded, indices)
 
   var
     dataPieces = 0
@@ -234,7 +240,7 @@ proc prepareDecodingData(
 
     let (blkOrErr, idx) = await fut
     without blk =? blkOrErr, err:
-      trace "Failed retreiving a block", idx, treeCid = encoded.treeCid, msg = err.msg
+      trace "Failed retrieving a block", idx, treeCid = encoded.treeCid, msg = err.msg
       continue
 
     let pos = indexToPos(encoded.steps, idx, step)
@@ -259,6 +265,11 @@ proc prepareDecodingData(
       dataPieces.inc
 
     resolved.inc
+
+  pendingBlockFutures.apply(
+    proc(fut: auto) =
+      fut.cancel()
+  )
 
   return success (dataPieces.Natural, parityPieces.Natural)
 
@@ -353,7 +364,7 @@ proc asyncEncode*(
       return failure(joinErr)
 
   if not task.success.load():
-    return failure("Leopard encoding failed")
+    return failure("Leopard encoding task failed")
 
   success()
 
@@ -545,7 +556,7 @@ proc asyncDecode*(
       return failure(joinErr)
 
   if not task.success.load():
-    return failure("Leopard encoding failed")
+    return failure("Leopard decoding task failed")
 
   success()
 
