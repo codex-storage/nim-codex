@@ -57,7 +57,7 @@ proc fetchStreamData(stream: LPStream, datasetSize: int): Future[seq[byte]] {.as
     var length = await stream.readOnce(addr buf[0], buf.len)
     if length <= 0:
       break
-  assert buf.len == datasetSize
+  check buf.len == datasetSize
   buf
 
 proc flatten[T](s: seq[seq[T]]): seq[T] =
@@ -182,7 +182,7 @@ asyncchecksuite "Test Node - Slot Repair":
             for blk in blocks:
               blk.data
       ).flatten()
-    assert blocks.len == numBlocks
+    check blocks.len == numBlocks
 
     # Populate manifest in local store
     manifest = await storeDataGetManifest(localStore, blocks)
@@ -240,8 +240,8 @@ asyncchecksuite "Test Node - Slot Repair":
     let
       stream = (await nodes[10].retrieve(verifiableBlock.cid, local = false)).tryGet()
       expectedData = await fetchStreamData(stream, datasetSize)
-    assert expectedData.len == data.len
-    assert expectedData == data
+    check expectedData.len == data.len
+    check expectedData == data
 
   test "repair slots (3,2)":
     let
@@ -259,7 +259,7 @@ asyncchecksuite "Test Node - Slot Repair":
             for blk in blocks:
               blk.data
       ).flatten()
-    assert blocks.len == numBlocks
+    check blocks.len == numBlocks
 
     # Populate manifest in local store
     manifest = await storeDataGetManifest(localStore, blocks)
@@ -308,5 +308,5 @@ asyncchecksuite "Test Node - Slot Repair":
     let
       stream = (await nodes[11].retrieve(verifiableBlock.cid, local = false)).tryGet()
       expectedData = await fetchStreamData(stream, datasetSize)
-    assert expectedData.len == data.len
-    assert expectedData == data
+    check expectedData.len == data.len
+    check expectedData == data
