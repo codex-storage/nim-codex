@@ -93,9 +93,9 @@ proc new*[T](_: type Iter[T], items: seq[T]): Iter[T] =
 proc new*[T](_: type Iter[T], iter: Iterable[T]): Iter[T] =
   ## Creates a new Iter from an iterator
   ##
-  var nextOrErr: Option[Result[T, ref CatchableError]]
+  var nextOrErr: Option[?!T]
   proc tryNext(): void =
-    nextOrErr = Result[T, ref CatchableError].none
+    nextOrErr = none(?!T)
     while not iter.finished:
       try:
         let t: T = iter()
@@ -136,10 +136,10 @@ proc map*[T, U](iter: Iter[T], fn: Function[T, U]): Iter[U] =
   Iter[U].new(genNext = () => fn(iter.next()), isFinished = () => iter.finished)
 
 proc mapFilter*[T, U](iter: Iter[T], mapPredicate: Function[T, Option[U]]): Iter[U] =
-  var nextUOrErr: Option[Result[U, ref CatchableError]]
+  var nextUOrErr: Option[?!U]
 
   proc tryFetch(): void =
-    nextUOrErr = Result[U, ref CatchableError].none
+    nextUOrErr = none(?!U)
     while not iter.finished:
       try:
         let t = iter.next()
