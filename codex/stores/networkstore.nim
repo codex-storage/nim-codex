@@ -32,8 +32,7 @@ type NetworkStore* = ref object of BlockStore
   localStore*: BlockStore # local block store
 
 proc getBlocks*(
-    self: NetworkStore,
-    addresses: seq[BlockAddress]
+    self: NetworkStore, addresses: seq[BlockAddress]
 ): Future[seq[?!Block]] {.async: (raises: [CancelledError]).} =
   var
     localBlocks: seq[?!Block]
