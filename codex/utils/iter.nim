@@ -7,7 +7,7 @@ type
   Function*[T, U] = proc(fut: T): U {.raises: [CatchableError], gcsafe, closure.}
   IsFinished* = proc(): bool {.raises: [], gcsafe, closure.}
   GenNext*[T] = proc(): T {.raises: [CatchableError], gcsafe.}
-  Iterable[T] = iterator (): T
+  Iterator[T] = iterator (): T
   Iter*[T] = ref object
     finished: bool
     next*: GenNext[T]
@@ -90,7 +90,7 @@ proc new*[T](_: type Iter[T], items: seq[T]): Iter[T] =
 
   Iter[int].new(0 ..< items.len).map((i: int) => items[i])
 
-proc new*[T](_: type Iter[T], iter: Iterable[T]): Iter[T] =
+proc new*[T](_: type Iter[T], iter: Iterator[T]): Iter[T] =
   ## Creates a new Iter from an iterator
   ##
   var nextOrErr: Option[?!T]
@@ -104,10 +104,11 @@ proc new*[T](_: type Iter[T], iter: Iterable[T]): Iter[T] =
         break
       except CatchableError as err:
         nextOrErr = some(T.failure(err))
-      except Exception:
-        assert(false)
 
   proc genNext(): T {.raises: [CatchableError].} =
+    if nextOrErr.isNone:
+      raise newException(CatchableError, "Iterator finished but genNext was called")
+
     without u =? nextOrErr.unsafeGet, err:
       raise err
 
@@ -150,6 +151,9 @@ proc mapFilter*[T, U](iter: Iter[T], mapPredicate: Function[T, Option[U]]): Iter
         nextUOrErr = some(U.failure(err))
 
   proc genNext(): U {.raises: [CatchableError].} =
+    if nextUOrErr.isNone:
+      raise newException(CatchableError, "Iterator finished but genNext was called")
+
     # at this point nextUOrErr should always be some(..)
     without u =? nextUOrErr.unsafeGet, err:
       raise err
