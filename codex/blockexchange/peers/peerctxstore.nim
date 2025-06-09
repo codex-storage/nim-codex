@@ -62,21 +62,23 @@ func len*(self: PeerCtxStore): int =
   self.peers.len
 
 func peersHave*(self: PeerCtxStore, address: BlockAddress): seq[BlockExcPeerCtx] =
-  toSeq(self.peers.values).filterIt(it.peerHave.anyIt(it == address))
+  toSeq(self.peers.values).filterIt(address in it.peerHave)
 
 func peersHave*(self: PeerCtxStore, cid: Cid): seq[BlockExcPeerCtx] =
+  # FIXME: this is way slower and can end up leading to unexpected performance loss.
   toSeq(self.peers.values).filterIt(it.peerHave.anyIt(it.cidOrTreeCid == cid))
 
 func peersWant*(self: PeerCtxStore, address: BlockAddress): seq[BlockExcPeerCtx] =
-  toSeq(self.peers.values).filterIt(it.peerWants.anyIt(it == address))
+  toSeq(self.peers.values).filterIt(address in it.wantedBlocks)
 
 func peersWant*(self: PeerCtxStore, cid: Cid): seq[BlockExcPeerCtx] =
-  toSeq(self.peers.values).filterIt(it.peerWants.anyIt(it.address.cidOrTreeCid == cid))
+  # FIXME: this is way slower and can end up leading to unexpected performance loss.
+  toSeq(self.peers.values).filterIt(it.wantedBlocks.anyIt(it.cidOrTreeCid == cid))
 
 proc getPeersForBlock*(self: PeerCtxStore, address: BlockAddress): PeersForBlock =
   var res: PeersForBlock = (@[], @[])
   for peer in self:
-    if peer.peerHave.anyIt(it == address):
+    if address in peer.peerHave:
       res.with.add(peer)
     else:
       res.without.add(peer)
