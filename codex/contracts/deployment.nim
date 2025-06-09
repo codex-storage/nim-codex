@@ -9,7 +9,7 @@ import ./marketplace
 
 type Deployment* = ref object
   provider: Provider
-  config: CodexConf
+  marketplaceAddressOverride: ?Address
 
 const knownAddresses = {
   # Hardhat localhost network
@@ -32,12 +32,16 @@ proc getKnownAddress(T: type, chainId: UInt256): ?Address =
 
   return knownAddresses[id].getOrDefault($T, Address.none)
 
-proc new*(_: type Deployment, provider: Provider, config: CodexConf): Deployment =
-  Deployment(provider: provider, config: config)
+proc new*(
+    _: type Deployment,
+    provider: Provider,
+    marketplaceAddressOverride: ?Address = none Address,
+): Deployment =
+  Deployment(provider: provider, marketplaceAddressOverride: marketplaceAddressOverride)
 
 proc address*(deployment: Deployment, contract: type): Future[?Address] {.async.} =
   when contract is Marketplace:
-    if address =? deployment.config.marketplaceAddress:
+    if address =? deployment.marketplaceAddressOverride:
       return some address
 
   let chainId = await deployment.provider.getChainId()
