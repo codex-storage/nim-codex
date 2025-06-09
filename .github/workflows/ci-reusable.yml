@@ -74,7 +74,7 @@ jobs:
         run: |
           make -j${ncpu}
           # ./env.sh nim -d:chronicles_log_level=TRACE -d:chronicles_sinks=textlines c -r tests/integration/testmarketplace.nim --output-level=VERBOSE
-          ./env.sh nim -d:chronicles_log_level=TRACE -d:chronicles_sinks=textlines c -r tests/integration/tessales.nim --output-level=VERBOSE
+           ./env.sh nim -d:chronicles_log_level=TRACE -d:chronicles_sinks=textlines c -r tests/integration/testsales.nim  --output-level=VERBOSE
 
       - name: Upload integration tests log files
         uses: actions/upload-artifact@v4
