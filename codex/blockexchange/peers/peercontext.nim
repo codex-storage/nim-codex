@@ -28,7 +28,7 @@ export payments, nitro
 type BlockExcPeerCtx* = ref object of RootObj
   id*: PeerId
   blocks*: Table[BlockAddress, Presence] # remote peer have list including price
-  peerWants*: seq[WantListEntry] # remote peers want lists
+  wantedBlocks*: HashSet[BlockAddress] # blocks that the peer wants
   exchanged*: int # times peer has exchanged with us
   lastExchange*: Moment # last time peer has exchanged with us
   lastRefresh*: Moment # last time we refreshed our knowledge of the blocks this peer has
@@ -37,7 +37,7 @@ type BlockExcPeerCtx* = ref object of RootObj
   blocksInFlight*: HashSet[BlockAddress] # blocks in flight towards peer
 
 proc isKnowledgeStale*(self: BlockExcPeerCtx): bool =
-  self.lastRefresh + 15.seconds < Moment.now()
+  self.lastRefresh + 5.minutes < Moment.now()
 
 proc isInFlight*(self: BlockExcPeerCtx, address: BlockAddress): bool =
   address in self.blocksInFlight
@@ -51,14 +51,11 @@ proc removeInFlight*(self: BlockExcPeerCtx, address: BlockAddress) =
 proc refreshed*(self: BlockExcPeerCtx) =
   self.lastRefresh = Moment.now()
 
-proc peerHave*(self: BlockExcPeerCtx): seq[BlockAddress] =
-  toSeq(self.blocks.keys)
-
-proc peerHaveCids*(self: BlockExcPeerCtx): HashSet[Cid] =
-  self.blocks.keys.toSeq.mapIt(it.cidOrTreeCid).toHashSet
-
-proc peerWantsCids*(self: BlockExcPeerCtx): HashSet[Cid] =
-  self.peerWants.mapIt(it.address.cidOrTreeCid).toHashSet
+proc peerHave*(self: BlockExcPeerCtx): HashSet[BlockAddress] =
+  # XXX: this is ugly an inefficient, but since those will typically
+  #  be used in "joins", it's better to pay the price here and have
+  #  a linear join than to not do it and have a quadratic join.
+  toHashSet(self.blocks.keys.toSeq)
 
 proc contains*(self: BlockExcPeerCtx, address: BlockAddress): bool =
   address in self.blocks
