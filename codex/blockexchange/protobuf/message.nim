@@ -25,6 +25,11 @@ type
 
   WantListEntry* = object
     address*: BlockAddress
+    # XXX: I think explicit priority is pointless as the peer will request
+    # the blocks in the order it wants to receive them, and all we have to
+    # do is process those in the same order as we send them back. It also
+    # complicates things for no reason at the moment, as the priority is
+    # always set to 0.
     priority*: int32 # The priority (normalized). default to 1
     cancel*: bool # Whether this revokes an entry
     wantType*: WantType # Note: defaults to enum 0, ie Block
