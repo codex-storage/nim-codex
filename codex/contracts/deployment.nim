@@ -33,7 +33,9 @@ proc getKnownAddress(T: type, chainId: UInt256): ?Address =
   return knownAddresses[id].getOrDefault($T, Address.none)
 
 proc new*(
-    _: type Deployment, provider: Provider, marketplaceAddressOverride: ?Address
+    _: type Deployment,
+    provider: Provider,
+    marketplaceAddressOverride: ?Address = none Address,
 ): Deployment =
   Deployment(provider: provider, marketplaceAddressOverride: marketplaceAddressOverride)
 
