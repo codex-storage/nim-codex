@@ -64,7 +64,7 @@ marketplacesuite "Hosts submit regular proofs":
 
     let slotSize = slotSize(blocks, ecNodes, ecTolerance)
 
-    check eventually(
+    check eventuallySafe(
       await client0.purchaseStateIs(purchaseId, "started"), timeout = expiry.int * 1000
     )
 
@@ -140,7 +140,7 @@ marketplacesuite "Simulate invalid proofs":
     )
     let requestId = (await client0.requestId(purchaseId)).get
 
-    check eventually(
+    check eventuallySafe(
       await client0.purchaseStateIs(purchaseId, "started"), timeout = expiry.int * 1000
     )
 
