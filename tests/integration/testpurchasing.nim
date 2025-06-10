@@ -94,18 +94,15 @@ twonodessuite "Purchasing":
         tolerance = 1.uint,
       )
     ).get
-    check eventually(
-      await client1.purchaseStateIs(id, "submitted"),
-      timeout = 3 * 60 * 1000,
-      pollInterval = 100,
+
+    check eventuallySafe(
+      await client1.purchaseStateIs(id, "submitted"), timeout = 3 * 60 * 1000
     )
 
     await node1.restart()
 
-    check eventually(
-      await client1.purchaseStateIs(id, "submitted"),
-      timeout = 3 * 60 * 1000,
-      pollInterval = 100,
+    check eventuallySafe(
+      await client1.purchaseStateIs(id, "submitted"), timeout = 3 * 60 * 1000
     )
     let request = (await client1.getPurchase(id)).get.request.get
     check request.ask.duration == (10 * 60).uint64
