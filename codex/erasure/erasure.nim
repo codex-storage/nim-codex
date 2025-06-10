@@ -419,8 +419,8 @@ proc encodeData(
 
         trace "Adding parity block", cid = blk.cid, idx
         cids[idx] = blk.cid
-        if isErr (await self.store.putBlock(blk)):
-          trace "Unable to store block!", cid = blk.cid
+        if error =? (await self.store.putBlock(blk)).errorOption:
+          warn "Unable to store block!", cid = blk.cid, msg = error.msg
           return failure("Unable to store block!")
         idx.inc(params.steps)
 
@@ -619,8 +619,8 @@ proc decode*(self: Erasure, encoded: Manifest): Future[?!Manifest] {.async.} =
             return failure(error)
 
           trace "Recovered block", cid = blk.cid, index = i
-          if isErr (await self.store.putBlock(blk)):
-            trace "Unable to store block!", cid = blk.cid
+          if error =? (await self.store.putBlock(blk)).errorOption:
+            warn "Unable to store block!", cid = blk.cid, msg = error.msg
             return failure("Unable to store block!")
 
           cids[idx] = blk.cid
