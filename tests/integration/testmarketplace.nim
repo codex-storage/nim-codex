@@ -170,6 +170,21 @@ marketplacesuite "Marketplace":
     let data = await RandomChunker.example(blocks = blocks)
     let slotSize = slotSize(blocks, ecNodes, ecTolerance)
 
+    var requestId: RequestId
+    var requestId2: RequestId
+    var requestStartedFut = Future[void].Raising([CancelledError]).init()
+    var requestStartedFut2 = Future[void].Raising([CancelledError]).init()
+
+    proc onRequestStarted(eventResult: ?!RequestFulfilled) {.raises: [].} =
+      if eventResult.isOk:
+        if requestId == eventResult.get().requestId:
+          requestStartedFut.complete()
+        if requestId2 == eventResult.get().requestId:
+          requestStartedFut2.complete()
+
+    var startedSubscription =
+      await marketplace.subscribe(RequestFulfilled, onRequestStarted)
+
     # We create an avavilability allowing the first SP to host the 3 slots.
     # So the second SP will not have any availability so it will just process
     # the slots and ignore them.
@@ -193,13 +208,10 @@ marketplacesuite "Marketplace":
       tolerance = ecTolerance,
     )
 
-    let requestId = (await client0.client.requestId(purchaseId)).get
+    requestId = (await client0.client.requestId(purchaseId)).get
 
     # We wait that the 3 slots are filled by the first SP
-    check eventuallySafe(
-      await client0.client.purchaseStateIs(purchaseId, "started"),
-      timeout = 10 * 60.int * 1000,
-    )
+    await requestStartedFut.wait(timeout = chronos.seconds((5 * 60) + 10))
 
     # Here we create the same availability as previously but for the second SP.
     # Meaning that, after ignoring all the slots for the first request, the second SP will process
@@ -215,20 +227,17 @@ marketplacesuite "Marketplace":
       cid,
       duration = duration,
       pricePerBytePerSecond = minPricePerBytePerSecond,
-      proofProbability = 3.u256,
+      proofProbability = 1.u256,
       expiry = 10 * 60.uint64,
       collateralPerByte = collateralPerByte,
       nodes = ecNodes,
       tolerance = ecTolerance,
     )
-    let requestId2 = (await client0.client.requestId(purchaseId2)).get
+
+    requestId2 = (await client0.client.requestId(purchaseId2)).get
 
     # Wait that the slots of the second request are filled
-    check eventually(
-      await client0.client.purchaseStateIs(purchaseId2, "started"),
-      timeout = 10 * 60.int * 1000,
-      pollInterval = 100,
-    )
+    await requestStartedFut2.wait(timeout = chronos.seconds((5 * 60) + 10))
 
     # Double check, verify that our second SP hosts the 3 slots
     check (await provider1.client.getSlots()).get.len == 3
@@ -292,7 +301,6 @@ marketplacesuite "Marketplace payouts":
 
     var requestCancelledFut = Future[void].Raising([CancelledError]).init()
     proc onRequestCancelled(eventResult: ?!RequestCancelled) {.raises: [].} =
-      echo "onRequestCancelled ", $eventResult
       trace "onRequestCancelled", eventResult
       requestCancelledFut.complete()
 
@@ -393,6 +401,14 @@ marketplacesuite "Marketplace payouts":
       totalCollateral = 3 * slotSize * minPricePerBytePerSecond,
     )
 
+    var requestStartedFut = Future[void].Raising([CancelledError]).init()
+
+    proc onRequestStarted(eventResult: ?!RequestFulfilled) {.raises: [].} =
+      requestStartedFut.complete()
+
+    let startedSubscription =
+      await marketplace.subscribe(RequestFulfilled, onRequestStarted)
+
     let cid = (await client0.client.upload(data)).get
 
     let purchaseId = await client0.client.requestStorage(
@@ -408,11 +424,7 @@ marketplacesuite "Marketplace payouts":
 
     let requestId = (await client0.client.requestId(purchaseId)).get
 
-    check eventually(
-      await client0.client.purchaseStateIs(purchaseId, "started"),
-      timeout = 10 * 60.int * 1000,
-      pollInterval = 100,
-    )
+    await requestStartedFut.wait(timeout = chronos.seconds((10 * 60) + 10))
 
     # Here we will check that for each provider, the total remaining collateral
     # will match the available slots.
@@ -420,7 +432,7 @@ marketplacesuite "Marketplace payouts":
     # to host 2 more slots.
     for provider in providers():
       let client = provider.client
-      check eventually(
+      check eventuallySafe(
         block:
           let availabilities = (await client.getAvailabilities()).get
           let availability = availabilities[0]
@@ -428,7 +440,7 @@ marketplacesuite "Marketplace payouts":
           let availableSlots = (3 - slots.len).u256
 
           availability.totalRemainingCollateral ==
-            availableSlots * slotSize * minPricePerBytePerSecond,
-        timeout = 30 * 1000,
-        pollInterval = 100,
+            availableSlots * slotSize * minPricePerBytePerSecond
       )
+
+    await startedSubscription.unsubscribe()
