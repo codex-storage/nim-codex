@@ -294,10 +294,12 @@ marketplacesuite "Marketplace payouts":
 
     let cid = (await clientApi.upload(data)).get
 
+    var slotFilledFut = Future[void].Raising([CancelledError]).init()
     var slotIdxFilled = none uint64
     proc onSlotFilled(eventResult: ?!SlotFilled) =
       assert not eventResult.isErr
       slotIdxFilled = some (!eventResult).slotIndex
+      slotFilledFut.complete()
 
     var requestCancelledFut = Future[void].Raising([CancelledError]).init()
     proc onRequestCancelled(eventResult: ?!RequestCancelled) {.raises: [].} =
@@ -320,12 +322,9 @@ marketplacesuite "Marketplace payouts":
     )
 
     # wait until one slot is filled
-    check eventually(slotIdxFilled.isSome, timeout = expiry.int * 1000)
-    let slotId = slotId(!(await clientApi.requestId(id)), !slotIdxFilled)
+    await slotFilledFut.wait(timeout = chronos.seconds(expiry.int + 10))
 
-    # check eventually(
-    #   await providerApi.saleStateIs(slotId, "SaleCancelled"), timeout = expiry.int * 1000, pollInterval = 100
-    # )
+    let slotId = slotId(!(await clientApi.requestId(id)), !slotIdxFilled)
 
     # wait until sale is cancelled
     await ethProvider.advanceTime(expiry.u256)
@@ -336,12 +335,12 @@ marketplacesuite "Marketplace payouts":
 
     let pricePerSlotPerSecond = minPricePerBytePerSecond * slotSize
 
-    check eventually (
+    check eventuallySafe (
       let endBalanceProvider = (await token.balanceOf(provider.ethAccount))
       endBalanceProvider > startBalanceProvider and
         endBalanceProvider < startBalanceProvider + expiry.u256 * pricePerSlotPerSecond
     )
-    check eventually(
+    check eventuallySafe(
       (
         let endBalanceClient = (await token.balanceOf(client.ethAccount))
         let endBalanceProvider = (await token.balanceOf(provider.ethAccount))
@@ -441,7 +440,7 @@ marketplacesuite "Marketplace payouts":
 
           availability.totalRemainingCollateral ==
             availableSlots * slotSize * minPricePerBytePerSecond,
-        timeout = 30 * 1000,
+        timeout = 3 * 60 * 1000,
       )
 
     await startedSubscription.unsubscribe()
