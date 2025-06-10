@@ -354,6 +354,7 @@ proc buildCommand(
             "--verbosity:0 " &
             "--hints:off " &
             "-d:release " &
+            "-d:ws_resubscribe=240 " &
           "-r " &
             &"{testFile}"
           #!fmt: on
