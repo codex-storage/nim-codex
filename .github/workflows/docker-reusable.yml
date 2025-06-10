@@ -198,6 +198,12 @@ jobs:
       version: ${{ steps.meta.outputs.version }}
     needs: [build, compute]
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        if: ${{ github.event.inputs.git-ref != '' }}
+        with:
+          ref: ${{ github.event.inputs.git-ref}} # Empty string will fallback to default branch
+
       - name: Docker - Variables
         run: |
           # Adjust custom suffix when set and
@@ -242,6 +248,7 @@ jobs:
         with:
           images: ${{ env.DOCKER_REPO }}
           labels: ${{ env.CONTRACT_LABEL }}
+          context: ${{ github.event.inputs.git-ref != '' && 'git' || 'workflow' }} # In order the correct SHA is picked up
           flavor: |
             latest=${{ env.TAG_LATEST }}
             suffix=${{ env.TAG_SUFFIX }},onlatest=true
