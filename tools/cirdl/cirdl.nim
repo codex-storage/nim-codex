@@ -8,6 +8,7 @@ import pkg/questionable/results
 import pkg/zippy/tarballs
 import pkg/chronos/apps/http/httpclient
 import ../../codex/contracts/marketplace
+import ../../codex/contracts/deployment
 
 proc consoleLog(logLevel: LogLevel, msg: LogOutputStr) {.gcsafe.} =
   try:
@@ -16,24 +17,31 @@ proc consoleLog(logLevel: LogLevel, msg: LogOutputStr) {.gcsafe.} =
   except IOError as err:
     logLoggingFailure(cstring(msg), err)
 
-proc noOutput(logLevel: LogLevel, msg: LogOutputStr) = discard
+proc noOutput(logLevel: LogLevel, msg: LogOutputStr) =
+  discard
 
 defaultChroniclesStream.outputs[0].writer = consoleLog
 defaultChroniclesStream.outputs[1].writer = noOutput
 defaultChroniclesStream.outputs[2].writer = noOutput
 
 proc printHelp() =
-  info "Usage: ./cirdl [circuitPath] [rpcEndpoint] [marketplaceAddress]"
+  info "Usage: ./cirdl [circuitPath] [rpcEndpoint] ([marketplaceAddress])"
   info "  circuitPath: path where circuit files will be placed."
   info "  rpcEndpoint: URL of web3 RPC endpoint."
-  info "  marketplaceAddress: Address of deployed Codex marketplace contracts."
+  info "  marketplaceAddress: Address of deployed Codex marketplace contracts. If left out, will auto-discover based on connected network."
 
-proc getCircuitHash(rpcEndpoint: string, marketplaceAddress: string): Future[?!string] {.async.} =
-  let provider = JsonRpcProvider.new(rpcEndpoint)
-  without address =? Address.init(marketplaceAddress):
-    return failure("Invalid address: " & marketplaceAddress)
+proc getMarketplaceAddress(
+    provider: JsonRpcProvider, mpAddressOverride: ?Address
+): Future[?Address] {.async.} =
+  let deployment = Deployment.new(provider, mpAddressOverride)
+  let address = await deployment.address(Marketplace)
 
-  let marketplace = Marketplace.new(address, provider)
+  return address
+
+proc getCircuitHash(
+    provider: JsonRpcProvider, marketplaceAddress: Address
+): Future[?!string] {.async.} =
+  let marketplace = Marketplace.new(marketplaceAddress, provider)
   let config = await marketplace.configuration()
   return success config.proofs.zkeyHash
 
@@ -77,23 +85,38 @@ proc copyFiles(unpackDir: string, circuitPath: string): ?!void =
 proc main() {.async.} =
   info "Codex Circuit Downloader, Aww yeah!"
   let args = os.commandLineParams()
-  if args.len != 3:
+  if args.len < 2 or args.len > 3:
     printHelp()
     return
 
   let
     circuitPath = args[0]
     rpcEndpoint = args[1]
-    marketplaceAddress = args[2]
     zipfile = "circuit.tar.gz"
     unpackFolder = "." / "tempunpackfolder"
 
-  debug "Starting", circuitPath, rpcEndpoint, marketplaceAddress
+  var mpAddressOverride: ?Address
+
+  if args.len == 3:
+    without parsed =? Address.init(args[2]):
+      raise newException(ValueError, "Invalid ethereum address")
+    mpAddressOverride = some parsed
+
+  debug "Starting", circuitPath, rpcEndpoint
 
   if (dirExists(unpackFolder)):
     removeDir(unpackFolder)
 
-  without circuitHash =? (await getCircuitHash(rpcEndpoint, marketplaceAddress)), err:
+  let provider = JsonRpcProvider.new(rpcEndpoint)
+
+  without marketplaceAddress =?
+    (await getMarketplaceAddress(provider, mpAddressOverride)), err:
+    error "No known marketplace address, nor any specified manually", msg = err.msg
+    return
+
+  info "Marketplace address", address = $marketplaceAddress
+
+  without circuitHash =? (await getCircuitHash(provider, marketplaceAddress)), err:
     error "Failed to get circuit hash", msg = err.msg
     return
   debug "Got circuithash", circuitHash
