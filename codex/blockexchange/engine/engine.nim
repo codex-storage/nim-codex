@@ -164,17 +164,16 @@ proc sendWantBlock(
 proc refreshBlockKnowledge(
     self: BlockExcEngine, peer: BlockExcPeerCtx
 ) {.async: (raises: [CancelledError]).} =
-  # broadcast our want list, the other peer will do the same
   if self.pendingBlocks.wantListLen > 0:
     let cids = toSeq(self.pendingBlocks.wantList)
     trace "Sending our want list to a peer", peer = peer.id, length = cids.len
     await self.network.request.sendWantList(peer.id, cids, full = true)
 
 proc refreshBlockKnowledge(self: BlockExcEngine) {.async: (raises: [CancelledError]).} =
-  for peer in self.peers.peers.values:
+  for peer in self.peers.peers.values.toSeq:
     # We refresh block knowledge if:
     # 1. the peer hasn't been refreshed in a while;
-    # 2. the list of blocks we care about has actually changed.
+    # 2. the list of blocks we care about has changed.
     #
     # Note that because of (2), it is important that we update our
     # want list in the coarsest way possible instead of over many
@@ -182,8 +181,17 @@ proc refreshBlockKnowledge(self: BlockExcEngine) {.async: (raises: [CancelledErr
     #
     # In dynamic swarms, staleness will dominate latency.
     if peer.lastRefresh < self.pendingBlocks.lastInclusion or peer.isKnowledgeStale:
-      await self.refreshBlockKnowledge(peer)
+      # FIXME: we update the lastRefresh before actually refreshing because otherwise
+      #   a slow peer will be bombarded with requests. If the request does fail or the
+      #   peer does not reply, a retrying block will eventually issue this again. This
+      #   is a complex and convoluted flow - ideally we should simply be tracking this
+      #   request and retrying it on the absence of a response, eventually disconnecting
+      #   the peer if it consistently fails to respond.
       peer.refreshed()
+      # TODO: optimize this by keeping track of what was sent and sending deltas.
+      #   This should allow us to run much more frequent refreshes, and be way more
+      #   efficient about it.
+      await self.refreshBlockKnowledge(peer)
 
 proc randomPeer(peers: seq[BlockExcPeerCtx]): BlockExcPeerCtx =
   Rng.instance.sample(peers)
@@ -220,6 +228,9 @@ proc downloadInternal(
       else:
         self.pendingBlocks.setInFlight(address, false)
         if peers.without.len > 0:
+          # We have peers connected, but none of them have the block. This
+          # could be because our knowledge about what they have has run stale.
+          # Tries to refresh it.
           await self.refreshBlockKnowledge()
         self.discovery.queueFindBlocksReq(@[address.cidOrTreeCid])
 
