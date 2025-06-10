@@ -5,7 +5,7 @@ import pkg/codex/contracts/marketplace as mp
 import pkg/codex/periods
 import pkg/codex/utils/json
 from pkg/codex/utils import roundUp, divUp
-import ./multinodes
+import ./multinodes except Subscription
 import ../contracts/time
 import ../contracts/deployment
 
@@ -18,6 +18,7 @@ template marketplacesuite*(name: string, body: untyped) =
     var period: uint64
     var periodicity: Periodicity
     var token {.inject, used.}: Erc20Token
+    var failedSubscription: Subscription
 
     proc getCurrentPeriod(): Future[Period] {.async.} =
       return periodicity.periodOf((await ethProvider.currentTime()).truncate(uint64))
@@ -109,5 +110,13 @@ template marketplacesuite*(name: string, body: untyped) =
       let config = await marketplace.configuration()
       period = config.proofs.period
       periodicity = Periodicity(seconds: period)
+
+      proc onRequestFailed(eventResult: ?!RequestFailed) {.raises: [].} =
+        fail()
+
+      failedSubscription = await marketplace.subscribe(RequestFailed, onRequestFailed)
+
+    teardown:
+      await failedSubscription.unsubscribe()
 
     body
