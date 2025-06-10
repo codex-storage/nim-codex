@@ -520,6 +520,11 @@ asyncchecksuite "Block Download":
     expect CancelledError:
       discard (await pending).tryGet()
 
+  # test "Should not keep looking up providers for the same dataset repeatedly":
+  #   let
+  #     blocks = await makeRandomBlocks(datasetSize = 4096, blockSize = 128'nb)
+  #     manifest = await storeDataGetManifest(store, blocks)
+
 asyncchecksuite "Task Handler":
   var
     rng: Rng
