@@ -4,6 +4,11 @@ name: Reusable - Docker
 on:
   workflow_call:
     inputs:
+      git-ref:
+        default: ''
+        description: Git ref that will be checked out for building
+        required: false
+        type: string
       docker_file:
         default: docker/codex.Dockerfile
         description: Dockerfile
@@ -32,6 +37,11 @@ on:
       tag_latest:
         default: true
         description: Set latest tag for Docker images
+        required: false
+        type: boolean
+      tag_stable:
+        default: false
+        description: Set stable tag for Docker images
         required: false
         type: boolean
       tag_sha:
@@ -73,6 +83,7 @@ env:
   NIMFLAGS: ${{ inputs.nimflags }}
   NAT_IP_AUTO: ${{ inputs.nat_ip_auto }}
   TAG_LATEST: ${{ inputs.tag_latest }}
+  TAG_STABLE: ${{ inputs.tag_stable }}
   TAG_SHA: ${{ inputs.tag_sha }}
   TAG_SUFFIX: ${{ inputs.tag_suffix }}
   CONTRACT_IMAGE: ${{ inputs.contract_image }}
@@ -123,6 +134,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.git-ref}} # Empty string will fallback to default branch
 
       - name: Docker - Variables
         run: |
@@ -235,6 +248,7 @@ jobs:
           tags: |
             type=semver,pattern={{version}}
             type=raw,enable=${{ env.TAG_RAW }},value=latest
+            type=raw,enable=${{ env.TAG_STABLE }},value=stable
             type=sha,enable=${{ env.TAG_SHA }}
 
       - name: Docker - Login to Docker Hub

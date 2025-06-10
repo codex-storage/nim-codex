@@ -34,6 +34,7 @@ proc getKnownAddress(T: type, chainId: UInt256): ?Address =
 
 proc new*(
     _: type Deployment,
+    Address = none,
     provider: Provider,
     marketplaceAddressOverride: ?Address = none Address,
 ): Deployment =
