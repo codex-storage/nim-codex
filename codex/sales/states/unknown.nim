@@ -9,6 +9,7 @@ import ./errored
 import ./proving
 import ./cancelled
 import ./payout
+import ./downloading
 
 logScope:
   topics = "marketplace sales unknown"
@@ -52,7 +53,10 @@ method run*(
         newException(UnexpectedSlotError, "Slot state on chain should not be 'free'")
       return some State(SaleErrored(error: error))
     of SlotState.Filled:
-      return some State(SaleFilled())
+      # To support catastrophic data loss, when starting, filled slots will have
+      # their data downloaded only if needed, then can proceed to the filled
+      # state.
+      return some State(SaleDownloading())
     of SlotState.Finished:
       return some State(SalePayout())
     of SlotState.Paid:

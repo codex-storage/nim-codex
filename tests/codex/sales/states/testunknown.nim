@@ -8,6 +8,7 @@ import pkg/codex/sales/states/filled
 import pkg/codex/sales/states/finished
 import pkg/codex/sales/states/failed
 import pkg/codex/sales/states/payout
+import pkg/codex/sales/states/downloading
 
 import ../../../asynctest
 import ../../helpers/mockmarket
@@ -49,7 +50,7 @@ suite "sales state 'unknown'":
   test "switches to filled state when on chain state is 'filled'":
     market.slotState[slotId] = SlotState.Filled
     let next = await state.run(agent)
-    check !next of SaleFilled
+    check !next of SaleDownloading
 
   test "switches to payout state when on chain state is 'finished'":
     market.slotState[slotId] = SlotState.Finished

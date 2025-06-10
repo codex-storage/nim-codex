@@ -38,6 +38,7 @@ method run*(
   let agent = SalesAgent(machine)
   let data = agent.data
   let context = agent.context
+  let market = context.market
   let reservations = context.reservations
 
   without onStore =? context.onStore:
@@ -75,8 +76,15 @@ method run*(
     trace "Starting download"
     if err =? (await onStore(request, data.slotIndex, onBlocks, isRepairing)).errorOption:
       return some State(SaleErrored(error: err, reprocessSlot: false))
-
     trace "Download complete"
+
+    # During startup, already-filled slots will download data if needed (eg
+    # catastrophic failure). If slot was already filled by current SP, go to
+    # SaleFilled.
+    let state = await market.slotState(slotId)
+    if state == SlotState.Filled:
+      return some State(SaleFilled())
+
     return some State(SaleInitialProving())
   except CancelledError as e:
     trace "SaleDownloading.run was cancelled", error = e.msgDetail
