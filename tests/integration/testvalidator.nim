@@ -119,14 +119,15 @@ marketplacesuite "Validation":
 
     debug "validation suite", purchaseId = purchaseId.toHex, requestId = requestId
 
-    if not eventuallyS(
-      await client0.purchaseStateIs(purchaseId, "started"),
-      timeout = (expiry + 60).int,
-      step = 5,
-    ):
-      debug "validation suite: timed out waiting for the purchase to start"
-      fail()
-      return
+    var requestStartedFut = Future[void].Raising([CancelledError]).init()
+
+    proc onRequestStarted(eventResult: ?!RequestFulfilled) {.raises: [].} =
+      requestStartedFut.complete()
+
+    let startedSubscription =
+      await marketplace.subscribe(RequestFulfilled, onRequestStarted)
+
+    await requestStartedFut.wait(timeout = chronos.seconds((10 * 60) + 10))
 
     discard await ethProvider.send("evm_mine")
     currentTime = await ethProvider.currentTime()
@@ -137,6 +138,8 @@ marketplacesuite "Validation":
     check await marketplace.waitForRequestToFail(
       requestId, timeout = secondsTillRequestEnd + 60, step = 5
     )
+
+    await startedSubscription.unsubscribe()
 
   test "validator uses historical state to mark missing proofs",
     NodeConfigs(
@@ -189,14 +192,15 @@ marketplacesuite "Validation":
 
     debug "validation suite", purchaseId = purchaseId.toHex, requestId = requestId
 
-    if not eventuallyS(
-      await client0.purchaseStateIs(purchaseId, "started"),
-      timeout = (expiry + 60).int,
-      step = 5,
-    ):
-      debug "validation suite: timed out waiting for the purchase to start"
-      fail()
-      return
+    var requestStartedFut = Future[void].Raising([CancelledError]).init()
+
+    proc onRequestStarted(eventResult: ?!RequestFulfilled) {.raises: [].} =
+      requestStartedFut.complete()
+
+    let startedSubscription =
+      await marketplace.subscribe(RequestFulfilled, onRequestStarted)
+
+    await requestStartedFut.wait(timeout = chronos.seconds((10 * 60) + 10))
 
     # extra block just to make sure we have one that separates us
     # from the block containing the last (past) SlotFilled event
@@ -226,3 +230,5 @@ marketplacesuite "Validation":
     check await marketplace.waitForRequestToFail(
       requestId, timeout = secondsTillRequestEnd + 60, step = 5
     )
+
+    await startedSubscription.unsubscribe()
