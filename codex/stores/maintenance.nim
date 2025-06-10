@@ -23,6 +23,9 @@ import ../clock
 import ../logutils
 import ../systemclock
 
+logScope:
+  topics = "codex maintenance"
+
 const
   DefaultBlockInterval* = 10.minutes
   DefaultNumBlocksPerInterval* = 1000
@@ -40,7 +43,7 @@ proc new*(
     repoStore: RepoStore,
     interval: Duration,
     numberOfBlocksPerInterval = 100,
-    timer = Timer.new(),
+    timer = Timer.new("maintenance"),
     clock: Clock = SystemClock.new(),
 ): BlockMaintainer =
   ## Create new BlockMaintainer instance
@@ -59,8 +62,8 @@ proc new*(
 proc deleteExpiredBlock(
     self: BlockMaintainer, cid: Cid
 ): Future[void] {.async: (raises: [CancelledError]).} =
-  if isErr (await self.repoStore.delBlock(cid)):
-    trace "Unable to delete block from repoStore"
+  if error =? (await self.repoStore.delBlock(cid)).errorOption:
+    warn "Unable to delete block from repoStore", error = error.msg
 
 proc processBlockExpiration(
     self: BlockMaintainer, be: BlockExpiration
@@ -78,13 +81,13 @@ proc runBlockCheck(
   )
 
   without iter =? expirations, err:
-    trace "Unable to obtain blockExpirations iterator from repoStore"
+    warn "Unable to obtain blockExpirations iterator from repoStore", err = err.msg
     return
 
   var numberReceived = 0
   for beFut in iter:
     without be =? (await beFut), err:
-      trace "Unable to obtain blockExpiration from iterator"
+      warn "Unable to obtain blockExpiration from iterator", err = err.msg
       continue
     inc numberReceived
     await self.processBlockExpiration(be)
@@ -94,6 +97,7 @@ proc runBlockCheck(
   # We're at the end of the dataset and should start from 0 next time.
   if numberReceived < self.numberOfBlocksPerInterval:
     self.offset = 0
+    trace "Cycle completed"
 
 proc start*(self: BlockMaintainer) =
   proc onTimer(): Future[void] {.async: (raises: []).} =

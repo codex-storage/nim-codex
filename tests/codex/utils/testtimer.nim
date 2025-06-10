@@ -36,8 +36,8 @@ asyncchecksuite "Timer":
     timer2.start(lettersCallback, 10.milliseconds)
 
   setup:
-    timer1 = Timer.new()
-    timer2 = Timer.new()
+    timer1 = Timer.new("testtimer1")
+    timer2 = Timer.new("testtimer2")
 
     output = ""
     numbersState = 0
