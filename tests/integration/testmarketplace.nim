@@ -440,7 +440,8 @@ marketplacesuite "Marketplace payouts":
           let availableSlots = (3 - slots.len).u256
 
           availability.totalRemainingCollateral ==
-            availableSlots * slotSize * minPricePerBytePerSecond
+            availableSlots * slotSize * minPricePerBytePerSecond,
+        timeout = 30 * 1000,
       )
 
     await startedSubscription.unsubscribe()
