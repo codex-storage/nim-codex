@@ -5,25 +5,14 @@ import pkg/chronos
 import pkg/questionable
 import pkg/questionable/results
 import pkg/stint
-import pkg/taskpools
-
-import pkg/nitro
-import pkg/codexdht/discv5/protocol as discv5
 
 import pkg/codex/logutils
 import pkg/codex/stores
 import pkg/codex/contracts
-import pkg/codex/blockexchange
-import pkg/codex/chunker
 import pkg/codex/slots
-import pkg/codex/systemclock
 import pkg/codex/manifest
-import pkg/codex/discovery
 import pkg/codex/erasure
 import pkg/codex/blocktype as bt
-import pkg/codex/indexingstrategy
-import pkg/codex/nat
-import pkg/codex/utils/natutils
 import pkg/chronos/transports/stream
 
 import pkg/codex/node {.all.}
@@ -36,20 +25,6 @@ privateAccess(CodexNodeRef) # enable access to private fields
 
 logScope:
   topics = "testSlotRepair"
-
-proc nextFreePort*(startPort: int): Future[int] {.async.} =
-  proc client(server: StreamServer, transp: StreamTransport) {.async: (raises: []).} =
-    await transp.closeWait()
-
-  var port = startPort
-  while true:
-    try:
-      let host = initTAddress("127.0.0.1", port)
-      var server = createStreamServer(host, client, {ReuseAddr})
-      await server.closeWait()
-      return port
-    except TransportOsError:
-      inc port
 
 proc fetchStreamData(stream: LPStream, datasetSize: int): Future[seq[byte]] {.async.} =
   var buf = newSeqUninitialized[byte](datasetSize)
@@ -67,104 +42,34 @@ proc flatten[T](s: seq[seq[T]]): seq[T] =
   return t
 
 asyncchecksuite "Test Node - Slot Repair":
+  let
+    numNodes = 12
+    config = NodeConfig(
+      useRepoStore: true,
+      findFreePorts: true,
+      createFullNode: true,
+      enableBootstrap: true,
+    )
   var
     manifest: Manifest
     builder: Poseidon2Builder
     verifiable: Manifest
     verifiableBlock: bt.Block
     protected: Manifest
+    cluster: NodesCluster
 
-    tempLevelDbs: seq[TempLevelDb] = newSeq[TempLevelDb]()
-    localStores: seq[RepoStore] = newSeq[RepoStore]()
-    nodes: seq[CodexNodeRef] = newSeq[CodexNodeRef]()
-    taskpool: Taskpool
-
-  let numNodes = 12
+    nodes: seq[CodexNodeRef]
+    localStores: seq[BlockStore]
 
   setup:
-    taskpool = Taskpool.new()
-    var bootstrapNodes: seq[SignedPeerRecord] = @[]
-    for i in 0 ..< numNodes:
-      let
-        listenPort = await nextFreePort(8080 + 2 * i)
-        bindPort = await nextFreePort(listenPort + 1)
-        listenAddr = MultiAddress.init("/ip4/127.0.0.1/tcp/" & $listenPort).expect(
-            "invalid multiaddress"
-          )
-        switch = newStandardSwitch(
-          transportFlags = {ServerFlags.ReuseAddr},
-          sendSignedPeerRecord = true,
-          addrs = listenAddr,
-        )
-        wallet = WalletRef.new(EthPrivateKey.random())
-        network = BlockExcNetwork.new(switch)
-        peerStore = PeerCtxStore.new()
-        pendingBlocks = PendingBlocksManager.new()
-        bdStore = TempLevelDb.new()
-        blockDiscoveryStore = bdStore.newDb()
-        repoStore = TempLevelDb.new()
-        mdStore = TempLevelDb.new()
-        localStore =
-          RepoStore.new(repoStore.newDb(), mdStore.newDb(), clock = SystemClock.new())
-        blockDiscovery = Discovery.new(
-          switch.peerInfo.privateKey,
-          announceAddrs = @[listenAddr],
-          bindPort = bindPort.Port,
-          store = blockDiscoveryStore,
-          bootstrapNodes = bootstrapNodes,
-        )
-        discovery = DiscoveryEngine.new(
-          localStore, peerStore, network, blockDiscovery, pendingBlocks
-        )
-        advertiser = Advertiser.new(localStore, blockDiscovery)
-        engine = BlockExcEngine.new(
-          localStore, wallet, network, discovery, advertiser, peerStore, pendingBlocks
-        )
-        store = NetworkStore.new(engine, localStore)
-        node = CodexNodeRef.new(
-          switch = switch,
-          networkStore = store,
-          engine = engine,
-          prover = Prover.none,
-          discovery = blockDiscovery,
-          taskpool = taskpool,
-        )
-
-      await localStore.start()
-      await switch.peerInfo.update()
-      switch.mount(network)
-
-      let (announceAddrs, discoveryAddrs) = nattedAddress(
-        NatConfig(hasExtIp: false, nat: NatNone), switch.peerInfo.addrs, bindPort.Port
-      )
-      node.discovery.updateAnnounceRecord(announceAddrs)
-      node.discovery.updateDhtRecord(discoveryAddrs)
-
-      check node.discovery.dhtRecord.isSome
-      bootstrapNodes.add !node.discovery.dhtRecord
-
-      tempLevelDbs.add bdStore
-      tempLevelDbs.add repoStore
-      tempLevelDbs.add mdStore
-      localStores.add localStore
-      nodes.add node
-
-    for node in nodes:
-      await node.switch.start()
-      await node.start()
+    cluster = generateNodes(numNodes, config = config)
+    nodes = cluster.nodes
+    localStores = cluster.localStores
 
   teardown:
-    for node in nodes:
-      await node.switch.stop()
-      await node.stop()
-    for s in tempLevelDbs:
-      await s.destroyDb()
-    for l in localStores:
-      await l.stop()
-    taskpool.shutdown()
+    await cluster.cleanup()
     localStores = @[]
     nodes = @[]
-    tempLevelDbs = @[]
 
   test "repair slots (2,1)":
     let
@@ -189,7 +94,8 @@ asyncchecksuite "Test Node - Slot Repair":
     let
       manifestBlock =
         bt.Block.new(manifest.encode().tryGet(), codec = ManifestCodec).tryGet()
-      erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider, taskpool)
+      erasure =
+        Erasure.new(store, leoEncoderProvider, leoDecoderProvider, cluster.taskpool)
 
     (await localStore.putBlock(manifestBlock)).tryGet()
 
@@ -266,7 +172,8 @@ asyncchecksuite "Test Node - Slot Repair":
     let
       manifestBlock =
         bt.Block.new(manifest.encode().tryGet(), codec = ManifestCodec).tryGet()
-      erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider, taskpool)
+      erasure =
+        Erasure.new(store, leoEncoderProvider, leoDecoderProvider, cluster.taskpool)
 
     (await localStore.putBlock(manifestBlock)).tryGet()
 
