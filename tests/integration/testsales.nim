@@ -8,6 +8,7 @@ import ../contracts/time
 import ./codexconfig
 import ./codexclient
 import ./nodeconfigs
+import ./marketplacesuite
 
 proc findItem[T](items: seq[T], item: T): ?!T =
   for tmp in items:
@@ -16,7 +17,7 @@ proc findItem[T](items: seq[T], item: T): ?!T =
 
   return failure("Not found")
 
-multinodesuite "Sales":
+marketplacesuite "Sales":
   let salesConfig = NodeConfigs(
     clients: CodexConfigs.init(nodes = 1).some,
     providers: CodexConfigs.init(nodes = 1)
@@ -128,22 +129,19 @@ multinodesuite "Sales":
 
     # Lets create storage request that will utilize some of the availability's space
     let cid = (await client.upload(data)).get
-    let id = (
-      await client.requestStorage(
-        cid,
-        duration = 20 * 60.uint64,
-        pricePerBytePerSecond = minPricePerBytePerSecond,
-        proofProbability = 3.u256,
-        expiry = (10 * 60).uint64,
-        collateralPerByte = collateralPerByte,
-        nodes = 3,
-        tolerance = 1,
-      )
-    ).get
-
-    check eventually(
-      await client.purchaseStateIs(id, "started"), timeout = 10 * 60 * 1000
+    let id = await client.requestStorage(
+      cid,
+      duration = 20 * 60.uint64,
+      pricePerBytePerSecond = minPricePerBytePerSecond,
+      proofProbability = 3.u256,
+      expiry = (10 * 60).uint64,
+      collateralPerByte = collateralPerByte,
+      nodes = 3,
+      tolerance = 1,
     )
+
+    discard await waitForRequestToStart()
+
     let updatedAvailability =
       ((await host.getAvailabilities()).get).findItem(availability).get
     check updatedAvailability.totalSize != updatedAvailability.freeSize
@@ -217,9 +215,8 @@ multinodesuite "Sales":
       )
     ).get
 
-    check eventually(
-      await client.purchaseStateIs(id, "started"), timeout = 10 * 60 * 1000
-    )
+    discard await waitForRequestToStart()
+
     let purchase = (await client.getPurchase(id)).get
     check purchase.error == none string
 
