@@ -125,14 +125,11 @@ marketplacesuite "Marketplace":
     let pricePerSlotPerSecond = minPricePerBytePerSecond * slotSize
     check eventually(
       (await token.balanceOf(hostAccount)) - startBalanceHost >=
-        (duration - 5 * 60).u256 * pricePerSlotPerSecond * ecNodes.u256,
-      timeout = 5000,
-      pollInterval = 1000,
+        (duration - 5 * 60).u256 * pricePerSlotPerSecond * ecNodes.u256
     )
     # Checking that client node receives some funds back that were not used for the host nodes
     check eventually(
       (await token.balanceOf(clientAccount)) - clientBalanceBeforeFinished > 0,
-      pollInterval = 1000,
       timeout = 10 * 1000, # give client a bit of time to withdraw its funds
     )
 
@@ -309,9 +306,7 @@ marketplacesuite "Marketplace payouts":
         let endBalanceClient = (await token.balanceOf(client.ethAccount))
         let endBalanceProvider = (await token.balanceOf(provider.ethAccount))
         (startBalanceClient - endBalanceClient) ==
-          (endBalanceProvider - startBalanceProvider),
-      timeout = 5000,
-      pollInterval = 1000,
+          (endBalanceProvider - startBalanceProvider)
     )
 
     check eventually(
@@ -321,7 +316,6 @@ marketplacesuite "Marketplace payouts":
         (startBalanceClient - endBalanceClient) ==
           (endBalanceProvider - startBalanceProvider),
       timeout = 10 * 1000,
-      pollInterval = 1000,
     )
 
     await slotFilledSubscription.unsubscribe()
@@ -407,5 +401,4 @@ marketplacesuite "Marketplace payouts":
           availability.totalRemainingCollateral ==
             availableSlots * slotSize * minPricePerBytePerSecond,
         timeout = 30 * 1000,
-        pollInterval = 1000,
       )
