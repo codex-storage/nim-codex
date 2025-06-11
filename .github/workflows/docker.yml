@@ -20,7 +20,7 @@ on:
     inputs:
       git-ref:
         description: Git ref to build (commit, branch)
-        required: true
+        required: false
         type: string
 
 jobs:

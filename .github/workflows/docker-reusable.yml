@@ -203,6 +203,7 @@ jobs:
         if: ${{ github.event.inputs.git-ref != '' }}
         with:
           ref: ${{ github.event.inputs.git-ref}} # Empty string will fallback to default branch
+          fetch-depth: 0
 
       - name: Docker - Variables
         run: |
