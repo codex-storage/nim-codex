@@ -64,9 +64,7 @@ marketplacesuite "Hosts submit regular proofs":
 
     let slotSize = slotSize(blocks, ecNodes, ecTolerance)
 
-    check eventually(
-      await client0.purchaseStateIs(purchaseId, "started"), timeout = expiry.int * 1000
-    )
+    discard await waitForRequestToStart()
 
     var proofWasSubmitted = false
     proc onProofSubmitted(event: ?!ProofSubmitted) =
@@ -140,9 +138,7 @@ marketplacesuite "Simulate invalid proofs":
     )
     let requestId = (await client0.requestId(purchaseId)).get
 
-    check eventually(
-      await client0.purchaseStateIs(purchaseId, "started"), timeout = expiry.int * 1000
-    )
+    discard await waitForRequestToStart()
 
     var slotWasFreed = false
     proc onSlotFreed(event: ?!SlotFreed) =
