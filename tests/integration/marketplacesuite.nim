@@ -5,7 +5,7 @@ import pkg/codex/contracts/marketplace as mp
 import pkg/codex/periods
 import pkg/codex/utils/json
 from pkg/codex/utils import roundUp, divUp
-import ./multinodes
+import ./multinodes except Subscription
 import ../contracts/time
 import ../contracts/deployment
 
@@ -18,9 +18,21 @@ template marketplacesuite*(name: string, body: untyped) =
     var period: uint64
     var periodicity: Periodicity
     var token {.inject, used.}: Erc20Token
+    var requestStartedFut = Future[void].Raising([CancelledError]).init()
+    var requestStartedSubscription: Subscription
+
+    proc onRequestStarted(eventResult: ?!RequestFulfilled) {.raises: [].} =
+      requestStartedFut.complete()
 
     proc getCurrentPeriod(): Future[Period] {.async.} =
       return periodicity.periodOf((await ethProvider.currentTime()).truncate(uint64))
+
+    proc waitForRequestToStart(): Future[Period] {.
+        async: (raises: [CancelledError, AsyncTimeoutError])
+    .} =
+      await requestStartedFut.wait(timeout = chronos.seconds((5 * 60) + 10))
+      # Recreate a new future if we need to wait for another request
+      requestStartedFut = Future[void].Raising([CancelledError]).init()
 
     proc advanceToNextPeriod() {.async.} =
       let periodicity = Periodicity(seconds: period)
@@ -30,7 +42,7 @@ template marketplacesuite*(name: string, body: untyped) =
       await ethProvider.advanceTimeTo(endOfPeriod.u256 + 1)
 
     template eventuallyP(condition: untyped, finalPeriod: Period): bool =
-      proc eventuallyP(): Future[bool] {.async.} =
+      proc eventuallyP(): Future[bool] {.async: (raises: [CancelledError]).} =
         while (
           let currentPeriod = await getCurrentPeriod()
           currentPeriod <= finalPeriod
@@ -106,5 +118,11 @@ template marketplacesuite*(name: string, body: untyped) =
       let config = await marketplace.configuration()
       period = config.proofs.period
       periodicity = Periodicity(seconds: period)
+
+      requestStartedSubscription =
+        await marketplace.subscribe(RequestFulfilled, onRequestStarted)
+
+    teardown:
+      await requestStartedSubscription.unsubscribe()
 
     body
