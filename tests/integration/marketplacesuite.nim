@@ -12,7 +12,7 @@ import ../contracts/deployment
 export mp
 export multinodes
 
-template marketplacesuite*(name: string, body: untyped) =
+template marketplacesuite*(name: string, stopOnRequestFail = true, body: untyped) =
   multinodesuite name:
     var marketplace {.inject, used.}: Marketplace
     var period: uint64
@@ -20,19 +20,33 @@ template marketplacesuite*(name: string, body: untyped) =
     var token {.inject, used.}: Erc20Token
     var requestStartedFut = Future[void].Raising([CancelledError]).init()
     var requestStartedSubscription: Subscription
+    var requestFailedFut = Future[void].Raising([CancelledError]).init()
+    var requestFailedSubscription: Subscription
 
     proc onRequestStarted(eventResult: ?!RequestFulfilled) {.raises: [].} =
       requestStartedFut.complete()
 
+    proc onRequestFailed(eventResult: ?!RequestFailed) {.raises: [].} =
+      requestFailedFut.complete()
+      if stopOnRequestFail:
+        fail()
+
     proc getCurrentPeriod(): Future[Period] {.async.} =
       return periodicity.periodOf((await ethProvider.currentTime()).truncate(uint64))
 
-    proc waitForRequestToStart(): Future[Period] {.
-        async: (raises: [CancelledError, AsyncTimeoutError])
-    .} =
-      await requestStartedFut.wait(timeout = chronos.seconds((5 * 60) + 10))
+    proc waitForRequestToStart(
+        seconds = 10 * 60
+    ): Future[Period] {.async: (raises: [CancelledError, AsyncTimeoutError]).} =
+      await requestStartedFut.wait(timeout = chronos.seconds(seconds))
       # Recreate a new future if we need to wait for another request
       requestStartedFut = Future[void].Raising([CancelledError]).init()
+
+    proc waitForRequestToFail(
+        seconds = (5 * 60) + 10
+    ): Future[Period] {.async: (raises: [CancelledError, AsyncTimeoutError]).} =
+      await requestFailedFut.wait(timeout = chronos.seconds(seconds))
+      # Recreate a new future if we need to wait for another request
+      requestFailedFut = Future[void].Raising([CancelledError]).init()
 
     proc advanceToNextPeriod() {.async.} =
       let periodicity = Periodicity(seconds: period)
@@ -122,7 +136,11 @@ template marketplacesuite*(name: string, body: untyped) =
       requestStartedSubscription =
         await marketplace.subscribe(RequestFulfilled, onRequestStarted)
 
+      requestFailedSubscription =
+        await marketplace.subscribe(RequestFailed, onRequestFailed)
+
     teardown:
       await requestStartedSubscription.unsubscribe()
+      await requestFailedSubscription.unsubscribe()
 
     body
