@@ -12,7 +12,7 @@ import ../contracts/deployment
 export mp
 export multinodes
 
-template marketplacesuite*(name: string, stopOnRequestFail = true, body: untyped) =
+template marketplacesuite*(name: string, body: untyped, stopOnRequestFail = true) =
   multinodesuite name:
     var marketplace {.inject, used.}: Marketplace
     var period: uint64
@@ -35,7 +35,7 @@ template marketplacesuite*(name: string, stopOnRequestFail = true, body: untyped
       return periodicity.periodOf((await ethProvider.currentTime()).truncate(uint64))
 
     proc waitForRequestToStart(
-        seconds = 10 * 60
+        seconds = 10 * 60 + 10
     ): Future[Period] {.async: (raises: [CancelledError, AsyncTimeoutError]).} =
       await requestStartedFut.wait(timeout = chronos.seconds(seconds))
       # Recreate a new future if we need to wait for another request
