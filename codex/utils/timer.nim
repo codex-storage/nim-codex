@@ -24,7 +24,7 @@ type
     name: string
     loopFuture: Future[void]
 
-proc new*(T: type Timer, timerName = "Unnamed Timer"): Timer =
+proc new*(T: type Timer, timerName: string): Timer =
   ## Create a new Timer intance with the given name
   Timer(name: timerName)
 
@@ -35,6 +35,9 @@ proc timerLoop(timer: Timer) {.async: (raises: []).} =
       await sleepAsync(timer.interval)
   except CancelledError:
     discard # do not propagate as timerLoop is asyncSpawned
+  except CatchableError as err:
+    error "CatchableError in timer loop", name = timer.name, msg = err.msg
+  info "Timer loop has stopped", name = timer.name
 
 method start*(
     timer: Timer, callback: TimerCallback, interval: Duration
