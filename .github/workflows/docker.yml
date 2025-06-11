@@ -17,11 +17,6 @@ on:
       - '!docker/codex.Dockerfile'
       - '!docker/docker-entrypoint.sh'
   workflow_dispatch:
-    inputs:
-      git-ref:
-        description: Git ref to build (commit, branch)
-        required: false
-        type: string
 
 jobs:
   get-contracts-hash:
@@ -47,5 +42,4 @@ jobs:
       tag_latest: ${{ github.ref_name == github.event.repository.default_branch || startsWith(github.ref, 'refs/tags/') }}
       tag_stable: ${{ startsWith(github.ref, 'refs/tags/') }}
       contract_image: "codexstorage/codex-contracts-eth:sha-${{ needs.get-contracts-hash.outputs.hash }}"
-      git-ref: ${{ github.event.inputs.git-ref || ''}}
     secrets: inherit
