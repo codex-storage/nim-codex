@@ -50,6 +50,7 @@ marketplacesuite "Marketplace":
 
     # client requests storage
     let cid = (await client.upload(data)).get
+
     let id = await client.requestStorage(
       cid,
       duration = 20 * 60.uint64,
@@ -61,9 +62,8 @@ marketplacesuite "Marketplace":
       tolerance = ecTolerance,
     )
 
-    check eventually(
-      await client.purchaseStateIs(id, "started"), timeout = 10 * 60 * 1000
-    )
+    discard await waitForRequestToStart()
+
     let purchase = (await client.getPurchase(id)).get
     check purchase.error == none string
     let availabilities = (await host.getAvailabilities()).get
@@ -108,9 +108,8 @@ marketplacesuite "Marketplace":
       tolerance = ecTolerance,
     )
 
-    check eventually(
-      await client.purchaseStateIs(id, "started"), timeout = 10 * 60 * 1000
-    )
+    discard await waitForRequestToStart()
+
     let purchase = (await client.getPurchase(id)).get
     check purchase.error == none string
 
@@ -124,12 +123,16 @@ marketplacesuite "Marketplace":
     # Checking that the hosting node received reward for at least the time between <expiry;end>
     let slotSize = slotSize(blocks, ecNodes, ecTolerance)
     let pricePerSlotPerSecond = minPricePerBytePerSecond * slotSize
-    check eventually (await token.balanceOf(hostAccount)) - startBalanceHost >=
-      (duration - 5 * 60).u256 * pricePerSlotPerSecond * ecNodes.u256
-
+    check eventually(
+      (await token.balanceOf(hostAccount)) - startBalanceHost >=
+        (duration - 5 * 60).u256 * pricePerSlotPerSecond * ecNodes.u256,
+      timeout = 5000,
+      pollInterval = 1000,
+    )
     # Checking that client node receives some funds back that were not used for the host nodes
     check eventually(
       (await token.balanceOf(clientAccount)) - clientBalanceBeforeFinished > 0,
+      pollInterval = 1000,
       timeout = 10 * 1000, # give client a bit of time to withdraw its funds
     )
 
@@ -178,10 +181,7 @@ marketplacesuite "Marketplace":
     let requestId = (await client0.client.requestId(purchaseId)).get
 
     # We wait that the 3 slots are filled by the first SP
-    check eventually(
-      await client0.client.purchaseStateIs(purchaseId, "started"),
-      timeout = 10 * 60.int * 1000,
-    )
+    discard await waitForRequestToStart()
 
     # Here we create the same availability as previously but for the second SP.
     # Meaning that, after ignoring all the slots for the first request, the second SP will process
@@ -206,13 +206,10 @@ marketplacesuite "Marketplace":
     let requestId2 = (await client0.client.requestId(purchaseId2)).get
 
     # Wait that the slots of the second request are filled
-    check eventually(
-      await client0.client.purchaseStateIs(purchaseId2, "started"),
-      timeout = 10 * 60.int * 1000,
-    )
+    discard await waitForRequestToStart()
 
     # Double check, verify that our second SP hosts the 3 slots
-    check eventually ((await provider1.client.getSlots()).get).len == 3
+    check ((await provider1.client.getSlots()).get).len == 3
 
 marketplacesuite "Marketplace payouts":
   const minPricePerBytePerSecond = 1.u256
@@ -265,11 +262,21 @@ marketplacesuite "Marketplace payouts":
     let cid = (await clientApi.upload(data)).get
 
     var slotIdxFilled = none uint64
+    var slotFilledFut = Future[void].Raising([CancelledError]).init()
     proc onSlotFilled(eventResult: ?!SlotFilled) =
       assert not eventResult.isErr
       slotIdxFilled = some (!eventResult).slotIndex
+      slotFilledFut.complete()
 
-    let subscription = await marketplace.subscribe(SlotFilled, onSlotFilled)
+    let slotFilledSubscription = await marketplace.subscribe(SlotFilled, onSlotFilled)
+
+    var requestCancelledFut = Future[void].Raising([CancelledError]).init()
+    proc onRequestCancelled(eventResult: ?!RequestCancelled) =
+      assert not eventResult.isErr
+      requestCancelledFut.complete()
+
+    let requestCancelledSubscription =
+      await marketplace.subscribe(RequestCancelled, onRequestCancelled)
 
     # client requests storage but requires multiple slots to host the content
     let id = await clientApi.requestStorage(
@@ -283,37 +290,42 @@ marketplacesuite "Marketplace payouts":
     )
 
     # wait until one slot is filled
-    check eventually(slotIdxFilled.isSome, timeout = expiry.int * 1000)
+    await slotFilledFut.wait(timeout = chronos.seconds(expiry.int))
+
     let slotId = slotId(!(await clientApi.requestId(id)), !slotIdxFilled)
 
     # wait until sale is cancelled
     await ethProvider.advanceTime(expiry.u256)
 
-    check eventually(
-      await providerApi.saleStateIs(slotId, "SaleCancelled"), pollInterval = 100
-    )
+    await requestCancelledFut.wait(timeout = chronos.seconds(5))
 
     await advanceToNextPeriod()
 
     let slotSize = slotSize(blocks, ecNodes, ecTolerance)
     let pricePerSlotPerSecond = minPricePerBytePerSecond * slotSize
 
-    check eventually (
-      let endBalanceProvider = (await token.balanceOf(provider.ethAccount))
-      endBalanceProvider > startBalanceProvider and
-        endBalanceProvider < startBalanceProvider + expiry.u256 * pricePerSlotPerSecond
-    )
     check eventually(
-      (
+      block:
         let endBalanceClient = (await token.balanceOf(client.ethAccount))
         let endBalanceProvider = (await token.balanceOf(provider.ethAccount))
         (startBalanceClient - endBalanceClient) ==
-          (endBalanceProvider - startBalanceProvider)
-      ),
-      timeout = 10 * 1000, # give client a bit of time to withdraw its funds
+          (endBalanceProvider - startBalanceProvider),
+      timeout = 5000,
+      pollInterval = 1000,
     )
 
-    await subscription.unsubscribe()
+    check eventually(
+      block:
+        let endBalanceClient = (await token.balanceOf(client.ethAccount))
+        let endBalanceProvider = (await token.balanceOf(provider.ethAccount))
+        (startBalanceClient - endBalanceClient) ==
+          (endBalanceProvider - startBalanceProvider),
+      timeout = 10 * 1000,
+      pollInterval = 1000,
+    )
+
+    await slotFilledSubscription.unsubscribe()
+    await requestCancelledSubscription.unsubscribe()
 
   test "the collateral is returned after a sale is ignored",
     NodeConfigs(
@@ -377,10 +389,7 @@ marketplacesuite "Marketplace payouts":
 
     let requestId = (await client0.client.requestId(purchaseId)).get
 
-    check eventually(
-      await client0.client.purchaseStateIs(purchaseId, "started"),
-      timeout = 10 * 60.int * 1000,
-    )
+    discard await waitForRequestToStart()
 
     # Here we will check that for each provider, the total remaining collateral
     # will match the available slots.
@@ -398,4 +407,5 @@ marketplacesuite "Marketplace payouts":
           availability.totalRemainingCollateral ==
             availableSlots * slotSize * minPricePerBytePerSecond,
         timeout = 30 * 1000,
+        pollInterval = 1000,
       )
