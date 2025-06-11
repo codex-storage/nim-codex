@@ -18,16 +18,16 @@ template marketplacesuite*(name: string, body: untyped, stopOnRequestFail = true
     var period: uint64
     var periodicity: Periodicity
     var token {.inject, used.}: Erc20Token
-    var requestStartedFut = Future[void].Raising([CancelledError]).init()
+    var requestStartedEvent = newAsyncEvent()
     var requestStartedSubscription: Subscription
-    var requestFailedFut = Future[void].Raising([CancelledError]).init()
+    var requestFailedEvent = newAsyncEvent()
     var requestFailedSubscription: Subscription
 
     proc onRequestStarted(eventResult: ?!RequestFulfilled) {.raises: [].} =
-      requestStartedFut.complete()
+      requestStartedEvent.fire()
 
     proc onRequestFailed(eventResult: ?!RequestFailed) {.raises: [].} =
-      requestFailedFut.complete()
+      requestFailedEvent.fire()
       if stopOnRequestFail:
         fail()
 
@@ -37,16 +37,16 @@ template marketplacesuite*(name: string, body: untyped, stopOnRequestFail = true
     proc waitForRequestToStart(
         seconds = 10 * 60 + 10
     ): Future[Period] {.async: (raises: [CancelledError, AsyncTimeoutError]).} =
-      await requestStartedFut.wait(timeout = chronos.seconds(seconds))
+      await requestStartedEvent.wait().wait(timeout = chronos.seconds(seconds))
       # Recreate a new future if we need to wait for another request
-      requestStartedFut = Future[void].Raising([CancelledError]).init()
+      requestStartedEvent = newAsyncEvent()
 
     proc waitForRequestToFail(
         seconds = (5 * 60) + 10
     ): Future[Period] {.async: (raises: [CancelledError, AsyncTimeoutError]).} =
-      await requestFailedFut.wait(timeout = chronos.seconds(seconds))
+      await requestFailedEvent.wait().wait(timeout = chronos.seconds(seconds))
       # Recreate a new future if we need to wait for another request
-      requestFailedFut = Future[void].Raising([CancelledError]).init()
+      requestFailedEvent = newAsyncEvent()
 
     proc advanceToNextPeriod() {.async.} =
       let periodicity = Periodicity(seconds: period)
