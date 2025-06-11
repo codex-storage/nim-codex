@@ -14,6 +14,7 @@ from pkg/ethers import BlockTag
 import codex/clock
 
 import ../examples
+import ./mockclock
 
 export market
 export tables
@@ -51,7 +52,7 @@ type
     errorOnFillSlot*: ?(ref MarketError)
     errorOnFreeSlot*: ?(ref MarketError)
     errorOnGetHost*: ?(ref MarketError)
-    clock: ?Clock
+    clock: Clock
 
   Fulfillment* = object
     requestId*: RequestId
@@ -63,7 +64,7 @@ type
     host*: Address
     slotIndex*: uint64
     proof*: Groth16Proof
-    timestamp: ?SecondsSince1970
+    timestamp: SecondsSince1970
     collateral*: UInt256
 
   Subscriptions = object
@@ -119,7 +120,7 @@ proc hash*(address: Address): Hash =
 proc hash*(requestId: RequestId): Hash =
   hash(requestId.toArray)
 
-proc new*(_: type MockMarket, clock: ?Clock = Clock.none): MockMarket =
+proc new*(_: type MockMarket, clock: Clock = MockClock.new()): MockMarket =
   ## Create a new mocked Market instance
   ##
   let config = MarketplaceConfig(
@@ -181,10 +182,15 @@ method getPointer*(market: MockMarket, slotId: SlotId): Future[uint8] {.async.} 
 method requestStorage*(
     market: MockMarket, request: StorageRequest
 ) {.async: (raises: [CancelledError, MarketError]).} =
+  let now = market.clock.now()
+  let requestExpiresAt = now + request.expiry.toSecondsSince1970
+  let requestEndsAt = now + request.ask.duration.toSecondsSince1970
   market.requested.add(request)
+  market.requestExpiry[request.id] = requestExpiresAt
+  market.requestEnds[request.id] = requestEndsAt
   var subscriptions = market.subscriptions.onRequest
   for subscription in subscriptions:
-    subscription.callback(request.id, request.ask, request.expiry)
+    subscription.callback(request.id, request.ask, requestExpiresAt.uint64)
 
 method myRequests*(market: MockMarket): Future[seq[RequestId]] {.async.} =
   return market.activeRequests[market.signer]
@@ -308,7 +314,7 @@ proc fillSlot*(
     slotIndex: slotIndex,
     proof: proof,
     host: host,
-    timestamp: market.clock .? now,
+    timestamp: market.clock.now,
     collateral: collateral,
   )
   market.filled.add(slot)
@@ -541,7 +547,11 @@ method queryPastStorageRequestedEvents*(
 ): Future[seq[StorageRequested]] {.async.} =
   return market.requested.map(
     request =>
-      StorageRequested(requestId: request.id, ask: request.ask, expiry: request.expiry)
+      StorageRequested(
+        requestId: request.id,
+        ask: request.ask,
+        expiry: market.requestExpiry[request.id].uint64,
+      )
   )
 
 method queryPastStorageRequestedEvents*(
@@ -549,7 +559,11 @@ method queryPastStorageRequestedEvents*(
 ): Future[seq[StorageRequested]] {.async.} =
   return market.requested.map(
     request =>
-      StorageRequested(requestId: request.id, ask: request.ask, expiry: request.expiry)
+      StorageRequested(
+        requestId: request.id,
+        ask: request.ask,
+        expiry: market.requestExpiry[request.id].uint64,
+      )
   )
 
 method queryPastSlotFilledEvents*(
@@ -571,10 +585,7 @@ method queryPastSlotFilledEvents*(
 ): Future[seq[SlotFilled]] {.async.} =
   let filtered = market.filled.filter(
     proc(slot: MockSlot): bool =
-      if timestamp =? slot.timestamp:
-        return timestamp >= fromTime
-      else:
-        true
+      return slot.timestamp >= fromTime
   )
   return filtered.map(
     slot => SlotFilled(requestId: slot.requestId, slotIndex: slot.slotIndex)

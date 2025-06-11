@@ -148,26 +148,12 @@ proc cleanUp(
 
   # Re-add items back into the queue to prevent small availabilities from
   # draining the queue. Seen items will be ordered last.
-  if data.slotIndex <= uint16.high.uint64 and reprocessSlot and request =? data.request:
-    let res =
-      await noCancel sales.context.market.slotCollateral(data.requestId, data.slotIndex)
-    if res.isErr:
-      error "Failed to re-add item back to the slot queue: unable to calculate collateral",
-        error = res.error.msg
-    else:
-      let collateral = res.get()
-      let queue = sales.context.slotQueue
-      var seenItem = SlotQueueItem.init(
-        data.requestId,
-        data.slotIndex.uint16,
-        data.ask,
-        request.expiry,
-        seen = true,
-        collateral = collateral,
-      )
-      trace "pushing ignored item to queue, marked as seen"
-      if err =? queue.push(seenItem).errorOption:
-        error "failed to readd slot to queue", errorType = $(type err), error = err.msg
+  if reprocessSlot and request =? data.request and var item =? agent.data.slotQueueItem:
+    let queue = sales.context.slotQueue
+    item.seen = true
+    trace "pushing ignored item to queue, marked as seen"
+    if err =? queue.push(item).errorOption:
+      error "failed to readd slot to queue", errorType = $(type err), error = err.msg
 
   let fut = sales.remove(agent)
   sales.trackedFutures.track(fut)
@@ -181,8 +167,9 @@ proc processSlot(
 ) {.async: (raises: [CancelledError]).} =
   debug "Processing slot from queue", requestId = item.requestId, slot = item.slotIndex
 
-  let agent =
-    newSalesAgent(sales.context, item.requestId, item.slotIndex, none StorageRequest)
+  let agent = newSalesAgent(
+    sales.context, item.requestId, item.slotIndex, none StorageRequest, some item
+  )
 
   let completed = newAsyncEvent()
 
