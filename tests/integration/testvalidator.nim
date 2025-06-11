@@ -15,25 +15,7 @@ export logutils
 logScope:
   topics = "integration test validation"
 
-template eventuallyS(
-    expression: untyped, timeout = 10, step = 5, cancelExpression: untyped = false
-): bool =
-  bind Moment, now, seconds
-
-  proc eventuallyS(): Future[bool] {.async.} =
-    let endTime = Moment.now() + timeout.seconds
-    var secondsElapsed = 0
-    while not expression:
-      if endTime < Moment.now():
-        return false
-      if cancelExpression:
-        return false
-      await sleepAsync(step.seconds)
-    return true
-
-  await eventuallyS()
-
-marketplacesuite "Validation":
+marketplacesuite("Validation", stopOnRequestFail = false):
   const blocks = 8
   const ecNodes = 3
   const ecTolerance = 1
@@ -41,21 +23,6 @@ marketplacesuite "Validation":
 
   const collateralPerByte = 1.u256
   const minPricePerBytePerSecond = 1.u256
-
-  proc waitForRequestToFail(
-      marketplace: Marketplace, requestId: RequestId, timeout = 10, step = 5
-  ): Future[bool] {.async.} =
-    let endTime = Moment.now() + timeout.seconds
-
-    var requestState = await marketplace.requestState(requestId)
-    while requestState != RequestState.Failed:
-      if endTime < Moment.now():
-        return false
-      if requestState != RequestState.Started:
-        return false
-      await sleepAsync(step.seconds)
-      requestState = await marketplace.requestState(requestId)
-    return true
 
   test "validator marks proofs as missing when using validation groups",
     NodeConfigs(
@@ -119,14 +86,7 @@ marketplacesuite "Validation":
 
     debug "validation suite", purchaseId = purchaseId.toHex, requestId = requestId
 
-    if not eventuallyS(
-      await client0.purchaseStateIs(purchaseId, "started"),
-      timeout = (expiry + 60).int,
-      step = 5,
-    ):
-      debug "validation suite: timed out waiting for the purchase to start"
-      fail()
-      return
+    discard await waitForRequestToStart()
 
     discard await ethProvider.send("evm_mine")
     currentTime = await ethProvider.currentTime()
@@ -134,9 +94,7 @@ marketplacesuite "Validation":
 
     debug "validation suite", secondsTillRequestEnd = secondsTillRequestEnd.seconds
 
-    check await marketplace.waitForRequestToFail(
-      requestId, timeout = secondsTillRequestEnd + 60, step = 5
-    )
+    discard await waitForRequestToFail(secondsTillRequestEnd + 60)
 
   test "validator uses historical state to mark missing proofs",
     NodeConfigs(
@@ -189,14 +147,7 @@ marketplacesuite "Validation":
 
     debug "validation suite", purchaseId = purchaseId.toHex, requestId = requestId
 
-    if not eventuallyS(
-      await client0.purchaseStateIs(purchaseId, "started"),
-      timeout = (expiry + 60).int,
-      step = 5,
-    ):
-      debug "validation suite: timed out waiting for the purchase to start"
-      fail()
-      return
+    discard await waitForRequestToStart()
 
     # extra block just to make sure we have one that separates us
     # from the block containing the last (past) SlotFilled event
@@ -223,6 +174,4 @@ marketplacesuite "Validation":
 
     debug "validation suite", secondsTillRequestEnd = secondsTillRequestEnd.seconds
 
-    check await marketplace.waitForRequestToFail(
-      requestId, timeout = secondsTillRequestEnd + 60, step = 5
-    )
+    discard await waitForRequestToFail(secondsTillRequestEnd + 60)
