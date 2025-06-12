@@ -28,6 +28,7 @@ import ./errors
 import ./logutils
 import ./utils/json
 import ./codextypes
+from ./merkletree/codex/codex import CodexProof
 
 export errors, logutils, units, codextypes
 
@@ -35,6 +36,7 @@ type
   Block* = ref object of RootObj
     cid*: Cid
     data*: seq[byte]
+    proof*: ?CodexProof
 
   BlockAddress* = object
     case leaf*: bool
