@@ -83,7 +83,9 @@ proc bootstrapInteractions(s: CodexServer): Future[void] {.async.} =
       error "Persistence enabled, but no Ethereum account was set"
       quit QuitFailure
 
-    let provider = JsonRpcProvider.new(config.ethProvider)
+    let provider = JsonRpcProvider.new(
+      config.ethProvider, maxPriorityFeePerGas = config.maxPriorityFeePerGas.u256
+    )
     await waitForSync(provider)
     var signer: Signer
     if account =? config.ethAccount:
@@ -103,7 +105,7 @@ proc bootstrapInteractions(s: CodexServer): Future[void] {.async.} =
         quit QuitFailure
       signer = wallet
 
-    let deploy = Deployment.new(provider, config)
+    let deploy = Deployment.new(provider, config.marketplaceAddress)
     without marketplaceAddress =? await deploy.address(Marketplace):
       error "No Marketplace address was specified or there is no known address for the current network"
       quit QuitFailure
