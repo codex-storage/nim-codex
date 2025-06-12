@@ -94,7 +94,6 @@ twonodessuite "Purchasing":
         tolerance = 1.uint,
       )
     ).get
-
     check eventually(
       await client1.purchaseStateIs(id, "submitted"), timeout = 3 * 60 * 1000
     )
