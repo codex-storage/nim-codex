@@ -1,8 +1,0 @@
-https://github.com/status-im/nim-libp2p-dht.git -> https://github.com/codex-storage/nim-codex-dht.git
-https://github.com/markspanbroek/questionable -> https://github.com/codex-storage/questionable
-https://github.com/status-im/questionable -> https://github.com/codex-storage/questionable
-https://github.com/status-im/asynctest -> https://github.com/codex-storage/asynctest
-https://github.com/status-im/nim-datastore -> https://github.com/codex-storage/nim-datastore
-https://github.com/cheatfate/nimcrypto -> https://github.com/status-im/nimcrypto
-protobufserialization -> protobuf_serialization 
-protobufserialization -> https://github.com/status-im/nim-protobuf-serialization
