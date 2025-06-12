@@ -88,10 +88,12 @@ proc example(_: type G2Point): G2Point =
 proc example*(_: type Groth16Proof): Groth16Proof =
   Groth16Proof(a: G1Point.example, b: G2Point.example, c: G1Point.example)
 
-proc example*(_: type RandomChunker, blocks: int): Future[seq[byte]] {.async.} =
+proc example*(
+    _: type RandomChunker, blocks: int, blockSize = DefaultBlockSize.int
+): Future[seq[byte]] {.async.} =
   let rng = Rng.instance()
   let chunker = RandomChunker.new(
-    rng, size = DefaultBlockSize * blocks.NBytes, chunkSize = DefaultBlockSize
+    rng, size = blockSize.NBytes * blocks.NBytes, chunkSize = blockSize
   )
   var data: seq[byte]
   while (let moar = await chunker.getBytes(); moar != []):

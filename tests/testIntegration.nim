@@ -1,3 +1,4 @@
+import ./integration/testbittorrent
 import ./integration/testcli
 import ./integration/testrestapi
 import ./integration/testrestapivalidation
