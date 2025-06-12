@@ -105,18 +105,19 @@ marketplacesuite(
           .withSimulateProofFailures(idx = 0, failEveryNProofs = 1)
           # .debug()
           # uncomment to enable console log output
-          .withLogFile()
+          # .withLogFile()
           # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-          .withLogTopics(
-            "marketplace", "sales", "reservations", "node", "clock", "slotsbuilder"
-          ).some,
-        validators: CodexConfigs
-          .init(nodes = 1)
-          # .debug()
-          # uncomment to enable console log output
-          .withLogFile()
-          # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-          .withLogTopics("validator", "onchain", "ethers", "clock").some,
+          # .withLogTopics(
+          #   "marketplace", "sales", "reservations", "node", "clock", "slotsbuilder"
+          # )
+          .some,
+        validators: CodexConfigs.init(nodes = 1)
+        # .debug()
+        # uncomment to enable console log output
+        # .withLogFile()
+        # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        # .withLogTopics("validator", "onchain", "ethers", "clock")
+        .some,
       ):
       let client0 = clients()[0].client
       let expiry = 10.periods
