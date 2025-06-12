@@ -1,5 +1,6 @@
 import std/options
 import std/importutils
+import std/times
 
 import pkg/chronos
 import pkg/questionable
@@ -20,6 +21,8 @@ import pkg/codex/node {.all.}
 import ../../asynctest
 import ../../examples
 import ../helpers
+
+import ./helpers
 
 privateAccess(CodexNodeRef) # enable access to private fields
 
@@ -73,6 +76,7 @@ asyncchecksuite "Test Node - Slot Repair":
 
   test "repair slots (2,1)":
     let
+      expiry = (getTime() + DefaultBlockTtl.toTimesDuration + 1.hours).toUnix
       numBlocks = 5
       datasetSize = numBlocks * DefaultBlockSize.int
       ecK = 2
@@ -112,36 +116,36 @@ asyncchecksuite "Test Node - Slot Repair":
     request.content.cid = verifiableBlock.cid
 
     for i in 0 ..< protected.numSlots.uint64:
-      (await nodes[i + 1].onStore(request, i, nil, isRepairing = false)).tryGet()
+      (await nodes[i + 1].onStore(request, expiry, i, nil, isRepairing = false)).tryGet()
 
     await nodes[0].switch.stop() # acts as client
     await nodes[1].switch.stop() # slot 0 missing now
 
     # repair missing slot
-    (await nodes[4].onStore(request, 0.uint64, nil, isRepairing = true)).tryGet()
+    (await nodes[4].onStore(request, expiry, 0.uint64, nil, isRepairing = true)).tryGet()
 
     await nodes[2].switch.stop() # slot 1 missing now
 
-    (await nodes[5].onStore(request, 1.uint64, nil, isRepairing = true)).tryGet()
+    (await nodes[5].onStore(request, expiry, 1.uint64, nil, isRepairing = true)).tryGet()
 
     await nodes[3].switch.stop() # slot 2 missing now
 
-    (await nodes[6].onStore(request, 2.uint64, nil, isRepairing = true)).tryGet()
+    (await nodes[6].onStore(request, expiry, 2.uint64, nil, isRepairing = true)).tryGet()
 
     await nodes[4].switch.stop() # slot 0 missing now
 
     # repair missing slot from repaired slots
-    (await nodes[7].onStore(request, 0.uint64, nil, isRepairing = true)).tryGet()
+    (await nodes[7].onStore(request, expiry, 0.uint64, nil, isRepairing = true)).tryGet()
 
     await nodes[5].switch.stop() # slot 1 missing now
 
     # repair missing slot from repaired slots
-    (await nodes[8].onStore(request, 1.uint64, nil, isRepairing = true)).tryGet()
+    (await nodes[8].onStore(request, expiry, 1.uint64, nil, isRepairing = true)).tryGet()
 
     await nodes[6].switch.stop() # slot 2 missing now
 
     # repair missing slot from repaired slots
-    (await nodes[9].onStore(request, 2.uint64, nil, isRepairing = true)).tryGet()
+    (await nodes[9].onStore(request, expiry, 2.uint64, nil, isRepairing = true)).tryGet()
 
     let
       stream = (await nodes[10].retrieve(verifiableBlock.cid, local = false)).tryGet()
@@ -151,6 +155,7 @@ asyncchecksuite "Test Node - Slot Repair":
 
   test "repair slots (3,2)":
     let
+      expiry = (getTime() + DefaultBlockTtl.toTimesDuration + 1.hours).toUnix
       numBlocks = 40
       datasetSize = numBlocks * DefaultBlockSize.int
       ecK = 3
@@ -190,27 +195,27 @@ asyncchecksuite "Test Node - Slot Repair":
     request.content.cid = verifiableBlock.cid
 
     for i in 0 ..< protected.numSlots.uint64:
-      (await nodes[i + 1].onStore(request, i, nil, isRepairing = false)).tryGet()
+      (await nodes[i + 1].onStore(request, expiry, i, nil, isRepairing = false)).tryGet()
 
     await nodes[0].switch.stop() # acts as client
     await nodes[1].switch.stop() # slot 0 missing now
     await nodes[3].switch.stop() # slot 2 missing now
 
     # repair missing slots
-    (await nodes[6].onStore(request, 0.uint64, nil, isRepairing = true)).tryGet()
-    (await nodes[7].onStore(request, 2.uint64, nil, isRepairing = true)).tryGet()
+    (await nodes[6].onStore(request, expiry, 0.uint64, nil, isRepairing = true)).tryGet()
+    (await nodes[7].onStore(request, expiry, 2.uint64, nil, isRepairing = true)).tryGet()
 
     await nodes[2].switch.stop() # slot 1 missing now
     await nodes[4].switch.stop() # slot 3 missing now
 
     # repair missing slots from repaired slots
-    (await nodes[8].onStore(request, 1.uint64, nil, isRepairing = true)).tryGet()
-    (await nodes[9].onStore(request, 3.uint64, nil, isRepairing = true)).tryGet()
+    (await nodes[8].onStore(request, expiry, 1.uint64, nil, isRepairing = true)).tryGet()
+    (await nodes[9].onStore(request, expiry, 3.uint64, nil, isRepairing = true)).tryGet()
 
     await nodes[5].switch.stop() # slot 4 missing now
 
     # repair missing slot from repaired slots
-    (await nodes[10].onStore(request, 4.uint64, nil, isRepairing = true)).tryGet()
+    (await nodes[10].onStore(request, expiry, 4.uint64, nil, isRepairing = true)).tryGet()
 
     let
       stream = (await nodes[11].retrieve(verifiableBlock.cid, local = false)).tryGet()
