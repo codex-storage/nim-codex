@@ -30,12 +30,8 @@ logScope:
   topics = "testSlotRepair"
 
 proc fetchStreamData(stream: LPStream, datasetSize: int): Future[seq[byte]] {.async.} =
-  var buf = newSeqUninitialized[byte](datasetSize)
-  while not stream.atEof:
-    var length = await stream.readOnce(addr buf[0], buf.len)
-    if length <= 0:
-      break
-  check buf.len == datasetSize
+  var buf = newSeq[byte](datasetSize)
+  await stream.readExactly(addr buf[0], datasetSize)
   buf
 
 proc flatten[T](s: seq[seq[T]]): seq[T] =
