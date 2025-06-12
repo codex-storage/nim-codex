@@ -18,9 +18,9 @@ template marketplacesuite*(name: string, body: untyped, stopOnRequestFail = true
     var period: uint64
     var periodicity: Periodicity
     var token {.inject, used.}: Erc20Token
-    var requestStartedEvent = newAsyncEvent()
+    var requestStartedEvent: AsyncEvent
     var requestStartedSubscription: Subscription
-    var requestFailedEvent = newAsyncEvent()
+    var requestFailedEvent: AsyncEvent
     var requestFailedSubscription: Subscription
 
     proc onRequestStarted(eventResult: ?!RequestFulfilled) {.raises: [].} =
@@ -132,6 +132,9 @@ template marketplacesuite*(name: string, body: untyped, stopOnRequestFail = true
       let config = await marketplace.configuration()
       period = config.proofs.period
       periodicity = Periodicity(seconds: period)
+
+      requestStartedEvent = newAsyncEvent()
+      requestFailedEvent = newAsyncEvent()
 
       requestStartedSubscription =
         await marketplace.subscribe(RequestFulfilled, onRequestStarted)
