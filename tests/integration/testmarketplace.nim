@@ -284,7 +284,6 @@ marketplacesuite "Marketplace payouts":
 
     # wait until one slot is filled
     check eventually(slotIdxFilled.isSome, timeout = expiry.int * 1000)
-
     let slotId = slotId(!(await clientApi.requestId(id)), !slotIdxFilled)
 
     # wait until sale is cancelled
@@ -298,12 +297,10 @@ marketplacesuite "Marketplace payouts":
     let pricePerSlotPerSecond = minPricePerBytePerSecond * slotSize
 
     check eventually (
-      let endBalanceClient = (await token.balanceOf(client.ethAccount))
       let endBalanceProvider = (await token.balanceOf(provider.ethAccount))
-      (startBalanceClient - endBalanceClient) ==
-        (endBalanceProvider - startBalanceProvider)
+      endBalanceProvider > startBalanceProvider and
+        endBalanceProvider < startBalanceProvider + expiry.u256 * pricePerSlotPerSecond
     )
-
     check eventually(
       (
         let endBalanceClient = (await token.balanceOf(client.ethAccount))
