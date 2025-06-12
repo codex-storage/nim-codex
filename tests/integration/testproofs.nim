@@ -103,7 +103,7 @@ marketplacesuite(
         providers: CodexConfigs
           .init(nodes = 1)
           .withSimulateProofFailures(idx = 0, failEveryNProofs = 1)
-          .debug()
+          # .debug()
           # uncomment to enable console log output
           .withLogFile()
           # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
@@ -112,7 +112,7 @@ marketplacesuite(
           ).some,
         validators: CodexConfigs
           .init(nodes = 1)
-          .debug()
+          # .debug()
           # uncomment to enable console log output
           .withLogFile()
           # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
