@@ -50,7 +50,6 @@ marketplacesuite "Marketplace":
 
     # client requests storage
     let cid = (await client.upload(data)).get
-
     let id = await client.requestStorage(
       cid,
       duration = 20 * 60.uint64,
@@ -123,10 +122,9 @@ marketplacesuite "Marketplace":
     # Checking that the hosting node received reward for at least the time between <expiry;end>
     let slotSize = slotSize(blocks, ecNodes, ecTolerance)
     let pricePerSlotPerSecond = minPricePerBytePerSecond * slotSize
-    check eventually(
-      (await token.balanceOf(hostAccount)) - startBalanceHost >=
-        (duration - 5 * 60).u256 * pricePerSlotPerSecond * ecNodes.u256
-    )
+    check eventually (await token.balanceOf(hostAccount)) - startBalanceHost >=
+      (duration - 5 * 60).u256 * pricePerSlotPerSecond * ecNodes.u256
+
     # Checking that client node receives some funds back that were not used for the host nodes
     check eventually(
       (await token.balanceOf(clientAccount)) - clientBalanceBeforeFinished > 0,
@@ -259,18 +257,16 @@ marketplacesuite "Marketplace payouts":
     let cid = (await clientApi.upload(data)).get
 
     var slotIdxFilled = none uint64
-    var slotFilledFut = Future[void].Raising([CancelledError]).init()
     proc onSlotFilled(eventResult: ?!SlotFilled) =
       assert not eventResult.isErr
       slotIdxFilled = some (!eventResult).slotIndex
-      slotFilledFut.complete()
 
     let slotFilledSubscription = await marketplace.subscribe(SlotFilled, onSlotFilled)
 
-    var requestCancelledFut = Future[void].Raising([CancelledError]).init()
+    var requestCancelledEvent = newAsyncEvent()
     proc onRequestCancelled(eventResult: ?!RequestCancelled) =
       assert not eventResult.isErr
-      requestCancelledFut.complete()
+      requestCancelledEvent.fire()
 
     let requestCancelledSubscription =
       await marketplace.subscribe(RequestCancelled, onRequestCancelled)
@@ -287,35 +283,35 @@ marketplacesuite "Marketplace payouts":
     )
 
     # wait until one slot is filled
-    await slotFilledFut.wait(timeout = chronos.seconds(expiry.int))
+    check eventually(slotIdxFilled.isSome, timeout = expiry.int * 1000)
 
     let slotId = slotId(!(await clientApi.requestId(id)), !slotIdxFilled)
 
     # wait until sale is cancelled
     await ethProvider.advanceTime(expiry.u256)
 
-    await requestCancelledFut.wait(timeout = chronos.seconds(5))
+    await requestCancelledEvent.wait().wait(timeout = chronos.seconds(5))
 
     await advanceToNextPeriod()
 
     let slotSize = slotSize(blocks, ecNodes, ecTolerance)
     let pricePerSlotPerSecond = minPricePerBytePerSecond * slotSize
 
+    check eventually (
+      let endBalanceClient = (await token.balanceOf(client.ethAccount))
+      let endBalanceProvider = (await token.balanceOf(provider.ethAccount))
+      (startBalanceClient - endBalanceClient) ==
+        (endBalanceProvider - startBalanceProvider)
+    )
+
     check eventually(
-      block:
+      (
         let endBalanceClient = (await token.balanceOf(client.ethAccount))
         let endBalanceProvider = (await token.balanceOf(provider.ethAccount))
         (startBalanceClient - endBalanceClient) ==
           (endBalanceProvider - startBalanceProvider)
-    )
-
-    check eventually(
-      block:
-        let endBalanceClient = (await token.balanceOf(client.ethAccount))
-        let endBalanceProvider = (await token.balanceOf(provider.ethAccount))
-        (startBalanceClient - endBalanceClient) ==
-          (endBalanceProvider - startBalanceProvider),
-      timeout = 10 * 1000,
+      ),
+      timeout = 10 * 1000, # give client a bit of time to withdraw its funds
     )
 
     await slotFilledSubscription.unsubscribe()
