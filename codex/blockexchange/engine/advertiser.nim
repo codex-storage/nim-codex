@@ -124,6 +124,10 @@ proc start*(b: Advertiser) {.async: (raises: []).} =
 
   trace "Advertiser start"
 
+  # The advertiser is expected to be started only once.
+  if b.advertiserRunning:
+    raiseAssert "Advertiser can only be started once — this should not happen"
+
   proc onBlock(cid: Cid) {.async: (raises: []).} =
     try:
       await b.advertiseBlock(cid)
@@ -132,10 +136,6 @@ proc start*(b: Advertiser) {.async: (raises: []).} =
 
   doAssert(b.localStore.onBlockStored.isNone())
   b.localStore.onBlockStored = onBlock.some
-
-  if b.advertiserRunning:
-    warn "Starting advertiser twice"
-    return
 
   b.advertiserRunning = true
   for i in 0 ..< b.concurrentAdvReqs:

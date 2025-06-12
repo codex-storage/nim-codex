@@ -7,6 +7,7 @@ type
   Function*[T, U] = proc(fut: T): U {.raises: [CatchableError], gcsafe, closure.}
   IsFinished* = proc(): bool {.raises: [], gcsafe, closure.}
   GenNext*[T] = proc(): T {.raises: [CatchableError], gcsafe.}
+  Iterator[T] = iterator (): T
   Iter*[T] = ref object
     finished: bool
     next*: GenNext[T]
@@ -89,6 +90,37 @@ proc new*[T](_: type Iter[T], items: seq[T]): Iter[T] =
 
   Iter[int].new(0 ..< items.len).map((i: int) => items[i])
 
+proc new*[T](_: type Iter[T], iter: Iterator[T]): Iter[T] =
+  ## Creates a new Iter from an iterator
+  ##
+  var nextOrErr: Option[?!T]
+  proc tryNext(): void =
+    nextOrErr = none(?!T)
+    while not iter.finished:
+      try:
+        let t: T = iter()
+        if not iter.finished:
+          nextOrErr = some(success(t))
+        break
+      except CatchableError as err:
+        nextOrErr = some(T.failure(err))
+
+  proc genNext(): T {.raises: [CatchableError].} =
+    if nextOrErr.isNone:
+      raise newException(CatchableError, "Iterator finished but genNext was called")
+
+    without u =? nextOrErr.unsafeGet, err:
+      raise err
+
+    tryNext()
+    return u
+
+  proc isFinished(): bool =
+    nextOrErr.isNone
+
+  tryNext()
+  Iter[T].new(genNext, isFinished)
+
 proc empty*[T](_: type Iter[T]): Iter[T] =
   ## Creates an empty Iter
   ##
@@ -105,10 +137,10 @@ proc map*[T, U](iter: Iter[T], fn: Function[T, U]): Iter[U] =
   Iter[U].new(genNext = () => fn(iter.next()), isFinished = () => iter.finished)
 
 proc mapFilter*[T, U](iter: Iter[T], mapPredicate: Function[T, Option[U]]): Iter[U] =
-  var nextUOrErr: Option[Result[U, ref CatchableError]]
+  var nextUOrErr: Option[?!U]
 
   proc tryFetch(): void =
-    nextUOrErr = Result[U, ref CatchableError].none
+    nextUOrErr = none(?!U)
     while not iter.finished:
       try:
         let t = iter.next()
@@ -119,6 +151,9 @@ proc mapFilter*[T, U](iter: Iter[T], mapPredicate: Function[T, Option[U]]): Iter
         nextUOrErr = some(U.failure(err))
 
   proc genNext(): U {.raises: [CatchableError].} =
+    if nextUOrErr.isNone:
+      raise newException(CatchableError, "Iterator finished but genNext was called")
+
     # at this point nextUOrErr should always be some(..)
     without u =? nextUOrErr.unsafeGet, err:
       raise err
