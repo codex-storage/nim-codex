@@ -639,10 +639,6 @@ proc onStore(
 
   trace "Received a request to store a slot"
 
-  # TODO: Use the isRepairing to manage the slot download.
-  # If isRepairing is true, the slot has to be repaired before
-  # being downloaded.
-
   without manifest =? (await self.fetchManifest(cid)), err:
     trace "Unable to fetch manifest for cid", cid, err = err.msg
     return failure(err)
@@ -675,31 +671,44 @@ proc onStore(
 
     return success()
 
-  without indexer =?
-    manifest.verifiableStrategy.init(0, manifest.blocksCount - 1, manifest.numSlots).catch,
-    err:
-    trace "Unable to create indexing strategy from protected manifest", err = err.msg
-    return failure(err)
-
   if slotIdx > int.high.uint64:
     error "Cannot cast slot index to int", slotIndex = slotIdx
     return
 
-  without blksIter =? indexer.getIndicies(slotIdx.int).catch, err:
-    trace "Unable to get indicies from strategy", err = err.msg
-    return failure(err)
+  if isRepairing:
+    trace "start repairing slot", slotIdx
+    try:
+      let erasure = Erasure.new(
+        self.networkStore, leoEncoderProvider, leoDecoderProvider, self.taskpool
+      )
+      if err =? (await erasure.repair(manifest)).errorOption:
+        error "Unable to erasure decode repairing manifest",
+          cid = manifest.treeCid, exc = err.msg
+        return failure(err)
+    except CatchableError as exc:
+      error "Error erasure decoding repairing manifest",
+        cid = manifest.treeCid, exc = exc.msg
+      return failure(exc.msg)
+  else:
+    without indexer =?
+      manifest.verifiableStrategy.init(0, manifest.blocksCount - 1, manifest.numSlots).catch,
+      err:
+      trace "Unable to create indexing strategy from protected manifest", err = err.msg
+      return failure(err)
 
-  if err =? (
-    await self.fetchBatched(manifest.treeCid, blksIter, onBatch = updateExpiry)
-  ).errorOption:
-    trace "Unable to fetch blocks", err = err.msg
-    return failure(err)
+    without blksIter =? indexer.getIndices(slotIdx.int).catch, err:
+      trace "Unable to get indices from strategy", err = err.msg
+      return failure(err)
+
+    if err =? (
+      await self.fetchBatched(manifest.treeCid, blksIter, onBatch = updateExpiry)
+    ).errorOption:
+      trace "Unable to fetch blocks", err = err.msg
+      return failure(err)
 
   without slotRoot =? (await builder.buildSlot(slotIdx.int)), err:
     trace "Unable to build slot", err = err.msg
     return failure(err)
-
-  trace "Slot successfully retrieved and reconstructed"
 
   if cid =? slotRoot.toSlotCid() and cid != manifest.slotRoots[slotIdx]:
     trace "Slot root mismatch",
@@ -841,9 +850,6 @@ proc start*(self: CodexNodeRef) {.async.} =
 
 proc stop*(self: CodexNodeRef) {.async.} =
   trace "Stopping node"
-
-  if not self.taskpool.isNil:
-    self.taskpool.shutdown()
 
   await self.trackedFutures.cancelTracked()
 

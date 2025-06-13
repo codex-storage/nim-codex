@@ -113,17 +113,17 @@ func numSlotCells*[T, H](self: SlotsBuilder[T, H]): Natural =
 
   self.numBlockCells * self.numSlotBlocks
 
-func slotIndiciesIter*[T, H](self: SlotsBuilder[T, H], slot: Natural): ?!Iter[int] =
+func slotIndicesIter*[T, H](self: SlotsBuilder[T, H], slot: Natural): ?!Iter[int] =
   ## Returns the slot indices.
   ##
 
-  self.strategy.getIndicies(slot).catch
+  self.strategy.getIndices(slot).catch
 
-func slotIndicies*[T, H](self: SlotsBuilder[T, H], slot: Natural): seq[int] =
+func slotIndices*[T, H](self: SlotsBuilder[T, H], slot: Natural): seq[int] =
   ## Returns the slot indices.
   ##
 
-  if iter =? self.strategy.getIndicies(slot).catch:
+  if iter =? self.strategy.getIndices(slot).catch:
     return toSeq(iter)
 
 func manifest*[T, H](self: SlotsBuilder[T, H]): Manifest =
@@ -184,7 +184,7 @@ proc getCellHashes*[T, H](
     slotIndex = slotIndex
 
   let hashes = collect(newSeq):
-    for i, blkIdx in self.strategy.getIndicies(slotIndex):
+    for i, blkIdx in self.strategy.getIndices(slotIndex):
       logScope:
         blkIdx = blkIdx
         pos = i
@@ -310,7 +310,7 @@ proc new*[T, H](
     _: type SlotsBuilder[T, H],
     store: BlockStore,
     manifest: Manifest,
-    strategy = SteppedStrategy,
+    strategy = LinearStrategy,
     cellSize = DefaultCellSize,
 ): ?!SlotsBuilder[T, H] =
   if not manifest.protected:
@@ -354,7 +354,14 @@ proc new*[T, H](
     emptyBlock = newSeq[byte](manifest.blockSize.int)
     emptyDigestTree = ?T.digestTree(emptyBlock, cellSize.int)
 
-    strategy = ?strategy.init(0, numBlocksTotal - 1, manifest.numSlots).catch
+    strategy =
+      ?strategy.init(
+        0,
+        manifest.blocksCount - 1,
+        manifest.numSlots,
+        manifest.numSlots,
+        numPadSlotBlocks,
+      ).catch
 
   logScope:
     numSlotBlocks = numSlotBlocks

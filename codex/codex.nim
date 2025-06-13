@@ -56,6 +56,7 @@ type
     codexNode: CodexNodeRef
     repoStore: RepoStore
     maintenance: BlockMaintainer
+    taskpool: Taskpool
 
   CodexPrivateKey* = libp2p.PrivateKey # alias
   EthWallet = ethers.Wallet
@@ -192,6 +193,9 @@ proc stop*(s: CodexServer) {.async.} =
   if res.failure.len > 0:
     error "Failed to stop codex node", failures = res.failure.len
     raiseAssert "Failed to stop codex node"
+
+  if not s.taskpool.isNil:
+    s.taskpool.shutdown()
 
 proc new*(
     T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey
@@ -333,4 +337,5 @@ proc new*(
     restServer: restServer,
     repoStore: repoStore,
     maintenance: maintenance,
+    taskpool: taskpool,
   )

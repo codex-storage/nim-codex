@@ -26,8 +26,8 @@ asyncchecksuite "NetworkStore engine - 2 nodes":
   setup:
     blocks1 = await makeRandomBlocks(datasetSize = 2048, blockSize = 256'nb)
     blocks2 = await makeRandomBlocks(datasetSize = 2048, blockSize = 256'nb)
-    nodeCmps1 = generateNodes(1, blocks1)[0]
-    nodeCmps2 = generateNodes(1, blocks2)[0]
+    nodeCmps1 = generateNodes(1, blocks1).components[0]
+    nodeCmps2 = generateNodes(1, blocks2).components[0]
 
     await allFuturesThrowing(
       nodeCmps1.switch.start(),
