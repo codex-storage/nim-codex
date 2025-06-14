@@ -88,7 +88,6 @@ fi
 if [[ -z "${CODEX_NAT}" ]]; then
   if [[ "${NAT_IP_AUTO}" == "true" && -z "${NAT_PUBLIC_IP_AUTO}" ]]; then
     export CODEX_NAT="extip:$(hostname --ip-address)"
-    echo "Private: CODEX_NAT=${CODEX_NAT}"
   elif [[ -n "${NAT_PUBLIC_IP_AUTO}" ]]; then
     # Run for 60 seconds if fail
     WAIT=120
@@ -99,7 +98,6 @@ if [[ -z "${CODEX_NAT}" ]]; then
       # Check if exit code is 0 and returned value is not empty
       if [[ $? -eq 0 && -n "${IP}" ]]; then
         export CODEX_NAT="extip:${IP}"
-        echo "Public: CODEX_NAT=${CODEX_NAT}"
         break
       else
         # Sleep and check again
@@ -121,16 +119,13 @@ fi
 
 # If marketplace is enabled from the testing environment,
 # The file has to be written before Codex starts.
-for key in PRIV_KEY ETH_PRIVATE_KEY; do
-  keyfile="private.key"
-  if [[ -n "${!key}" ]]; then
-    [[ "${key}" == "PRIV_KEY" ]] && echo "PRIV_KEY variable is deprecated and will be removed in the next releases, please use ETH_PRIVATE_KEY instead!"
-    echo "${!key}" > "${keyfile}"
-    chmod 600 "${keyfile}"
-    export CODEX_ETH_PRIVATE_KEY="${keyfile}"
-    echo "Private key set"
-  fi
-done
+keyfile="private.key"
+if [[ -n "${ETH_PRIVATE_KEY}" ]]; then
+  echo "${ETH_PRIVATE_KEY}" > "${keyfile}"
+  chmod 600 "${keyfile}"
+  export CODEX_ETH_PRIVATE_KEY="${keyfile}"
+  echo "Private key set"
+fi
 
 # Circuit downloader
 # cirdl [circuitPath] [rpcEndpoint] [marketplaceAddress]
@@ -162,7 +157,7 @@ fi
 
 # Show
 echo -e "\nCodex run parameters:"
-vars=$(env | grep CODEX_)
+vars=$(env | grep "CODEX_" | grep -v -e "[0-9]_SERVICE_" -e "[0-9]_NODEPORT_")
 echo -e "${vars//CODEX_/   - CODEX_}"
 echo -e "   - $@\n"
 
