@@ -130,10 +130,7 @@ marketplacesuite "SP Slot Repair":
     let slotFreedsubscription = await marketplace.subscribe(SlotFreed, onSlotFreed)
 
     # Wait for purchase starts, meaning that the slots are filled.
-    check eventually(
-      await client0.client.purchaseStateIs(purchaseId, "started"),
-      timeout = expiry.int * 1000,
-    )
+    discard await waitForRequestToStart(expiry.int)
 
     # stop client so it doesn't serve any blocks anymore
     await client0.stop()
@@ -212,10 +209,7 @@ marketplacesuite "SP Slot Repair":
     let slotFreedsubscription = await marketplace.subscribe(SlotFreed, onSlotFreed)
 
     # Wait for purchase starts, meaning that the slots are filled.
-    check eventually(
-      await client0.client.purchaseStateIs(purchaseId, "started"),
-      timeout = expiry.int * 1000,
-    )
+    discard await waitForRequestToStart(expiry.int)
 
     # stop client so it doesn't serve any blocks anymore
     await client0.stop()
@@ -286,10 +280,7 @@ marketplacesuite "SP Slot Repair":
     let slotFreedsubscription = await marketplace.subscribe(SlotFreed, onSlotFreed)
 
     # Wait for purchase starts, meaning that the slots are filled.
-    check eventually(
-      await client0.client.purchaseStateIs(purchaseId, "started"),
-      timeout = expiry.int * 1000,
-    )
+    discard await waitForRequestToStart(expiry.int)
 
     # stop client so it doesn't serve any blocks anymore
     await client0.stop()
