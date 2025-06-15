@@ -275,13 +275,14 @@ method fillSlot(
     try:
       await market.approveFunds(collateral)
 
-      # Add 10% to gas estimate to deal with different evm code flow when we
+      # Add 20% to gas estimate to deal with different evm code flow when we
       # happen to be the last one to fill a slot in this request
       trace "estimating gas for fillSlot"
       let gas = await market.contract.estimateGas.fillSlot(requestId, slotIndex, proof)
-      let overrides = TransactionOverrides(gasLimit: some (gas * 110) div 100)
+      let gasLimit = (gas * 120) div 100
+      let overrides = TransactionOverrides(gasLimit: some gasLimit)
 
-      trace "calling fillSlot on contract"
+      trace "calling fillSlot on contract", estimatedGas = gas, gasLimit = gasLimit
       discard await market.contract
       .fillSlot(requestId, slotIndex, proof, overrides)
       .confirm(1)
@@ -400,10 +401,13 @@ method reserveSlot*(
 ) {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError("Failed to reserve slot"):
     try:
-      # Add 10% to gas estimate to deal with different evm code flow when we
+      # Add 20% to gas estimate to deal with different evm code flow when we
       # happen to be the last one that is allowed to reserve the slot
       let gas = await market.contract.estimateGas.reserveSlot(requestId, slotIndex)
-      let overrides = TransactionOverrides(gasLimit: some (gas * 110) div 100)
+      let gasLimit = (gas * 120) div 100
+      let overrides = TransactionOverrides(gasLimit: some gasLimit)
+
+      trace "calling reserveSlot on contract", estimatedGas = gas, gasLimit = gasLimit
 
       discard
         await market.contract.reserveSlot(requestId, slotIndex, overrides).confirm(1)
