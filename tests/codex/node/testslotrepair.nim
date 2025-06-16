@@ -117,6 +117,8 @@ asyncchecksuite "Test Node - Slot Repair":
     await nodes[0].switch.stop() # acts as client
     await nodes[1].switch.stop() # slot 0 missing now
 
+    await sleepAsync(2000)
+
     # repair missing slot
     (await nodes[4].onStore(request, expiry, 0.uint64, nil, isRepairing = true)).tryGet()
 
@@ -142,6 +144,8 @@ asyncchecksuite "Test Node - Slot Repair":
 
     # repair missing slot from repaired slots
     (await nodes[9].onStore(request, expiry, 2.uint64, nil, isRepairing = true)).tryGet()
+
+    await sleepAsync(2000)
 
     let
       stream = (await nodes[10].retrieve(verifiableBlock.cid, local = false)).tryGet()
@@ -197,6 +201,8 @@ asyncchecksuite "Test Node - Slot Repair":
     await nodes[1].switch.stop() # slot 0 missing now
     await nodes[3].switch.stop() # slot 2 missing now
 
+    await sleepAsync(2000)
+
     # repair missing slots
     (await nodes[6].onStore(request, expiry, 0.uint64, nil, isRepairing = true)).tryGet()
     (await nodes[7].onStore(request, expiry, 2.uint64, nil, isRepairing = true)).tryGet()
@@ -212,6 +218,8 @@ asyncchecksuite "Test Node - Slot Repair":
 
     # repair missing slot from repaired slots
     (await nodes[10].onStore(request, expiry, 4.uint64, nil, isRepairing = true)).tryGet()
+
+    await sleepAsync(2000)
 
     let
       stream = (await nodes[11].retrieve(verifiableBlock.cid, local = false)).tryGet()

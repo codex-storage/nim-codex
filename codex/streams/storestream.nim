@@ -30,7 +30,12 @@ export stores, blocktype, manifest, chronos
 logScope:
   topics = "codex storestream"
 
-const StoreStreamTrackerName* = "StoreStream"
+const
+  StoreStreamTrackerName* = "StoreStream"
+  MaxBlockRetrievalAttempts = 60 # 5 mins maximum
+  InitialBlockRetrievalDelayMs = 100
+  MaxBlockRetrievalDelayMs = 1000 # Cap at 1 second
+  BackoffMultiplier = 2
 
 type
   # Make SeekableStream from a sequence of blocks stored in Manifest
@@ -102,8 +107,34 @@ method readOnce*(
         BlockAddress(leaf: true, treeCid: self.manifest.treeCid, index: blockNum)
 
     # Read contents of block `blockNum`
-    without blk =? (await self.store.getBlock(address)).tryGet.catch, error:
-      raise newLPStreamReadError(error)
+    var
+      retrievalAttempts = 0
+      currentDelayMs = InitialBlockRetrievalDelayMs
+      blk: Block
+
+    while retrievalAttempts < MaxBlockRetrievalAttempts:
+      try:
+        let blockResult = await self.store.getBlock(address)
+        if blockResult.isOk:
+          blk = blockResult.get()
+          break
+      except CancelledError as e:
+        trace "Block retrieval cancelled during getBlock",
+          blockNum, retrievalAttempts, error = e.msg
+      except CatchableError as e:
+        trace "Block retrieval error during getBlock",
+          blockNum, retrievalAttempts, error = e.msg
+
+      await sleepAsync(currentDelayMs.milliseconds)
+
+      retrievalAttempts += 1
+      currentDelayMs = min(currentDelayMs * BackoffMultiplier, MaxBlockRetrievalDelayMs)
+
+    if retrievalAttempts >= MaxBlockRetrievalAttempts:
+      without blk =? (await self.store.getBlock(address)).tryGet.catch, error:
+        trace "Failed to retrieve block after retries",
+          blockNum, address = $address, retrievalAttempts, error = error.msg
+        raise newLPStreamReadError(error)
 
     trace "Reading bytes from store stream",
       manifestCid = self.manifest.treeCid,
