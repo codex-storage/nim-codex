@@ -1,7 +1,7 @@
 import std/sequtils
 import pkg/chronos
 
-import pkg/codex/utils/asynciter
+import pkg/codex/utils/iter
 
 import ../asynctest
 import ./helpers
