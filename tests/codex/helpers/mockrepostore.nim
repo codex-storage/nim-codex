@@ -14,7 +14,6 @@ import pkg/questionable
 import pkg/questionable/results
 
 import pkg/codex/stores/repostore
-import pkg/codex/utils/asynciter
 import pkg/codex/utils/safeasynciter
 
 type MockRepoStore* = ref object of RepoStore
