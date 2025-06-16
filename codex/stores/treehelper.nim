@@ -20,7 +20,7 @@ import pkg/questionable
 import pkg/questionable/results
 
 import ./blockstore
-import ../utils/asynciter
+import ../utils/iter
 import ../merkletree
 
 proc putSomeProofs*(
