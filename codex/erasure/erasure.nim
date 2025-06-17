@@ -165,7 +165,7 @@ proc getPendingBlocks(
       # but we check for that at the very beginning - 
       # thus, if this happens, we raise an assert
       raiseAssert("fatal: pendingBlocks is empty - this should never happen")
-  
+
   (AsyncIter[(?!bt.Block, int)].new(genNext, isFinished), pendingBlockFutures)
 
 proc prepareEncodingData(
@@ -573,7 +573,6 @@ proc asyncDecode*(
 proc decodeInternal(
     self: Erasure, encoded: Manifest
 ): Future[?!(ref seq[Cid], seq[Natural])] {.async: (raises: [CancelledError]).} =
-
   logScope:
     steps = encoded.steps
     rounded_blocks = encoded.rounded

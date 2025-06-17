@@ -201,7 +201,9 @@ proc mapFilter*[T, U](
   AsyncIter[U].new(genNext, isFinished, finishOnErr = finishOnErr)
 
 proc filter*[T](
-    iter: AsyncIter[T], predicate: AsyncIterFunction[?!T, bool], finishOnErr: bool = true
+    iter: AsyncIter[T],
+    predicate: AsyncIterFunction[?!T, bool],
+    finishOnErr: bool = true,
 ): Future[AsyncIter[T]] {.async: (raises: [CancelledError]).} =
   proc wrappedPredicate(
       t: ?!T

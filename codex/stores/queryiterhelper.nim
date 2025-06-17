@@ -46,9 +46,7 @@ proc toAsyncIter*[T](
 
 proc filterSuccess*[T](
     iter: AsyncIter[QueryResponse[T]]
-): Future[AsyncIter[tuple[key: Key, value: T]]] {.
-    async: (raises: [CancelledError])
-.} =
+): Future[AsyncIter[tuple[key: Key, value: T]]] {.async: (raises: [CancelledError]).} =
   ## Filters out any items that are not success
 
   proc mapping(
