@@ -121,13 +121,13 @@ func indexToPos(steps, idx, step: int): int {.inline.} =
 
 proc getPendingBlocks(
     self: Erasure, manifest: Manifest, indices: seq[int]
-): (SafeAsyncIter[(?!bt.Block, int)], seq[Future[?!bt.Block].Raising([CancelledError])]) =
+): (AsyncIter[(?!bt.Block, int)], seq[Future[?!bt.Block].Raising([CancelledError])]) =
   ## Get pending blocks iterator
   ##
 
   if indices.len == 0:
     trace "No indices to fetch blocks for", treeCid = manifest.treeCid
-    return (SafeAsyncIter[(?!bt.Block, int)].empty(), @[])
+    return (AsyncIter[(?!bt.Block, int)].empty(), @[])
 
   var
     pendingBlockFutures: seq[Future[?!bt.Block].Raising([CancelledError])] = @[]
@@ -166,7 +166,7 @@ proc getPendingBlocks(
       # thus, if this happens, we raise an assert
       raiseAssert("fatal: pendingBlocks is empty - this should never happen")
   
-  (SafeAsyncIter[(?!bt.Block, int)].new(genNext, isFinished), pendingBlockFutures)
+  (AsyncIter[(?!bt.Block, int)].new(genNext, isFinished), pendingBlockFutures)
 
 proc prepareEncodingData(
     self: Erasure,
