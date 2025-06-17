@@ -34,6 +34,7 @@ import ./iter
 ## - next - to get the next item from the async iterator
 ## - items - to iterate over the async iterator
 ## - pairs - to iterate over the async iterator and return the index of each item
+## - mapFuture - to convert a (raising) Future[T] to a (raising) Future[U] using a function fn: auto -> Future[U] - we use auto to handle both raising and non-raising futures
 ## - mapAsync - to convert a regular sync iterator (Iter) to an async iter (SafeAsyncIter)
 ## - map - to convert one async iterator (SafeAsyncIter) to another async iter (SafeAsyncIter)
 ## - mapFilter - to convert one async iterator (SafeAsyncIter) to another async iter (SafeAsyncIter) and apply filtering at the same time
@@ -149,6 +150,12 @@ iterator pairs*[T](self: SafeAsyncIter[T]): auto {.inline.} =
   while not self.finished:
     yield (i, self.next())
     inc(i)
+
+proc mapFuture*[T, U](
+    fut: auto, fn: SafeFunction[T, U]
+): Future[U] {.async: (raises: [CancelledError]).} =
+  let t = await fut
+  await fn(t)
 
 proc mapAsync*[T, U](
     iter: Iter[T], fn: SafeFunction[T, ?!U], finishOnErr: bool = true
