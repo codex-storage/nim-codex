@@ -161,7 +161,7 @@ proc getPendingBlocks(
             $index,
         )
     except ValueError as err:
-      # ValueError is raised `one` when the pendingBlocks is empty -
+      # ValueError is raised by `one` when the pendingBlocks is empty -
       # but we check for that at the very beginning - 
       # thus, if this happens, we raise an assert
       raiseAssert("fatal: pendingBlocks is empty - this should never happen")
