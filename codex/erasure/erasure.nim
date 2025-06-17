@@ -121,20 +121,20 @@ func indexToPos(steps, idx, step: int): int {.inline.} =
 
 proc getPendingBlocks(
     self: Erasure, manifest: Manifest, indices: seq[int]
-): (SafeAsyncIter[(?!bt.Block, int)], seq[Future[?!bt.Block]]) =
+): (SafeAsyncIter[(?!bt.Block, int)], seq[Future[?!bt.Block].Raising([CancelledError])]) =
   ## Get pending blocks iterator
   ##
 
-  if indicies.len == 0:
-    trace "No indicies to fetch blocks for", treeCid = manifest.treeCid
+  if indices.len == 0:
+    trace "No indices to fetch blocks for", treeCid = manifest.treeCid
     return (SafeAsyncIter[(?!bt.Block, int)].empty(), @[])
 
   var
-    pendingBlockFutures: seq[Future[?!bt.Block]] = @[]
-    pendingBlocks: seq[Future[(?!bt.Block, int)]] = @[]
+    pendingBlockFutures: seq[Future[?!bt.Block].Raising([CancelledError])] = @[]
+    pendingBlocks: seq[Future[(?!bt.Block, int)].Raising([CancelledError])] = @[]
 
   proc attachIndex(
-      fut: Future[?!bt.Block], i: int
+      fut: Future[?!bt.Block].Raising([CancelledError]), i: int
   ): Future[(?!bt.Block, int)] {.async: (raises: [CancelledError]).} =
     ## avoids closure capture issues
     return (await fut, i)
@@ -165,8 +165,8 @@ proc getPendingBlocks(
       # but we check for that at the very beginning - 
       # thus, if this happens, we raise an assert
       raiseAssert("fatal: pendingBlocks is empty - this should never happen")
-
-  SafeAsyncIter[(?!bt.Block, int)].new(genNext, isFinished)
+  
+  (SafeAsyncIter[(?!bt.Block, int)].new(genNext, isFinished), pendingBlockFutures)
 
 proc prepareEncodingData(
     self: Erasure,
