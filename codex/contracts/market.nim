@@ -275,11 +275,11 @@ method fillSlot(
     try:
       await market.approveFunds(collateral)
 
-      # Add 20% to gas estimate to deal with different evm code flow when we
+      # Add 10% to gas estimate to deal with different evm code flow when we
       # happen to be the last one to fill a slot in this request
       trace "estimating gas for fillSlot"
       let gas = await market.contract.estimateGas.fillSlot(requestId, slotIndex, proof)
-      let gasLimit = (gas * 120) div 100
+      let gasLimit = (gas * 110) div 100
       let overrides = TransactionOverrides(gasLimit: some gasLimit)
 
       trace "calling fillSlot on contract", estimatedGas = gas, gasLimit = gasLimit
@@ -304,12 +304,15 @@ method freeSlot*(
         # the SP's address as the collateral recipient
         let collateralRecipient = await market.getSigner()
 
-        # Add 10% to gas estimate to deal with different evm code flow when we
+        # Add 200% to gas estimate to deal with different evm code flow when we
         # happen to be the one to make the request fail
         let gas = await market.contract.estimateGas.freeSlot(
           slotId, rewardRecipient, collateralRecipient
         )
-        let overrides = TransactionOverrides(gasLimit: some (gas * 110) div 100)
+        let gasLimit = gas * 3
+        let overrides = TransactionOverrides(gasLimit: some gasLimit)
+
+        trace "calling freeSlot on contract", estimatedGas = gas, gasLimit = gasLimit
 
         freeSlot = market.contract.freeSlot(
           slotId,
@@ -321,10 +324,13 @@ method freeSlot*(
         # Otherwise, use the SP's address as both the reward and collateral
         # recipient (the contract will use msg.sender for both)
 
-        # Add 10% to gas estimate to deal with different evm code flow when we
+        # Add 200% to gas estimate to deal with different evm code flow when we
         # happen to be the one to make the request fail
         let gas = await market.contract.estimateGas.freeSlot(slotId)
-        let overrides = TransactionOverrides(gasLimit: some (gas * 110) div 100)
+        let gasLimit = gas * 3
+        let overrides = TransactionOverrides(gasLimit: some (gasLimit))
+
+        trace "calling freeSlot on contract", estimatedGas = gas, gasLimit = gasLimit
 
         freeSlot = market.contract.freeSlot(slotId, overrides)
 
@@ -378,10 +384,14 @@ method markProofAsMissing*(
     market: OnChainMarket, id: SlotId, period: Period
 ) {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError("Failed to mark proof as missing"):
-    # Add 10% to gas estimate to deal with different evm code flow when we
+    # Add 50% to gas estimate to deal with different evm code flow when we
     # happen to be the one to make the request fail
     let gas = await market.contract.estimateGas.markProofAsMissing(id, period)
-    let overrides = TransactionOverrides(gasLimit: some (gas * 110) div 100)
+    let gasLimit = (gas * 150) div 100
+    let overrides = TransactionOverrides(gasLimit: some gasLimit)
+
+    trace "calling markProofAsMissing on contract",
+      estimatedGas = gas, gasLimit = gasLimit
 
     discard await market.contract.markProofAsMissing(id, period, overrides).confirm(1)
 
@@ -401,10 +411,10 @@ method reserveSlot*(
 ) {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError("Failed to reserve slot"):
     try:
-      # Add 20% to gas estimate to deal with different evm code flow when we
+      # Add 25% to gas estimate to deal with different evm code flow when we
       # happen to be the last one that is allowed to reserve the slot
       let gas = await market.contract.estimateGas.reserveSlot(requestId, slotIndex)
-      let gasLimit = (gas * 120) div 100
+      let gasLimit = (gas * 125) div 100
       let overrides = TransactionOverrides(gasLimit: some gasLimit)
 
       trace "calling reserveSlot on contract", estimatedGas = gas, gasLimit = gasLimit
