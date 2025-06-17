@@ -17,9 +17,8 @@ import pkg/chronos
 
 import ./iter
 
-## AsyncIter[T] is similar to `AsyncIter[Future[T]]`
-## but does not throw exceptions others than CancelledError.
-## It is thus way easier to use with checked exceptions
+## AsyncIter[T] does not throw exceptions other than CancelledError.
+## It is thus way easier to use with checked exceptions.
 ##
 ##
 ## Public interface:
@@ -43,23 +42,23 @@ import ./iter
 ## - empty - to create an empty async iterator (AsyncIter)
 
 type
-  SafeFunction[T, U] =
+  AsyncIterFunction[T, U] =
     proc(fut: T): Future[U] {.async: (raises: [CancelledError]), gcsafe, closure.}
-  SafeIsFinished = proc(): bool {.raises: [], gcsafe, closure.}
-  SafeGenNext[T] = proc(): Future[T] {.async: (raises: [CancelledError]), gcsafe.}
+  AsyncIterIsFinished = proc(): bool {.raises: [], gcsafe, closure.}
+  AsyncIterGenNext[T] = proc(): Future[T] {.async: (raises: [CancelledError]), gcsafe.}
 
   AsyncIter*[T] = ref object
     finished: bool
-    next*: SafeGenNext[?!T]
+    next*: AsyncIterGenNext[?!T]
 
 proc flatMap[T, U](
-    fut: auto, fn: SafeFunction[?!T, ?!U]
+    fut: auto, fn: AsyncIterFunction[?!T, ?!U]
 ): Future[?!U] {.async: (raises: [CancelledError]).} =
   let t = await fut
   await fn(t)
 
 proc flatMap[T, U](
-    fut: auto, fn: SafeFunction[?!T, Option[?!U]]
+    fut: auto, fn: AsyncIterFunction[?!T, Option[?!U]]
 ): Future[Option[?!U]] {.async: (raises: [CancelledError]).} =
   let t = await fut
   await fn(t)
@@ -70,7 +69,7 @@ proc flatMap[T, U](
 
 proc new*[T](
     _: type AsyncIter[T],
-    genNext: SafeGenNext[?!T],
+    genNext: AsyncIterGenNext[?!T],
     isFinished: IsFinished,
     finishOnErr: bool = true,
 ): AsyncIter[T] =
@@ -104,7 +103,7 @@ proc new*[T](
 
 # forward declaration
 proc mapAsync*[T, U](
-  iter: Iter[T], fn: SafeFunction[T, ?!U], finishOnErr: bool = true
+  iter: Iter[T], fn: AsyncIterFunction[T, ?!U], finishOnErr: bool = true
 ): AsyncIter[U]
 
 proc new*[U, V: Ordinal](
@@ -152,13 +151,13 @@ iterator pairs*[T](self: AsyncIter[T]): auto {.inline.} =
     inc(i)
 
 proc mapFuture*[T, U](
-    fut: auto, fn: SafeFunction[T, U]
+    fut: auto, fn: AsyncIterFunction[T, U]
 ): Future[U] {.async: (raises: [CancelledError]).} =
   let t = await fut
   await fn(t)
 
 proc mapAsync*[T, U](
-    iter: Iter[T], fn: SafeFunction[T, ?!U], finishOnErr: bool = true
+    iter: Iter[T], fn: AsyncIterFunction[T, ?!U], finishOnErr: bool = true
 ): AsyncIter[U] =
   AsyncIter[U].new(
     genNext = () => fn(iter.next()),
@@ -167,7 +166,7 @@ proc mapAsync*[T, U](
   )
 
 proc map*[T, U](
-    iter: AsyncIter[T], fn: SafeFunction[?!T, ?!U], finishOnErr: bool = true
+    iter: AsyncIter[T], fn: AsyncIterFunction[?!T, ?!U], finishOnErr: bool = true
 ): AsyncIter[U] =
   AsyncIter[U].new(
     genNext = () => iter.next().flatMap(fn),
@@ -177,7 +176,7 @@ proc map*[T, U](
 
 proc mapFilter*[T, U](
     iter: AsyncIter[T],
-    mapPredicate: SafeFunction[?!T, Option[?!U]],
+    mapPredicate: AsyncIterFunction[?!T, Option[?!U]],
     finishOnErr: bool = true,
 ): Future[AsyncIter[U]] {.async: (raises: [CancelledError]).} =
   var nextU: Option[?!U]
@@ -202,7 +201,7 @@ proc mapFilter*[T, U](
   AsyncIter[U].new(genNext, isFinished, finishOnErr = finishOnErr)
 
 proc filter*[T](
-    iter: AsyncIter[T], predicate: SafeFunction[?!T, bool], finishOnErr: bool = true
+    iter: AsyncIter[T], predicate: AsyncIterFunction[?!T, bool], finishOnErr: bool = true
 ): Future[AsyncIter[T]] {.async: (raises: [CancelledError]).} =
   proc wrappedPredicate(
       t: ?!T
