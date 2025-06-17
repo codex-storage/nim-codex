@@ -125,14 +125,14 @@ proc getPendingBlocks(
   ## Get pending blocks iterator
   ##
 
-  if indicies.len == 0:
+  if indices.len == 0:
     trace "No indicies to fetch blocks for", treeCid = manifest.treeCid
     return SafeAsyncIter[(?!bt.Block, int)].empty()
 
-  var pendingBlocks: seq[Future[(?!bt.Block, int)]] = @[]
+  var pendingBlocks: seq[Future[(?!bt.Block, int)].Raising([CancelledError])] = @[]
 
   proc attachIndex(
-      fut: Future[?!bt.Block], i: int
+      fut: Future[?!bt.Block].Raising([CancelledError]), i: int
   ): Future[(?!bt.Block, int)] {.async: (raises: [CancelledError]).} =
     ## avoids closure capture issues
     return (await fut, i)
@@ -162,7 +162,7 @@ proc getPendingBlocks(
       # but we check for that at the very beginning - 
       # thus, if this happens, we raise an assert
       raiseAssert("fatal: pendingBlocks is empty - this should never happen")
-
+  
   SafeAsyncIter[(?!bt.Block, int)].new(genNext, isFinished)
 
 proc prepareEncodingData(
