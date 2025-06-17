@@ -54,6 +54,12 @@ type
   Proofs_ProofAlreadyMarkedMissing* = object of SolidityError
   Periods_InvalidSecondsPerPeriod* = object of SolidityError
   SlotReservations_ReservationNotAllowed* = object of SolidityError
+  ERC20InsufficientBalance* = object of SolidityError
+  ERC20InvalidSender* = object of SolidityError
+  ERC20InvalidReceiver* = object of SolidityError
+  ERC20InsufficientAllowance* = object of SolidityError
+  ERC20InvalidApprover* = object of SolidityError
+  ERC20InvalidSpender* = object of SolidityError
 
 proc configuration*(marketplace: Marketplace): MarketplaceConfig {.contract, view.}
 proc token*(marketplace: Marketplace): Address {.contract, view.}
