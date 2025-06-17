@@ -19,7 +19,7 @@ import ../blockexchange
 import ../logutils
 import ../merkletree
 import ../utils/asyncheapqueue
-import ../utils/safeasynciter
+import ../utils/asynciter
 import ./blockstore
 
 export blockstore, blockexchange, asyncheapqueue

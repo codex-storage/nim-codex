@@ -2,7 +2,7 @@ import std/sugar
 import pkg/questionable
 import pkg/chronos
 import pkg/codex/utils/iter
-import pkg/codex/utils/safeasynciter
+import pkg/codex/utils/asynciter
 
 import ../../asynctest
 import ../helpers
@@ -382,7 +382,7 @@ asyncchecksuite "Test AsyncIter":
     # cancellation of the async predicate function.
 
     let fut: Future[Option[?!string]].Raising([CancelledError]) =
-      Future[Option[?!string]].Raising([CancelledError]).init("testsafeasynciter")
+      Future[Option[?!string]].Raising([CancelledError]).init("testasynciter")
 
     let iter1 = AsyncIter[int].new(0 ..< 5).delayBy(10.millis)
     let iter2 = await mapFilter[int, string](
