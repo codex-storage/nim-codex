@@ -25,7 +25,7 @@ import ../merkletree
 
 proc putSomeProofs*(
     store: BlockStore, tree: CodexTree, iter: Iter[int]
-): Future[?!void] {.async.} =
+): Future[?!void] {.async: (raises: [CancelledError]).} =
   without treeCid =? tree.rootCid, err:
     return failure(err)
 
@@ -51,8 +51,10 @@ proc putSomeProofs*(
 
 proc putSomeProofs*(
     store: BlockStore, tree: CodexTree, iter: Iter[Natural]
-): Future[?!void] =
+): Future[?!void] {.async: (raw: true, raises: [CancelledError]).} =
   store.putSomeProofs(tree, iter.map((i: Natural) => i.ord))
 
-proc putAllProofs*(store: BlockStore, tree: CodexTree): Future[?!void] =
+proc putAllProofs*(
+    store: BlockStore, tree: CodexTree
+): Future[?!void] {.async: (raw: true, raises: [CancelledError]).} =
   store.putSomeProofs(tree, Iter[int].new(0 ..< tree.leavesCount))
