@@ -54,5 +54,7 @@ proc putSomeProofs*(
 ): Future[?!void] {.async: (raw: true, raises: [CancelledError]).} =
   store.putSomeProofs(tree, iter.map((i: Natural) => i.ord))
 
-proc putAllProofs*(store: BlockStore, tree: CodexTree): Future[?!void] {.async: (raw: true, raises: [CancelledError]).} =
+proc putAllProofs*(
+    store: BlockStore, tree: CodexTree
+): Future[?!void] {.async: (raw: true, raises: [CancelledError]).} =
   store.putSomeProofs(tree, Iter[int].new(0 ..< tree.leavesCount))

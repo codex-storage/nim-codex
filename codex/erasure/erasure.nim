@@ -158,14 +158,13 @@ proc getPendingBlocks(
         let (_, index) = await completedFut
         return failure(
           "Future for block id not found, tree cid: " & $manifest.treeCid & ", index: " &
-            $index,
+            $index
         )
     except ValueError as err:
       # ValueError is raised by `one` when the pendingBlocks is empty -
       # but we check for that at the very beginning - 
       # thus, if this happens, we raise an assert
       raiseAssert("fatal: pendingBlocks is empty - this should never happen")
-
 
   SafeAsyncIter[(?!bt.Block, int)].new(genNext, isFinished)
 
@@ -574,6 +573,7 @@ proc asyncDecode*(
 proc decodeInternal(
     self: Erasure, encoded: Manifest
 ): Future[?!(ref seq[Cid], seq[Natural])] {.async: (raises: [CancelledError]).} =
+
   logScope:
     steps = encoded.steps
     rounded_blocks = encoded.rounded
