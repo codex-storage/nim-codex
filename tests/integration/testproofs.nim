@@ -13,7 +13,7 @@ export logutils
 logScope:
   topics = "integration test proofs"
 
-marketplacesuite "Hosts submit regular proofs":
+marketplacesuite(name = "Hosts submit regular proofs", stopOnRequestFail = false):
   const minPricePerBytePerSecond = 1.u256
   const collateralPerByte = 1.u256
   const blocks = 8
@@ -64,9 +64,7 @@ marketplacesuite "Hosts submit regular proofs":
 
     let slotSize = slotSize(blocks, ecNodes, ecTolerance)
 
-    check eventually(
-      await client0.purchaseStateIs(purchaseId, "started"), timeout = expiry.int * 1000
-    )
+    discard await waitForRequestToStart(expiry.int)
 
     var proofWasSubmitted = false
     proc onProofSubmitted(event: ?!ProofSubmitted) =
@@ -78,7 +76,7 @@ marketplacesuite "Hosts submit regular proofs":
 
     await subscription.unsubscribe()
 
-marketplacesuite "Simulate invalid proofs":
+marketplacesuite(name = "Simulate invalid proofs", stopOnRequestFail = false):
   # TODO: these are very loose tests in that they are not testing EXACTLY how
   # proofs were marked as missed by the validator. These tests should be
   # tightened so that they are showing, as an integration test, that specific
@@ -102,13 +100,19 @@ marketplacesuite "Simulate invalid proofs":
       providers: CodexConfigs
         .init(nodes = 1)
         .withSimulateProofFailures(idx = 0, failEveryNProofs = 1)
-        # .debug() # uncomment to enable console log output
-        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        # .withLogTopics("marketplace", "sales", "reservations", "node", "clock", "slotsbuilder")
+        # .debug()
+        # uncomment to enable console log output
+        # .withLogFile()
+        # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        # .withLogTopics(
+        #   "marketplace", "sales", "reservations", "node", "clock", "slotsbuilder"
+        # )
         .some,
       validators: CodexConfigs.init(nodes = 1)
-      # .debug() # uncomment to enable console log output
-      # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+      # .debug()
+      # uncomment to enable console log output
+      # .withLogFile()
+      # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
       # .withLogTopics("validator", "onchain", "ethers", "clock")
       .some,
     ):
@@ -140,9 +144,7 @@ marketplacesuite "Simulate invalid proofs":
     )
     let requestId = (await client0.requestId(purchaseId)).get
 
-    check eventually(
-      await client0.purchaseStateIs(purchaseId, "started"), timeout = expiry.int * 1000
-    )
+    discard await waitForRequestToStart(expiry.int)
 
     var slotWasFreed = false
     proc onSlotFreed(event: ?!SlotFreed) =
@@ -350,5 +352,3 @@ marketplacesuite "Simulate invalid proofs":
   #     (await token.balanceOf(provider1.ethAccount)) >
   #     (await token.balanceOf(provider0.ethAccount))
   #   )
-
-  #   await subscription.unsubscribe()
