@@ -7,7 +7,7 @@ import ./marketplacesuite
 import ./twonodes
 import ./nodeconfigs
 
-marketplacesuite "Marketplace":
+marketplacesuite(name = "Marketplace", stopOnRequestFail = true):
   let marketplaceConfig = NodeConfigs(
     clients: CodexConfigs.init(nodes = 1).some,
     providers: CodexConfigs.init(nodes = 1).some,
@@ -206,7 +206,7 @@ marketplacesuite "Marketplace":
     # Double check, verify that our second SP hosts the 3 slots
     check ((await provider1.client.getSlots()).get).len == 3
 
-marketplacesuite "Marketplace payouts":
+marketplacesuite(name = "Marketplace payouts", stopOnRequestFail = true):
   const minPricePerBytePerSecond = 1.u256
   const collateralPerByte = 1.u256
   const blocks = 8

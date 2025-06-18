@@ -17,7 +17,7 @@ proc findItem[T](items: seq[T], item: T): ?!T =
 
   return failure("Not found")
 
-marketplacesuite "Sales":
+marketplacesuite(name = "Sales", stopOnRequestFail = true):
   let salesConfig = NodeConfigs(
     clients: CodexConfigs.init(nodes = 1).some,
     providers: CodexConfigs.init(nodes = 1)

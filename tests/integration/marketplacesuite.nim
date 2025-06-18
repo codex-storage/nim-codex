@@ -12,7 +12,7 @@ import ../contracts/deployment
 export mp
 export multinodes
 
-template marketplacesuite*(name: string, body: untyped, stopOnRequestFail = true) =
+template marketplacesuite*(name: string, stopOnRequestFail = true, body: untyped) =
   multinodesuite name:
     var marketplace {.inject, used.}: Marketplace
     var period: uint64

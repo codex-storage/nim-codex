@@ -12,7 +12,7 @@ export logutils
 logScope:
   topics = "integration test slot repair"
 
-marketplacesuite "SP Slot Repair":
+marketplacesuite(name = "SP Slot Repair", stopOnRequestFail = true):
   const minPricePerBytePerSecond = 1.u256
   const collateralPerByte = 1.u256
   const blocks = 3
