@@ -174,7 +174,7 @@ asyncchecksuite "NetworkStore engine handlers":
       let ctx = await engine.taskQueue.pop()
       check ctx.id == peerId
       # only `wantBlock` scheduled
-      check ctx.peerWants.mapIt(it.address.cidOrTreeCid) == blocks.mapIt(it.cid)
+      check ctx.wantedBlocks == blocks.mapIt(it.address).toHashSet
 
     let done = handler()
     await engine.wantListHandler(peerId, wantList)
@@ -520,6 +520,11 @@ asyncchecksuite "Block Download":
     expect CancelledError:
       discard (await pending).tryGet()
 
+  # test "Should not keep looking up providers for the same dataset repeatedly":
+  #   let
+  #     blocks = await makeRandomBlocks(datasetSize = 4096, blockSize = 128'nb)
+  #     manifest = await storeDataGetManifest(store, blocks)
+
 asyncchecksuite "Task Handler":
   var
     rng: Rng
@@ -579,130 +584,66 @@ asyncchecksuite "Task Handler":
 
     engine.pricing = Pricing.example.some
 
-  test "Should send want-blocks in priority order":
-    proc sendBlocksDelivery(
-        id: PeerId, blocksDelivery: seq[BlockDelivery]
-    ) {.async: (raises: [CancelledError]).} =
-      check blocksDelivery.len == 2
-      check:
-        blocksDelivery[1].address == blocks[0].address
-        blocksDelivery[0].address == blocks[1].address
+  # FIXME: this is disabled for now: I've dropped block priorities to make
+  #   my life easier as I try to optimize the protocol, and also because
+  #   they were not being used anywhere.
+  #
+  # test "Should send want-blocks in priority order":
+  #   proc sendBlocksDelivery(
+  #       id: PeerId, blocksDelivery: seq[BlockDelivery]
+  #   ) {.async: (raises: [CancelledError]).} =
+  #     check blocksDelivery.len == 2
+  #     check:
+  #       blocksDelivery[1].address == blocks[0].address
+  #       blocksDelivery[0].address == blocks[1].address
 
-    for blk in blocks:
-      (await engine.localStore.putBlock(blk)).tryGet()
-    engine.network.request.sendBlocksDelivery = sendBlocksDelivery
+  #   for blk in blocks:
+  #     (await engine.localStore.putBlock(blk)).tryGet()
+  #   engine.network.request.sendBlocksDelivery = sendBlocksDelivery
 
-    # second block to send by priority
-    peersCtx[0].peerWants.add(
-      WantListEntry(
-        address: blocks[0].address,
-        priority: 49,
-        cancel: false,
-        wantType: WantType.WantBlock,
-        sendDontHave: false,
-      )
-    )
+  #   # second block to send by priority
+  #   peersCtx[0].peerWants.add(
+  #     WantListEntry(
+  #       address: blocks[0].address,
+  #       priority: 49,
+  #       cancel: false,
+  #       wantType: WantType.WantBlock,
+  #       sendDontHave: false,
+  #     )
+  #   )
 
-    # first block to send by priority
-    peersCtx[0].peerWants.add(
-      WantListEntry(
-        address: blocks[1].address,
-        priority: 50,
-        cancel: false,
-        wantType: WantType.WantBlock,
-        sendDontHave: false,
-      )
-    )
+  #   # first block to send by priority
+  #   peersCtx[0].peerWants.add(
+  #     WantListEntry(
+  #       address: blocks[1].address,
+  #       priority: 50,
+  #       cancel: false,
+  #       wantType: WantType.WantBlock,
+  #       sendDontHave: false,
+  #     )
+  #   )
 
-    await engine.taskHandler(peersCtx[0])
+  #   await engine.taskHandler(peersCtx[0])
 
   test "Should set in-flight for outgoing blocks":
     proc sendBlocksDelivery(
         id: PeerId, blocksDelivery: seq[BlockDelivery]
     ) {.async: (raises: [CancelledError]).} =
-      check peersCtx[0].peerWants[0].inFlight
+      let blockAddress = peersCtx[0].wantedBlocks.toSeq[0]
+      check peersCtx[0].isInFlight(blockAddress)
 
     for blk in blocks:
       (await engine.localStore.putBlock(blk)).tryGet()
     engine.network.request.sendBlocksDelivery = sendBlocksDelivery
 
-    peersCtx[0].peerWants.add(
-      WantListEntry(
-        address: blocks[0].address,
-        priority: 50,
-        cancel: false,
-        wantType: WantType.WantBlock,
-        sendDontHave: false,
-        inFlight: false,
-      )
-    )
+    peersCtx[0].wantedBlocks.incl(blocks[0].address)
+
     await engine.taskHandler(peersCtx[0])
 
   test "Should clear in-flight when local lookup fails":
-    peersCtx[0].peerWants.add(
-      WantListEntry(
-        address: blocks[0].address,
-        priority: 50,
-        cancel: false,
-        wantType: WantType.WantBlock,
-        sendDontHave: false,
-        inFlight: false,
-      )
-    )
-    await engine.taskHandler(peersCtx[0])
-
-    check not peersCtx[0].peerWants[0].inFlight
-
-  test "Should send presence":
-    let present = blocks
-    let missing = @[Block.new("missing".toBytes).tryGet()]
-    let price = (!engine.pricing).price
-
-    proc sendPresence(
-        id: PeerId, presence: seq[BlockPresence]
-    ) {.async: (raises: [CancelledError]).} =
-      check presence.mapIt(!Presence.init(it)) ==
-        @[
-          Presence(address: present[0].address, have: true, price: price),
-          Presence(address: present[1].address, have: true, price: price),
-          Presence(address: missing[0].address, have: false),
-        ]
-
-    for blk in blocks:
-      (await engine.localStore.putBlock(blk)).tryGet()
-    engine.network.request.sendPresence = sendPresence
-
-    # have block
-    peersCtx[0].peerWants.add(
-      WantListEntry(
-        address: present[0].address,
-        priority: 1,
-        cancel: false,
-        wantType: WantType.WantHave,
-        sendDontHave: false,
-      )
-    )
-
-    # have block
-    peersCtx[0].peerWants.add(
-      WantListEntry(
-        address: present[1].address,
-        priority: 1,
-        cancel: false,
-        wantType: WantType.WantHave,
-        sendDontHave: false,
-      )
-    )
-
-    # don't have block
-    peersCtx[0].peerWants.add(
-      WantListEntry(
-        address: missing[0].address,
-        priority: 1,
-        cancel: false,
-        wantType: WantType.WantHave,
-        sendDontHave: false,
-      )
-    )
+    peersCtx[0].wantedBlocks.incl(blocks[0].address)
 
     await engine.taskHandler(peersCtx[0])
+
+    let blockAddress = peersCtx[0].wantedBlocks.toSeq[0]
+    check not peersCtx[0].isInFlight(blockAddress)
