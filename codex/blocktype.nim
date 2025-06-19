@@ -79,6 +79,9 @@ proc init*(_: type BlockAddress, cid: Cid): BlockAddress =
 proc init*(_: type BlockAddress, treeCid: Cid, index: Natural): BlockAddress =
   BlockAddress(leaf: true, treeCid: treeCid, index: index)
 
+func isTorrentCid*(cid: Cid): ?!bool =
+  success (InfoHashV1Codec == ?cid.contentType().mapFailure(CodexError))
+
 proc `$`*(b: Block): string =
   result &= "cid: " & $b.cid
   result &= "\ndata: " & string.fromBytes(b.data)
@@ -108,7 +111,12 @@ proc new*(
   ## creates a new block for both storage and network IO
   ##
 
-  if verify:
+  without isTorrent =? cid.isTorrentCid, err:
+    return "Unable to determine if cid is torrent info hash".failure
+
+  # info hash cids are "fake cids" - they will not validate
+  # info hash validation is done outside of the cid itself
+  if verify and not isTorrent:
     let
       mhash = ?cid.mhash.mapFailure
       computedMhash = ?MultiHash.digest($mhash.mcodec, data).mapFailure

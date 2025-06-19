@@ -24,6 +24,7 @@ const
   CodexBlocksKey* = Key.init(CodexBlocksNamespace).tryGet
   CodexTotalBlocksKey* = Key.init(CodexBlockTotalNamespace).tryGet
   CodexManifestKey* = Key.init(CodexManifestNamespace).tryGet
+  TorrentInfoHashKey* = Key.init(TorrentInfoHashNamespace).tryGet
   BlocksTtlKey* = Key.init(CodexBlocksTtlNamespace).tryGet
   BlockProofKey* = Key.init(CodexBlockProofNamespace).tryGet
   QuotaKey* = Key.init(CodexQuotaNamespace).tryGet
@@ -33,7 +34,9 @@ const
 func makePrefixKey*(postFixLen: int, cid: Cid): ?!Key =
   let cidKey = ?Key.init(($cid)[^postFixLen ..^ 1] & "/" & $cid)
 
-  if ?cid.isManifest:
+  if ?cid.isTorrentInfoHash:
+    success TorrentInfoHashKey / cidKey
+  elif ?cid.isManifest:
     success CodexManifestKey / cidKey
   else:
     success CodexBlocksKey / cidKey

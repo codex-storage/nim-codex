@@ -27,6 +27,9 @@ import ../../stores/blockstore
 import ../../logutils
 import ../../manifest
 
+# tarballs
+import ../../tarballs/[directorymanifest, decoding]
+
 logScope:
   topics = "codex discoveryengine advertiser"
 
@@ -56,7 +59,20 @@ proc addCidToQueue(b: Advertiser, cid: Cid) {.async: (raises: [CancelledError]).
 
     trace "Advertising", cid
 
+proc advertiseInfoHash(b: Advertiser, cid: Cid) {.async: (raises: [CancelledError]).} =
+  if (infoHashCid =? cid.isTorrentInfoHash):
+    # announce torrent info hash
+    await b.addCidToQueue(cid)
+    return
+  await b.addCidToQueue(cid)
+
 proc advertiseBlock(b: Advertiser, cid: Cid) {.async: (raises: [CancelledError]).} =
+  without isTorrent =? cid.isTorrentInfoHash, err:
+    warn "Unable to determine if cid is torrent info hash"
+    return
+  if isTorrent:
+    await b.addCidToQueue(cid)
+    return
   without isM =? cid.isManifest, err:
     warn "Unable to determine if cid is manifest"
     return
@@ -69,6 +85,11 @@ proc advertiseBlock(b: Advertiser, cid: Cid) {.async: (raises: [CancelledError])
 
       without manifest =? Manifest.decode(blk), err:
         error "Unable to decode as manifest", err = err.msg
+        # Try if it not a directory manifest
+        without manifest =? DirectoryManifest.decode(blk), err:
+          error "Unable to decode as manifest", err = err.msg
+          return
+        await b.addCidToQueue(cid)
         return
 
       # announce manifest cid and tree cid
@@ -83,6 +104,12 @@ proc advertiseBlock(b: Advertiser, cid: Cid) {.async: (raises: [CancelledError])
 proc advertiseLocalStoreLoop(b: Advertiser) {.async: (raises: []).} =
   try:
     while b.advertiserRunning:
+      if cidsIter =? await b.localStore.listBlocks(blockType = BlockType.Torrent):
+        trace "Advertiser begins iterating torrent blocks..."
+        for c in cidsIter:
+          if cid =? await c:
+            await b.advertiseBlock(cid)
+        trace "Advertiser iterating torrent blocks finished."
       if cidsIter =? await b.localStore.listBlocks(blockType = BlockType.Manifest):
         trace "Advertiser begins iterating blocks..."
         for c in cidsIter:

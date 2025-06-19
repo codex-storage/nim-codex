@@ -21,6 +21,9 @@ import ../sales
 import ../purchasing
 import ../utils/stintutils
 
+from ../codextypes import Sha1HashCodec
+import ../bittorrent/manifest
+
 proc encodeString*(cid: type Cid): Result[string, cstring] =
   ok($cid)
 
@@ -81,6 +84,16 @@ proc decodeString*(
     ok array[32, byte].fromHex(value)
   except ValueError as e:
     err e.msg.cstring
+
+proc decodeString*(_: type MultiHash, value: string): Result[MultiHash, cstring] =
+  without mhash =? BitTorrentInfo.buildMultiHash(value), e:
+    return err e.msg.cstring
+  ok mhash
+  # try:
+  #   let bytes = value.hexToSeqByte
+  #   MultiHash.init($Sha1HashCodec, bytes)
+  # except ValueError as e:
+  #   err e.msg.cstring
 
 proc decodeString*[T: PurchaseId | RequestId | Nonce | SlotId | AvailabilityId](
     _: type T, value: string

@@ -1,6 +1,5 @@
 import std/strutils
-
-from pkg/libp2p import Cid, `$`, init
+from pkg/libp2p import Cid, MultiHash, `$`, init, hex
 import pkg/stint
 import pkg/questionable/results
 import pkg/chronos/apps/http/[httpserver, shttpserver, httpclient, httptable]
@@ -95,6 +94,16 @@ proc info*(
   let response = await client.get(client.baseurl & "/debug/info")
   return JsonNode.parse(await response.body)
 
+proc connect*(
+    client: CodexClient, peerId: string, address: string
+): Future[?!void] {.async: (raises: [CancelledError, HttpError]).} =
+  let url = client.baseurl & "/connect/" & peerId & "?addrs=" & address
+  let response = await client.get(url)
+  if response.status != 200:
+    return
+      failure("Cannot connect to node with peerId: " & peerId & ": " & $response.status)
+  return success()
+
 proc setLogLevel*(
     client: CodexClient, level: string
 ): Future[void] {.async: (raises: [CancelledError, HttpError]).} =
@@ -120,8 +129,36 @@ proc upload*(
 
 proc upload*(
     client: CodexClient, bytes: seq[byte]
-): Future[?!Cid] {.async: (raw: true).} =
+): Future[?!Cid] {.async: (raw: true), raises: [CancelledError, HttpError].} =
   return client.upload(string.fromBytes(bytes))
+
+proc uploadTorrent*(
+    client: CodexClient,
+    contents: string,
+    filename = string.none,
+    contentType = "application/octet-stream",
+): Future[?!MultiHash] {.async: (raises: [CancelledError, HttpError]).} =
+  var headers = newSeq[HttpHeaderTuple]()
+  if name =? filename:
+    headers =
+      @[
+        ("Content-Disposition", "filename=\"" & name & "\""),
+        ("Content-Type", contentType),
+      ]
+  let response =
+    await client.post(client.baseurl & "/torrent", body = contents, headers = headers)
+  if not response.status == 200:
+    return failure($response.status)
+  let body = await response.body
+  let bytesRes = catch(body.hexToSeqByte)
+  without bytes =? bytesRes, err:
+    return failure(err)
+  MultiHash.init(bytes).mapFailure
+
+proc uploadTorrent*(
+    client: CodexClient, bytes: seq[byte], filename = string.none
+): Future[?!MultiHash] {.async: (raw: true), raises: [CancelledError, HttpError].} =
+  client.uploadTorrent(string.fromBytes(bytes), filename)
 
 proc downloadRaw*(
     client: CodexClient, cid: string, local = false
@@ -158,6 +195,54 @@ proc downloadNoStream*(
 
   success await response.body
 
+proc downloadTorrent*(
+    client: CodexClient, infoHash: MultiHash
+): Future[?!string] {.async: (raises: [CancelledError, HttpError]).} =
+  let response =
+    await client.get(client.baseurl & "/torrent/" & infoHash.hex & "/network/stream")
+
+  if response.status != 200:
+    return failure($response.status)
+
+  success await response.body
+
+proc downloadTorrent*(
+    client: CodexClient,
+    contents: string,
+    contentType = "text/plain",
+    endpoint = "magnet",
+): Future[?!string] {.async: (raises: [CancelledError, HttpError]).} =
+  if contents.len == 0:
+    return failure("No content provided!")
+  if endpoint != "magnet" and endpoint != "torrent-file":
+    return failure(
+      "Invalid endpoint: has to be either 'magnet' or 'torrent-file' but got: " &
+        endpoint
+    )
+  if endpoint == "magnet" and
+      (contentType != "application/octet-stream" and contentType != "text/plain"):
+    return failure(
+      "Invalid content type: for 'magnet' endpoint has to be either 'application/octet-stream' or 'text/plain' but got: " &
+        contentType
+    )
+  if endpoint == "torrent-file" and
+      (contentType != "application/octet-stream" and contentType != "application/json"):
+    return failure(
+      "Invalid content type: for 'torrent-file' endpoint has to be either 'application/octet-stream' or 'application/json' but got: " &
+        contentType
+    )
+
+  var headers = newSeq[HttpHeaderTuple]()
+  headers = @[("Content-Type", contentType)]
+
+  let response = await client.post(
+    client.baseurl & "/torrent/" & endpoint, body = contents, headers = headers
+  )
+  if not response.status == 200:
+    return failure($response.status)
+
+  success await response.body
+
 proc downloadManifestOnly*(
     client: CodexClient, cid: Cid
 ): Future[?!string] {.async: (raises: [CancelledError, HttpError]).} =
@@ -168,6 +253,17 @@ proc downloadManifestOnly*(
     return failure($response.status)
 
   success await response.body
+
+proc downloadTorrentManifestOnly*(
+    client: CodexClient, infoHash: MultiHash
+): Future[?!RestTorrentContent] {.async: (raises: [CancelledError, HttpError]).} =
+  let response =
+    await client.get(client.baseurl & "/torrent/" & infoHash.hex & "/network/manifest")
+
+  if response.status != 200:
+    return failure($response.status)
+
+  RestTorrentContent.fromJson(await response.body)
 
 proc deleteRaw*(
     client: CodexClient, cid: string

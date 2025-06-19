@@ -25,6 +25,7 @@ type
   BlockNotFoundError* = object of CodexError
 
   BlockType* {.pure.} = enum
+    Torrent
     Manifest
     Block
     Both
