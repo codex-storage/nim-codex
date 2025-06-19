@@ -211,6 +211,7 @@ proc prepareDecodingData(
     parityData: ref seq[seq[byte]],
     cids: ref seq[Cid],
     emptyBlock: seq[byte],
+    allowEarlyExit = true,
 ): Future[?!(Natural, Natural)] {.async.} =
   ## Prepare data for decoding
   ## `encoded`    - the encoded manifest
@@ -227,6 +228,13 @@ proc prepareDecodingData(
     )
     indices = toSeq(strategy.getIndices(step))
     (pendingBlocksIter, pendingBlockFutures) = self.getPendingBlocks(encoded, indices)
+
+  defer:
+    if allowEarlyExit:
+      pendingBlockFutures.apply(
+        proc(fut: auto) =
+          fut.cancel()
+      )
 
   var
     dataPieces = 0
@@ -265,11 +273,6 @@ proc prepareDecodingData(
       dataPieces.inc
 
     resolved.inc
-
-  pendingBlockFutures.apply(
-    proc(fut: auto) =
-      fut.cancel()
-  )
 
   return success (dataPieces.Natural, parityPieces.Natural)
 
@@ -561,7 +564,7 @@ proc asyncDecode*(
   success()
 
 proc decodeInternal(
-    self: Erasure, encoded: Manifest
+    self: Erasure, encoded: Manifest, allowEarlyExit = true
 ): Future[?!(ref seq[Cid], seq[Natural])] {.async.} =
   logScope:
     steps = encoded.steps
@@ -594,7 +597,7 @@ proc decodeInternal(
 
       without (dataPieces, _) =? (
         await self.prepareDecodingData(
-          encoded, step, data, parityData, cids, emptyBlock
+          encoded, step, data, parityData, cids, emptyBlock, allowEarlyExit
         )
       ), err:
         trace "Unable to prepare data", error = err.msg
@@ -644,7 +647,9 @@ proc decodeInternal(
 
   return (cids, recoveredIndices).success
 
-proc decode*(self: Erasure, encoded: Manifest): Future[?!Manifest] {.async.} =
+proc decode*(
+    self: Erasure, encoded: Manifest, allowEarlyExit = true
+): Future[?!Manifest] {.async.} =
   ## Decode a protected manifest into it's original
   ## manifest
   ##
@@ -652,7 +657,8 @@ proc decode*(self: Erasure, encoded: Manifest): Future[?!Manifest] {.async.} =
   ##             be recovered
   ##
 
-  without (cids, recoveredIndices) =? (await self.decodeInternal(encoded)), err:
+  without (cids, recoveredIndices) =?
+    (await self.decodeInternal(encoded, allowEarlyExit)), err:
     return failure(err)
 
   without tree =? CodexTree.init(cids[0 ..< encoded.originalBlocksCount]), err:

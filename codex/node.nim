@@ -296,7 +296,10 @@ proc streamEntireDataset(
         let erasure = Erasure.new(
           self.networkStore, leoEncoderProvider, leoDecoderProvider, self.taskpool
         )
-        without _ =? (await erasure.decode(manifest)), error:
+        # when streaming, erasure acts as a prefetching helper rather than
+        # trying to exit early. The early exit optimization is less valuable
+        # when the client needs most blocks anyway.
+        without _ =? (await erasure.decode(manifest, allowEarlyExit = false)), error:
           error "Unable to erasure decode manifest", manifestCid, exc = error.msg
       except CatchableError as exc:
         trace "Error erasure decoding manifest", manifestCid, exc = exc.msg
