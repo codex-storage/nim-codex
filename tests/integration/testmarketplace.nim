@@ -114,7 +114,7 @@ marketplacesuite(name = "Marketplace", stopOnRequestFail = true):
     proc onTransfer(eventResult: ?!Transfer) =
       assert not eventResult.isErr
       counter += 1
-      if counter == 3:
+      if counter == 6:
         transferEvent.fire()
 
     let tokenSubscription = await token.subscribe(Transfer, onTransfer)
@@ -356,7 +356,7 @@ marketplacesuite(name = "Marketplace payouts", stopOnRequestFail = true):
     let provider0 = providers()[0]
     let provider1 = providers()[1]
     let provider2 = providers()[2]
-    let duration = 30.uint64
+    let duration = 20 * 60.uint64
     let slotSize = slotSize(blocks, ecNodes, ecTolerance)
 
     # Here we create 3 SP which can host 3 slot.
