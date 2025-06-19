@@ -19,7 +19,10 @@ proc findItem[T](items: seq[T], item: T): ?!T =
 
 marketplacesuite(name = "Sales", stopOnRequestFail = true):
   let salesConfig = NodeConfigs(
-    clients: CodexConfigs.init(nodes = 1).some,
+    clients: CodexConfigs
+      .init(nodes = 1)
+      .withLogFile()
+      .withLogTopics("node", "marketplace").some,
     providers: CodexConfigs
       .init(nodes = 1)
       # .debug() # uncomment to enable console log output

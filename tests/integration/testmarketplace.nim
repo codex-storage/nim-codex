@@ -9,8 +9,14 @@ import ./nodeconfigs
 
 marketplacesuite(name = "Marketplace", stopOnRequestFail = true):
   let marketplaceConfig = NodeConfigs(
-    clients: CodexConfigs.init(nodes = 1).some,
-    providers: CodexConfigs.init(nodes = 1).some,
+    clients:
+      CodexConfigs.init(nodes = 1).withLogFile().withLogTopics("node, marketplace").some,
+    providers: CodexConfigs
+      .init(nodes = 1)
+      .withLogFile()
+      .withLogTopics(
+        "marketplace", "sales", "statemachine", "slotqueue", "reservations"
+      ).some,
   )
 
   var host: CodexClient
@@ -144,9 +150,11 @@ marketplacesuite(name = "Marketplace", stopOnRequestFail = true):
 
   test "SP are able to process slots after workers were busy with other slots and ignored them",
     NodeConfigs(
-      clients: CodexConfigs.init(nodes = 1)
-      # .debug()
-      .some,
+      clients: CodexConfigs
+        .init(nodes = 1)
+        # .debug(
+        .withLogFile()
+        .withLogTopics("node, marketplace").some,
       providers: CodexConfigs
         .init(nodes = 2)
         # .debug()
@@ -235,7 +243,7 @@ marketplacesuite(name = "Marketplace payouts", stopOnRequestFail = true):
         #  .debug() # uncomment to enable console log output.debug()
         .withLogFile()
         # # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        .withLogTopics("node", "erasure").some,
+        .withLogTopics("node, marketplace").some,
       providers: CodexConfigs
         .init(nodes = 1)
         #  .debug() # uncomment to enable console log output
@@ -344,7 +352,11 @@ marketplacesuite(name = "Marketplace payouts", stopOnRequestFail = true):
   test "the collateral is returned after a sale is ignored",
     NodeConfigs(
       hardhat: HardhatConfig.none,
-      clients: CodexConfigs.init(nodes = 1).some,
+      clients: CodexConfigs
+        .init(nodes = 1)
+        .withLogFile()
+        # # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        .withLogTopics("node, marketplace").some,
       providers: CodexConfigs
         .init(nodes = 3)
         # .debug()
