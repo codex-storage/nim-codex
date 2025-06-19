@@ -9,5 +9,8 @@ macro importTests*(dir: static string): untyped =
   for file in walkDirRec(dir):
     let (_, name, ext) = splitFile(file)
     if name.startsWith("test") and ext == ".nim":
-      imports.add(quote do: import `file`)
+      imports.add(
+        quote do:
+          import `file`
+      )
   imports
