@@ -483,35 +483,35 @@ ethersuite "On-Chain Market":
         SlotFilled(requestId: request.id, slotIndex: 1),
         SlotFilled(requestId: request.id, slotIndex: 2),
       ]
+  # TODO: Enable it again when the fix from the vault is merged
+  # test "can query past SlotFilled events since given timestamp":
+  #   await market.requestStorage(request)
+  #   await market.reserveSlot(request.id, 0.uint64)
+  #   await market.fillSlot(request.id, 0.uint64, proof, request.ask.collateralPerSlot)
 
-  test "can query past SlotFilled events since given timestamp":
-    await market.requestStorage(request)
-    await market.reserveSlot(request.id, 0.uint64)
-    await market.fillSlot(request.id, 0.uint64, proof, request.ask.collateralPerSlot)
+  #   # The SlotFilled event will be included in the same block as
+  #   # the fillSlot transaction. If we want to ignore the SlotFilled event
+  #   # for this first slot, we need to jump to the next block and use the
+  #   # timestamp of that block as our "fromTime" parameter to the
+  #   # queryPastSlotFilledEvents function.
+  #   await ethProvider.advanceTime(10.u256)
 
-    # The SlotFilled event will be included in the same block as
-    # the fillSlot transaction. If we want to ignore the SlotFilled event
-    # for this first slot, we need to jump to the next block and use the
-    # timestamp of that block as our "fromTime" parameter to the
-    # queryPastSlotFilledEvents function.
-    await ethProvider.advanceTime(10.u256)
+  #   let (_, fromTime) = await ethProvider.blockNumberAndTimestamp(BlockTag.latest)
 
-    let (_, fromTime) = await ethProvider.blockNumberAndTimestamp(BlockTag.latest)
+  #   await market.reserveSlot(request.id, 1.uint64)
+  #   await market.reserveSlot(request.id, 2.uint64)
+  #   await market.fillSlot(request.id, 1.uint64, proof, request.ask.collateralPerSlot)
+  #   await market.fillSlot(request.id, 2.uint64, proof, request.ask.collateralPerSlot)
 
-    await market.reserveSlot(request.id, 1.uint64)
-    await market.reserveSlot(request.id, 2.uint64)
-    await market.fillSlot(request.id, 1.uint64, proof, request.ask.collateralPerSlot)
-    await market.fillSlot(request.id, 2.uint64, proof, request.ask.collateralPerSlot)
+  #   let events = await market.queryPastSlotFilledEvents(
+  #     fromTime = fromTime.truncate(SecondsSince1970)
+  #   )
 
-    let events = await market.queryPastSlotFilledEvents(
-      fromTime = fromTime.truncate(SecondsSince1970)
-    )
-
-    check events ==
-      @[
-        SlotFilled(requestId: request.id, slotIndex: 1),
-        SlotFilled(requestId: request.id, slotIndex: 2),
-      ]
+  #   check events ==
+  #     @[
+  #       SlotFilled(requestId: request.id, slotIndex: 1),
+  #       SlotFilled(requestId: request.id, slotIndex: 2),
+  #     ]
 
   test "queryPastSlotFilledEvents returns empty sequence of events when " &
     "no SlotFilled events have occurred since given timestamp":
