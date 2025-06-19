@@ -109,6 +109,16 @@ marketplacesuite(name = "Marketplace", stopOnRequestFail = true):
 
     discard await waitForRequestToStart()
 
+    var counter = 0
+    var transferEvent = newAsyncEvent()
+    proc onTransfer(eventResult: ?!Transfer) =
+      assert not eventResult.isErr
+      counter += 1
+      if counter == 3:
+        transferEvent.fire()
+
+    let tokenSubscription = await token.subscribe(Transfer, onTransfer)
+
     let purchase = (await client.getPurchase(id)).get
     check purchase.error == none string
 
@@ -119,17 +129,18 @@ marketplacesuite(name = "Marketplace", stopOnRequestFail = true):
     # only with new transaction
     await ethProvider.advanceTime(duration.u256)
 
+    await transferEvent.wait().wait(timeout = chronos.seconds(60))
+
     # Checking that the hosting node received reward for at least the time between <expiry;end>
     let slotSize = slotSize(blocks, ecNodes, ecTolerance)
     let pricePerSlotPerSecond = minPricePerBytePerSecond * slotSize
-    check eventuallySafe (await token.balanceOf(hostAccount)) - startBalanceHost >=
+    check (await token.balanceOf(hostAccount)) - startBalanceHost >=
       (duration - 5 * 60).u256 * pricePerSlotPerSecond * ecNodes.u256
 
     # Checking that client node receives some funds back that were not used for the host nodes
-    check eventuallySafe(
-      (await token.balanceOf(clientAccount)) - clientBalanceBeforeFinished > 0,
-      timeout = 10 * 1000, # give client a bit of time to withdraw its funds
-    )
+    check ((await token.balanceOf(clientAccount)) - clientBalanceBeforeFinished > 0)
+
+    await tokenSubscription.unsubscribe()
 
   test "SP are able to process slots after workers were busy with other slots and ignored them",
     NodeConfigs(
@@ -348,8 +359,6 @@ marketplacesuite(name = "Marketplace payouts", stopOnRequestFail = true):
     let duration = 30.uint64
     let slotSize = slotSize(blocks, ecNodes, ecTolerance)
 
-    await marketplace.subscribe(RequestFulfilled, onRequestStarted)
-
     # Here we create 3 SP which can host 3 slot.
     # While they will process the slot, each SP will
     # create a reservation for each slot.
@@ -398,7 +407,7 @@ marketplacesuite(name = "Marketplace payouts", stopOnRequestFail = true):
     # to host 2 more slots.
     for provider in providers():
       let client = provider.client
-      check(
+      check eventually(
         block:
           let availabilities = (await client.getAvailabilities()).get
           let availability = availabilities[0]
