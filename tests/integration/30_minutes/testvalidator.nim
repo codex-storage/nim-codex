@@ -3,12 +3,12 @@ import std/sugar
 import pkg/codex/logutils
 import pkg/questionable/results
 import pkg/ethers/provider
-import ../contracts/time
-import ../contracts/deployment
-import ../codex/helpers
-import ../examples
-import ./marketplacesuite
-import ./nodeconfigs
+import ../../contracts/time
+import ../../contracts/deployment
+import ../../codex/helpers
+import ../../examples
+import ../marketplacesuite
+import ../nodeconfigs
 
 export logutils
 

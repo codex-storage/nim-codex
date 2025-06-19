@@ -5,10 +5,10 @@ import std/strformat
 from pkg/libp2p import `==`, `$`, Cid
 import pkg/codex/units
 import pkg/codex/manifest
-import ./twonodes
-import ../examples
-import ../codex/examples
-import ../codex/slots/helpers
+import ../twonodes
+import ../../examples
+import ../../codex/examples
+import ../../codex/slots/helpers
 import json
 
 twonodessuite "REST API":
