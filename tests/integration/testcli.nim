@@ -66,6 +66,7 @@ asyncchecksuite "Command line interface":
     )
 
   test "complains when persistence is enabled without ethereum account":
+    # let hardhat = await HardhatProcess.startNode(@[], true, "hardhat")
     let node = await startCodex(@["persistence"])
 
     defer:
