@@ -259,6 +259,9 @@ method delBlock*(
 
   return success()
 
+method completeBlock*(self: CacheStore, address: BlockAddress, blk: Block) {.gcsafe.} =
+  discard
+
 method close*(self: CacheStore): Future[void] {.async: (raises: []).} =
   ## Close the blockstore, a no-op for this implementation
   ##
