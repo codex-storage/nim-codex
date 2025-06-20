@@ -63,6 +63,9 @@ method getBlock*(
 
   self.getBlock(BlockAddress.init(treeCid, index))
 
+method completeBlock*(self: NetworkStore, address: BlockAddress, blk: Block) =
+  self.engine.completeBlock(address, blk)
+
 method putBlock*(
     self: NetworkStore, blk: Block, ttl = Duration.none
 ): Future[?!void] {.async: (raises: [CancelledError]).} =

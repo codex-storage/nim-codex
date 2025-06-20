@@ -230,6 +230,12 @@ proc requestBlock*(
 ): Future[?!Block] {.async: (raw: true, raises: [CancelledError]).} =
   self.requestBlock(BlockAddress.init(cid))
 
+proc completeBlock*(self: BlockExcEngine, address: BlockAddress, blk: Block) =
+  if address in self.pendingBlocks.blocks:
+    self.pendingBlocks.completeWantHandle(address, blk)
+  else:
+    warn "Attempted to complete non-pending block", address
+
 proc blockPresenceHandler*(
     self: BlockExcEngine, peer: PeerId, blocks: seq[BlockPresence]
 ) {.async: (raises: []).} =
