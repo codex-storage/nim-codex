@@ -60,7 +60,7 @@ jobs:
           MSYS2_PATH_TYPE: inherit
         run: |
           npm install
-          npm start &
+          npm start > ../../tests/integration/logs/hardhat.log 2>&1 &
 
       ## Part 2 Tests ##
       - name: Contract tests
