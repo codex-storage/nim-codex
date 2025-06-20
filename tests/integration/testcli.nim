@@ -27,7 +27,7 @@ asyncchecksuite "Command line interface":
     if not args.anyIt(it.contains("--data-dir")):
       args.add("--data-dir=" & tmpDataDir)
 
-    return await CodexProcess.startNode(args, debug = true, "cli-test-node")
+    return await CodexProcess.startNode(args, debug = false, "cli-test-node")
 
   test "complains when persistence is enabled without ethereum account":
     # let hardhat = await HardhatProcess.startNode(@[], true, "hardhat")
