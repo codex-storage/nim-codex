@@ -62,7 +62,10 @@ jobs:
           npm install
           mkdir -p ../../tests/integration/logs
           npm start > ../../tests/integration/logs/hardhat.log 2>&1 &
-
+          # Wait for the contracts to be deployed
+          # This sleep time is required with hardhat ignition
+          sleep 5
+          
       ## Part 2 Tests ##
       - name: Contract tests
         if: matrix.tests == 'contract' || matrix.tests == 'all'
