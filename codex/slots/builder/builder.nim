@@ -24,12 +24,11 @@ import ../../utils
 import ../../stores
 import ../../manifest
 import ../../merkletree
-import ../../utils/asynciter
 import ../../indexingstrategy
 
 import ../converters
 
-export converters, asynciter
+export converters, iter
 
 logScope:
   topics = "codex slotsbuilder"

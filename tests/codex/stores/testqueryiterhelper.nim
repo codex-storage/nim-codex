@@ -49,9 +49,8 @@ asyncchecksuite "Test QueryIter helper":
     var items = initTable[string, string]()
 
     for fut in iter2:
-      let item = await fut
-
-      items[item.key.value] = item.value
+      if item =? (await fut):
+        items[item.key.value] = item.value
 
     check:
       items == source

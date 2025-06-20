@@ -1,46 +1,75 @@
+## Nim-Codex
+## Copyright (c) 2025 Status Research & Development GmbH
+## Licensed under either of
+##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+## at your option.
+## This file may not be copied, modified, or distributed except according to
+## those terms.
+
+{.push raises: [].}
+
 import std/sugar
 
 import pkg/questionable
+import pkg/questionable/results
 import pkg/chronos
 
 import ./iter
 
-export iter
-
-## AsyncIter[T] is similar to `Iter[Future[T]]` with addition of methods specific to asynchronous processing
+## AsyncIter[T] does not throw exceptions other than CancelledError.
+## It is thus way easier to use with checked exceptions.
 ##
+##
+## Public interface:
+##
+## Attributes
+## - next - allows to set a custom function to be called when the next item is requested
+##
+## Operations:
+## - new - to create a new async iterator (AsyncIter)
+## - finish - to finish the async iterator
+## - finished - to check if the async iterator is finished
+## - next - to get the next item from the async iterator
+## - items - to iterate over the async iterator
+## - pairs - to iterate over the async iterator and return the index of each item
+## - mapFuture - to convert a (raising) Future[T] to a (raising) Future[U] using a function fn: auto -> Future[U] - we use auto to handle both raising and non-raising futures
+## - mapAsync - to convert a regular sync iterator (Iter) to an async iter (AsyncIter)
+## - map - to convert one async iterator (AsyncIter) to another async iter (AsyncIter)
+## - mapFilter - to convert one async iterator (AsyncIter) to another async iter (AsyncIter) and apply filtering at the same time
+## - filter - to filter an async iterator (AsyncIter) returning another async iterator (AsyncIter)
+## - delayBy - to delay each item returned by async iter by a given duration
+## - empty - to create an empty async iterator (AsyncIter)
 
-type AsyncIter*[T] = ref object
-  finished: bool
-  next*: GenNext[Future[T]]
+type
+  AsyncIterFunction[T, U] =
+    proc(fut: T): Future[U] {.async: (raises: [CancelledError]), gcsafe, closure.}
+  AsyncIterIsFinished = proc(): bool {.raises: [], gcsafe, closure.}
+  AsyncIterGenNext[T] = proc(): Future[T] {.async: (raises: [CancelledError]), gcsafe.}
 
-proc finish*[T](self: AsyncIter[T]): void =
-  self.finished = true
+  AsyncIter*[T] = ref object
+    finished: bool
+    next*: AsyncIterGenNext[?!T]
 
-proc finished*[T](self: AsyncIter[T]): bool =
-  self.finished
-
-iterator items*[T](self: AsyncIter[T]): Future[T] =
-  while not self.finished:
-    yield self.next()
-
-iterator pairs*[T](self: AsyncIter[T]): tuple[key: int, val: Future[T]] {.inline.} =
-  var i = 0
-  while not self.finished:
-    yield (i, self.next())
-    inc(i)
-
-proc map*[T, U](fut: Future[T], fn: Function[T, U]): Future[U] {.async.} =
-  let t = await fut
-  fn(t)
-
-proc flatMap*[T, U](fut: Future[T], fn: Function[T, Future[U]]): Future[U] {.async.} =
+proc flatMap[T, U](
+    fut: auto, fn: AsyncIterFunction[?!T, ?!U]
+): Future[?!U] {.async: (raises: [CancelledError]).} =
   let t = await fut
   await fn(t)
 
+proc flatMap[T, U](
+    fut: auto, fn: AsyncIterFunction[?!T, Option[?!U]]
+): Future[Option[?!U]] {.async: (raises: [CancelledError]).} =
+  let t = await fut
+  await fn(t)
+
+########################################################################
+## AsyncIter public interface methods
+########################################################################
+
 proc new*[T](
     _: type AsyncIter[T],
-    genNext: GenNext[Future[T]],
+    genNext: AsyncIterGenNext[?!T],
     isFinished: IsFinished,
     finishOnErr: bool = true,
 ): AsyncIter[T] =
@@ -50,49 +79,49 @@ proc new*[T](
 
   var iter = AsyncIter[T]()
 
-  proc next(): Future[T] {.async.} =
-    if not iter.finished:
-      var item: T
-      try:
-        item = await genNext()
-      except CancelledError as err:
-        iter.finish
-        raise err
-      except CatchableError as err:
-        if finishOnErr or isFinished():
-          iter.finish
-        raise err
-
-      if isFinished():
-        iter.finish
-      return item
-    else:
-      raise newException(
-        CatchableError, "AsyncIter is finished but next item was requested"
-      )
+  proc next(): Future[?!T] {.async: (raises: [CancelledError]).} =
+    try:
+      if not iter.finished:
+        let item = await genNext()
+        if finishOnErr and err =? item.errorOption:
+          iter.finished = true
+          return failure(err)
+        if isFinished():
+          iter.finished = true
+        return item
+      else:
+        return failure("AsyncIter is finished but next item was requested")
+    except CancelledError as err:
+      iter.finished = true
+      raise err
 
   if isFinished():
-    iter.finish
+    iter.finished = true
 
   iter.next = next
   return iter
 
-proc mapAsync*[T, U](iter: Iter[T], fn: Function[T, Future[U]]): AsyncIter[U] =
-  AsyncIter[U].new(genNext = () => fn(iter.next()), isFinished = () => iter.finished())
+# forward declaration
+proc mapAsync*[T, U](
+  iter: Iter[T], fn: AsyncIterFunction[T, ?!U], finishOnErr: bool = true
+): AsyncIter[U]
 
-proc new*[U, V: Ordinal](_: type AsyncIter[U], slice: HSlice[U, V]): AsyncIter[U] =
+proc new*[U, V: Ordinal](
+    _: type AsyncIter[U], slice: HSlice[U, V], finishOnErr: bool = true
+): AsyncIter[U] =
   ## Creates new Iter from a slice
   ##
 
   let iter = Iter[U].new(slice)
   mapAsync[U, U](
     iter,
-    proc(i: U): Future[U] {.async.} =
-      i,
+    proc(i: U): Future[?!U] {.async: (raises: [CancelledError]).} =
+      success[U](i),
+    finishOnErr = finishOnErr,
   )
 
 proc new*[U, V, S: Ordinal](
-    _: type AsyncIter[U], a: U, b: V, step: S = 1
+    _: type AsyncIter[U], a: U, b: V, step: S = 1, finishOnErr: bool = true
 ): AsyncIter[U] =
   ## Creates new Iter in range a..b with specified step (default 1)
   ##
@@ -100,79 +129,114 @@ proc new*[U, V, S: Ordinal](
   let iter = Iter[U].new(a, b, step)
   mapAsync[U, U](
     iter,
-    proc(i: U): Future[U] {.async.} =
-      i,
+    proc(i: U): Future[?!U] {.async: (raises: [CancelledError]).} =
+      U.success(i),
+    finishOnErr = finishOnErr,
+  )
+
+proc finish*[T](self: AsyncIter[T]): void =
+  self.finished = true
+
+proc finished*[T](self: AsyncIter[T]): bool =
+  self.finished
+
+iterator items*[T](self: AsyncIter[T]): auto {.inline.} =
+  while not self.finished:
+    yield self.next()
+
+iterator pairs*[T](self: AsyncIter[T]): auto {.inline.} =
+  var i = 0
+  while not self.finished:
+    yield (i, self.next())
+    inc(i)
+
+proc mapFuture*[T, U](
+    fut: auto, fn: AsyncIterFunction[T, U]
+): Future[U] {.async: (raises: [CancelledError]).} =
+  let t = await fut
+  await fn(t)
+
+proc mapAsync*[T, U](
+    iter: Iter[T], fn: AsyncIterFunction[T, ?!U], finishOnErr: bool = true
+): AsyncIter[U] =
+  AsyncIter[U].new(
+    genNext = () => fn(iter.next()),
+    isFinished = () => iter.finished(),
+    finishOnErr = finishOnErr,
+  )
+
+proc map*[T, U](
+    iter: AsyncIter[T], fn: AsyncIterFunction[?!T, ?!U], finishOnErr: bool = true
+): AsyncIter[U] =
+  AsyncIter[U].new(
+    genNext = () => iter.next().flatMap(fn),
+    isFinished = () => iter.finished,
+    finishOnErr = finishOnErr,
+  )
+
+proc mapFilter*[T, U](
+    iter: AsyncIter[T],
+    mapPredicate: AsyncIterFunction[?!T, Option[?!U]],
+    finishOnErr: bool = true,
+): Future[AsyncIter[U]] {.async: (raises: [CancelledError]).} =
+  var nextU: Option[?!U]
+
+  proc filter(): Future[void] {.async: (raises: [CancelledError]).} =
+    nextU = none(?!U)
+    while not iter.finished:
+      let futT = iter.next()
+      if mappedValue =? await futT.flatMap(mapPredicate):
+        nextU = some(mappedValue)
+        break
+
+  proc genNext(): Future[?!U] {.async: (raises: [CancelledError]).} =
+    let u = nextU.unsafeGet
+    await filter()
+    u
+
+  proc isFinished(): bool =
+    nextU.isNone
+
+  await filter()
+  AsyncIter[U].new(genNext, isFinished, finishOnErr = finishOnErr)
+
+proc filter*[T](
+    iter: AsyncIter[T],
+    predicate: AsyncIterFunction[?!T, bool],
+    finishOnErr: bool = true,
+): Future[AsyncIter[T]] {.async: (raises: [CancelledError]).} =
+  proc wrappedPredicate(
+      t: ?!T
+  ): Future[Option[?!T]] {.async: (raises: [CancelledError]).} =
+    if await predicate(t):
+      some(t)
+    else:
+      none(?!T)
+
+  await mapFilter[T, T](iter, wrappedPredicate, finishOnErr = finishOnErr)
+
+proc delayBy*[T](
+    iter: AsyncIter[T], d: Duration, finishOnErr: bool = true
+): AsyncIter[T] =
+  ## Delays emitting each item by given duration
+  ##
+
+  map[T, T](
+    iter,
+    proc(t: ?!T): Future[?!T] {.async: (raises: [CancelledError]).} =
+      await sleepAsync(d)
+      return t,
+    finishOnErr = finishOnErr,
   )
 
 proc empty*[T](_: type AsyncIter[T]): AsyncIter[T] =
   ## Creates an empty AsyncIter
   ##
 
-  proc genNext(): Future[T] {.raises: [CatchableError].} =
-    raise newException(CatchableError, "Next item requested from an empty AsyncIter")
+  proc genNext(): Future[?!T] {.async: (raises: [CancelledError]).} =
+    T.failure("Next item requested from an empty AsyncIter")
 
   proc isFinished(): bool =
     true
 
   AsyncIter[T].new(genNext, isFinished)
-
-proc map*[T, U](iter: AsyncIter[T], fn: Function[T, Future[U]]): AsyncIter[U] =
-  AsyncIter[U].new(
-    genNext = () => iter.next().flatMap(fn), isFinished = () => iter.finished
-  )
-
-proc mapFilter*[T, U](
-    iter: AsyncIter[T], mapPredicate: Function[T, Future[Option[U]]]
-): Future[AsyncIter[U]] {.async: (raises: [CancelledError]).} =
-  var nextFutU: Option[Future[U]]
-
-  proc tryFetch(): Future[void] {.async: (raises: [CancelledError]).} =
-    nextFutU = Future[U].none
-    while not iter.finished:
-      let futT = iter.next()
-      try:
-        if u =? await futT.flatMap(mapPredicate):
-          let futU = newFuture[U]("AsyncIter.mapFilterAsync")
-          futU.complete(u)
-          nextFutU = some(futU)
-          break
-      except CancelledError as err:
-        raise err
-      except CatchableError as err:
-        let errFut = newFuture[U]("AsyncIter.mapFilterAsync")
-        errFut.fail(err)
-        nextFutU = some(errFut)
-        break
-
-  proc genNext(): Future[U] {.async.} =
-    let futU = nextFutU.unsafeGet
-    await tryFetch()
-    await futU
-
-  proc isFinished(): bool =
-    nextFutU.isNone
-
-  await tryFetch()
-  AsyncIter[U].new(genNext, isFinished)
-
-proc filter*[T](
-    iter: AsyncIter[T], predicate: Function[T, Future[bool]]
-): Future[AsyncIter[T]] {.async: (raises: [CancelledError]).} =
-  proc wrappedPredicate(t: T): Future[Option[T]] {.async.} =
-    if await predicate(t):
-      some(t)
-    else:
-      T.none
-
-  await mapFilter[T, T](iter, wrappedPredicate)
-
-proc delayBy*[T](iter: AsyncIter[T], d: Duration): AsyncIter[T] =
-  ## Delays emitting each item by given duration
-  ##
-
-  map[T, T](
-    iter,
-    proc(t: T): Future[T] {.async.} =
-      await sleepAsync(d)
-      t,
-  )

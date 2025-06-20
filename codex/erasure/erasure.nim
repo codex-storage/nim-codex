@@ -28,7 +28,6 @@ import ../stores
 import ../clock
 import ../blocktype as bt
 import ../utils
-import ../utils/asynciter
 import ../indexingstrategy
 import ../errors
 import ../utils/arrayutils
@@ -122,16 +121,21 @@ func indexToPos(steps, idx, step: int): int {.inline.} =
 
 proc getPendingBlocks(
     self: Erasure, manifest: Manifest, indices: seq[int]
-): (AsyncIter[(?!bt.Block, int)], seq[Future[?!bt.Block]]) =
+): (AsyncIter[(?!bt.Block, int)], seq[Future[?!bt.Block].Raising([CancelledError])]) =
   ## Get pending blocks iterator
   ##
+
+  if indices.len == 0:
+    trace "No indices to fetch blocks for", treeCid = manifest.treeCid
+    return (AsyncIter[(?!bt.Block, int)].empty(), @[])
+
   var
-    pendingBlockFutures: seq[Future[?!bt.Block]] = @[]
-    pendingBlocks: seq[Future[(?!bt.Block, int)]] = @[]
+    pendingBlockFutures: seq[Future[?!bt.Block].Raising([CancelledError])] = @[]
+    pendingBlocks: seq[Future[(?!bt.Block, int)].Raising([CancelledError])] = @[]
 
   proc attachIndex(
-      fut: Future[?!bt.Block], i: int
-  ): Future[(?!bt.Block, int)] {.async.} =
+      fut: Future[?!bt.Block].Raising([CancelledError]), i: int
+  ): Future[(?!bt.Block, int)] {.async: (raises: [CancelledError]).} =
     ## avoids closure capture issues
     return (await fut, i)
 
@@ -144,18 +148,23 @@ proc getPendingBlocks(
   proc isFinished(): bool =
     pendingBlocks.len == 0
 
-  proc genNext(): Future[(?!bt.Block, int)] {.async.} =
-    let completedFut = await one(pendingBlocks)
-    if (let i = pendingBlocks.find(completedFut); i >= 0):
-      pendingBlocks.del(i)
-      return await completedFut
-    else:
-      let (_, index) = await completedFut
-      raise newException(
-        CatchableError,
-        "Future for block id not found, tree cid: " & $manifest.treeCid & ", index: " &
-          $index,
-      )
+  proc genNext(): Future[?!(?!bt.Block, int)] {.async: (raises: [CancelledError]).} =
+    try:
+      let completedFut = await one(pendingBlocks)
+      if (let i = pendingBlocks.find(completedFut); i >= 0):
+        pendingBlocks.del(i)
+        return success(await completedFut)
+      else:
+        let (_, index) = await completedFut
+        return failure(
+          "Future for block id not found, tree cid: " & $manifest.treeCid & ", index: " &
+            $index
+        )
+    except ValueError as err:
+      # ValueError is raised by `one` when the pendingBlocks is empty -
+      # but we check for that at the very beginning - 
+      # thus, if this happens, we raise an assert
+      raiseAssert("fatal: pendingBlocks is empty - this should never happen")
 
   (AsyncIter[(?!bt.Block, int)].new(genNext, isFinished), pendingBlockFutures)
 
@@ -167,7 +176,7 @@ proc prepareEncodingData(
     data: ref seq[seq[byte]],
     cids: ref seq[Cid],
     emptyBlock: seq[byte],
-): Future[?!Natural] {.async.} =
+): Future[?!Natural] {.async: (raises: [CancelledError, IndexingError]).} =
   ## Prepare data for encoding
   ##
 
@@ -181,7 +190,9 @@ proc prepareEncodingData(
 
   var resolved = 0
   for fut in pendingBlocksIter:
-    let (blkOrErr, idx) = await fut
+    let pendingBlocksRes = await fut
+    without (blkOrErr, idx) =? pendingBlocksRes, err:
+      return failure(err)
     without blk =? blkOrErr, err:
       warn "Failed retrieving a block", treeCid = manifest.treeCid, idx, msg = err.msg
       return failure(err)
@@ -211,7 +222,7 @@ proc prepareDecodingData(
     parityData: ref seq[seq[byte]],
     cids: ref seq[Cid],
     emptyBlock: seq[byte],
-): Future[?!(Natural, Natural)] {.async.} =
+): Future[?!(Natural, Natural)] {.async: (raises: [CancelledError, IndexingError]).} =
   ## Prepare data for decoding
   ## `encoded`    - the encoded manifest
   ## `step`       - the current step
@@ -238,7 +249,9 @@ proc prepareDecodingData(
     if resolved >= encoded.ecK:
       break
 
-    let (blkOrErr, idx) = await fut
+    let pendingBlocksRes = await fut
+    without (blkOrErr, idx) =? pendingBlocksRes, err:
+      return failure(err)
     without blk =? blkOrErr, err:
       trace "Failed retrieving a block", idx, treeCid = encoded.treeCid, msg = err.msg
       continue
@@ -370,7 +383,7 @@ proc asyncEncode*(
 
 proc encodeData(
     self: Erasure, manifest: Manifest, params: EncodingParams
-): Future[?!Manifest] {.async.} =
+): Future[?!Manifest] {.async: (raises: [CancelledError]).} =
   ## Encode blocks pointed to by the protected manifest
   ##
   ## `manifest` - the manifest to encode
@@ -411,15 +424,12 @@ proc encodeData(
 
       trace "Erasure coding data", data = data[].len
 
-      try:
-        if err =? (
-          await self.asyncEncode(
-            manifest.blockSize.int, params.ecK, params.ecM, data, parity
-          )
-        ).errorOption:
-          return failure(err)
-      except CancelledError as exc:
-        raise exc
+      if err =? (
+        await self.asyncEncode(
+          manifest.blockSize.int, params.ecK, params.ecM, data, parity
+        )
+      ).errorOption:
+        return failure(err)
 
       var idx = params.rounded + step
       for j in 0 ..< params.ecM:
@@ -459,9 +469,9 @@ proc encodeData(
   except CancelledError as exc:
     trace "Erasure coding encoding cancelled"
     raise exc # cancellation needs to be propagated
-  except CatchableError as exc:
-    trace "Erasure coding encoding error", exc = exc.msg
-    return failure(exc)
+  except IndexingError as err:
+    trace "Erasure coding encoding indexing error", error = err.msg
+    return failure(err)
 
 proc encode*(
     self: Erasure,
@@ -469,7 +479,7 @@ proc encode*(
     blocks: Natural,
     parity: Natural,
     strategy = SteppedStrategy,
-): Future[?!Manifest] {.async.} =
+): Future[?!Manifest] {.async: (raises: [CancelledError]).} =
   ## Encode a manifest into one that is erasure protected.
   ##
   ## `manifest`   - the original manifest to be encoded
@@ -562,7 +572,7 @@ proc asyncDecode*(
 
 proc decodeInternal(
     self: Erasure, encoded: Manifest
-): Future[?!(ref seq[Cid], seq[Natural])] {.async.} =
+): Future[?!(ref seq[Cid], seq[Natural])] {.async: (raises: [CancelledError]).} =
   logScope:
     steps = encoded.steps
     rounded_blocks = encoded.rounded
@@ -605,15 +615,12 @@ proc decodeInternal(
         continue
 
       trace "Erasure decoding data"
-      try:
-        if err =? (
-          await self.asyncDecode(
-            encoded.blockSize.int, encoded.ecK, encoded.ecM, data, parityData, recovered
-          )
-        ).errorOption:
-          return failure(err)
-      except CancelledError as exc:
-        raise exc
+      if err =? (
+        await self.asyncDecode(
+          encoded.blockSize.int, encoded.ecK, encoded.ecM, data, parityData, recovered
+        )
+      ).errorOption:
+        return failure(err)
 
       for i in 0 ..< encoded.ecK:
         let idx = i * encoded.steps + step
@@ -636,9 +643,9 @@ proc decodeInternal(
   except CancelledError as exc:
     trace "Erasure coding decoding cancelled"
     raise exc # cancellation needs to be propagated
-  except CatchableError as exc:
-    trace "Erasure coding decoding error", exc = exc.msg
-    return failure(exc)
+  except IndexingError as err:
+    trace "Erasure coding decoding indexing error", error = err.msg
+    return failure(err)
   finally:
     decoder.release()
 
