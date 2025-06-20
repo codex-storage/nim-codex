@@ -60,7 +60,7 @@ jobs:
         env:
           MSYS2_PATH_TYPE: inherit
         run: |
-          npm install
+          npm ci
           npm start &
           # Wait for the contracts to be deployed
           sleep 5
