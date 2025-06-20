@@ -65,6 +65,11 @@ method getBlock*(
 
   raiseAssert("getBlock by addr not implemented!")
 
+method completeBlock*(
+    self: BlockStore, address: BlockAddress, blk: Block
+) {.base, gcsafe.} =
+  discard
+
 method getBlockAndProof*(
     self: BlockStore, treeCid: Cid, index: Natural
 ): Future[?!(Block, CodexProof)] {.base, async: (raises: [CancelledError]), gcsafe.} =
