@@ -21,6 +21,9 @@ const knownAddresses = {
   # Codex Testnet - Jun 19 2025 13:11:56 PM (+00:00 UTC)
   "789987":
     {"Marketplace": Address.init("0x5378a4EA5dA2a548ce22630A3AE74b052000C62D")}.toTable,
+  # Linea (Status)
+  "1660990954":
+    {"Marketplace": Address.init("0x34F606C65869277f236ce07aBe9af0B8c88F486B")}.toTable,
 }.toTable
 
 proc getKnownAddress(T: type, chainId: UInt256): ?Address =
