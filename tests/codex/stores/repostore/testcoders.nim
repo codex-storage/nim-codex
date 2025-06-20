@@ -34,26 +34,26 @@ suite "Test coders":
     StoreResult(kind: rand(StoreResultKind), used: rand(NBytes))
 
   test "Natural encode/decode":
-    for val in newSeqWith[Natural](100, rand(Natural)) & @[Natural.low, Natural.high]:
+    for val in newSeqWith(100, rand(Natural)) & @[Natural.low, Natural.high]:
       check:
         success(val) == Natural.decode(encode(val))
 
   test "QuotaUsage encode/decode":
-    for val in newSeqWith[QuotaUsage](100, rand(QuotaUsage)):
+    for val in newSeqWith(100, rand(QuotaUsage)):
       check:
         success(val) == QuotaUsage.decode(encode(val))
 
   test "BlockMetadata encode/decode":
-    for val in newSeqWith[BlockMetadata](100, rand(BlockMetadata)):
+    for val in newSeqWith(100, rand(BlockMetadata)):
       check:
         success(val) == BlockMetadata.decode(encode(val))
 
   test "DeleteResult encode/decode":
-    for val in newSeqWith[DeleteResult](100, rand(DeleteResult)):
+    for val in newSeqWith(100, rand(DeleteResult)):
       check:
         success(val) == DeleteResult.decode(encode(val))
 
   test "StoreResult encode/decode":
-    for val in newSeqWith[StoreResult](100, rand(StoreResult)):
+    for val in newSeqWith(100, rand(StoreResult)):
       check:
         success(val) == StoreResult.decode(encode(val))
