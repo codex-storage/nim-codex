@@ -8,6 +8,7 @@ import ../checktest
 import ./codexprocess
 import ./nodeprocess
 import ../examples
+import ./hardhatprocess
 
 asyncchecksuite "Command line interface":
   let key = "4242424242424242424242424242424242424242424242424242424242424242"
@@ -26,23 +27,27 @@ asyncchecksuite "Command line interface":
     if not args.anyIt(it.contains("--data-dir")):
       args.add("--data-dir=" & tmpDataDir)
 
-    return await CodexProcess.startNode(args, debug = false, "cli-test-node")
+    return await CodexProcess.startNode(args, debug = true, "cli-test-node")
 
   test "complains when persistence is enabled without ethereum account":
+    # let hardhat = await HardhatProcess.startNode(@[], true, "hardhat")
     let node = await startCodex(@["persistence"])
 
     defer:
       await node.stop()
+      # await hardhat.stop()
 
     await node.waitUntilOutput("Persistence enabled, but no Ethereum account was set")
 
   test "complains when ethereum private key file has wrong permissions":
     let unsafeKeyFile = genTempPath("", "")
     discard unsafeKeyFile.writeFile(key, 0o666)
+    # let hardhat = await HardhatProcess.startNode(@[], true, "hardhat")
     let node = await startCodex(@["persistence", "--eth-private-key=" & unsafeKeyFile])
 
     defer:
       await node.stop()
+      # await hardhat.stop()
       discard removeFile(unsafeKeyFile)
 
     await node.waitUntilOutput(
