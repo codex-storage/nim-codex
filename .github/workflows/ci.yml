@@ -28,7 +28,7 @@ jobs:
         id: matrix
         run: |
           echo 'matrix<<EOF' >> $GITHUB_OUTPUT
-          .github/actions/workflows/ci-job-matrix.sh >> $GITHUB_OUTPUT
+          tools/scripts/ci-job-matrix.sh >> $GITHUB_OUTPUT
           echo 'EOF' >> $GITHUB_OUTPUT
 
   build:
