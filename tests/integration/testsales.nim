@@ -25,7 +25,8 @@ marketplacesuite(name = "Sales", stopOnRequestFail = true):
       .withLogTopics("node", "marketplace").some,
     providers: CodexConfigs
       .init(nodes = 1)
-      # .debug() # uncomment to enable console log output
+      .debug()
+      # uncomment to enable console log output
       .withLogFile()
       # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
       .withLogTopics(

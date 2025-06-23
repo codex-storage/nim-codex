@@ -38,9 +38,9 @@ marketplacesuite(name = "Validation", stopOnRequestFail = false):
         .init(nodes = 1)
         .withSimulateProofFailures(idx = 0, failEveryNProofs = 1)
         # .debug() # uncomment to enable console log output
-        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        # .withLogTopics("sales", "onchain")
-        .some,
+        .withLogFile()
+        # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        .withLogTopics("sales", "onchain").some,
       validators: CodexConfigs
         .init(nodes = 2)
         .withValidationGroups(groups = 2)
@@ -110,9 +110,9 @@ marketplacesuite(name = "Validation", stopOnRequestFail = false):
         .init(nodes = 1)
         .withSimulateProofFailures(idx = 0, failEveryNProofs = 1)
         # .debug() # uncomment to enable console log output
-        # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-        # .withLogTopics("sales", "onchain")
-        .some,
+        .withLogFile()
+        # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
+        .withLogTopics("sales", "onchain").some,
     ):
     let client0 = clients()[0].client
     let expiry = 5.periods
