@@ -13,6 +13,7 @@ marketplacesuite(name = "Marketplace", stopOnRequestFail = true):
       CodexConfigs.init(nodes = 1).withLogFile().withLogTopics("node, marketplace").some,
     providers: CodexConfigs
       .init(nodes = 1)
+      .debug()
       .withLogFile()
       .withLogTopics(
         "marketplace", "sales", "statemachine", "slotqueue", "reservations"
@@ -60,7 +61,7 @@ marketplacesuite(name = "Marketplace", stopOnRequestFail = true):
       cid,
       duration = 20 * 60.uint64,
       pricePerBytePerSecond = minPricePerBytePerSecond,
-      proofProbability = 3.u256,
+      proofProbability = 1.u256,
       expiry = 10 * 60.uint64,
       collateralPerByte = collateralPerByte,
       nodes = ecNodes,
@@ -106,7 +107,7 @@ marketplacesuite(name = "Marketplace", stopOnRequestFail = true):
       cid,
       duration = duration,
       pricePerBytePerSecond = minPricePerBytePerSecond,
-      proofProbability = 3.u256,
+      proofProbability = 1.u256,
       expiry = 10 * 60.uint64,
       collateralPerByte = collateralPerByte,
       nodes = ecNodes,
@@ -152,12 +153,12 @@ marketplacesuite(name = "Marketplace", stopOnRequestFail = true):
     NodeConfigs(
       clients: CodexConfigs
         .init(nodes = 1)
-        # .debug(
+        .debug()
         .withLogFile()
         .withLogTopics("node, marketplace").some,
       providers: CodexConfigs
         .init(nodes = 2)
-        # .debug()
+        .debug()
         .withLogFile()
         .withLogTopics(
           "marketplace", "sales", "statemachine", "slotqueue", "reservations"
@@ -213,7 +214,7 @@ marketplacesuite(name = "Marketplace", stopOnRequestFail = true):
       cid,
       duration = duration,
       pricePerBytePerSecond = minPricePerBytePerSecond,
-      proofProbability = 3.u256,
+      proofProbability = 1.u256,
       expiry = 10 * 60.uint64,
       collateralPerByte = collateralPerByte,
       nodes = ecNodes,
@@ -240,13 +241,15 @@ marketplacesuite(name = "Marketplace payouts", stopOnRequestFail = true):
       hardhat: HardhatConfig.none,
       clients: CodexConfigs
         .init(nodes = 1)
-        #  .debug() # uncomment to enable console log output.debug()
+        .debug()
+        # uncomment to enable console log output.debug()
         .withLogFile()
         # # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
         .withLogTopics("node, marketplace").some,
       providers: CodexConfigs
         .init(nodes = 1)
-        #  .debug() # uncomment to enable console log output
+        .debug()
+        # uncomment to enable console log output
         .withLogFile()
         # # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
         .withLogTopics(
@@ -359,7 +362,7 @@ marketplacesuite(name = "Marketplace payouts", stopOnRequestFail = true):
         .withLogTopics("node, marketplace").some,
       providers: CodexConfigs
         .init(nodes = 3)
-        # .debug()
+        .debug()
         # uncomment to enable console log output
         .withLogFile()
         # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
