@@ -423,12 +423,15 @@ marketplacesuite(name = "Marketplace payouts", stopOnRequestFail = true):
       let client = provider.client
       check eventually(
         block:
-          let availabilities = (await client.getAvailabilities()).get
-          let availability = availabilities[0]
-          let slots = (await client.getSlots()).get
-          let availableSlots = (3 - slots.len).u256
+          try:
+            let availabilities = (await client.getAvailabilities()).get
+            let availability = availabilities[0]
+            let slots = (await client.getSlots()).get
+            let availableSlots = (3 - slots.len).u256
 
-          availability.totalRemainingCollateral ==
-            availableSlots * slotSize * minPricePerBytePerSecond,
+            availability.totalRemainingCollateral ==
+              availableSlots * slotSize * minPricePerBytePerSecond
+          except HttpConnectionError:
+            false,
         timeout = 30 * 1000,
       )
