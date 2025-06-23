@@ -308,7 +308,7 @@ method freeSlot*(
         let gas = await market.contract.estimateGas.freeSlot(
           slotId, rewardRecipient, collateralRecipient
         )
-        let overrides = TransactionOverrides(gasLimit: some (gas * 110) div 100)
+        let overrides = TransactionOverrides(gasLimit: some (gas * 300) div 100)
 
         freeSlot = market.contract.freeSlot(
           slotId,
@@ -323,7 +323,7 @@ method freeSlot*(
         # Add 10% to gas estimate to deal with different evm code flow when we
         # happen to be the one to make the request fail
         let gas = await market.contract.estimateGas.freeSlot(slotId)
-        let overrides = TransactionOverrides(gasLimit: some (gas * 110) div 100)
+        let overrides = TransactionOverrides(gasLimit: some (gas * 300) div 100)
 
         freeSlot = market.contract.freeSlot(slotId, overrides)
 
@@ -375,7 +375,7 @@ method markProofAsMissing*(
     # Add 10% to gas estimate to deal with different evm code flow when we
     # happen to be the one to make the request fail
     let gas = await market.contract.estimateGas.markProofAsMissing(id, period)
-    let overrides = TransactionOverrides(gasLimit: some (gas * 110) div 100)
+    let overrides = TransactionOverrides(gasLimit: some (gas * 150) div 100)
 
     discard await market.contract.markProofAsMissing(id, period, overrides).confirm(1)
 
@@ -400,7 +400,7 @@ method reserveSlot*(
       # Add 10% to gas estimate to deal with different evm code flow when we
       # happen to be the last one that is allowed to reserve the slot
       let gas = await market.contract.estimateGas.reserveSlot(requestId, slotIndex)
-      let overrides = TransactionOverrides(gasLimit: some (gas * 110) div 100)
+      let overrides = TransactionOverrides(gasLimit: some (gas * 125) div 100)
 
       discard
         await market.contract.reserveSlot(requestId, slotIndex, overrides).confirm(1)
