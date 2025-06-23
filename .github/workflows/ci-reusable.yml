@@ -24,7 +24,7 @@ jobs:
       run:
         shell: ${{ matrix.shell }} {0}
 
-    name: ${{ matrix.os }}-${{ matrix.tests }}-${{ matrix.cpu }}-${{ matrix.nim_version }}
+    name: ${{ matrix.os }}-${{ matrix.tests }}-${{ matrix.cpu }}-${{ matrix.nim_version }}-${{ matrix.job_number }}
     runs-on: ${{ matrix.builder }}
     timeout-minutes: 120
     steps:
@@ -80,7 +80,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: (matrix.tests == 'integration' || matrix.tests == 'all') && always()
         with:
-          name: ${{ matrix.os }}-${{ matrix.cpu }}-${{ matrix.nim_version }}-integration-tests-logs
+          name: ${{ matrix.os }}-${{ matrix.cpu }}-${{ matrix.nim_version }}-${{ matrix.job_number }}-integration-tests-logs
           path: tests/integration/logs/
           retention-days: 1
 

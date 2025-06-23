@@ -19,7 +19,8 @@ job () {
     \"tests\": \"${job_tests}\", \
     \"includes\": \"${job_includes}\", \
     \"nim_version\": \"${nim_version}\", \
-    \"shell\": \"${job_shell}\"\
+    \"shell\": \"${job_shell}\", \
+    \"job_number\": \"${jobs_generated}\" \
   }"
 }
 
