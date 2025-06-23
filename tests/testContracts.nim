@@ -1,7 +1,6 @@
-import ./contracts/testContracts
-import ./contracts/testMarket
-import ./contracts/testDeployment
-import ./contracts/testClock
-import ./contracts/testProvider
+import std/os
+import ./imports
+
+importTests(currentSourcePath().parentDir() / "contracts")
 
 {.warning[UnusedImport]: off.}
