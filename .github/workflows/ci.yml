@@ -22,6 +22,8 @@ jobs:
       matrix: ${{ steps.matrix.outputs.matrix }}
       cache_nonce: ${{ env.cache_nonce }}
     steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
       - name: Compute matrix
         id: matrix
         run: |
