@@ -565,7 +565,6 @@ proc asyncDecode*(
 proc decodeInternal(
     self: Erasure, encoded: Manifest
 ): Future[?!(ref seq[Cid], seq[Natural])] {.async: (raises: [CancelledError]).} =
-
   logScope:
     steps = encoded.steps
     rounded_blocks = encoded.rounded
