@@ -109,6 +109,16 @@ marketplacesuite(name = "Marketplace", stopOnRequestFail = true):
 
     discard await waitForRequestToStart()
 
+    var counter = 0
+    var transferEvent = newAsyncEvent()
+    proc onTransfer(eventResult: ?!Transfer) =
+      assert not eventResult.isErr
+      counter += 1
+      if counter == 6:
+        transferEvent.fire()
+
+    let tokenSubscription = await token.subscribe(Transfer, onTransfer)
+
     let purchase = (await client.getPurchase(id)).get
     check purchase.error == none string
 
@@ -119,17 +129,18 @@ marketplacesuite(name = "Marketplace", stopOnRequestFail = true):
     # only with new transaction
     await ethProvider.advanceTime(duration.u256)
 
+    await transferEvent.wait().wait(timeout = chronos.seconds(60))
+
     # Checking that the hosting node received reward for at least the time between <expiry;end>
     let slotSize = slotSize(blocks, ecNodes, ecTolerance)
     let pricePerSlotPerSecond = minPricePerBytePerSecond * slotSize
-    check eventually (await token.balanceOf(hostAccount)) - startBalanceHost >=
+    check (await token.balanceOf(hostAccount)) - startBalanceHost >=
       (duration - 5 * 60).u256 * pricePerSlotPerSecond * ecNodes.u256
 
     # Checking that client node receives some funds back that were not used for the host nodes
-    check eventually(
-      (await token.balanceOf(clientAccount)) - clientBalanceBeforeFinished > 0,
-      timeout = 10 * 1000, # give client a bit of time to withdraw its funds
-    )
+    check ((await token.balanceOf(clientAccount)) - clientBalanceBeforeFinished > 0)
+
+    await tokenSubscription.unsubscribe()
 
   test "SP are able to process slots after workers were busy with other slots and ignored them",
     NodeConfigs(
@@ -286,6 +297,18 @@ marketplacesuite(name = "Marketplace payouts", stopOnRequestFail = true):
     check eventually(slotIdxFilled.isSome, timeout = expiry.int * 1000)
     let slotId = slotId(!(await clientApi.requestId(id)), !slotIdxFilled)
 
+    var counter = 0
+    var transferEvent = newAsyncEvent()
+    proc onTransfer(eventResult: ?!Transfer) =
+      assert not eventResult.isErr
+      counter += 1
+      if counter == 3:
+        transferEvent.fire()
+
+    let tokenAddress = await marketplace.token()
+    let token = Erc20Token.new(tokenAddress, ethProvider.getSigner())
+    let tokenSubscription = await token.subscribe(Transfer, onTransfer)
+
     # wait until sale is cancelled
     await ethProvider.advanceTime(expiry.u256)
 
@@ -293,26 +316,28 @@ marketplacesuite(name = "Marketplace payouts", stopOnRequestFail = true):
 
     await advanceToNextPeriod()
 
+    await transferEvent.wait().wait(timeout = chronos.seconds(60))
+
     let slotSize = slotSize(blocks, ecNodes, ecTolerance)
     let pricePerSlotPerSecond = minPricePerBytePerSecond * slotSize
 
-    check eventually (
+    check (
       let endBalanceProvider = (await token.balanceOf(provider.ethAccount))
       endBalanceProvider > startBalanceProvider and
         endBalanceProvider < startBalanceProvider + expiry.u256 * pricePerSlotPerSecond
     )
-    check eventually(
+    check(
       (
         let endBalanceClient = (await token.balanceOf(client.ethAccount))
         let endBalanceProvider = (await token.balanceOf(provider.ethAccount))
         (startBalanceClient - endBalanceClient) ==
           (endBalanceProvider - startBalanceProvider)
-      ),
-      timeout = 10 * 1000, # give client a bit of time to withdraw its funds
+      )
     )
 
     await slotFilledSubscription.unsubscribe()
     await requestCancelledSubscription.unsubscribe()
+    await tokenSubscription.unsubscribe()
 
   test "the collateral is returned after a sale is ignored",
     NodeConfigs(
@@ -386,12 +411,15 @@ marketplacesuite(name = "Marketplace payouts", stopOnRequestFail = true):
       let client = provider.client
       check eventually(
         block:
-          let availabilities = (await client.getAvailabilities()).get
-          let availability = availabilities[0]
-          let slots = (await client.getSlots()).get
-          let availableSlots = (3 - slots.len).u256
+          try:
+            let availabilities = (await client.getAvailabilities()).get
+            let availability = availabilities[0]
+            let slots = (await client.getSlots()).get
+            let availableSlots = (3 - slots.len).u256
 
-          availability.totalRemainingCollateral ==
-            availableSlots * slotSize * minPricePerBytePerSecond,
+            availability.totalRemainingCollateral ==
+              availableSlots * slotSize * minPricePerBytePerSecond
+          except HttpConnectionError:
+            return false,
         timeout = 30 * 1000,
       )
