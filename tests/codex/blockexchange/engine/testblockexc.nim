@@ -98,15 +98,7 @@ asyncchecksuite "NetworkStore engine - 2 nodes":
     let blkFut = nodeCmps1.pendingBlocks.getWantHandle(blk.cid)
     (await nodeCmps2.localStore.putBlock(blk)).tryGet()
 
-    let entry = WantListEntry(
-      address: blk.address,
-      priority: 1,
-      cancel: false,
-      wantType: WantType.WantBlock,
-      sendDontHave: false,
-    )
-
-    peerCtx1.peerWants.add(entry)
+    peerCtx1.wantedBlocks.incl(blk.address)
     check nodeCmps2.engine.taskQueue.pushOrUpdateNoWait(peerCtx1).isOk
 
     check eventually (await nodeCmps1.localStore.hasBlock(blk.cid)).tryGet()

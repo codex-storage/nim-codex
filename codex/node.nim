@@ -52,7 +52,7 @@ export logutils
 logScope:
   topics = "codex node"
 
-const DefaultFetchBatch = 10
+const DefaultFetchBatch = 1_000_000
 
 type
   Contracts* =
@@ -187,23 +187,18 @@ proc fetchBatched*(
   #   )
 
   while not iter.finished:
-    let blockFutures = collect:
+    let addresses = collect:
       for i in 0 ..< batchSize:
         if not iter.finished:
           let address = BlockAddress.init(cid, iter.next())
           if not (await address in self.networkStore) or fetchLocal:
-            self.networkStore.getBlock(address)
+            address
 
-    if blockFutures.len == 0:
-      continue
+    let
+      blockResults = await self.networkStore.getBlocks(addresses)
+      blocks = blockResults.filterIt(it.isSuccess()).mapIt(it.value)
+      numOfFailedBlocks = blockResults.len - blocks.len
 
-    without blockResults =? await allFinishedValues[?!bt.Block](blockFutures), err:
-      trace "Some blocks failed to fetch", err = err.msg
-      return failure(err)
-
-    let blocks = blockResults.filterIt(it.isSuccess()).mapIt(it.value)
-
-    let numOfFailedBlocks = blockResults.len - blocks.len
     if numOfFailedBlocks > 0:
       return
         failure("Some blocks failed (Result) to fetch (" & $numOfFailedBlocks & ")")
