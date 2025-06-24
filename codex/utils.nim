@@ -19,9 +19,9 @@ import pkg/chronos
 import ./utils/asyncheapqueue
 import ./utils/fileutils
 import ./utils/iter
-import ./utils/asyncresultiterator
+import ./utils/asyncresultiter
 
-export asyncheapqueue, fileutils, iter, asyncresultiterator, chronos
+export asyncheapqueue, fileutils, iter, asyncresultiter, chronos
 
 when defined(posix):
   import os, posix

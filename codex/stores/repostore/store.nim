@@ -295,12 +295,12 @@ method hasBlock*(
 
 method listBlocks*(
     self: RepoStore, blockType = BlockType.Manifest
-): Future[?!AsyncResultIterator[Cid]] {.async: (raises: [CancelledError]).} =
+): Future[?!AsyncResultIter[Cid]] {.async: (raises: [CancelledError]).} =
   ## Get the list of blocks in the RepoStore.
   ## This is an intensive operation
   ##
 
-  var iter = AsyncResultIterator[Cid]()
+  var iter = AsyncResultIter[Cid]()
 
   let key =
     case blockType
@@ -346,7 +346,7 @@ proc blockRefCount*(self: RepoStore, cid: Cid): Future[?!Natural] {.async.} =
 
 method getBlockExpirations*(
     self: RepoStore, maxNumber: int, offset: int
-): Future[?!AsyncResultIterator[BlockExpiration]] {.
+): Future[?!AsyncResultIter[BlockExpiration]] {.
     async: (raises: [CancelledError]), base, gcsafe
 .} =
   ## Get iterator with block expirations
@@ -360,11 +360,11 @@ method getBlockExpirations*(
     error "Unable to execute block expirations query", err = err.msg
     return failure(err)
 
-  without asyncQueryIter =? (await queryIter.toAsyncResultIterator()), err:
+  without asyncQueryIter =? (await queryIter.toAsyncResultIter()), err:
     error "Unable to convert QueryIter to AsyncIter", err = err.msg
     return failure(err)
 
-  let filteredIter: AsyncResultIterator[KeyVal[BlockMetadata]] =
+  let filteredIter: AsyncResultIter[KeyVal[BlockMetadata]] =
     await asyncQueryIter.filterSuccess()
 
   proc mapping(

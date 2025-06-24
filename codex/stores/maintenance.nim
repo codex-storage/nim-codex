@@ -18,7 +18,7 @@ import pkg/questionable/results
 
 import ./repostore
 import ../utils/timer
-import ../utils/asyncresultiterator
+import ../utils/asyncresultiter
 import ../clock
 import ../logutils
 import ../systemclock

@@ -6,7 +6,7 @@ import pkg/chronos
 import pkg/datastore/typedds
 import pkg/datastore/sql/sqliteds
 import pkg/codex/stores/queryiterhelper
-import pkg/codex/utils/asyncresultiterator
+import pkg/codex/utils/asyncresultiter
 
 import ../../asynctest
 import ../helpers
@@ -43,7 +43,7 @@ asyncchecksuite "Test QueryIter helper":
     queryIter.dispose = () => (disposed = true; iterDispose())
 
     let
-      iter1 = (await toAsyncResultIterator[string](queryIter)).tryGet()
+      iter1 = (await toAsyncResultIter[string](queryIter)).tryGet()
       iter2 = await filterSuccess[string](iter1)
 
     var items = initTable[string, string]()

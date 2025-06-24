@@ -4,16 +4,16 @@ import pkg/chronos
 import pkg/chronicles
 import pkg/datastore/typedds
 
-import ../utils/asyncresultiterator
+import ../utils/asyncresultiter
 
 {.push raises: [].}
 
 type KeyVal*[T] = tuple[key: Key, value: T]
 
-proc toAsyncResultIterator*[T](
+proc toAsyncResultIter*[T](
     queryIter: QueryIter[T], finishOnErr: bool = true
-): Future[?!AsyncResultIterator[QueryResponse[T]]] {.async: (raises: [CancelledError]).} =
-  ## Converts `QueryIter[T]` to `AsyncResultIterator[QueryResponse[T]]` and automatically
+): Future[?!AsyncResultIter[QueryResponse[T]]] {.async: (raises: [CancelledError]).} =
+  ## Converts `QueryIter[T]` to `AsyncResultIter[QueryResponse[T]]` and automatically
   ## runs dispose whenever `QueryIter` finishes or whenever an error occurs (only
   ## if the flag finishOnErr is set to true)
   ##
@@ -22,7 +22,7 @@ proc toAsyncResultIterator*[T](
     trace "Disposing iterator"
     if error =? (await queryIter.dispose()).errorOption:
       return failure(error)
-    return success(AsyncResultIterator[QueryResponse[T]].empty())
+    return success(AsyncResultIter[QueryResponse[T]].empty())
 
   var errOccurred = false
 
@@ -42,11 +42,11 @@ proc toAsyncResultIterator*[T](
   proc isFinished(): bool =
     queryIter.finished
 
-  AsyncResultIterator[QueryResponse[T]].new(genNext, isFinished).success
+  AsyncResultIter[QueryResponse[T]].new(genNext, isFinished).success
 
 proc filterSuccess*[T](
-    iter: AsyncResultIterator[QueryResponse[T]]
-): Future[AsyncResultIterator[tuple[key: Key, value: T]]] {.
+    iter: AsyncResultIter[QueryResponse[T]]
+): Future[AsyncResultIter[tuple[key: Key, value: T]]] {.
     async: (raises: [CancelledError])
 .} =
   ## Filters out any items that are not success
