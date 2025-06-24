@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# This script outputs a JSON configuration file for continuous integration with
+# Github actions. See .github/workflows/ci.yml for an example of how it's used.
+
 # remembers how many jobs were generated
 jobs_generated=0
 
