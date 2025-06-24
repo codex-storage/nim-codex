@@ -4,7 +4,7 @@ import pkg/chronos
 import pkg/chronicles
 import pkg/datastore/typedds
 
-import ../utils/safeasynciter
+import ../utils/asyncresultiterator
 
 {.push raises: [].}
 
