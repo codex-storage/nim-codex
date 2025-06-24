@@ -17,10 +17,11 @@ import pkg/chronos
 
 import ./iter
 
-## AsyncResultIterator[T] is similar to `AsyncIter[Future[T]]`
+## AsyncResultIterator[T] is similar to `AsyncIterator[Future[T]]`
 ## but does not throw exceptions others than CancelledError.
-## It is thus way easier to use with checked exceptions
-##
+## 
+## Instead of throwing exception, it uses Result to communicate errors (
+## thus the name AsyncResultIterator). 
 ##
 ## Public interface:
 ##
@@ -43,23 +44,24 @@ import ./iter
 ## - empty - to create an empty async iterator (AsyncResultIterator)
 
 type
-  SafeFunction[T, U] =
+  AsyncResultIteratorFunc[T, U] =
     proc(fut: T): Future[U] {.async: (raises: [CancelledError]), gcsafe, closure.}
-  SafeIsFinished = proc(): bool {.raises: [], gcsafe, closure.}
-  SafeGenNext[T] = proc(): Future[T] {.async: (raises: [CancelledError]), gcsafe.}
+  AsyncResultIteratorIsFinished = proc(): bool {.raises: [], gcsafe, closure.}
+  AsyncResultIteratorGenNext[T] =
+    proc(): Future[T] {.async: (raises: [CancelledError]), gcsafe.}
 
   AsyncResultIterator*[T] = ref object
     finished: bool
-    next*: SafeGenNext[?!T]
+    next*: AsyncResultIteratorGenNext[?!T]
 
 proc flatMap[T, U](
-    fut: auto, fn: SafeFunction[?!T, ?!U]
+    fut: auto, fn: AsyncResultIteratorFunc[?!T, ?!U]
 ): Future[?!U] {.async: (raises: [CancelledError]).} =
   let t = await fut
   await fn(t)
 
 proc flatMap[T, U](
-    fut: auto, fn: SafeFunction[?!T, Option[?!U]]
+    fut: auto, fn: AsyncResultIteratorFunc[?!T, Option[?!U]]
 ): Future[Option[?!U]] {.async: (raises: [CancelledError]).} =
   let t = await fut
   await fn(t)
@@ -70,7 +72,7 @@ proc flatMap[T, U](
 
 proc new*[T](
     _: type AsyncResultIterator[T],
-    genNext: SafeGenNext[?!T],
+    genNext: AsyncResultIteratorGenNext[?!T],
     isFinished: IsFinished,
     finishOnErr: bool = true,
 ): AsyncResultIterator[T] =
@@ -104,7 +106,7 @@ proc new*[T](
 
 # forward declaration
 proc mapAsync*[T, U](
-  iter: Iter[T], fn: SafeFunction[T, ?!U], finishOnErr: bool = true
+  iter: Iter[T], fn: AsyncResultIteratorFunc[T, ?!U], finishOnErr: bool = true
 ): AsyncResultIterator[U]
 
 proc new*[U, V: Ordinal](
@@ -152,13 +154,13 @@ iterator pairs*[T](self: AsyncResultIterator[T]): auto {.inline.} =
     inc(i)
 
 proc mapFuture*[T, U](
-    fut: auto, fn: SafeFunction[T, U]
+    fut: auto, fn: AsyncResultIteratorFunc[T, U]
 ): Future[U] {.async: (raises: [CancelledError]).} =
   let t = await fut
   await fn(t)
 
 proc mapAsync*[T, U](
-    iter: Iter[T], fn: SafeFunction[T, ?!U], finishOnErr: bool = true
+    iter: Iter[T], fn: AsyncResultIteratorFunc[T, ?!U], finishOnErr: bool = true
 ): AsyncResultIterator[U] =
   AsyncResultIterator[U].new(
     genNext = () => fn(iter.next()),
@@ -167,7 +169,9 @@ proc mapAsync*[T, U](
   )
 
 proc map*[T, U](
-    iter: AsyncResultIterator[T], fn: SafeFunction[?!T, ?!U], finishOnErr: bool = true
+    iter: AsyncResultIterator[T],
+    fn: AsyncResultIteratorFunc[?!T, ?!U],
+    finishOnErr: bool = true,
 ): AsyncResultIterator[U] =
   AsyncResultIterator[U].new(
     genNext = () => iter.next().flatMap(fn),
@@ -177,7 +181,7 @@ proc map*[T, U](
 
 proc mapFilter*[T, U](
     iter: AsyncResultIterator[T],
-    mapPredicate: SafeFunction[?!T, Option[?!U]],
+    mapPredicate: AsyncResultIteratorFunc[?!T, Option[?!U]],
     finishOnErr: bool = true,
 ): Future[AsyncResultIterator[U]] {.async: (raises: [CancelledError]).} =
   var nextU: Option[?!U]
@@ -202,7 +206,9 @@ proc mapFilter*[T, U](
   AsyncResultIterator[U].new(genNext, isFinished, finishOnErr = finishOnErr)
 
 proc filter*[T](
-    iter: AsyncResultIterator[T], predicate: SafeFunction[?!T, bool], finishOnErr: bool = true
+    iter: AsyncResultIterator[T],
+    predicate: AsyncResultIteratorFunc[?!T, bool],
+    finishOnErr: bool = true,
 ): Future[AsyncResultIterator[T]] {.async: (raises: [CancelledError]).} =
   proc wrappedPredicate(
       t: ?!T
