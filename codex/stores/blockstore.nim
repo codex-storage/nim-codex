@@ -154,7 +154,9 @@ method hasBlock*(
 
 method listBlocks*(
     self: BlockStore, blockType = BlockType.Manifest
-): Future[?!AsyncResultIterator[Cid]] {.base, async: (raises: [CancelledError]), gcsafe.} =
+): Future[?!AsyncResultIterator[Cid]] {.
+    base, async: (raises: [CancelledError]), gcsafe
+.} =
   ## Get the list of blocks in the BlockStore. This is an intensive operation
   ##
 

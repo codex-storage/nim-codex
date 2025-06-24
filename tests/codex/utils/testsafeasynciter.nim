@@ -37,7 +37,8 @@ asyncchecksuite "Test AsyncResultIterator":
     check collected == expectedSeq
     let nextRes = await iter.next()
     assert nextRes.isFailure
-    check nextRes.error.msg == "AsyncResultIterator is finished but next item was requested"
+    check nextRes.error.msg ==
+      "AsyncResultIterator is finished but next item was requested"
 
   test "getting async iter for simple sync range iterator":
     let iter1 = AsyncResultIterator[int].new(0 ..< 5)
