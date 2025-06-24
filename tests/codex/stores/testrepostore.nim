@@ -15,7 +15,7 @@ import pkg/codex/stores
 import pkg/codex/stores/repostore/operations
 import pkg/codex/blocktype as bt
 import pkg/codex/clock
-import pkg/codex/utils/safeasynciter
+import pkg/codex/utils/asyncresultiterator
 import pkg/codex/merkletree/codex
 
 import ../../asynctest

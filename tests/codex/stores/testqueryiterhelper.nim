@@ -6,7 +6,7 @@ import pkg/chronos
 import pkg/datastore/typedds
 import pkg/datastore/sql/sqliteds
 import pkg/codex/stores/queryiterhelper
-import pkg/codex/utils/safeasynciter
+import pkg/codex/utils/asyncresultiterator
 
 import ../../asynctest
 import ../helpers

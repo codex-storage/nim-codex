@@ -14,7 +14,7 @@ import pkg/questionable
 import pkg/questionable/results
 
 import pkg/codex/stores/repostore
-import pkg/codex/utils/safeasynciter
+import pkg/codex/utils/asyncresultiterator
 
 type MockRepoStore* = ref object of RepoStore
   delBlockCids*: seq[Cid]
