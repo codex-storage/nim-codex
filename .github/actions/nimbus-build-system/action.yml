@@ -82,12 +82,6 @@ runs:
           mingw-w64-i686-ntldd-git
           mingw-w64-i686-rust
 
-    - name: MSYS2 (Windows All) - Update to gcc 14
-      if: inputs.os == 'windows'
-      shell: ${{ inputs.shell }} {0}
-      run: |
-        pacman -U --noconfirm https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-gcc-14.2.0-2-any.pkg.tar.zst https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-gcc-libs-14.2.0-2-any.pkg.tar.zst
-
     - name: Install gcc 14 on Linux
       # We don't want to install gcc 14 for coverage (Ubuntu 20.04)
       if: ${{ inputs.os == 'linux' && inputs.coverage != 'true' }}
