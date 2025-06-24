@@ -157,7 +157,9 @@ iterator pairs*[T](self: Iter[T]): tuple[key: int, val: T] {.inline.} =
 proc map*[T, U](iter: Iter[T], fn: IterFunction[T, U]): Iter[U] =
   Iter[U].new(genNext = () => fn(iter.next()), isFinished = () => iter.finished)
 
-proc mapFilter*[T, U](iter: Iter[T], mapPredicate: IterFunction[T, Option[U]]): Iter[U] =
+proc mapFilter*[T, U](
+    iter: Iter[T], mapPredicate: IterFunction[T, Option[U]]
+): Iter[U] =
   var nextUOrErr: Option[?!U]
 
   proc tryFetch(): void =

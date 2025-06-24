@@ -15,7 +15,7 @@ import pkg/codex/stores
 import pkg/codex/stores/repostore/operations
 import pkg/codex/blocktype as bt
 import pkg/codex/clock
-import pkg/codex/utils/asyncresultiterator
+import pkg/codex/utils/asyncresultiter
 import pkg/codex/merkletree/codex
 
 import ../../asynctest
@@ -293,7 +293,7 @@ asyncchecksuite "RepoStore":
 
   test "Should retrieve block expiration information":
     proc unpack(
-        beIter: Future[?!AsyncResultIterator[BlockExpiration]].Raising([CancelledError])
+        beIter: Future[?!AsyncResultIter[BlockExpiration]].Raising([CancelledError])
     ): Future[seq[BlockExpiration]] {.async: (raises: [CancelledError]).} =
       var expirations = newSeq[BlockExpiration](0)
       without iter =? (await beIter), err:

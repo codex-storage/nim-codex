@@ -40,11 +40,9 @@ import ./iter
 ## - empty - to create an empty async iterator (AsyncIter)
 
 type
-  AsyncIterFunc[T, U] =
-    proc(fut: T): Future[U] {.async.}
+  AsyncIterFunc[T, U] = proc(fut: T): Future[U] {.async.}
   AsyncIterIsFinished = proc(): bool {.raises: [], gcsafe.}
-  AsyncIterGenNext[T] =
-    proc(): Future[T] {.async.}
+  AsyncIterGenNext[T] = proc(): Future[T] {.async.}
 
   AsyncIter*[T] = ref object
     finished: bool
