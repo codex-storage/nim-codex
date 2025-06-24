@@ -115,14 +115,15 @@ all_tests () {
   tools_test
 }
 
-# outputs jobs for all operating systems and all test types
-all_jobs () {
+# outputs jobs for the specified operating systems and all test types
+os_jobs () {
+  local operating_systems=$@
   echo "["
-  for os in linux macos windows; do
+  for os in $operating_systems; do
     $os
     all_tests
   done
   echo "]"
 }
 
-all_jobs
+os_jobs ${@:-linux macos windows}
