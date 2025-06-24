@@ -17,7 +17,7 @@ import pkg/chronos
 
 import ./iter
 
-## SafeAsyncIter[T] is similar to `AsyncIter[Future[T]]`
+## AsyncResultIterator[T] is similar to `AsyncIter[Future[T]]`
 ## but does not throw exceptions others than CancelledError.
 ## It is thus way easier to use with checked exceptions
 ##
@@ -28,19 +28,19 @@ import ./iter
 ## - next - allows to set a custom function to be called when the next item is requested
 ##
 ## Operations:
-## - new - to create a new async iterator (SafeAsyncIter)
+## - new - to create a new async iterator (AsyncResultIterator)
 ## - finish - to finish the async iterator
 ## - finished - to check if the async iterator is finished
 ## - next - to get the next item from the async iterator
 ## - items - to iterate over the async iterator
 ## - pairs - to iterate over the async iterator and return the index of each item
 ## - mapFuture - to convert a (raising) Future[T] to a (raising) Future[U] using a function fn: auto -> Future[U] - we use auto to handle both raising and non-raising futures
-## - mapAsync - to convert a regular sync iterator (Iter) to an async iter (SafeAsyncIter)
-## - map - to convert one async iterator (SafeAsyncIter) to another async iter (SafeAsyncIter)
-## - mapFilter - to convert one async iterator (SafeAsyncIter) to another async iter (SafeAsyncIter) and apply filtering at the same time
-## - filter - to filter an async iterator (SafeAsyncIter) returning another async iterator (SafeAsyncIter)
+## - mapAsync - to convert a regular sync iterator (Iter) to an async iter (AsyncResultIterator)
+## - map - to convert one async iterator (AsyncResultIterator) to another async iter (AsyncResultIterator)
+## - mapFilter - to convert one async iterator (AsyncResultIterator) to another async iter (AsyncResultIterator) and apply filtering at the same time
+## - filter - to filter an async iterator (AsyncResultIterator) returning another async iterator (AsyncResultIterator)
 ## - delayBy - to delay each item returned by async iter by a given duration
-## - empty - to create an empty async iterator (SafeAsyncIter)
+## - empty - to create an empty async iterator (AsyncResultIterator)
 
 type
   SafeFunction[T, U] =
@@ -48,7 +48,7 @@ type
   SafeIsFinished = proc(): bool {.raises: [], gcsafe, closure.}
   SafeGenNext[T] = proc(): Future[T] {.async: (raises: [CancelledError]), gcsafe.}
 
-  SafeAsyncIter*[T] = ref object
+  AsyncResultIterator*[T] = ref object
     finished: bool
     next*: SafeGenNext[?!T]
 
@@ -65,20 +65,20 @@ proc flatMap[T, U](
   await fn(t)
 
 ########################################################################
-## SafeAsyncIter public interface methods
+## AsyncResultIterator public interface methods
 ########################################################################
 
 proc new*[T](
-    _: type SafeAsyncIter[T],
+    _: type AsyncResultIterator[T],
     genNext: SafeGenNext[?!T],
     isFinished: IsFinished,
     finishOnErr: bool = true,
-): SafeAsyncIter[T] =
+): AsyncResultIterator[T] =
   ## Creates a new Iter using elements returned by supplier function `genNext`.
   ## Iter is finished whenever `isFinished` returns true.
   ##
 
-  var iter = SafeAsyncIter[T]()
+  var iter = AsyncResultIterator[T]()
 
   proc next(): Future[?!T] {.async: (raises: [CancelledError]).} =
     try:
@@ -91,7 +91,7 @@ proc new*[T](
           iter.finished = true
         return item
       else:
-        return failure("SafeAsyncIter is finished but next item was requested")
+        return failure("AsyncResultIterator is finished but next item was requested")
     except CancelledError as err:
       iter.finished = true
       raise err
@@ -105,11 +105,11 @@ proc new*[T](
 # forward declaration
 proc mapAsync*[T, U](
   iter: Iter[T], fn: SafeFunction[T, ?!U], finishOnErr: bool = true
-): SafeAsyncIter[U]
+): AsyncResultIterator[U]
 
 proc new*[U, V: Ordinal](
-    _: type SafeAsyncIter[U], slice: HSlice[U, V], finishOnErr: bool = true
-): SafeAsyncIter[U] =
+    _: type AsyncResultIterator[U], slice: HSlice[U, V], finishOnErr: bool = true
+): AsyncResultIterator[U] =
   ## Creates new Iter from a slice
   ##
 
@@ -122,8 +122,8 @@ proc new*[U, V: Ordinal](
   )
 
 proc new*[U, V, S: Ordinal](
-    _: type SafeAsyncIter[U], a: U, b: V, step: S = 1, finishOnErr: bool = true
-): SafeAsyncIter[U] =
+    _: type AsyncResultIterator[U], a: U, b: V, step: S = 1, finishOnErr: bool = true
+): AsyncResultIterator[U] =
   ## Creates new Iter in range a..b with specified step (default 1)
   ##
 
@@ -135,17 +135,17 @@ proc new*[U, V, S: Ordinal](
     finishOnErr = finishOnErr,
   )
 
-proc finish*[T](self: SafeAsyncIter[T]): void =
+proc finish*[T](self: AsyncResultIterator[T]): void =
   self.finished = true
 
-proc finished*[T](self: SafeAsyncIter[T]): bool =
+proc finished*[T](self: AsyncResultIterator[T]): bool =
   self.finished
 
-iterator items*[T](self: SafeAsyncIter[T]): auto {.inline.} =
+iterator items*[T](self: AsyncResultIterator[T]): auto {.inline.} =
   while not self.finished:
     yield self.next()
 
-iterator pairs*[T](self: SafeAsyncIter[T]): auto {.inline.} =
+iterator pairs*[T](self: AsyncResultIterator[T]): auto {.inline.} =
   var i = 0
   while not self.finished:
     yield (i, self.next())
@@ -159,27 +159,27 @@ proc mapFuture*[T, U](
 
 proc mapAsync*[T, U](
     iter: Iter[T], fn: SafeFunction[T, ?!U], finishOnErr: bool = true
-): SafeAsyncIter[U] =
-  SafeAsyncIter[U].new(
+): AsyncResultIterator[U] =
+  AsyncResultIterator[U].new(
     genNext = () => fn(iter.next()),
     isFinished = () => iter.finished(),
     finishOnErr = finishOnErr,
   )
 
 proc map*[T, U](
-    iter: SafeAsyncIter[T], fn: SafeFunction[?!T, ?!U], finishOnErr: bool = true
-): SafeAsyncIter[U] =
-  SafeAsyncIter[U].new(
+    iter: AsyncResultIterator[T], fn: SafeFunction[?!T, ?!U], finishOnErr: bool = true
+): AsyncResultIterator[U] =
+  AsyncResultIterator[U].new(
     genNext = () => iter.next().flatMap(fn),
     isFinished = () => iter.finished,
     finishOnErr = finishOnErr,
   )
 
 proc mapFilter*[T, U](
-    iter: SafeAsyncIter[T],
+    iter: AsyncResultIterator[T],
     mapPredicate: SafeFunction[?!T, Option[?!U]],
     finishOnErr: bool = true,
-): Future[SafeAsyncIter[U]] {.async: (raises: [CancelledError]).} =
+): Future[AsyncResultIterator[U]] {.async: (raises: [CancelledError]).} =
   var nextU: Option[?!U]
 
   proc filter(): Future[void] {.async: (raises: [CancelledError]).} =
@@ -199,11 +199,11 @@ proc mapFilter*[T, U](
     nextU.isNone
 
   await filter()
-  SafeAsyncIter[U].new(genNext, isFinished, finishOnErr = finishOnErr)
+  AsyncResultIterator[U].new(genNext, isFinished, finishOnErr = finishOnErr)
 
 proc filter*[T](
-    iter: SafeAsyncIter[T], predicate: SafeFunction[?!T, bool], finishOnErr: bool = true
-): Future[SafeAsyncIter[T]] {.async: (raises: [CancelledError]).} =
+    iter: AsyncResultIterator[T], predicate: SafeFunction[?!T, bool], finishOnErr: bool = true
+): Future[AsyncResultIterator[T]] {.async: (raises: [CancelledError]).} =
   proc wrappedPredicate(
       t: ?!T
   ): Future[Option[?!T]] {.async: (raises: [CancelledError]).} =
@@ -215,8 +215,8 @@ proc filter*[T](
   await mapFilter[T, T](iter, wrappedPredicate, finishOnErr = finishOnErr)
 
 proc delayBy*[T](
-    iter: SafeAsyncIter[T], d: Duration, finishOnErr: bool = true
-): SafeAsyncIter[T] =
+    iter: AsyncResultIterator[T], d: Duration, finishOnErr: bool = true
+): AsyncResultIterator[T] =
   ## Delays emitting each item by given duration
   ##
 
@@ -228,14 +228,14 @@ proc delayBy*[T](
     finishOnErr = finishOnErr,
   )
 
-proc empty*[T](_: type SafeAsyncIter[T]): SafeAsyncIter[T] =
-  ## Creates an empty SafeAsyncIter
+proc empty*[T](_: type AsyncResultIterator[T]): AsyncResultIterator[T] =
+  ## Creates an empty AsyncResultIterator
   ##
 
   proc genNext(): Future[?!T] {.async: (raises: [CancelledError]).} =
-    T.failure("Next item requested from an empty SafeAsyncIter")
+    T.failure("Next item requested from an empty AsyncResultIterator")
 
   proc isFinished(): bool =
     true
 
-  SafeAsyncIter[T].new(genNext, isFinished)
+  AsyncResultIterator[T].new(genNext, isFinished)

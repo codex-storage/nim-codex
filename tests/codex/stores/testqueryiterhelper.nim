@@ -43,7 +43,7 @@ asyncchecksuite "Test QueryIter helper":
     queryIter.dispose = () => (disposed = true; iterDispose())
 
     let
-      iter1 = (await toSafeAsyncIter[string](queryIter)).tryGet()
+      iter1 = (await toAsyncResultIterator[string](queryIter)).tryGet()
       iter2 = await filterSuccess[string](iter1)
 
     var items = initTable[string, string]()

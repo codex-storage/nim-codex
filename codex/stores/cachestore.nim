@@ -139,7 +139,7 @@ func cids(self: CacheStore): (iterator (): Cid {.gcsafe, raises: [].}) =
 
 method listBlocks*(
     self: CacheStore, blockType = BlockType.Manifest
-): Future[?!SafeAsyncIter[Cid]] {.async: (raises: [CancelledError]).} =
+): Future[?!AsyncResultIterator[Cid]] {.async: (raises: [CancelledError]).} =
   ## Get the list of blocks in the BlockStore. This is an intensive operation
   ##
 
@@ -152,7 +152,7 @@ method listBlocks*(
     success(cids())
 
   let iter = await (
-    SafeAsyncIter[Cid].new(genNext, isFinished).filter(
+    AsyncResultIterator[Cid].new(genNext, isFinished).filter(
       proc(cid: ?!Cid): Future[bool] {.async: (raises: [CancelledError]).} =
         without cid =? cid, err:
           trace "Cannot get Cid from the iterator", err = err.msg

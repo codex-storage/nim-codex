@@ -7,9 +7,9 @@ import pkg/codex/utils/safeasynciter
 import ../../asynctest
 import ../helpers
 
-asyncchecksuite "Test SafeAsyncIter":
+asyncchecksuite "Test AsyncResultIterator":
   test "Should be finished":
-    let iter = SafeAsyncIter[int].empty()
+    let iter = AsyncResultIterator[int].empty()
 
     check:
       iter.finished == true
@@ -24,7 +24,7 @@ asyncchecksuite "Test SafeAsyncIter":
       fut.complete(success(intIter.next()))
       return fut
 
-    let iter = SafeAsyncIter[int].new(asyncGen, () => intIter.finished)
+    let iter = AsyncResultIterator[int].new(asyncGen, () => intIter.finished)
 
     var collected: seq[int]
     for iFut in iter:
@@ -37,10 +37,10 @@ asyncchecksuite "Test SafeAsyncIter":
     check collected == expectedSeq
     let nextRes = await iter.next()
     assert nextRes.isFailure
-    check nextRes.error.msg == "SafeAsyncIter is finished but next item was requested"
+    check nextRes.error.msg == "AsyncResultIterator is finished but next item was requested"
 
   test "getting async iter for simple sync range iterator":
-    let iter1 = SafeAsyncIter[int].new(0 ..< 5)
+    let iter1 = AsyncResultIterator[int].new(0 ..< 5)
 
     var collected: seq[int]
     for iFut in iter1:
@@ -53,7 +53,7 @@ asyncchecksuite "Test SafeAsyncIter":
       collected == @[0, 1, 2, 3, 4]
 
   test "Should map each item using `map`":
-    let iter1 = SafeAsyncIter[int].new(0 ..< 5).delayBy(10.millis)
+    let iter1 = AsyncResultIterator[int].new(0 ..< 5).delayBy(10.millis)
 
     let iter2 = map[int, string](
       iter1,
@@ -77,7 +77,7 @@ asyncchecksuite "Test SafeAsyncIter":
 
   test "Should leave only odd items using `filter`":
     let
-      iter1 = SafeAsyncIter[int].new(0 ..< 5).delayBy(10.millis)
+      iter1 = AsyncResultIterator[int].new(0 ..< 5).delayBy(10.millis)
       iter2 = await filter[int](
         iter1,
         proc(i: ?!int): Future[bool] {.async: (raises: [CancelledError]).} =
@@ -100,7 +100,7 @@ asyncchecksuite "Test SafeAsyncIter":
 
   test "Should leave only odd items using `mapFilter`":
     let
-      iter1 = SafeAsyncIter[int].new(0 ..< 5).delayBy(10.millis)
+      iter1 = AsyncResultIterator[int].new(0 ..< 5).delayBy(10.millis)
       iter2 = await mapFilter[int, string](
         iter1,
         proc(i: ?!int): Future[Option[?!string]] {.async: (raises: [CancelledError]).} =
@@ -123,7 +123,7 @@ asyncchecksuite "Test SafeAsyncIter":
 
   test "Collecting errors on `map` when finish on error is true":
     let
-      iter1 = SafeAsyncIter[int].new(0 ..< 5).delayBy(10.millis)
+      iter1 = AsyncResultIterator[int].new(0 ..< 5).delayBy(10.millis)
       iter2 = map[int, string](
         iter1,
         proc(i: ?!int): Future[?!string] {.async: (raises: [CancelledError]).} =
@@ -151,7 +151,7 @@ asyncchecksuite "Test SafeAsyncIter":
 
   test "Collecting errors on `map` when finish on error is false":
     let
-      iter1 = SafeAsyncIter[int].new(0 ..< 5).delayBy(10.millis)
+      iter1 = AsyncResultIterator[int].new(0 ..< 5).delayBy(10.millis)
       iter2 = map[int, string](
         iter1,
         proc(i: ?!int): Future[?!string] {.async: (raises: [CancelledError]).} =
@@ -180,7 +180,7 @@ asyncchecksuite "Test SafeAsyncIter":
 
   test "Collecting errors on `map` when errors are mixed with successes":
     let
-      iter1 = SafeAsyncIter[int].new(0 ..< 5).delayBy(10.millis)
+      iter1 = AsyncResultIterator[int].new(0 ..< 5).delayBy(10.millis)
       iter2 = map[int, string](
         iter1,
         proc(i: ?!int): Future[?!string] {.async: (raises: [CancelledError]).} =
@@ -209,7 +209,7 @@ asyncchecksuite "Test SafeAsyncIter":
 
   test "Collecting errors on `mapFilter` when finish on error is true":
     let
-      iter1 = SafeAsyncIter[int].new(0 ..< 5).delayBy(10.millis)
+      iter1 = AsyncResultIterator[int].new(0 ..< 5).delayBy(10.millis)
       iter2 = await mapFilter[int, string](
         iter1,
         proc(i: ?!int): Future[Option[?!string]] {.async: (raises: [CancelledError]).} =
@@ -239,7 +239,7 @@ asyncchecksuite "Test SafeAsyncIter":
 
   test "Collecting errors on `mapFilter` when finish on error is false":
     let
-      iter1 = SafeAsyncIter[int].new(0 ..< 5).delayBy(10.millis)
+      iter1 = AsyncResultIterator[int].new(0 ..< 5).delayBy(10.millis)
       iter2 = await mapFilter[int, string](
         iter1,
         proc(i: ?!int): Future[Option[?!string]] {.async: (raises: [CancelledError]).} =
@@ -270,7 +270,7 @@ asyncchecksuite "Test SafeAsyncIter":
 
   test "Collecting errors on `filter` when finish on error is false":
     let
-      iter1 = SafeAsyncIter[int].new(0 ..< 5)
+      iter1 = AsyncResultIterator[int].new(0 ..< 5)
       iter2 = map[int, string](
         iter1,
         proc(i: ?!int): Future[?!string] {.async: (raises: [CancelledError]).} =
@@ -313,7 +313,7 @@ asyncchecksuite "Test SafeAsyncIter":
 
   test "Collecting errors on `filter` when finish on error is true":
     let
-      iter1 = SafeAsyncIter[int].new(0 ..< 5)
+      iter1 = AsyncResultIterator[int].new(0 ..< 5)
       iter2 = map[int, string](
         iter1,
         proc(i: ?!int): Future[?!string] {.async: (raises: [CancelledError]).} =
@@ -384,7 +384,7 @@ asyncchecksuite "Test SafeAsyncIter":
     let fut: Future[Option[?!string]].Raising([CancelledError]) =
       Future[Option[?!string]].Raising([CancelledError]).init("testsafeasynciter")
 
-    let iter1 = SafeAsyncIter[int].new(0 ..< 5).delayBy(10.millis)
+    let iter1 = AsyncResultIterator[int].new(0 ..< 5).delayBy(10.millis)
     let iter2 = await mapFilter[int, string](
       iter1,
       proc(i: ?!int): Future[Option[?!string]] {.async: (raises: [CancelledError]).} =

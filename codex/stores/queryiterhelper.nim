@@ -10,10 +10,10 @@ import ../utils/safeasynciter
 
 type KeyVal*[T] = tuple[key: Key, value: T]
 
-proc toSafeAsyncIter*[T](
+proc toAsyncResultIterator*[T](
     queryIter: QueryIter[T], finishOnErr: bool = true
-): Future[?!SafeAsyncIter[QueryResponse[T]]] {.async: (raises: [CancelledError]).} =
-  ## Converts `QueryIter[T]` to `SafeAsyncIter[QueryResponse[T]]` and automatically
+): Future[?!AsyncResultIterator[QueryResponse[T]]] {.async: (raises: [CancelledError]).} =
+  ## Converts `QueryIter[T]` to `AsyncResultIterator[QueryResponse[T]]` and automatically
   ## runs dispose whenever `QueryIter` finishes or whenever an error occurs (only
   ## if the flag finishOnErr is set to true)
   ##
@@ -22,7 +22,7 @@ proc toSafeAsyncIter*[T](
     trace "Disposing iterator"
     if error =? (await queryIter.dispose()).errorOption:
       return failure(error)
-    return success(SafeAsyncIter[QueryResponse[T]].empty())
+    return success(AsyncResultIterator[QueryResponse[T]].empty())
 
   var errOccurred = false
 
@@ -42,11 +42,11 @@ proc toSafeAsyncIter*[T](
   proc isFinished(): bool =
     queryIter.finished
 
-  SafeAsyncIter[QueryResponse[T]].new(genNext, isFinished).success
+  AsyncResultIterator[QueryResponse[T]].new(genNext, isFinished).success
 
 proc filterSuccess*[T](
-    iter: SafeAsyncIter[QueryResponse[T]]
-): Future[SafeAsyncIter[tuple[key: Key, value: T]]] {.
+    iter: AsyncResultIterator[QueryResponse[T]]
+): Future[AsyncResultIterator[tuple[key: Key, value: T]]] {.
     async: (raises: [CancelledError])
 .} =
   ## Filters out any items that are not success
