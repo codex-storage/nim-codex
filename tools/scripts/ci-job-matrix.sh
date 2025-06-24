@@ -108,6 +108,19 @@ integration_test () {
   for tests in $(find_tests tests/integration/1_minute | batch 30 ","); do
     integration_test_job $tests
   done
+
+  # fail when there are integration tests with an unknown duration
+  local filter='1_minute\|5_minutes\|30_minutes'
+  local unknown=$(find_tests tests/integration | grep -v "$filter")
+  if [ "$unknown" != "" ]; then
+    echo "Error: Integration tests need to be in either the 1_minute," >&2
+    echo "       5_minutes, or 30_minutes directory, based on the maximum" >&2
+    echo "       running time of the test. This is used to group the" >&2
+    echo "       integration tests into batches to speed up the the" >&2
+    echo "       continuous integration." >&2
+    echo "       Offending tests: $unknown" >&2
+    exit 1
+  fi
 }
 
 # outputs jobs for all test types
