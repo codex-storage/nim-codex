@@ -30,6 +30,10 @@ import ../sampler
 import ./backends
 import ../types
 
+import pkg/constantine/math/arithmetic
+import pkg/constantine/math/io/io_bigints
+import pkg/constantine/math/io/io_fields
+
 export backends
 
 logScope:
@@ -43,6 +47,25 @@ type Prover* = ref object
     circomCompatBackend*: CircomCompatBackendRef
   nSamples: int
   tp: Taskpool
+
+func toJsonDecimal*(big: BigInt[254]): string =
+  let s = big.toDecimal.strip(leading = true, trailing = false, chars = {'0'})
+  if s.len == 0: "0" else: s
+
+func toJson*(input: ProofInputs[Poseidon2Hash]): JsonNode =
+  var input = input
+
+  %*{
+    "dataSetRoot": input.datasetRoot.toBig.toJsonDecimal,
+    "entropy": input.entropy.toBig.toJsonDecimal,
+    "nCellsPerSlot": input.nCellsPerSlot,
+    "nSlotsPerDataSet": input.nSlotsPerDataSet,
+    "slotIndex": input.slotIndex,
+    "slotRoot": input.slotRoot.toDecimal,
+    "slotProof": input.slotProof.mapIt(it.toBig.toJsonDecimal),
+    "cellData": input.samples.mapIt(it.cellData.mapIt(it.toBig.toJsonDecimal)),
+    "merklePaths": input.samples.mapIt(it.merklePaths.mapIt(it.toBig.toJsonDecimal)),
+  }
 
 proc prove*[SomeSampler](
     self: Prover,
@@ -73,6 +96,7 @@ proc prove*[SomeSampler](
           (?await self.groth16Backend.verify(proof)).some
         else:
           bool.none
+    trace "Proof generated with input", input = proofInput.toJson
     return success (proof.toGroth16Proof, verified)
   of ProverBackendCmd.circomcompat:
     let
