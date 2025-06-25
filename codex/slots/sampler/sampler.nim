@@ -107,6 +107,7 @@ proc getProofInput*[SomeTree, SomeHash](
   let samples = collect(newSeq):
     for cellIdx in cellIdxs:
       ?(await self.getSample(cellIdx, slotTreeCid, slotRoot))
+  trace "Proof inputs collected"
 
   success ProofInputs[SomeHash](
     entropy: entropy,

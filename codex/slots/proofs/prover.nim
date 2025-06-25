@@ -87,6 +87,7 @@ proc prove*[SomeSampler](
     proofInput = ?await sampler.getProofInput(challenge, self.nSamples)
     # prove slot
 
+  trace "generating proof with input", input = proofInput.toJson
   case self.backendKind
   of ProverBackendCmd.nimgroth16:
     let
@@ -96,7 +97,6 @@ proc prove*[SomeSampler](
           (?await self.groth16Backend.verify(proof)).some
         else:
           bool.none
-    trace "nimgroth16 proof generated with input", input = proofInput.toJson
     return success (proof.toGroth16Proof, verified)
   of ProverBackendCmd.circomcompat:
     let
@@ -106,7 +106,6 @@ proc prove*[SomeSampler](
           (?await self.circomCompatBackend.verify(proof, proofInput)).some
         else:
           bool.none
-    trace "circomcompat proof generated with input", input = proofInput.toJson
     return success (proof.toGroth16Proof, verified)
 
 proc new*(
