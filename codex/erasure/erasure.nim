@@ -125,10 +125,6 @@ proc getPendingBlocks(
   ## Get pending blocks iterator
   ##
 
-  if indices.len == 0:
-    trace "No indices to fetch blocks for", treeCid = manifest.treeCid
-    return AsyncResultIter[(?!bt.Block, int)].empty()
-
   var pendingBlocks: seq[Future[(?!bt.Block, int)].Raising([CancelledError])] = @[]
 
   proc attachIndex(
@@ -158,10 +154,8 @@ proc getPendingBlocks(
             $index
         )
     except ValueError as err:
-      # ValueError is raised by `one` when the pendingBlocks is empty -
-      # but we check for that at the very beginning - 
-      # thus, if this happens, we raise an assert
-      raiseAssert("fatal: pendingBlocks is empty - this should never happen")
+      # ValueError is raised by `one` when the pendingBlocks is empty
+      return failure("iterator finished (pendingBlocks empty) but genNext() was called")
 
   AsyncResultIter[(?!bt.Block, int)].new(genNext, isFinished)
 
