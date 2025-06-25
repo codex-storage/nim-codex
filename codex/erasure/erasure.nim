@@ -187,8 +187,7 @@ proc prepareEncodingData(
 
   var resolved = 0
   for fut in pendingBlocksIter:
-    let pendingBlocksRes = await fut
-    without (blkOrErr, idx) =? pendingBlocksRes, err:
+    without (blkOrErr, idx) =? (await fut), err:
       return failure(err)
     without blk =? blkOrErr, err:
       warn "Failed retrieving a block", treeCid = manifest.treeCid, idx, msg = err.msg
@@ -246,8 +245,7 @@ proc prepareDecodingData(
     if resolved >= encoded.ecK:
       break
 
-    let pendingBlocksRes = await fut
-    without (blkOrErr, idx) =? pendingBlocksRes, err:
+    without (blkOrErr, idx) =? (await fut), err:
       return failure(err)
     without blk =? blkOrErr, err:
       trace "Failed retrieving a block", idx, treeCid = encoded.treeCid, msg = err.msg
