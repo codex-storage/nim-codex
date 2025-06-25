@@ -1,8 +1,8 @@
 from pkg/libp2p import Cid, init
-import ../examples
-import ./marketplacesuite
-import ./nodeconfigs
-import ./hardhatconfig
+import ../../examples
+import ../marketplacesuite
+import ../nodeconfigs
+import ../hardhatconfig
 
 marketplacesuite(
   name = "Bug #821 - node crashes during erasure coding", stopOnRequestFail = true

@@ -2,13 +2,13 @@ import std/times
 import pkg/ethers
 import pkg/codex/conf
 import pkg/codex/contracts
-import ../asynctest
-import ../checktest
-import ../examples
-import ../codex/examples
-import ./codexconfig
-import ./codexclient
-import ./multinodes
+import ../../asynctest
+import ../../checktest
+import ../../examples
+import ../../codex/examples
+import ../codexconfig
+import ../codexclient
+import ../multinodes
 
 multinodesuite "Rest API validation":
   let config = NodeConfigs(clients: CodexConfigs.init(nodes = 1).some)

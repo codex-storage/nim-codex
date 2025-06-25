@@ -1,11 +1,11 @@
 import std/tempfiles
 import codex/conf
 import codex/utils/fileutils
-import ../asynctest
-import ../checktest
-import ./codexprocess
-import ./nodeprocess
-import ../examples
+import ../../asynctest
+import ../../checktest
+import ../codexprocess
+import ../nodeprocess
+import ../../examples
 
 asyncchecksuite "Command line interface":
   let key = "4242424242424242424242424242424242424242424242424242424242424242"

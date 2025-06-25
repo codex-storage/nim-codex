@@ -1,11 +1,11 @@
 import std/times
 import std/httpclient
-import ../examples
-import ../contracts/time
-import ../contracts/deployment
-import ./marketplacesuite
-import ./twonodes
-import ./nodeconfigs
+import ../../examples
+import ../../contracts/time
+import ../../contracts/deployment
+import ./../marketplacesuite
+import ../twonodes
+import ../nodeconfigs
 
 marketplacesuite(name = "Marketplace", stopOnRequestFail = true):
   let marketplaceConfig = NodeConfigs(

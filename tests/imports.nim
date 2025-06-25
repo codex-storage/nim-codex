@@ -14,3 +14,13 @@ macro importTests*(dir: static string): untyped =
           import `file`
       )
   imports
+
+macro importAll*(paths: static seq[string]): untyped =
+  ## imports all specified paths
+  let imports = newStmtList()
+  for path in paths:
+    imports.add(
+      quote do:
+        import `path`
+    )
+  imports

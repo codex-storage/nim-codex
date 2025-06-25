@@ -3,12 +3,14 @@ Tips for shorter build times
 
 ### Runner availability ###
 
-Currently, the biggest bottleneck when optimizing workflows is the availability
-of Windows and macOS runners. Therefore, anything that reduces the time spent in
-Windows or macOS jobs will have a positive impact on the time waiting for
-runners to become available. The usage limits for Github Actions are [described
-here][limits]. You can see a breakdown of runner usage for your jobs in the
-Github Actions tab ([example][usage]).
+When running on the Github free, pro or team plan, the bottleneck when
+optimizing workflows is the availability of macOS runners. Therefore, anything
+that reduces the time spent in macOS jobs will have a positive impact on the
+time waiting for runners to become available. On the Github enterprise plan,
+this is not the case and you can more freely use parallelization on multiple
+runners. The usage limits for Github Actions are [described here][limits]. You
+can see a breakdown of runner usage for your jobs in the Github Actions tab
+([example][usage]).
 
 ### Windows is slow ###
 
@@ -22,11 +24,10 @@ analysis, etc. are therefore better performed on a Linux runner.
 
 Breaking up a long build job into several jobs that you run in parallel can have
 a positive impact on the wall clock time that a workflow runs. For instance, you
-might consider running unit tests and integration tests in parallel. Keep in
-mind however that availability of macOS and Windows runners is the biggest
-bottleneck. If you split a Windows job into two jobs, you now need to wait for
-two Windows runners to become available! Therefore parallelization often only
-makes sense for Linux jobs.
+might consider running unit tests and integration tests in parallel. When
+running on the Github free, pro or team plan, keep in mind that availability of
+macOS runners is a bottleneck. If you split a macOS job into two jobs, you now
+need to wait for two macOS runners to become available.
 
 ### Refactoring ###
 
@@ -66,7 +67,8 @@ might seem inconvenient, because when you're debugging an issue you often want
 to know whether you introduced a failure on all platforms, or only on a single
 one. You might be tempted to disable fail-fast, but keep in mind that this keeps
 runners busy for longer on a workflow that you know is going to fail anyway.
-Consequent runs will therefore take longer to start. Fail fast is most likely better for overall development speed.
+Consequent runs will therefore take longer to start. Fail fast is most likely
+better for overall development speed.
 
 [usage]: https://github.com/codex-storage/nim-codex/actions/runs/3462031231/usage
 [composite]: https://docs.github.com/en/actions/creating-actions/creating-a-composite-action
