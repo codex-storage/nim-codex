@@ -1,5 +1,5 @@
-import ../examples
-import ./multinodes
+import ../../examples
+import ../multinodes
 
 multinodesuite "Node block expiration tests":
   var content: seq[byte]

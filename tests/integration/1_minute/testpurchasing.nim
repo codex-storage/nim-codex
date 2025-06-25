@@ -1,9 +1,9 @@
 import std/options
 import std/httpclient
 import pkg/codex/rng
-import ./twonodes
-import ../contracts/time
-import ../examples
+import ../twonodes
+import ../../contracts/time
+import ../../examples
 
 twonodessuite "Purchasing":
   test "node handles storage request", twoNodesConfig:

@@ -1,11 +1,11 @@
 import pkg/questionable
 import pkg/codex/logutils
-import ../contracts/time
-import ../contracts/deployment
-import ../codex/helpers
-import ../examples
-import ./marketplacesuite
-import ./nodeconfigs
+import ../../contracts/time
+import ../../contracts/deployment
+import ../../codex/helpers
+import ../../examples
+import ../marketplacesuite
+import ../nodeconfigs
 
 export logutils
 
@@ -151,7 +151,7 @@ marketplacesuite(name = "SP Slot Repair", stopOnRequestFail = true):
     # Let's free the slot to speed up the process
     await freeSlot(provider1.client)
 
-    # We expect that the freed slot is added in the filled slot id list, 
+    # We expect that the freed slot is added in the filled slot id list,
     # meaning that the slot was repaired locally by SP 1.
     check eventually(
       freedSlotId.get in filledSlotIds, timeout = (duration - expiry).int * 1000

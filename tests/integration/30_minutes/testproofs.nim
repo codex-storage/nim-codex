@@ -1,12 +1,12 @@
 from std/times import inMilliseconds
 import pkg/questionable
 import pkg/codex/logutils
-import ../contracts/time
-import ../contracts/deployment
-import ../codex/helpers
-import ../examples
-import ./marketplacesuite
-import ./nodeconfigs
+import ../../contracts/time
+import ../../contracts/deployment
+import ../../codex/helpers
+import ../../examples
+import ../marketplacesuite
+import ../nodeconfigs
 
 export logutils
 
