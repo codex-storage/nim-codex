@@ -96,7 +96,7 @@ proc prove*[SomeSampler](
           (?await self.groth16Backend.verify(proof)).some
         else:
           bool.none
-    trace "Proof generated with input", input = proofInput.toJson
+    trace "nimgroth16 proof generated with input", input = proofInput.toJson
     return success (proof.toGroth16Proof, verified)
   of ProverBackendCmd.circomcompat:
     let
@@ -106,6 +106,7 @@ proc prove*[SomeSampler](
           (?await self.circomCompatBackend.verify(proof, proofInput)).some
         else:
           bool.none
+    trace "circomcompat proof generated with input", input = proofInput.toJson
     return success (proof.toGroth16Proof, verified)
 
 proc new*(
