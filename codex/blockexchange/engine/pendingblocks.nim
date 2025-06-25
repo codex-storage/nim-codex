@@ -90,6 +90,19 @@ proc getWantHandle*(
 ): Future[Block] {.async: (raw: true, raises: [CancelledError, RetriesExhaustedError]).} =
   self.getWantHandle(BlockAddress.init(cid), inFlight)
 
+proc completeWantHandle*(
+    self: PendingBlocksManager, address: BlockAddress, blk: Block
+) {.raises: [].} =
+  ## Complete a pending want handle
+  self.blocks.withValue(address, blockReq):
+    if not blockReq[].handle.finished:
+      trace "Completing want handle from provided block", address
+      blockReq[].handle.complete(blk)
+    else:
+      trace "Want handle already completed", address
+  do:
+    trace "No pending want handle found for address", address
+
 proc resolve*(
     self: PendingBlocksManager, blocksDelivery: seq[BlockDelivery]
 ) {.gcsafe, raises: [].} =
