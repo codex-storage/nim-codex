@@ -117,7 +117,7 @@ jobs:
       ## Part 3 Tests ##
       - name: Integration tests
         if: matrix.tests == 'integration' || matrix.tests == 'all'
-        run: make -j${ncpu} PARALLEL=${{ env.PARALLEL }} DEBUG=${{ runner.debug }} testIntegration
+        run: make -j${ncpu} PARALLEL=${{ env.PARALLEL }} DEBUG=${{ inputs.debug }} testIntegration
 
       - name: Upload integration tests log files
         uses: actions/upload-artifact@v4
