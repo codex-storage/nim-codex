@@ -215,7 +215,7 @@ marketplacesuite(name = "Sales", stopOnRequestFail = true):
       )
     ).get
 
-    discard await waitForRequestToStart((10*60)+10)
+    discard await waitForRequestToStart((10 * 60) + 10)
 
     let purchase = (await client.getPurchase(id)).get
     check purchase.error == none string
