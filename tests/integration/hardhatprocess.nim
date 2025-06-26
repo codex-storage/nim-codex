@@ -77,7 +77,7 @@ method start*(
     raiseAssert "failed build path to hardhat executable: " & parent.msg
 
   let poptions = node.processOptions + {AsyncProcessOption.StdErrToStdOut}
-  let args = @["node", "--export", "deployment-localhost.json"].concat(node.arguments)
+  let args = @["node"].concat(node.arguments)
   trace "starting node", args, executable, workingDir = node.workingDir
 
   try:
