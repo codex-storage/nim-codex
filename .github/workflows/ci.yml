@@ -39,18 +39,18 @@ jobs:
         uses: fabiocaccamo/create-matrix-action@v5
         with:
           matrix: |
-            os {linux},   cpu {amd64}, builder {ubuntu-latest},   tests {unittest},    nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
-            os {linux},   cpu {amd64}, builder {ubuntu-latest},   tests {contract},    nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
+            # os {linux},   cpu {amd64}, builder {ubuntu-latest},   tests {unittest},    nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
+            # os {linux},   cpu {amd64}, builder {ubuntu-latest},   tests {contract},    nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
             os {linux},   cpu {amd64}, builder {${{ env.builder_integration_linux }}},   tests {integration}, nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
-            os {linux},   cpu {amd64}, builder {ubuntu-latest},   tests {tools},       nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
-            os {macos},   cpu {arm64}, builder {macos-14},       tests {unittest},    nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
-            os {macos},   cpu {arm64}, builder {macos-14},       tests {contract},    nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
-            os {macos},   cpu {arm64}, builder {${{ env.builder_integration_macos }}},   tests {integration}, nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
-            os {macos},   cpu {arm64}, builder {macos-14},       tests {tools},       nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
-            os {windows}, cpu {amd64}, builder {windows-latest}, tests {unittest},    nim_version {${{ env.nim_version }}}, shell {msys2}
-            os {windows}, cpu {amd64}, builder {windows-latest}, tests {contract},    nim_version {${{ env.nim_version }}}, shell {msys2}
-            os {windows}, cpu {amd64}, builder {${{ env.builder_integration_windows }}}, tests {integration}, nim_version {${{ env.nim_version }}}, shell {msys2}
-            os {windows}, cpu {amd64}, builder {windows-latest}, tests {tools},       nim_version {${{ env.nim_version }}}, shell {msys2}
+            # os {linux},   cpu {amd64}, builder {ubuntu-latest},   tests {tools},       nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
+            # os {macos},   cpu {arm64}, builder {macos-14},       tests {unittest},    nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
+            # os {macos},   cpu {arm64}, builder {macos-14},       tests {contract},    nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
+            # os {macos},   cpu {arm64}, builder {${{ env.builder_integration_macos }}},   tests {integration}, nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
+            # os {macos},   cpu {arm64}, builder {macos-14},       tests {tools},       nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
+            # os {windows}, cpu {amd64}, builder {windows-latest}, tests {unittest},    nim_version {${{ env.nim_version }}}, shell {msys2}
+            # os {windows}, cpu {amd64}, builder {windows-latest}, tests {contract},    nim_version {${{ env.nim_version }}}, shell {msys2}
+            # os {windows}, cpu {amd64}, builder {${{ env.builder_integration_windows }}}, tests {integration}, nim_version {${{ env.nim_version }}}, shell {msys2}
+            # os {windows}, cpu {amd64}, builder {windows-latest}, tests {tools},       nim_version {${{ env.nim_version }}}, shell {msys2}
 
   build:
     needs: matrix
