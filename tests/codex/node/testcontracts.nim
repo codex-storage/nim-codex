@@ -27,7 +27,6 @@ import pkg/codex/discovery
 import pkg/codex/erasure
 import pkg/codex/blocktype as bt
 import pkg/codex/stores/repostore/coders
-import pkg/codex/utils/asynciter
 import pkg/codex/indexingstrategy
 
 import pkg/codex/node {.all.}

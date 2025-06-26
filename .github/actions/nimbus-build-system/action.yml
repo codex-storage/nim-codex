@@ -37,6 +37,7 @@ runs:
         sudo apt-get update -qq
         sudo DEBIAN_FRONTEND='noninteractive' apt-get install \
           --no-install-recommends -yq lcov
+        sudo apt install libpcre3
 
     - name: APT (Linux i386)
       if: inputs.os == 'linux' && inputs.cpu == 'i386'
@@ -83,7 +84,7 @@ runs:
 
     - name: Install gcc 14 on Linux
       # We don't want to install gcc 14 for coverage (Ubuntu 20.04)
-      if : ${{ inputs.os == 'linux' && inputs.coverage != 'true' }}
+      if: ${{ inputs.os == 'linux' && inputs.coverage != 'true' }}
       shell: ${{ inputs.shell }} {0}
       run: |
         # Skip for older Ubuntu versions
@@ -202,7 +203,7 @@ runs:
     - name: Restore Nim toolchain binaries from cache
       id: nim-cache
       uses: actions/cache@v4
-      if : ${{ inputs.coverage != 'true'  }}
+      if: ${{ inputs.coverage != 'true'  }}
       with:
         path: NimBinaries
         key: ${{ inputs.os }}-${{ inputs.cpu }}-nim-${{ inputs.nim_version }}-cache-${{ env.cache_nonce }}-${{ github.run_id }}
