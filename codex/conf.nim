@@ -74,8 +74,6 @@ const
   codex_enable_proof_failures* {.booldefine.} = false
   codex_enable_log_counter* {.booldefine.} = false
 
-  DefaultDataDir* = defaultDataDir()
-  DefaultCircuitDir* = defaultDataDir() / "circuits"
   DefaultThreadCount* = ThreadCount(0)
 
 type
@@ -138,8 +136,8 @@ type
 
     dataDir* {.
       desc: "The directory where codex will store configuration and data",
-      defaultValue: DefaultDataDir,
-      defaultValueDesc: $DefaultDataDir,
+      defaultValue: defaultDataDir(),
+      defaultValueDesc: "",
       abbr: "d",
       name: "data-dir"
     .}: OutDir
@@ -383,30 +381,30 @@ type
       of PersistenceCmd.prover:
         circuitDir* {.
           desc: "Directory where Codex will store proof circuit data",
-          defaultValue: DefaultCircuitDir,
-          defaultValueDesc: $DefaultCircuitDir,
+          defaultValue: defaultDataDir() / "circuits",
+          defaultValueDesc: "data/circuits",
           abbr: "cd",
           name: "circuit-dir"
         .}: OutDir
 
         circomR1cs* {.
           desc: "The r1cs file for the storage circuit",
-          defaultValue: $DefaultCircuitDir / "proof_main.r1cs",
-          defaultValueDesc: $DefaultCircuitDir & "/proof_main.r1cs",
+          defaultValue: defaultDataDir() / "circuits" / "proof_main.r1cs",
+          defaultValueDesc: "data/circuits/proof_main.r1cs",
           name: "circom-r1cs"
         .}: InputFile
 
         circomWasm* {.
           desc: "The wasm file for the storage circuit",
-          defaultValue: $DefaultCircuitDir / "proof_main.wasm",
-          defaultValueDesc: $DefaultDataDir & "/circuits/proof_main.wasm",
+          defaultValue: defaultDataDir() / "circuits" / "proof_main.wasm",
+          defaultValueDesc: "data/circuits/proof_main.wasm",
           name: "circom-wasm"
         .}: InputFile
 
         circomZkey* {.
           desc: "The zkey file for the storage circuit",
-          defaultValue: $DefaultCircuitDir / "proof_main.zkey",
-          defaultValueDesc: $DefaultDataDir & "/circuits/proof_main.zkey",
+          defaultValue: defaultDataDir() / "circuits" / "proof_main.zkey",
+          defaultValueDesc: "data/circuits/proof_main.zkey",
           name: "circom-zkey"
         .}: InputFile
 
