@@ -7,6 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+{.deprecated: "use the NimGroth16Backend".}
+
 {.push raises: [].}
 
 import std/sugar
@@ -23,8 +25,11 @@ import ./converters
 
 export circomcompat, converters
 
+logScope:
+  topics = "codex backend circomcompat"
+
 type
-  CircomCompat* = object
+  CircomCompatBackend* = object
     slotDepth: int # max depth of the slot tree
     datasetDepth: int # max depth of dataset  tree
     blkDepth: int # depth of the block merkle tree (pow2 for now)
@@ -34,13 +39,15 @@ type
     wasmPath: string # path to the wasm file
     zkeyPath: string # path to the zkey file
     backendCfg: ptr CircomBn254Cfg
-    vkp*: ptr CircomKey
+    vkp*: ptr CircomCompatKey
 
-  NormalizedProofInputs*[H] {.borrow: `.`.} = distinct ProofInputs[H]
+  CircomCompatBackendRef* = ref CircomCompatBackend
 
-func normalizeInput*[H](
-    self: CircomCompat, input: ProofInputs[H]
-): NormalizedProofInputs[H] =
+  NormalizedProofInputs*[SomeHash] {.borrow: `.`.} = distinct ProofInputs[SomeHash]
+
+func normalizeInput*[SomeHash](
+    self: CircomCompatBackendRef, input: ProofInputs[SomeHash]
+): NormalizedProofInputs[SomeHash] =
   ## Parameters in CIRCOM circuits are statically sized and must be properly
   ## padded before they can be passed onto the circuit. This function takes
   ## variable length parameters and performs that padding.
@@ -53,23 +60,25 @@ func normalizeInput*[H](
     for sample in input.samples:
       var merklePaths = sample.merklePaths
       merklePaths.setLen(self.slotDepth)
-      Sample[H](cellData: sample.cellData, merklePaths: merklePaths)
+      Sample[SomeHash](cellData: sample.cellData, merklePaths: merklePaths)
 
   var normSlotProof = input.slotProof
   normSlotProof.setLen(self.datasetDepth)
 
-  NormalizedProofInputs[H] ProofInputs[H](
-    entropy: input.entropy,
-    datasetRoot: input.datasetRoot,
-    slotIndex: input.slotIndex,
-    slotRoot: input.slotRoot,
-    nCellsPerSlot: input.nCellsPerSlot,
-    nSlotsPerDataSet: input.nSlotsPerDataSet,
-    slotProof: normSlotProof,
-    samples: normSamples,
+  NormalizedProofInputs[SomeHash](
+    ProofInputs[SomeHash](
+      entropy: input.entropy,
+      datasetRoot: input.datasetRoot,
+      slotIndex: input.slotIndex,
+      slotRoot: input.slotRoot,
+      nCellsPerSlot: input.nCellsPerSlot,
+      nSlotsPerDataSet: input.nSlotsPerDataSet,
+      slotProof: normSlotProof,
+      samples: normSamples,
+    )
   )
 
-proc release*(self: CircomCompat) =
+proc release*(self: CircomCompatBackendRef) =
   ## Release the ctx
   ##
 
@@ -79,7 +88,9 @@ proc release*(self: CircomCompat) =
   if not isNil(self.vkp):
     self.vkp.unsafeAddr.release_key()
 
-proc prove[H](self: CircomCompat, input: NormalizedProofInputs[H]): ?!CircomProof =
+proc prove[SomeHash](
+    self: CircomCompatBackendRef, input: NormalizedProofInputs[SomeHash]
+): Future[?!CircomCompatProof] {.async: (raises: [CancelledError]).} =
   doAssert input.samples.len == self.numSamples, "Number of samples does not match"
 
   doAssert input.slotProof.len <= self.datasetDepth,
@@ -101,7 +112,7 @@ proc prove[H](self: CircomCompat, input: NormalizedProofInputs[H]): ?!CircomProo
       ctx.addr.release_circom_compat()
 
   if init_circom_compat(self.backendCfg, addr ctx) != ERR_OK or ctx == nil:
-    raiseAssert("failed to initialize CircomCompat ctx")
+    raiseAssert("failed to initialize CircomCompatBackend ctx")
 
   var
     entropy = input.entropy.toBytes
@@ -172,12 +183,16 @@ proc prove[H](self: CircomCompat, input: NormalizedProofInputs[H]): ?!CircomProo
 
   success proof
 
-proc prove*[H](self: CircomCompat, input: ProofInputs[H]): ?!CircomProof =
+proc prove*[SomeHash](
+    self: CircomCompatBackendRef, input: ProofInputs[SomeHash]
+): Future[?!CircomCompatProof] {.async: (raises: [CancelledError], raw: true).} =
   self.prove(self.normalizeInput(input))
 
-proc verify*[H](
-    self: CircomCompat, proof: CircomProof, inputs: ProofInputs[H]
-): ?!bool =
+proc verify*[SomeHash](
+    self: CircomCompatBackendRef,
+    proof: CircomCompatProof,
+    inputs: ProofInputs[SomeHash],
+): Future[?!bool] {.async: (raises: [CancelledError]).} =
   ## Verify a proof using a ctx
   ##
 
@@ -196,8 +211,8 @@ proc verify*[H](
   finally:
     inputs.releaseCircomInputs()
 
-proc init*(
-    _: type CircomCompat,
+proc new*(
+    _: type CircomCompatBackendRef,
     r1csPath: string,
     wasmPath: string,
     zkeyPath: string = "",
@@ -206,7 +221,7 @@ proc init*(
     blkDepth = DefaultBlockDepth,
     cellElms = DefaultCellElms,
     numSamples = DefaultSamplesNum,
-): CircomCompat =
+): ?!CircomCompatBackendRef =
   ## Create a new ctx
   ##
 
@@ -217,16 +232,16 @@ proc init*(
       cfg == nil:
     if cfg != nil:
       cfg.addr.release_cfg()
-    raiseAssert("failed to initialize circom compat config")
+    return failure "failed to initialize circom compat config"
 
   var vkpPtr: ptr VerifyingKey = nil
 
   if cfg.get_verifying_key(vkpPtr.addr) != ERR_OK or vkpPtr == nil:
     if vkpPtr != nil:
       vkpPtr.addr.release_key()
-    raiseAssert("Failed to get verifying key")
+    return failure "Failed to get verifying key"
 
-  CircomCompat(
+  success CircomCompatBackendRef(
     r1csPath: r1csPath,
     wasmPath: wasmPath,
     zkeyPath: zkeyPath,

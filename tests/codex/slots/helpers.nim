@@ -6,6 +6,7 @@ import pkg/libp2p/cid
 import pkg/codex/codextypes
 import pkg/codex/stores
 import pkg/codex/merkletree
+import pkg/codex/utils/poseidon2digest
 import pkg/codex/manifest
 import pkg/codex/blocktype as bt
 import pkg/codex/chunker

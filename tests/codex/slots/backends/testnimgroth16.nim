@@ -1,30 +1,38 @@
 import std/options
+import std/isolation
 
 import ../../../asynctest
 
 import pkg/chronos
 import pkg/poseidon2
 import pkg/serde/json
+import pkg/taskpools
 
 import pkg/codex/slots {.all.}
 import pkg/codex/slots/types {.all.}
 import pkg/codex/merkletree
+import pkg/codex/merkletree/poseidon2
 import pkg/codex/codextypes
 import pkg/codex/manifest
 import pkg/codex/stores
+
+import pkg/groth16
+import pkg/nim/circom_witnessgen
+import pkg/nim/circom_witnessgen/load
+import pkg/nim/circom_witnessgen/witness
 
 import ./helpers
 import ../helpers
 import ../../helpers
 
-suite "Test Circom Compat Backend - control inputs":
+suite "Test NimGoth16 Backend - control inputs":
   let
+    graph = "tests/circuits/fixtures/proof_main.bin"
     r1cs = "tests/circuits/fixtures/proof_main.r1cs"
-    wasm = "tests/circuits/fixtures/proof_main.wasm"
     zkey = "tests/circuits/fixtures/proof_main.zkey"
 
   var
-    circom: CircomCompatBackendRef
+    nimGroth16: NimGroth16BackendRef
     proofInputs: ProofInputs[Poseidon2Hash]
 
   setup:
@@ -33,22 +41,22 @@ suite "Test Circom Compat Backend - control inputs":
       inputJson = !JsonNode.parse(inputData)
 
     proofInputs = Poseidon2Hash.jsonToProofInput(inputJson)
-    circom = CircomCompatBackendRef.new(r1cs, wasm, zkey).tryGet
+    nimGroth16 = NimGroth16BackendRef.new(graph, r1cs, zkey, tp = Taskpool.new()).tryGet
 
   teardown:
-    circom.release() # this comes from the rust FFI
+    nimGroth16.release()
 
   test "Should verify with correct inputs":
-    let proof = (await circom.prove(proofInputs)).tryGet
-    check (await circom.verify(proof, proofInputs)).tryGet
+    let proof = (await nimGroth16.prove(proofInputs)).tryGet
+    check (await nimGroth16.verify(proof)).tryGet
 
   test "Should not verify with incorrect inputs":
     proofInputs.slotIndex = 1 # change slot index
 
-    let proof = (await circom.prove(proofInputs)).tryGet
-    check (await circom.verify(proof, proofInputs)).tryGet == false
+    let proof = (await nimGroth16.prove(proofInputs)).tryGet
+    check (await nimGroth16.verify(proof)).tryGet == false
 
-suite "Test Circom Compat Backend":
+suite "Test NimGoth16 Backend":
   let
     ecK = 2
     ecM = 2
@@ -58,8 +66,8 @@ suite "Test Circom Compat Backend":
     blockSize = DefaultBlockSize
     cellSize = DefaultCellSize
 
+    graph = "tests/circuits/fixtures/proof_main.bin"
     r1cs = "tests/circuits/fixtures/proof_main.r1cs"
-    wasm = "tests/circuits/fixtures/proof_main.wasm"
     zkey = "tests/circuits/fixtures/proof_main.zkey"
 
     repoTmp = TempLevelDb.new()
@@ -70,7 +78,7 @@ suite "Test Circom Compat Backend":
     manifest: Manifest
     protected: Manifest
     verifiable: Manifest
-    circom: CircomCompatBackendRef
+    nimGroth16: NimGroth16BackendRef
     proofInputs: ProofInputs[Poseidon2Hash]
     challenge: array[32, byte]
     builder: Poseidon2Builder
@@ -90,22 +98,22 @@ suite "Test Circom Compat Backend":
     builder = Poseidon2Builder.new(store, verifiable).tryGet
     sampler = Poseidon2Sampler.new(slotId, store, builder).tryGet
 
-    circom = CircomCompatBackendRef.new(r1cs, wasm, zkey).tryGet
+    nimGroth16 = NimGroth16BackendRef.new(graph, r1cs, zkey, tp = Taskpool.new()).tryGet
     challenge = 1234567.toF.toBytes.toArray32
 
     proofInputs = (await sampler.getProofInput(challenge, samples)).tryGet
 
   teardown:
-    circom.release() # this comes from the rust FFI
+    nimGroth16.release()
     await repoTmp.destroyDb()
     await metaTmp.destroyDb()
 
   test "Should verify with correct input":
-    var proof = (await circom.prove(proofInputs)).tryGet
-    check (await circom.verify(proof, proofInputs)).tryGet
+    var proof = (await nimGroth16.prove(proofInputs)).tryGet
+    check (await nimGroth16.verify(proof)).tryGet
 
   test "Should not verify with incorrect input":
     proofInputs.slotIndex = 1 # change slot index
 
-    let proof = (await circom.prove(proofInputs)).tryGet
-    check (await circom.verify(proof, proofInputs)).tryGet == false
+    let proof = (await nimGroth16.prove(proofInputs)).tryGet
+    check (await nimGroth16.verify(proof)).tryGet == false

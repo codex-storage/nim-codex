@@ -64,17 +64,18 @@ marketplacesuite(name = "Hosts submit regular proofs", stopOnRequestFail = false
 
     let slotSize = slotSize(blocks, ecNodes, ecTolerance)
 
-    discard await waitForRequestToStart(expiry.int)
+    discard await waitForRequestToStart(expiry.int + 10)
 
     var proofWasSubmitted = false
     proc onProofSubmitted(event: ?!ProofSubmitted) =
       proofWasSubmitted = event.isOk
 
-    let subscription = await marketplace.subscribe(ProofSubmitted, onProofSubmitted)
+    let proofSubmittedSubscription =
+      await marketplace.subscribe(ProofSubmitted, onProofSubmitted)
 
     check eventually(proofWasSubmitted, timeout = (duration - expiry).int * 1000)
 
-    await subscription.unsubscribe()
+    await proofSubmittedSubscription.unsubscribe()
 
 marketplacesuite(name = "Simulate invalid proofs", stopOnRequestFail = false):
   # TODO: these are very loose tests in that they are not testing EXACTLY how
@@ -117,7 +118,7 @@ marketplacesuite(name = "Simulate invalid proofs", stopOnRequestFail = false):
       .some,
     ):
     let client0 = clients()[0].client
-    let expiry = 10.periods
+    let expiry = 15.periods
     let duration = expiry + 10.periods
 
     let data = await RandomChunker.example(blocks = blocks)

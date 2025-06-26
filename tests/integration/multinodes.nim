@@ -85,7 +85,7 @@ template multinodesuite*(name: string, body: untyped) =
     # If you want to use a different provider url in the nodes, you can
     # use withEthProvider config modifier in the node config
     # to set the desired provider url. E.g.:
-    #   NodeConfigs(    
+    #   NodeConfigs(
     #     hardhat:
     #       HardhatConfig.none,
     #     clients:
@@ -230,15 +230,15 @@ template multinodesuite*(name: string, body: untyped) =
       )
       config.addCliOption(
         PersistenceCmd.prover, "--circom-r1cs",
-        "vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.r1cs",
+        "tests/circuits/fixtures/proof_main.r1cs",
       )
       config.addCliOption(
-        PersistenceCmd.prover, "--circom-wasm",
-        "vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.wasm",
+        PersistenceCmd.prover, "--circom-graph",
+        "tests/circuits/fixtures/proof_main.bin",
       )
       config.addCliOption(
         PersistenceCmd.prover, "--circom-zkey",
-        "vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.zkey",
+        "tests/circuits/fixtures/proof_main.zkey",
       )
 
       return await newCodexProcess(providerIdx, config, Role.Provider)
