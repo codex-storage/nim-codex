@@ -49,9 +49,10 @@ jobs:
         run: make -j${ncpu} test
 
       - name: Setup Node.js
+        if: matrix.tests == 'contract' || matrix.tests == 'integration' || matrix.tests == 'tools' || matrix.tests == 'all'
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Start Ethereum node with Codex contracts
         if: matrix.tests == 'contract' || matrix.tests == 'integration' || matrix.tests == 'tools' || matrix.tests == 'all'
@@ -59,7 +60,7 @@ jobs:
         env:
           MSYS2_PATH_TYPE: inherit
         run: |
-          npm install
+          npm ci
           npm start &
           # Wait for the contracts to be deployed
           sleep 5
