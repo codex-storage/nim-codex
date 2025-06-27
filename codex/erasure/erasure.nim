@@ -324,11 +324,6 @@ proc asyncEncode*(
   defer:
     threadPtr.close().expect("closing once works")
 
-  # var data = makeUncheckedArray(blocks)
-
-  # defer:
-  #   dealloc(data)
-
   ## Create an ecode task with block data
   var task = EncodeTask(
     erasure: cast[ptr Erasure](self),
@@ -386,10 +381,6 @@ proc encodeData(
       var data = seq[seq[byte]].new() # number of blocks to encode
 
       data[].setLen(params.ecK)
-      # TODO: this is a tight blocking loop so we sleep here to allow
-      # other events to be processed, this should be addressed
-      # by threading
-      await sleepAsync(10.millis)
 
       without resolved =?
         (await self.prepareEncodingData(manifest, params, step, data, cids, emptyBlock)),
@@ -495,14 +486,6 @@ proc asyncDecode*(
   defer:
     threadPtr.close().expect("closing once works")
 
-  # var
-  #   blockData = makeUncheckedArray(blocks)
-  #   parityData = makeUncheckedArray(parity)
-
-  # defer:
-  #   dealloc(blockData)
-  #   dealloc(parityData)
-
   ## Create an decode task with block data
   var task = DecodeTask(
     erasure: cast[ptr Erasure](self),
@@ -517,13 +500,12 @@ proc asyncDecode*(
   self.taskPool.spawn leopardDecodeTask(self.taskPool, addr task)
   let threadFut = threadPtr.wait()
 
-  if joinErr =? catch(await threadFut.join()).errorOption:
-    if err =? catch(await noCancel threadFut).errorOption:
-      return failure(err)
-    if joinErr of CancelledError:
-      raise (ref CancelledError) joinErr
-    else:
-      return failure(joinErr)
+  if err =? catch(await threadFut.join()).errorOption:
+    ?catch(await noCancel threadFut)
+    if err of CancelledError:
+      raise (ref CancelledError) err
+
+    return failure(err)
 
   if not task.success.load():
     return failure("Leopard decoding task failed")
@@ -549,11 +531,6 @@ proc decodeInternal(
   cids[].setLen(encoded.blocksCount)
   try:
     for step in 0 ..< encoded.steps:
-      # TODO: this is a tight blocking loop so we sleep here to allow
-      # other events to be processed, this should be addressed
-      # by threading
-      await sleepAsync(10.millis)
-
       var
         data = seq[seq[byte]].new()
         parityData = seq[seq[byte]].new()
