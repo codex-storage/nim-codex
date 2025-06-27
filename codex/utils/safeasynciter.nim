@@ -232,3 +232,28 @@ proc empty*[T](_: type SafeAsyncIter[T]): SafeAsyncIter[T] =
     true
 
   SafeAsyncIter[T].new(genNext, isFinished)
+
+proc chain*[T](iters: seq[SafeAsyncIter[T]]): SafeAsyncIter[T] =
+  if iters.len == 0:
+    return SafeAsyncIter[T].empty
+
+  var curIdx = 0
+
+  proc ensureNext(): void =
+    while curIdx < iters.len and iters[curIdx].finished:
+      inc(curIdx)
+
+  proc isFinished(): bool =
+    curIdx == iters.len
+
+  proc genNext(): Future[?!T] {.async: (raises: [CancelledError]).} =
+    let item = await iters[curIdx].next()
+    ensureNext()
+    return item
+
+  ensureNext()
+
+  return SafeAsyncIter[T].new(genNext, isFinished)
+
+proc chain*[T](iters: varargs[SafeAsyncIter[T]]): SafeAsyncIter[T] =
+  chain(iters.toSeq)
