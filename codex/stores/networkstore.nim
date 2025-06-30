@@ -31,24 +31,23 @@ type NetworkStore* = ref object of BlockStore
   engine*: BlockExcEngine # blockexc decision engine
   localStore*: BlockStore # local block store
 
-proc getBlocks*(
+method getBlocks*(
     self: NetworkStore, addresses: seq[BlockAddress]
-): Future[seq[?!Block]] {.async: (raises: [CancelledError]).} =
+): Future[SafeAsyncIter[Block]] {.async: (raises: [CancelledError]).} =
   var
-    localBlocks: seq[?!Block]
+    localAddresses: seq[BlockAddress]
     remoteAddresses: seq[BlockAddress]
 
-  # We can resolve local blocks sequentially as for now those are blocking anyway. Still:
-  # TODO: implement getBlocks for local store so we can delegate it here.
   for address in addresses:
     if not (await address in self.localStore):
       remoteAddresses.add(address)
     else:
-      localBlocks.add(await self.localStore.getBlock(address))
+      localAddresses.add(address)
 
-  let remoteBlocks = await self.engine.requestBlocks(remoteAddresses)
-
-  return localBlocks.concat(remoteBlocks)
+  return chain(
+    await self.localStore.getBlocks(localAddresses),
+    self.engine.requestBlocks(remoteAddresses),
+  )
 
 method getBlock*(
     self: NetworkStore, address: BlockAddress

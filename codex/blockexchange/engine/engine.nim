@@ -256,7 +256,7 @@ proc downloadInternal(
 
 proc requestBlocks*(
     self: BlockExcEngine, addresses: seq[BlockAddress]
-): Future[seq[?!Block]] {.async: (raises: [CancelledError]).} =
+): SafeAsyncIter[Block] =
   var handles: seq[BlockHandle]
   # Adds all blocks to pendingBlocks before calling the first downloadInternal. This will
   # ensure that we don't send incomplete want lists.
@@ -267,20 +267,27 @@ proc requestBlocks*(
   for address in addresses:
     self.trackedFutures.track(self.downloadInternal(address))
 
-  # TODO: we can reduce latency and improve download times
-  #   by returning blocks out of order as futures complete.
-  var blocks: seq[?!Block]
-  for handle in handles:
-    try:
-      blocks.add(success await handle)
-    except CancelledError as err:
-      warn "Block request cancelled", addresses, err = err.msg
-      raise err
-    except CatchableError as err:
-      error "Error getting blocks from exchange engine", addresses, err = err.msg
-      blocks.add(Block.failure err)
+  var completed: int = 0
 
-  return blocks
+  proc isFinished(): bool =
+    completed == handles.len
+
+  proc genNext(): Future[?!Block] {.async: (raises: [CancelledError]).} =
+    # Be it success or failure, we're completing this future.
+    let value =
+      try:
+        success await handles[completed]
+      except CancelledError as err:
+        warn "Block request cancelled", addresses, err = err.msg
+        raise err
+      except CatchableError as err:
+        error "Error getting blocks from exchange engine", addresses, err = err.msg
+        failure err
+
+    inc(completed)
+    return value
+
+  return SafeAsyncIter[Block].new(genNext, isFinished)
 
 proc requestBlock*(
     self: BlockExcEngine, address: BlockAddress
@@ -374,28 +381,42 @@ proc cancelBlocks(
   ## Tells neighboring peers that we're no longer interested in a block.
   ##
 
+  let addrSet = toHashSet(addrs)
+  var pendingCancellations: Table[PeerId, HashSet[BlockAddress]]
+
   if self.peers.len == 0:
     return
 
   trace "Sending block request cancellations to peers",
     addrs, peers = self.peers.peerIds
 
-  proc processPeer(peerCtx: BlockExcPeerCtx): Future[BlockExcPeerCtx] {.async.} =
+  proc processPeer(
+      entry: tuple[peerId: PeerId, addresses: HashSet[BlockAddress]]
+  ): Future[PeerId] {.async: (raises: [CancelledError]).} =
     await self.network.request.sendWantCancellations(
-      peer = peerCtx.id, addresses = addrs.filterIt(it in peerCtx)
+      peer = entry.peerId, addresses = entry.addresses.toSeq
     )
 
-    return peerCtx
+    return entry.peerId
 
   try:
-    let (succeededFuts, failedFuts) = await allFinishedFailed[BlockExcPeerCtx](
-      toSeq(self.peers.peers.values).filterIt(it.peerHave.anyIt(it in addrs)).map(
-        processPeer
-      )
+    # Does the peer have any of the blocks we're canceling?
+    for peerCtx in self.peers.peers.values:
+      let intersection = peerCtx.peerHave.intersection(addrSet)
+      if intersection.len > 0:
+        pendingCancellations[peerCtx.id] = intersection
+
+    # If so, dispatches cancellations.
+    # FIXME: we're still spamming peers - the fact that the peer has the block does
+    #   not mean we've requested it.
+    let (succeededFuts, failedFuts) = await allFinishedFailed[PeerId](
+      toSeq(pendingCancellations.pairs).map(processPeer)
     )
 
-    (await allFinished(succeededFuts)).mapIt(it.read).apply do(peerCtx: BlockExcPeerCtx):
-      peerCtx.cleanPresence(addrs)
+    (await allFinished(succeededFuts)).mapIt(it.read).apply do(peerId: PeerId):
+      let ctx = self.peers.get(peerId)
+      if not ctx.isNil:
+        ctx.cleanPresence(addrs)
 
     if failedFuts.len > 0:
       warn "Failed to send block request cancellations to peers", peers = failedFuts.len
@@ -545,6 +566,8 @@ proc wantListHandler*(
           price = @(self.pricing.get(Pricing(price: 0.u256)).price.toBytesBE)
 
         if e.cancel:
+          # This is sort of expected if we sent the block to the peer, as we have removed
+          # it from the peer's wantlist ourselves.
           trace "Received cancelation for untracked block, skipping",
             address = e.address
           continue

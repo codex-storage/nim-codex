@@ -404,8 +404,10 @@ asyncchecksuite "Test SafeAsyncIter":
 
     expect CancelledError:
       for fut in iter2:
-        without i =? (await fut), err:
+        if i =? (await fut):
           collected.add(i)
+        else:
+          fail()
 
     check:
       # We expect only values "0" and "1" to be collected
