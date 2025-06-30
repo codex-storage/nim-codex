@@ -65,6 +65,14 @@ method getBlock*(
 
   raiseAssert("getBlock by addr not implemented!")
 
+method getBlocks*(
+    self: BlockStore, addresses: seq[BlockAddress]
+): Future[SafeAsyncIter[Block]] {.async: (raises: [CancelledError]).} =
+  ## Gets a set of blocks from the blockstore. Blocks might
+  ## be returned in any order.
+
+  raiseAssert("getBlocks not implemented!")
+
 method getBlockAndProof*(
     self: BlockStore, treeCid: Cid, index: Natural
 ): Future[?!(Block, CodexProof)] {.base, async: (raises: [CancelledError]), gcsafe.} =

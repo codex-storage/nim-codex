@@ -44,7 +44,7 @@ import ./indexingstrategy
 import ./utils
 import ./errors
 import ./logutils
-import ./utils/asynciter
+import ./utils/safeasynciter
 import ./utils/trackedfutures
 
 export logutils
@@ -194,20 +194,38 @@ proc fetchBatched*(
           if not (await address in self.networkStore) or fetchLocal:
             address
 
-    let
-      blockResults = await self.networkStore.getBlocks(addresses)
-      blocks = blockResults.filterIt(it.isSuccess()).mapIt(it.value)
-      numOfFailedBlocks = blockResults.len - blocks.len
+    proc successful(
+        blk: ?!bt.Block
+    ): Future[bool] {.async: (raises: [CancelledError]).} =
+      return blk.isSuccess()
 
-    if numOfFailedBlocks > 0:
-      return
-        failure("Some blocks failed (Result) to fetch (" & $numOfFailedBlocks & ")")
+    let blockResults = await self.networkStore.getBlocks(addresses)
 
-    if not onBatch.isNil and batchErr =? (await onBatch(blocks)).errorOption:
+    var
+      successfulBlocks = 0
+      failedBlocks = 0
+      blockData: seq[bt.Block]
+
+    for res in blockResults:
+      without blk =? await res:
+        inc(failedBlocks)
+        continue
+
+      inc(successfulBlocks)
+
+      # Only retains block data in memory if there's
+      # a callback.
+      if not onBatch.isNil:
+        blockData.add(blk)
+
+    if failedBlocks > 0:
+      return failure("Some blocks failed (Result) to fetch (" & $failedBlocks & ")")
+
+    if not onBatch.isNil and batchErr =? (await onBatch(blockData)).errorOption:
       return failure(batchErr)
 
     if not iter.finished:
-      await sleepAsync(1.millis)
+      await idleAsync()
 
   success()
 
