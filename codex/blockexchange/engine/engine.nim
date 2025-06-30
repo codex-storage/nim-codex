@@ -258,6 +258,7 @@ proc requestBlocks*(
     self: BlockExcEngine, addresses: seq[BlockAddress]
 ): SafeAsyncIter[Block] =
   var handles: seq[BlockHandle]
+
   # Adds all blocks to pendingBlocks before calling the first downloadInternal. This will
   # ensure that we don't send incomplete want lists.
   for address in addresses:
@@ -276,7 +277,13 @@ proc requestBlocks*(
     # Be it success or failure, we're completing this future.
     let value =
       try:
-        success await handles[completed]
+        # FIXME: this is super expensive. We're doing several linear scans,
+        #   not to mention all the copying and callback fumbling in `one`.
+        let
+          handle = await one(handles)
+          i = handles.find(handle)
+        handles.del(i)
+        success await handle
       except CancelledError as err:
         warn "Block request cancelled", addresses, err = err.msg
         raise err
