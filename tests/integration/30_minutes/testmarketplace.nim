@@ -85,6 +85,7 @@ marketplacesuite(name = "Marketplace", stopOnRequestFail = true):
 
     # host makes storage available
     let startBalanceHost = await token.balanceOf(hostAccount)
+    let startBalanceClient = await token.balanceOf(clientAccount)
     discard (
       await host.postAvailability(
         totalSize = size,
@@ -94,8 +95,65 @@ marketplacesuite(name = "Marketplace", stopOnRequestFail = true):
       )
     ).get
 
+    let slotSize = slotSize(blocks, ecNodes, ecTolerance)
+
+    var filledAtPerSlot: seq[UInt256] = @[]
+
+    proc storeFilledAtTimestamps() {.async.} =
+      let filledAt = await ethProvider.blockTime(BlockTag.latest)
+      filledAtPerSlot.add(filledAt)
+
+    proc onSlotFilled(eventResult: ?!SlotFilled) =
+      assert not eventResult.isErr
+      let event = !eventResult
+      asyncSpawn storeFilledAtTimestamps()
+
+    let filledSubscription = await marketplace.subscribe(SlotFilled, onSlotFilled)
+
     # client requests storage
     let cid = (await client.upload(data)).get
+
+    let pricePerSlotPerSecond = minPricePerBytePerSecond * slotSize
+    var requestEnd = 0.SecondsSince1970
+    var hostRewardEvent = newAsyncEvent()
+
+    proc checkHostRewards() {.async.} =
+      var rewards = 0.u256
+
+      for filledAt in filledAtPerSlot:
+        rewards += (requestEnd.u256 - filledAt) * pricePerSlotPerSecond
+
+      let endBalanceHost = await token.balanceOf(hostAccount)
+
+      if rewards + startBalanceHost == endBalanceHost:
+        hostRewardEvent.fire()
+
+    var clientFundsEvent = newAsyncEvent()
+
+    proc checkHostFunds() {.async.} =
+      var hostRewards = 0.u256
+
+      for filledAt in filledAtPerSlot:
+        hostRewards += (requestEnd.u256 - filledAt) * pricePerSlotPerSecond
+
+      let requestPrice = minPricePerBytePerSecond * slotSize * duration.u256 * 3
+      let fundsBackToClient = requestPrice - hostRewards
+      let endBalanceClient = await token.balanceOf(clientAccount)
+
+      if startBalanceClient + fundsBackToClient - requestPrice == endBalanceClient:
+        clientFundsEvent.fire()
+
+    var transferEvent = newAsyncEvent()
+
+    proc onTransfer(eventResult: ?!Transfer) =
+      assert not eventResult.isErr
+
+      let data = eventResult.get()
+      if data.receiver == hostAccount:
+        asyncSpawn checkHostRewards()
+      if data.receiver == clientAccount:
+        asyncSpawn checkHostFunds()
+
     let id = await client.requestStorage(
       cid,
       duration = duration,
@@ -107,40 +165,24 @@ marketplacesuite(name = "Marketplace", stopOnRequestFail = true):
       tolerance = ecTolerance,
     )
 
+    let requestId = (await client.requestId(id)).get
+
     discard await waitForRequestToStart()
-
-    var counter = 0
-    var transferEvent = newAsyncEvent()
-    proc onTransfer(eventResult: ?!Transfer) =
-      assert not eventResult.isErr
-      counter += 1
-      if counter == 6:
-        transferEvent.fire()
-
-    let tokenSubscription = await token.subscribe(Transfer, onTransfer)
-
-    let purchase = (await client.getPurchase(id)).get
-    check purchase.error == none string
-
-    let clientBalanceBeforeFinished = await token.balanceOf(clientAccount)
 
     # Proving mechanism uses blockchain clock to do proving/collect/cleanup round
     # hence we must use `advanceTime` over `sleepAsync` as Hardhat does mine new blocks
     # only with new transaction
     await ethProvider.advanceTime(duration.u256)
 
-    await transferEvent.wait().wait(timeout = chronos.seconds(60))
+    requestEnd = await marketplace.requestEnd(requestId)
 
-    # Checking that the hosting node received reward for at least the time between <expiry;end>
-    let slotSize = slotSize(blocks, ecNodes, ecTolerance)
-    let pricePerSlotPerSecond = minPricePerBytePerSecond * slotSize
-    check (await token.balanceOf(hostAccount)) - startBalanceHost >=
-      (duration - 5 * 60).u256 * pricePerSlotPerSecond * ecNodes.u256
+    let tokenSubscription = await token.subscribe(Transfer, onTransfer)
 
-    # Checking that client node receives some funds back that were not used for the host nodes
-    check ((await token.balanceOf(clientAccount)) - clientBalanceBeforeFinished > 0)
+    await clientFundsEvent.wait().wait(timeout = chronos.seconds(60))
+    await hostRewardEvent.wait().wait(timeout = chronos.seconds(60))
 
     await tokenSubscription.unsubscribe()
+    await filledSubscription.unsubscribe()
 
   test "SP are able to process slots after workers were busy with other slots and ignored them",
     NodeConfigs(
