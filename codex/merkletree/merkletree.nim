@@ -9,9 +9,11 @@
 
 {.push raises: [].}
 
-import std/bitops
+import std/[bitops, atomics]
 
 import pkg/questionable/results
+import pkg/taskpools
+import pkg/chronos/threadsync
 
 import ../errors
 
@@ -29,6 +31,13 @@ type
     nleaves*: int # number of leaves in the tree (=size of input)
     compress*: CompressFn[H, K] # compress function
     zero*: H # zero value
+
+  MerkleTask*[H, K] = object
+    tree*: ptr MerkleTree[H, K]
+    leaves*: seq[H]
+    signal*: ThreadSignalPtr
+    layers*: Isolated[seq[seq[H]]]
+    success*: Atomic[bool]
 
 func depth*[H, K](self: MerkleTree[H, K]): int =
   return self.layers.len - 1
@@ -151,3 +160,17 @@ func merkleTreeWorker*[H, K](
     ys[halfn] = ?self.compress(xs[n], self.zero, key = key)
 
   success @[@xs] & ?self.merkleTreeWorker(ys, isBottomLayer = false)
+
+proc asyncMerkleTreeWorker*[H, K](task: ptr MerkleTask[H, K]) {.gcsafe.} =
+  defer:
+    discard task[].signal.fireSync()
+
+  let res = merkleTreeWorker(task[].tree[], task[].leaves, isBottomLayer = true)
+
+  if res.isErr:
+    task[].success.store(false)
+    return
+
+  var isolatedLayers = isolate(res.get())
+  task[].layers = isolatedLayers
+  task[].success.store(true)

@@ -10,12 +10,14 @@
 {.push raises: [].}
 
 import std/bitops
-import std/sequtils
+import std/[atomics, sequtils]
 
 import pkg/questionable
 import pkg/questionable/results
 import pkg/libp2p/[cid, multicodec, multihash]
 import pkg/constantine/hashes
+import pkg/taskpools
+import pkg/chronos/threadsync
 import ../../utils
 import ../../rng
 import ../../errors
@@ -48,7 +50,7 @@ type
     mcodec*: MultiCodec
 
 # CodeHashes is not exported from libp2p
-# So we need to recreate it instead of 
+# So we need to recreate it instead of
 proc initMultiHashCodeTable(): Table[MultiCodec, MHash] {.compileTime.} =
   for item in HashesList:
     result[item.mcodec] = item
@@ -160,7 +162,60 @@ func init*(
   self.layers = ?merkleTreeWorker(self, leaves, isBottomLayer = true)
   success self
 
-func init*(_: type CodexTree, leaves: openArray[MultiHash]): ?!CodexTree =
+proc initCodexTreeAsync*(
+    tp: Taskpool, mcodec: MultiCodec = Sha256HashCodec, leaves: seq[ByteHash]
+): Future[?!CodexTree] {.async: (raises: [CancelledError]).} =
+  if leaves.len == 0:
+    return failure "Empty leaves"
+
+  let
+    mhash = ?mcodec.mhash()
+    compressor = proc(x, y: seq[byte], key: ByteTreeKey): ?!ByteHash {.noSideEffect.} =
+      compress(x, y, key, mhash)
+    Zero: ByteHash = newSeq[byte](mhash.size)
+
+  if mhash.size != leaves[0].len:
+    return failure "Invalid hash length"
+
+  without threadPtr =? ThreadSignalPtr.new():
+    return failure("Unable to create thread signal")
+
+  defer:
+    threadPtr.close().expect("closing once works")
+
+  var tree = CodexTree(compress: compressor, zero: Zero, mcodec: mcodec)
+
+  var task = MerkleTask[ByteHash, ByteTreeKey](
+    tree: cast[ptr MerkleTree[ByteHash, ByteTreeKey]](addr tree),
+    leaves: @leaves,
+    signal: threadPtr,
+  )
+
+  doAssert tp.numThreads > 1,
+    "Must have at least one separate thread or signal will never be fired"
+
+  tp.spawn asyncMerkleTreeWorker(addr task)
+
+  let threadFut = threadPtr.wait()
+
+  if err =? catch(await threadFut.join()).errorOption:
+    ?catch(await noCancel threadFut)
+    if err of CancelledError:
+      raise (ref CancelledError) err
+
+  if not task.success.load():
+    return failure("merkle tree task failed")
+
+  defer:
+    task.layers = default(Isolated[seq[seq[ByteHash]]])
+
+  tree.layers = task.layers.extract
+
+  success tree
+
+proc init*(
+    _: type CodexTree, tp: Taskpool, leaves: openArray[MultiHash]
+): Future[?!CodexTree] =
   if leaves.len == 0:
     return failure "Empty leaves"
 
@@ -168,7 +223,19 @@ func init*(_: type CodexTree, leaves: openArray[MultiHash]): ?!CodexTree =
     mcodec = leaves[0].mcodec
     leaves = leaves.mapIt(it.digestBytes)
 
-  CodexTree.init(mcodec, leaves)
+  return initCodexTreeAsync(tp, mcodec, leaves)
+
+proc init*(
+    _: type CodexTree, tp: Taskpool, leaves: seq[Cid]
+): Future[?!CodexTree] {.async.} =
+  if leaves.len == 0:
+    return failure("Empty leaves")
+
+  let
+    mcodec = (?leaves[0].mhash.mapFailure).mcodec
+    leaves = leaves.mapIt((?it.mhash.mapFailure).digestBytes)
+
+  ?catch(await initCodexTreeAsync(tp, mcodec, leaves))
 
 func init*(_: type CodexTree, leaves: openArray[Cid]): ?!CodexTree =
   if leaves.len == 0:

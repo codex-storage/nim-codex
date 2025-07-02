@@ -428,7 +428,7 @@ proc encodeData(
           return failure("Unable to store block!")
         idx.inc(params.steps)
 
-    without tree =? CodexTree.init(cids[]), err:
+    without tree =? (await CodexTree.init(self.taskPool, cids[])), err:
       return failure(err)
 
     without treeCid =? tree.rootCid, err:
@@ -649,7 +649,8 @@ proc decode*(self: Erasure, encoded: Manifest): Future[?!Manifest] {.async.} =
   without (cids, recoveredIndices) =? (await self.decodeInternal(encoded)), err:
     return failure(err)
 
-  without tree =? CodexTree.init(cids[0 ..< encoded.originalBlocksCount]), err:
+  without tree =?
+    (await CodexTree.init(self.taskPool, cids[0 ..< encoded.originalBlocksCount])), err:
     return failure(err)
 
   without treeCid =? tree.rootCid, err:
@@ -680,7 +681,8 @@ proc repair*(self: Erasure, encoded: Manifest): Future[?!void] {.async.} =
   without (cids, _) =? (await self.decodeInternal(encoded)), err:
     return failure(err)
 
-  without tree =? CodexTree.init(cids[0 ..< encoded.originalBlocksCount]), err:
+  without tree =?
+    (await CodexTree.init(self.taskPool, cids[0 ..< encoded.originalBlocksCount])), err:
     return failure(err)
 
   without treeCid =? tree.rootCid, err:
