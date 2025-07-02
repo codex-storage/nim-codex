@@ -42,7 +42,7 @@ type
 
   BlockReq* = object
     handle*: BlockHandle
-    inFlight*: bool
+    requested*: ?PeerId
     blockRetries*: int
     startTime*: int64
 
@@ -56,7 +56,7 @@ proc updatePendingBlockGauge(p: PendingBlocksManager) =
   codex_block_exchange_pending_block_requests.set(p.blocks.len.int64)
 
 proc getWantHandle*(
-    self: PendingBlocksManager, address: BlockAddress, inFlight = false
+    self: PendingBlocksManager, address: BlockAddress, requested: ?PeerId = PeerId.none
 ): Future[Block] {.async: (raw: true, raises: [CancelledError, RetriesExhaustedError]).} =
   ## Add an event for a block
   ##
@@ -66,7 +66,7 @@ proc getWantHandle*(
   do:
     let blk = BlockReq(
       handle: newFuture[Block]("pendingBlocks.getWantHandle"),
-      inFlight: inFlight,
+      requested: requested,
       blockRetries: self.blockRetries,
       startTime: getMonoTime().ticks,
     )
@@ -89,9 +89,9 @@ proc getWantHandle*(
     return handle
 
 proc getWantHandle*(
-    self: PendingBlocksManager, cid: Cid, inFlight = false
+    self: PendingBlocksManager, cid: Cid, requested: ?PeerId = PeerId.none
 ): Future[Block] {.async: (raw: true, raises: [CancelledError, RetriesExhaustedError]).} =
-  self.getWantHandle(BlockAddress.init(cid), inFlight)
+  self.getWantHandle(BlockAddress.init(cid), requested)
 
 proc completeWantHandle*(
     self: PendingBlocksManager, address: BlockAddress, blk: Block
@@ -141,19 +141,37 @@ func retriesExhausted*(self: PendingBlocksManager, address: BlockAddress): bool 
   self.blocks.withValue(address, pending):
     result = pending[].blockRetries <= 0
 
-func setInFlight*(self: PendingBlocksManager, address: BlockAddress, inFlight = true) =
-  ## Set inflight status for a block
+func isRequested*(self: PendingBlocksManager, address: BlockAddress): bool =
+  ## Check if a block has been requested to a peer
+  ##
+  result = false
+  self.blocks.withValue(address, pending):
+    result = pending[].requested.isSome
+
+func getRequestPeer*(self: PendingBlocksManager, address: BlockAddress): ?PeerId =
+  ## Returns the peer that requested this block
+  ##
+  result = PeerId.none
+  self.blocks.withValue(address, pending):
+    result = pending[].requested
+
+proc markRequested*(self: PendingBlocksManager, address: BlockAddress, peer: PeerId) =
+  ## Marks this block as having been requested to a peer
   ##
 
-  self.blocks.withValue(address, pending):
-    pending[].inFlight = inFlight
-
-func isInFlight*(self: PendingBlocksManager, address: BlockAddress): bool =
-  ## Check if a block is in flight
-  ##
+  if self.isRequested(address):
+    error "Attempt to request block twice", address = address, peer = peer
 
   self.blocks.withValue(address, pending):
-    result = pending[].inFlight
+    pending[].requested = peer.some
+
+proc clearRequest*(
+    self: PendingBlocksManager, address: BlockAddress, peer: ?PeerId = PeerId.none
+) =
+  self.blocks.withValue(address, pending):
+    if peer.isSome:
+      assert peer == pending[].requested
+    pending[].requested = PeerId.none
 
 func contains*(self: PendingBlocksManager, cid: Cid): bool =
   BlockAddress.init(cid) in self.blocks
