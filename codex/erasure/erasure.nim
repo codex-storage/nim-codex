@@ -319,12 +319,11 @@ proc asyncEncode*(
     self: ErasureRef, blockSize, parityLen: int, blocks: seq[seq[byte]]
 ): Future[?!seq[seq[byte]]] {.async: (raises: [CancelledError]).} =
   var threadPtr = ?ThreadSignalPtr.new().mapFailure()
-  echo "In Async Encode"
+
   defer:
     if threadPtr != nil:
       ?threadPtr.close().mapFailure()
       threadPtr = nil
-    echo "Out Async Encode"
 
   ## Create an ecode task with block data
   var task = EncodeTask(
@@ -484,12 +483,10 @@ proc asyncDecode*(
 ): Future[?!seq[seq[byte]]] {.async: (raises: [CancelledError]).} =
   var threadPtr = ?ThreadSignalPtr.new().mapFailure()
 
-  echo "In Async Decode"
   defer:
     if threadPtr != nil:
       ?threadPtr.close().mapFailure()
       threadPtr = nil
-    echo "Out Async Decode"
 
   ## Create an decode task with block data
   var task = DecodeTask(
