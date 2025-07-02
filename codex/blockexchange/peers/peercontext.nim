@@ -30,23 +30,25 @@ type BlockExcPeerCtx* = ref object of RootObj
   blocks*: Table[BlockAddress, Presence] # remote peer have list including price
   wantedBlocks*: HashSet[BlockAddress] # blocks that the peer wants
   exchanged*: int # times peer has exchanged with us
-  lastExchange*: Moment # last time peer has exchanged with us
   lastRefresh*: Moment # last time we refreshed our knowledge of the blocks this peer has
   account*: ?Account # ethereum account of this peer
   paymentChannel*: ?ChannelId # payment channel id
-  blocksInFlight*: HashSet[BlockAddress] # blocks in flight towards peer
+  blocksSent*: HashSet[BlockAddress] # blocks sent to peer
+  blocksRequested*: HashSet[BlockAddress] # pending block requests to this peer
+  lastExchange*: Moment # last time peer has sent us a block
+  activityTimeout*: Duration
 
 proc isKnowledgeStale*(self: BlockExcPeerCtx): bool =
   self.lastRefresh + 5.minutes < Moment.now()
 
-proc isInFlight*(self: BlockExcPeerCtx, address: BlockAddress): bool =
-  address in self.blocksInFlight
+proc isBlockSent*(self: BlockExcPeerCtx, address: BlockAddress): bool =
+  address in self.blocksSent
 
-proc addInFlight*(self: BlockExcPeerCtx, address: BlockAddress) =
-  self.blocksInFlight.incl(address)
+proc markBlockAsSent*(self: BlockExcPeerCtx, address: BlockAddress) =
+  self.blocksSent.incl(address)
 
-proc removeInFlight*(self: BlockExcPeerCtx, address: BlockAddress) =
-  self.blocksInFlight.excl(address)
+proc markBlockAsNotSent*(self: BlockExcPeerCtx, address: BlockAddress) =
+  self.blocksSent.excl(address)
 
 proc refreshed*(self: BlockExcPeerCtx) =
   self.lastRefresh = Moment.now()
@@ -77,3 +79,31 @@ func price*(self: BlockExcPeerCtx, addresses: seq[BlockAddress]): UInt256 =
       price += precense[].price
 
   price
+
+proc blockRequested*(self: BlockExcPeerCtx, address: BlockAddress) =
+  # We start counting the timeout from the first block requested.
+  if self.blocksRequested.len == 0:
+    self.lastExchange = Moment.now()
+  self.blocksRequested.incl(address)
+
+proc blockRequestCancelled*(self: BlockExcPeerCtx, address: BlockAddress) =
+  self.blocksRequested.excl(address)
+
+proc blockReceived*(self: BlockExcPeerCtx, address: BlockAddress) =
+  self.blocksRequested.excl(address)
+  self.lastExchange = Moment.now()
+
+proc activityTimer*(
+    self: BlockExcPeerCtx
+): Future[void] {.async: (raises: [CancelledError]).} =
+  ## This is called by the block exchange when a block is scheduled for this peer.
+  ## If the peer sends no blocks for a while, it is considered inactive/uncooperative
+  ## and the peer is dropped. Note that ANY block that the peer sends will reset this
+  ## timer for all blocks.
+  ##
+  while true:
+    let idleTime = Moment.now() - self.lastExchange
+    if idleTime > self.activityTimeout:
+      return
+
+    await sleepAsync(self.activityTimeout - idleTime)
