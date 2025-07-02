@@ -64,6 +64,10 @@ declareCounter(codex_block_exchange_blocks_sent, "codex blockexchange blocks sen
 declareCounter(
   codex_block_exchange_blocks_received, "codex blockexchange blocks received"
 )
+declareCounter(
+  codex_block_exchange_spurious_blocks_received,
+  "codex blockexchange unrequested/duplicate blocks received",
+)
 
 const
   DefaultMaxPeersPerRequest* = 10
@@ -80,13 +84,15 @@ const
 type
   TaskHandler* = proc(task: BlockExcPeerCtx): Future[void] {.gcsafe.}
   TaskScheduler* = proc(task: BlockExcPeerCtx): bool {.gcsafe.}
+  PeerSelector* =
+    proc(peers: seq[BlockExcPeerCtx]): BlockExcPeerCtx {.gcsafe, raises: [].}
 
   BlockExcEngine* = ref object of RootObj
     localStore*: BlockStore # Local block store for this instance
-    network*: BlockExcNetwork # Petwork interface
+    network*: BlockExcNetwork # Network interface
     peers*: PeerCtxStore # Peers we're currently actively exchanging with
     taskQueue*: AsyncHeapQueue[BlockExcPeerCtx]
-      # Peers we're currently processing tasks for
+    selectPeer*: PeerSelector # Peers we're currently processing tasks for
     concurrentTasks: int # Number of concurrent peers we're serving at any given time
     trackedFutures: TrackedFutures # Tracks futures of blockexc tasks
     blockexcRunning: bool # Indicates if the blockexc task is running
@@ -205,8 +211,19 @@ proc searchForNewPeers(self: BlockExcEngine, cid: Cid) =
   else:
     trace "Not searching for new peers, rate limit not expired", cid = cid
 
-proc randomPeer(peers: seq[BlockExcPeerCtx]): BlockExcPeerCtx =
-  Rng.instance.sample(peers)
+proc evictPeer(self: BlockExcEngine, peer: PeerId) =
+  ## Cleanup disconnected peer
+  ##
+
+  trace "Evicting disconnected/departed peer", peer
+
+  let peerCtx = self.peers.get(peer)
+  if not peerCtx.isNil:
+    for address in peerCtx.blocksRequested:
+      self.pendingBlocks.clearRequest(address, peer.some)
+
+  # drop the peer from the peers table
+  self.peers.remove(peer)
 
 proc downloadInternal(
     self: BlockExcEngine, address: BlockAddress
@@ -245,23 +262,34 @@ proc downloadInternal(
           #   control what happens and how many neighbors we get like this.
         self.searchForNewPeers(address.cidOrTreeCid)
 
-        # We wait for a bit and then retry. Since we've shipped our wantlists to
-        # connected peers, they might reply and we might request the block in the
-        # meantime as part of `blockPresenceHandler`.
+        # We now wait for a bit and then retry. If the handle gets completed in the
+        # meantime (cause the presence handler might have requested the block and
+        # received it in the meantime), we are done.
         await handle or sleepAsync(self.pendingBlocks.retryInterval)
-        # If we already got the block, we're done. Otherwise, we'll go for another
-        # cycle, potentially refreshing knowledge on peers again, and looking up
-        # the DHT again.
         if handle.finished:
           break
+        # If we still don't have the block, we'll go for another cycle.
         trace "No peers for block, will retry shortly"
         continue
 
-      let scheduledPeer = peers.with.randomPeer
-      self.pendingBlocks.setInFlight(address, true)
-      scheduledPeer.blockRequested(address)
-      await self.sendWantBlock(@[address], scheduledPeer)
+      # Once again, it might happen that the block was requested to a peer
+      # in the meantime. If so, we don't need to do anything. Otherwise,
+      # we'll be the ones placing the request.
+      let scheduledPeer =
+        if not self.pendingBlocks.isRequested(address):
+          let peer = self.selectPeer(peers.with)
+          self.pendingBlocks.markRequested(address, peer.id)
+          peer.blockRequested(address)
+          trace "Request block from block retry loop"
+          await self.sendWantBlock(@[address], peer)
+          peer
+        else:
+          let peerId = self.pendingBlocks.getRequestPeer(address).get()
+          self.peers.get(peerId)
 
+      assert not scheduledPeer.isNil
+
+      # Parks until either the block is received, or the peer times out.
       let activityTimer = scheduledPeer.activityTimer()
       await handle or activityTimer # TODO: or peerDropped
       activityTimer.cancel()
@@ -275,8 +303,11 @@ proc downloadInternal(
         break
       else:
         # If the peer timed out, retries immediately.
-        trace "Dropping timed out peer.", peer = scheduledPeer.id
-        # TODO: disconnect peer
+        trace "Peer timed out during block request", peer = scheduledPeer.id
+        await self.network.dropPeer(scheduledPeer.id)
+        # Evicts peer immediately or we may end up picking it again in the
+        # next retry.
+        self.evictPeer(scheduledPeer.id)
   except CancelledError as exc:
     trace "Block download cancelled"
     if not handle.finished:
@@ -286,7 +317,7 @@ proc downloadInternal(
     if not handle.finished:
       handle.fail(exc)
   finally:
-    self.pendingBlocks.setInFlight(address, false)
+    self.pendingBlocks.clearRequest(address)
 
 proc requestBlocks*(
     self: BlockExcEngine, addresses: seq[BlockAddress]
@@ -375,12 +406,12 @@ proc blockPresenceHandler*(
 
   let ourWantCids = ourWantList.filterIt(
     it in peerHave and not self.pendingBlocks.retriesExhausted(it) and
-      not self.pendingBlocks.isInFlight(it)
+      not self.pendingBlocks.isRequested(it)
   ).toSeq
 
   for address in ourWantCids:
-    self.pendingBlocks.setInFlight(address, true)
     self.pendingBlocks.decRetries(address)
+    self.pendingBlocks.markRequested(address, peer)
     peerCtx.blockRequested(address)
 
   if ourWantCids.len > 0:
@@ -388,6 +419,8 @@ proc blockPresenceHandler*(
     # FIXME: this will result in duplicate requests for blocks
     if err =? catch(await self.sendWantBlock(ourWantCids, peerCtx)).errorOption:
       warn "Failed to send wantBlock to peer", peer, err = err.msg
+      for address in ourWantCids:
+        self.pendingBlocks.clearRequest(address, peer.some)
 
 proc scheduleTasks(
     self: BlockExcEngine, blocksDelivery: seq[BlockDelivery]
@@ -417,18 +450,17 @@ proc cancelBlocks(
   ## Tells neighboring peers that we're no longer interested in a block.
   ##
 
-  let addrSet = toHashSet(addrs)
-  var pendingCancellations: Table[PeerId, HashSet[BlockAddress]]
+  let blocksDelivered = toHashSet(addrs)
+  var scheduledCancellations: Table[PeerId, HashSet[BlockAddress]]
 
   if self.peers.len == 0:
     return
 
-  trace "Sending block request cancellations to peers",
-    addrs, peers = self.peers.peerIds
-
-  proc processPeer(
+  proc dispatchCancellations(
       entry: tuple[peerId: PeerId, addresses: HashSet[BlockAddress]]
   ): Future[PeerId] {.async: (raises: [CancelledError]).} =
+    trace "Sending block request cancellations to peer",
+      peer = entry.peerId, addresses = entry.addresses.len
     await self.network.request.sendWantCancellations(
       peer = entry.peerId, addresses = entry.addresses.toSeq
     )
@@ -437,21 +469,22 @@ proc cancelBlocks(
 
   try:
     for peerCtx in self.peers.peers.values:
-      # Have we requested any of the blocks we're cancelling to this peer?
-      let intersection = peerCtx.blocksRequested.intersection(addrSet)
+      # Do we have pending requests, towards this peer, for any of the blocks
+      # that were just delivered?
+      let intersection = peerCtx.blocksRequested.intersection(blocksDelivered)
       if intersection.len > 0:
-        pendingCancellations[peerCtx.id] = intersection
+        # If so, schedules a cancellation.
+        scheduledCancellations[peerCtx.id] = intersection
 
-    # If so, dispatches cancellations.
     let (succeededFuts, failedFuts) = await allFinishedFailed[PeerId](
-      toSeq(pendingCancellations.pairs).map(processPeer)
+      toSeq(scheduledCancellations.pairs).map(dispatchCancellations)
     )
 
     (await allFinished(succeededFuts)).mapIt(it.read).apply do(peerId: PeerId):
       let ctx = self.peers.get(peerId)
       if not ctx.isNil:
         ctx.cleanPresence(addrs)
-        for address in pendingCancellations[peerId]:
+        for address in scheduledCancellations[peerId]:
           ctx.blockRequestCancelled(address)
 
     if failedFuts.len > 0:
@@ -535,6 +568,12 @@ proc blocksDeliveryHandler*(
       address = bd.address
 
     try:
+      # Unknown peers and unrequested blocks are dropped with a warning.
+      if peerCtx == nil or not peerCtx.blockReceived(bd.address):
+        warn "Dropping unrequested or duplicate block received from peer"
+        codex_block_exchange_spurious_blocks_received.inc()
+        continue
+
       if err =? self.validateBlockDelivery(bd).errorOption:
         warn "Block validation failed", msg = err.msg
         continue
@@ -554,9 +593,6 @@ proc blocksDeliveryHandler*(
         ).errorOption:
           warn "Unable to store proof and cid for a block"
           continue
-
-      if peerCtx != nil:
-        peerCtx.blockReceived(bd.address)
     except CatchableError as exc:
       warn "Error handling block delivery", error = exc.msg
       continue
@@ -681,7 +717,7 @@ proc paymentHandler*(
   else:
     context.paymentChannel = self.wallet.acceptChannel(payment).option
 
-proc setupPeer*(
+proc peerAddedHandler*(
     self: BlockExcEngine, peer: PeerId
 ) {.async: (raises: [CancelledError]).} =
   ## Perform initial setup, such as want
@@ -700,15 +736,6 @@ proc setupPeer*(
   if address =? self.pricing .? address:
     trace "Sending account to peer", peer
     await self.network.request.sendAccount(peer, Account(address: address))
-
-proc dropPeer*(self: BlockExcEngine, peer: PeerId) {.raises: [].} =
-  ## Cleanup disconnected peer
-  ##
-
-  trace "Dropping peer", peer
-
-  # drop the peer from the peers table
-  self.peers.remove(peer)
 
 proc localLookup(
     self: BlockExcEngine, address: BlockAddress
@@ -775,7 +802,7 @@ proc taskHandler*(
       peerCtx.wantedBlocks.keepItIf(it notin sent)
   finally:
     # Better safe than sorry: if an exception does happen, we don't want to keep
-    # those in flight as it'll effectively prevent the blocks from ever being sent.
+    # those as sent, as it'll effectively prevent the blocks from ever being sent again.
     peerCtx.blocksSent.keepItIf(it notin wantedBlocks)
 
 proc blockexcTaskRunner(self: BlockExcEngine) {.async: (raises: []).} =
@@ -792,6 +819,9 @@ proc blockexcTaskRunner(self: BlockExcEngine) {.async: (raises: []).} =
 
   info "Exiting blockexc task runner"
 
+proc selectRandom*(peers: seq[BlockExcPeerCtx]): BlockExcPeerCtx =
+  Rng.instance.sample(peers)
+
 proc new*(
     T: type BlockExcEngine,
     localStore: BlockStore,
@@ -803,6 +833,7 @@ proc new*(
     pendingBlocks: PendingBlocksManager,
     maxBlocksPerMessage = DefaultMaxBlocksPerMessage,
     concurrentTasks = DefaultConcurrentTasks,
+    selectPeer: PeerSelector = selectRandom,
 ): BlockExcEngine =
   ## Create new block exchange engine instance
   ##
@@ -820,18 +851,6 @@ proc new*(
     discovery: discovery,
     advertiser: advertiser,
   )
-
-  proc peerEventHandler(
-      peerId: PeerId, event: PeerEvent
-  ): Future[void] {.gcsafe, async: (raises: [CancelledError]).} =
-    if event.kind == PeerEventKind.Joined:
-      await self.setupPeer(peerId)
-    else:
-      self.dropPeer(peerId)
-
-  if not isNil(network.switch):
-    network.switch.addPeerEventHandler(peerEventHandler, PeerEventKind.Joined)
-    network.switch.addPeerEventHandler(peerEventHandler, PeerEventKind.Left)
 
   proc blockWantListHandler(
       peer: PeerId, wantList: WantList
@@ -858,12 +877,24 @@ proc new*(
   ): Future[void] {.async: (raises: []).} =
     self.paymentHandler(peer, payment)
 
+  proc peerAddedHandler(
+      peer: PeerId
+  ): Future[void] {.async: (raises: [CancelledError]).} =
+    await self.peerAddedHandler(peer)
+
+  proc peerDepartedHandler(
+      peer: PeerId
+  ): Future[void] {.async: (raises: [CancelledError]).} =
+    self.evictPeer(peer)
+
   network.handlers = BlockExcHandlers(
     onWantList: blockWantListHandler,
     onBlocksDelivery: blocksDeliveryHandler,
     onPresence: blockPresenceHandler,
     onAccount: accountHandler,
     onPayment: paymentHandler,
+    onPeerJoined: peerAddedHandler,
+    onPeerDeparted: peerDepartedHandler,
   )
 
   return self
