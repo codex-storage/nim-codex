@@ -89,9 +89,11 @@ proc blockRequested*(self: BlockExcPeerCtx, address: BlockAddress) =
 proc blockRequestCancelled*(self: BlockExcPeerCtx, address: BlockAddress) =
   self.blocksRequested.excl(address)
 
-proc blockReceived*(self: BlockExcPeerCtx, address: BlockAddress) =
+proc blockReceived*(self: BlockExcPeerCtx, address: BlockAddress): bool =
+  let wasRequested = address in self.blocksRequested
   self.blocksRequested.excl(address)
   self.lastExchange = Moment.now()
+  wasRequested
 
 proc activityTimer*(
     self: BlockExcPeerCtx
