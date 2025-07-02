@@ -510,7 +510,7 @@ proc asyncDecode*(
   if not task.success.load():
     return failure("Leopard decoding task failed")
 
-  defer: 
+  defer:
     task.recovered = default(Isolated[seq[seq[byte]]])
 
   var recovered = task.recovered.extract
