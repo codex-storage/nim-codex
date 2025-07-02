@@ -4,9 +4,7 @@ import ../marketplacesuite
 import ../nodeconfigs
 import ../hardhatconfig
 
-marketplacesuite(
-  name = "Bug #821 - node crashes during erasure coding", stopOnRequestFail = true
-):
+marketplacesuite(name = "Bug #821 - node crashes during erasure coding"):
   test "should be able to create storage request and download dataset",
     NodeConfigs(
       clients: CodexConfigs

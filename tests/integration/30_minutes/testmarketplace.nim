@@ -7,7 +7,7 @@ import ./../marketplacesuite
 import ../twonodes
 import ../nodeconfigs
 
-marketplacesuite(name = "Marketplace", stopOnRequestFail = true):
+marketplacesuite(name = "Marketplace"):
   let marketplaceConfig = NodeConfigs(
     clients: CodexConfigs.init(nodes = 1).some,
     providers: CodexConfigs.init(nodes = 1).some,
@@ -259,7 +259,7 @@ marketplacesuite(name = "Marketplace", stopOnRequestFail = true):
     # Double check, verify that our second SP hosts the 3 slots
     check ((await provider1.client.getSlots()).get).len == 3
 
-marketplacesuite(name = "Marketplace payouts", stopOnRequestFail = true):
+marketplacesuite(name = "Marketplace payouts"):
   const minPricePerBytePerSecond = 1.u256
   const collateralPerByte = 1.u256
   const blocks = 8
@@ -363,17 +363,19 @@ marketplacesuite(name = "Marketplace payouts", stopOnRequestFail = true):
     let slotSize = slotSize(blocks, ecNodes, ecTolerance)
     let pricePerSlotPerSecond = minPricePerBytePerSecond * slotSize
 
+    let endBalanceProvider = (await token.balanceOf(provider.ethAccount))
+
     check (
-      let endBalanceProvider = (await token.balanceOf(provider.ethAccount))
       endBalanceProvider > startBalanceProvider and
-        endBalanceProvider < startBalanceProvider + expiry.u256 * pricePerSlotPerSecond
+      endBalanceProvider < startBalanceProvider + expiry.u256 * pricePerSlotPerSecond
     )
+
+    let endBalanceClient = (await token.balanceOf(client.ethAccount))
+
     check(
       (
-        let endBalanceClient = (await token.balanceOf(client.ethAccount))
-        let endBalanceProvider = (await token.balanceOf(provider.ethAccount))
         (startBalanceClient - endBalanceClient) ==
-          (endBalanceProvider - startBalanceProvider)
+        (endBalanceProvider - startBalanceProvider)
       )
     )
 

@@ -36,6 +36,7 @@ type
     Hardhat
 
   MultiNodeSuiteError = object of CatchableError
+  TestFailedError* = object of CatchableError
 
 const jsonRpcProviderUrl* = "ws://localhost:8545"
 
@@ -106,7 +107,7 @@ template multinodesuite*(name: string, body: untyped) =
       currentTestName = tname
       nodeConfigs = startNodeConfigs
       test tname:
-        tbody
+        failAndTeardownOnError("test failed", tbody)
 
     proc sanitize(pathSegment: string): string =
       var sanitized = pathSegment
@@ -276,13 +277,15 @@ template multinodesuite*(name: string, body: untyped) =
       try:
         tryBody
       except CatchableError as er:
-        fatal message, error = er.msg
-        echo "[FATAL] ", message, ": ", er.msg
+        if er of TestFailedError:
+          info "[FAILED] ", reason = er.msg
+        else:
+          fatal message, error = er.msg
+          echo "[FATAL] ", message, ": ", er.msg
         await teardownImpl()
         when declared(teardownAllIMPL):
           teardownAllIMPL()
-        fail()
-        quit(1)
+        raise er
 
     proc updateBootstrapNodes(
         node: CodexProcess

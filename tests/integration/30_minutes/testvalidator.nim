@@ -15,7 +15,7 @@ export logutils
 logScope:
   topics = "integration test validation"
 
-marketplacesuite(name = "Validation", stopOnRequestFail = false):
+marketplacesuite(name = "Validation"):
   const blocks = 8
   const ecNodes = 3
   const ecTolerance = 1

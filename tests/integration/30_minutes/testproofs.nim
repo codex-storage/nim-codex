@@ -13,7 +13,7 @@ export logutils
 logScope:
   topics = "integration test proofs"
 
-marketplacesuite(name = "Hosts submit regular proofs", stopOnRequestFail = false):
+marketplacesuite(name = "Hosts submit regular proofs"):
   const minPricePerBytePerSecond = 1.u256
   const collateralPerByte = 1.u256
   const blocks = 8
@@ -76,7 +76,7 @@ marketplacesuite(name = "Hosts submit regular proofs", stopOnRequestFail = false
 
     await subscription.unsubscribe()
 
-marketplacesuite(name = "Simulate invalid proofs", stopOnRequestFail = false):
+marketplacesuite(name = "Simulate invalid proofs"):
   # TODO: these are very loose tests in that they are not testing EXACTLY how
   # proofs were marked as missed by the validator. These tests should be
   # tightened so that they are showing, as an integration test, that specific
