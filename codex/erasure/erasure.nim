@@ -320,9 +320,12 @@ proc asyncEncode*(
 ): Future[?!seq[seq[byte]]] {.async: (raises: [CancelledError]).} =
   without threadPtr =? ThreadSignalPtr.new():
     return failure("Unable to create thread signal")
-
+  echo "In Async Encode"
   defer:
-    threadPtr.close().expect("closing once works")
+    if threadPtr != nil:
+      ?threadPtr.close().mapFailure()
+      threadPtr = nil
+    echo "Out Async Encode"
 
   ## Create an ecode task with block data
   var task = EncodeTask(
@@ -482,9 +485,12 @@ proc asyncDecode*(
 ): Future[?!seq[seq[byte]]] {.async: (raises: [CancelledError]).} =
   without threadPtr =? ThreadSignalPtr.new():
     return failure("Unable to create thread signal")
-
+  echo "In Async Decode"
   defer:
-    threadPtr.close().expect("closing once works")
+    if threadPtr != nil:
+      ?threadPtr.close().mapFailure()
+      threadPtr = nil
+    echo "Out Async Decode"
 
   ## Create an decode task with block data
   var task = DecodeTask(
@@ -507,11 +513,11 @@ proc asyncDecode*(
 
     return failure(err)
 
+  defer: 
+    task.recovered = default(Isolated[seq[seq[byte]]])
+
   if not task.success.load():
     return failure("Leopard decoding task failed")
-
-  defer:
-    task.recovered = default(Isolated[seq[seq[byte]]])
 
   var recovered = task.recovered.extract
 
