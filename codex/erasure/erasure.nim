@@ -513,7 +513,7 @@ proc asyncDecode*(
 
     return failure(err)
 
-  defer: 
+  defer:
     task.recovered = default(Isolated[seq[seq[byte]]])
 
   if not task.success.load():
