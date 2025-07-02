@@ -179,6 +179,7 @@ suite "Erasure encode/decode":
       decoded = (await erasure.decode(encoded)).tryGet()
 
   test "Should tolerate losing M (a.k.a row) contiguous data blocks":
+    echo "Testing tolerance for losing M contiguous data blocks"
     const
       buffers = 20
       parity = 10
@@ -197,6 +198,7 @@ suite "Erasure encode/decode":
       check present.tryGet()
 
   test "Should tolerate losing M (a.k.a row) contiguous parity blocks":
+    echo "Testing tolerance for losing M contiguous parity blocks"
     const
       buffers = 20
       parity = 10
@@ -219,6 +221,7 @@ suite "Erasure encode/decode":
       check present.tryGet()
 
   test "Handles edge case of 0 parity blocks":
+    echo "Testing edge case of 0 parity blocks"
     const
       buffers = 20
       parity = 0
@@ -228,6 +231,7 @@ suite "Erasure encode/decode":
     discard (await erasure.decode(encoded)).tryGet()
 
   test "Should concurrently encode/decode multiple datasets":
+    echo "Testing concurrent encode/decode with multiple datasets"
     const iterations = 5
 
     let
@@ -265,6 +269,7 @@ suite "Erasure encode/decode":
         decoded.blocksCount == encoded.originalBlocksCount
 
   test "Should handle verifiable manifests":
+    echo "Testing verifiable manifests"
     const
       buffers = 20
       parity = 10
