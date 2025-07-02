@@ -439,7 +439,7 @@ proc store*(
   finally:
     await stream.close()
 
-  without tree =? CodexTree.init(cids), err:
+  without tree =? (await CodexTree.init(self.taskpool, cids)), err:
     return failure(err)
 
   without treeCid =? tree.rootCid(CIDv1, dataCodec), err:
