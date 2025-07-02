@@ -318,8 +318,7 @@ proc leopardEncodeTask(tp: Taskpool, task: ptr EncodeTask) {.gcsafe.} =
 proc asyncEncode*(
     self: ErasureRef, blockSize, parityLen: int, blocks: seq[seq[byte]]
 ): Future[?!seq[seq[byte]]] {.async: (raises: [CancelledError]).} =
-  without threadPtr =? ThreadSignalPtr.new():
-    return failure("Unable to create thread signal")
+  var threadPtr = ?ThreadSignalPtr.new().mapFailure()
   echo "In Async Encode"
   defer:
     if threadPtr != nil:
@@ -483,8 +482,8 @@ proc leopardDecodeTask(tp: Taskpool, task: ptr DecodeTask) {.gcsafe.} =
 proc asyncDecode*(
     self: ErasureRef, blockSize: int, blocks, parity: seq[seq[byte]]
 ): Future[?!seq[seq[byte]]] {.async: (raises: [CancelledError]).} =
-  without threadPtr =? ThreadSignalPtr.new():
-    return failure("Unable to create thread signal")
+  var threadPtr = ?ThreadSignalPtr.new().mapFailure()
+
   echo "In Async Decode"
   defer:
     if threadPtr != nil:
