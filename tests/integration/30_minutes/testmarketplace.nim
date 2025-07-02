@@ -65,14 +65,24 @@ marketplacesuite(name = "Marketplace"):
 
     let purchase = (await client.getPurchase(id)).get
     check purchase.error == none string
+
+    let state = await marketplace.requestState(purchase.requestId)
+    check state == RequestState.Started
+
     let availabilities = (await host.getAvailabilities()).get
     check availabilities.len == 1
+
     let newSize = availabilities[0].freeSize
     check newSize > 0 and newSize < size
 
-    let reservations = (await host.getAvailabilityReservations(availability.id)).get
-    check reservations.len == 3
-    check reservations[0].requestId == purchase.requestId
+    let signer = ethProvider.getSigner(hostAccount)
+    let marketplaceWithProviderSigner = marketplace.connect(signer)
+    let slots = await marketplaceWithProviderSigner.mySlots()
+    check slots.len == 3
+
+    for slotId in slots:
+      let slot = await marketplaceWithProviderSigner.getActiveSlot(slotId)
+      check slot.request.id == purchase.requestId
 
   test "node slots gets paid out and rest of tokens are returned to client",
     marketplaceConfig:
