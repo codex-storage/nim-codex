@@ -447,23 +447,24 @@ marketplacesuite(name = "Marketplace payouts"):
 
     discard await waitForRequestToStart()
 
-    # Here we will check that for each provider, the total remaining collateral
-    # will match the available slots.
-    # So if a SP hosts 1 slot, it should have enough total remaining collateral
-    # to host 2 more slots.
-    for provider in providers():
-      let client = provider.client
-      check eventually(
-        block:
-          try:
-            let availabilities = (await client.getAvailabilities()).get
-            let availability = availabilities[0]
-            let slots = (await client.getSlots()).get
-            let availableSlots = (3 - slots.len).u256
+    stopOnRequestFailed:
+      # Here we will check that for each provider, the total remaining collateral
+      # will match the available slots.
+      # So if a SP hosts 1 slot, it should have enough total remaining collateral
+      # to host 2 more slots.
+      for provider in providers():
+        let client = provider.client
+        check eventually(
+          block:
+            try:
+              let availabilities = (await client.getAvailabilities()).get
+              let availability = availabilities[0]
+              let slots = (await client.getSlots()).get
+              let availableSlots = (3 - slots.len).u256
 
-            availability.totalRemainingCollateral ==
-              availableSlots * slotSize * minPricePerBytePerSecond
-          except HttpConnectionError:
-            return false,
-        timeout = 30 * 1000,
-      )
+              availability.totalRemainingCollateral ==
+                availableSlots * slotSize * minPricePerBytePerSecond
+            except HttpConnectionError:
+              return false,
+          timeout = 30 * 1000,
+        )

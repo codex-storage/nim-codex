@@ -34,6 +34,36 @@ template marketplacesuite*(name: string, body: untyped) =
       if not cond:
         fail(reason)
 
+    template stopOnRequestFailed(tbody: untyped) =
+      let completed = newAsyncEvent()
+
+      let mainFut = (
+        proc(): Future[void] {.async.} =
+          tbody
+          completed.fire()
+      )()
+
+      let fastFailFut = (
+        proc(): Future[void] {.async.} =
+          try:
+            await requestFailedEvent.wait().wait(timeout = chronos.seconds(60))
+            completed.fire()
+            raise newException(TestFailedError, "storage request has failed")
+          except AsyncTimeoutError:
+            discard
+      )()
+
+      await completed.wait().wait(timeout = chronos.seconds(60 * 30))
+
+      if not fastFailFut.completed:
+        await fastFailFut.cancelAndWait()
+
+      if mainFut.failed:
+        raise mainFut.error
+
+      if fastFailFut.failed:
+        raise fastFailFut.error
+
     proc onRequestStarted(eventResult: ?!RequestFulfilled) {.raises: [].} =
       requestStartedEvent.fire()
 
