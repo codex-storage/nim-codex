@@ -561,7 +561,10 @@ proc validateBlockDelivery(self: BlockExcEngine, bd: BlockDelivery): ?!void =
   return success()
 
 proc blocksDeliveryHandler*(
-    self: BlockExcEngine, peer: PeerId, blocksDelivery: seq[BlockDelivery]
+    self: BlockExcEngine,
+    peer: PeerId,
+    blocksDelivery: seq[BlockDelivery],
+    allowSpurious: bool = false,
 ) {.async: (raises: []).} =
   trace "Received blocks from peer", peer, blocks = (blocksDelivery.mapIt(it.address))
 
@@ -575,7 +578,7 @@ proc blocksDeliveryHandler*(
 
     try:
       # Unknown peers and unrequested blocks are dropped with a warning.
-      if peerCtx == nil or not peerCtx.blockReceived(bd.address):
+      if not allowSpurious and (peerCtx == nil or not peerCtx.blockReceived(bd.address)):
         warn "Dropping unrequested or duplicate block received from peer"
         codex_block_exchange_spurious_blocks_received.inc()
         continue
