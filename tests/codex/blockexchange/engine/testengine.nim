@@ -242,7 +242,7 @@ asyncchecksuite "NetworkStore engine handlers":
     let pending = blocks.mapIt(engine.pendingBlocks.getWantHandle(it.cid))
 
     for blk in blocks:
-      peerCtx.blockRequested(blk.address)
+      peerCtx.blockRequestScheduled(blk.address)
 
     let blocksDelivery = blocks.mapIt(BlockDelivery(blk: it, address: it.address))
 
@@ -270,7 +270,7 @@ asyncchecksuite "NetworkStore engine handlers":
     ).toTable
 
     for blk in blocks:
-      peerContext.blockRequested(blk.address)
+      peerContext.blockRequestScheduled(blk.address)
 
     engine.network = BlockExcNetwork(
       request: BlockExcRequest(
@@ -349,10 +349,10 @@ asyncchecksuite "NetworkStore engine handlers":
 
     engine.peers.add(senderPeerCtx)
     for address in reqBlockAddrs:
-      pendingPeerCtx.blockRequested(address)
+      pendingPeerCtx.blockRequestScheduled(address)
 
     for address in blocks.mapIt(it.address):
-      senderPeerCtx.blockRequested(address)
+      senderPeerCtx.blockRequestScheduled(address)
 
     proc sendWantCancellations(
         id: PeerId, addresses: seq[BlockAddress]
