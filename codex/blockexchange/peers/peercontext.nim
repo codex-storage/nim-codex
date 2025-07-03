@@ -25,12 +25,18 @@ import ../../logutils
 
 export payments, nitro
 
+const
+  MinRefreshInterval = 5.seconds
+  MaxRefreshBackoff = 36 # 3 minutes
+
 type BlockExcPeerCtx* = ref object of RootObj
   id*: PeerId
   blocks*: Table[BlockAddress, Presence] # remote peer have list including price
   wantedBlocks*: HashSet[BlockAddress] # blocks that the peer wants
   exchanged*: int # times peer has exchanged with us
+  refreshInProgress*: bool # indicates if a refresh is in progress
   lastRefresh*: Moment # last time we refreshed our knowledge of the blocks this peer has
+  refreshBackoff*: int = 1 # backoff factor for refresh requests
   account*: ?Account # ethereum account of this peer
   paymentChannel*: ?ChannelId # payment channel id
   blocksSent*: HashSet[BlockAddress] # blocks sent to peer
@@ -39,7 +45,7 @@ type BlockExcPeerCtx* = ref object of RootObj
   activityTimeout*: Duration
 
 proc isKnowledgeStale*(self: BlockExcPeerCtx): bool =
-  self.lastRefresh + 5.minutes < Moment.now()
+  self.lastRefresh + self.refreshBackoff * MinRefreshInterval < Moment.now()
 
 proc isBlockSent*(self: BlockExcPeerCtx, address: BlockAddress): bool =
   address in self.blocksSent
@@ -50,8 +56,18 @@ proc markBlockAsSent*(self: BlockExcPeerCtx, address: BlockAddress) =
 proc markBlockAsNotSent*(self: BlockExcPeerCtx, address: BlockAddress) =
   self.blocksSent.excl(address)
 
-proc refreshed*(self: BlockExcPeerCtx) =
+proc refreshRequested*(self: BlockExcPeerCtx) =
+  trace "Refresh requested for peer", peer = self.id, backoff = self.refreshBackoff
+  self.refreshInProgress = true
   self.lastRefresh = Moment.now()
+
+proc refreshReplied*(self: BlockExcPeerCtx) =
+  self.refreshInProgress = false
+  self.lastRefresh = Moment.now()
+  self.refreshBackoff = min(self.refreshBackoff * 2, MaxRefreshBackoff)
+
+proc havesUpdated(self: BlockExcPeerCtx) =
+  self.refreshBackoff = 1
 
 proc peerHave*(self: BlockExcPeerCtx): HashSet[BlockAddress] =
   # XXX: this is ugly an inefficient, but since those will typically
@@ -63,6 +79,9 @@ proc contains*(self: BlockExcPeerCtx, address: BlockAddress): bool =
   address in self.blocks
 
 func setPresence*(self: BlockExcPeerCtx, presence: Presence) =
+  if presence.address notin self.blocks:
+    self.havesUpdated()
+
   self.blocks[presence.address] = presence
 
 func cleanPresence*(self: BlockExcPeerCtx, addresses: seq[BlockAddress]) =

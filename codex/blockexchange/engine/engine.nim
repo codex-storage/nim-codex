@@ -175,9 +175,14 @@ proc refreshBlockKnowledge(
     self: BlockExcEngine, peer: BlockExcPeerCtx
 ) {.async: (raises: [CancelledError]).} =
   if self.pendingBlocks.wantListLen > 0:
-    let cids = toSeq(self.pendingBlocks.wantList)
-    trace "Sending our want list to a peer", peer = peer.id, length = cids.len
-    await self.network.request.sendWantList(peer.id, cids, full = true)
+    # We send only blocks that the peer hasn't already told us that they already have.
+    let
+      peerHave = peer.peerHave
+      toAsk = self.pendingBlocks.wantList.toSeq.filterIt(it notin peerHave)
+
+    if toAsk.len > 0:
+      trace "Sending want list to a peer", peer = peer.id, length = toAsk.len
+      await self.network.request.sendWantList(peer.id, toAsk, full = true)
 
 proc refreshBlockKnowledge(self: BlockExcEngine) {.async: (raises: [CancelledError]).} =
   for peer in self.peers.peers.values.toSeq:
@@ -189,15 +194,13 @@ proc refreshBlockKnowledge(self: BlockExcEngine) {.async: (raises: [CancelledErr
     # want list in the coarsest way possible instead of over many
     # small updates.
     #
+    if peer.refreshInProgress:
+      trace "Peer refresh in progress", peer = peer.id
+      continue
+
     # In dynamic swarms, staleness will dominate latency.
     if peer.lastRefresh < self.pendingBlocks.lastInclusion or peer.isKnowledgeStale:
-      # FIXME: we update the lastRefresh before actually refreshing because otherwise
-      #   a slow peer will be bombarded with requests. If the request does fail or the
-      #   peer does not reply, a retrying block will eventually issue this again. This
-      #   is a complex and convoluted flow - ideally we should simply be tracking this
-      #   request and retrying it on the absence of a response, eventually disconnecting
-      #   the peer if it consistently fails to respond.
-      peer.refreshed()
+      peer.refreshRequested()
       # TODO: optimize this by keeping track of what was sent and sending deltas.
       #   This should allow us to run much more frequent refreshes, and be way more
       #   efficient about it.
@@ -392,6 +395,8 @@ proc blockPresenceHandler*(
 
   if peerCtx.isNil:
     return
+
+  peerCtx.refreshReplied()
 
   for blk in blocks:
     if presence =? Presence.init(blk):
