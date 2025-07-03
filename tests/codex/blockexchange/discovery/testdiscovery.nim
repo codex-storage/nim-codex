@@ -216,7 +216,6 @@ asyncchecksuite "E2E - Multiple Nodes Discovery":
   test "E2E - Should advertise and discover blocks":
     # Distribute the manifests and trees amongst 1..3
     # Ask 0 to download everything without connecting him beforehand
-
     var advertised: Table[Cid, SignedPeerRecord]
 
     MockDiscovery(blockexc[1].engine.discovery.discovery).publishBlockProvideHandler = proc(
@@ -242,6 +241,7 @@ asyncchecksuite "E2E - Multiple Nodes Discovery":
           blk: mBlocks[0], address: BlockAddress(leaf: false, cid: mBlocks[0].cid)
         )
       ],
+      allowSpurious = true,
     )
 
     discard blockexc[2].engine.pendingBlocks.getWantHandle(mBlocks[1].cid)
@@ -252,6 +252,7 @@ asyncchecksuite "E2E - Multiple Nodes Discovery":
           blk: mBlocks[1], address: BlockAddress(leaf: false, cid: mBlocks[1].cid)
         )
       ],
+      allowSpurious = true,
     )
 
     discard blockexc[3].engine.pendingBlocks.getWantHandle(mBlocks[2].cid)
@@ -262,6 +263,7 @@ asyncchecksuite "E2E - Multiple Nodes Discovery":
           blk: mBlocks[2], address: BlockAddress(leaf: false, cid: mBlocks[2].cid)
         )
       ],
+      allowSpurious = true,
     )
 
     MockDiscovery(blockexc[0].engine.discovery.discovery).findBlockProvidersHandler = proc(
@@ -311,6 +313,7 @@ asyncchecksuite "E2E - Multiple Nodes Discovery":
           blk: mBlocks[0], address: BlockAddress(leaf: false, cid: mBlocks[0].cid)
         )
       ],
+      allowSpurious = true,
     )
 
     discard blockexc[2].engine.pendingBlocks.getWantHandle(mBlocks[1].cid)
@@ -321,6 +324,7 @@ asyncchecksuite "E2E - Multiple Nodes Discovery":
           blk: mBlocks[1], address: BlockAddress(leaf: false, cid: mBlocks[1].cid)
         )
       ],
+      allowSpurious = true,
     )
 
     discard blockexc[3].engine.pendingBlocks.getWantHandle(mBlocks[2].cid)
@@ -331,6 +335,7 @@ asyncchecksuite "E2E - Multiple Nodes Discovery":
           blk: mBlocks[2], address: BlockAddress(leaf: false, cid: mBlocks[2].cid)
         )
       ],
+      allowSpurious = true,
     )
 
     MockDiscovery(blockexc[0].engine.discovery.discovery).findBlockProvidersHandler = proc(
