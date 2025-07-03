@@ -1,3 +1,7 @@
+import macros
+import std/strutils
+import std/unittest
+
 import pkg/chronos
 import pkg/ethers/erc20
 from pkg/libp2p import Cid
@@ -12,7 +16,7 @@ import ../contracts/deployment
 export mp
 export multinodes
 
-template marketplacesuite*(name: string, stopOnRequestFail: bool, body: untyped) =
+template marketplacesuite*(name: string, body: untyped) =
   multinodesuite name:
     var marketplace {.inject, used.}: Marketplace
     var period: uint64
@@ -23,20 +27,57 @@ template marketplacesuite*(name: string, stopOnRequestFail: bool, body: untyped)
     var requestFailedEvent: AsyncEvent
     var requestFailedSubscription: Subscription
 
+    template fail(reason: string) =
+      raise newException(TestFailedError, reason)
+
+    proc check(cond: bool, reason = "Check failed"): void =
+      if not cond:
+        fail(reason)
+
+    template stopOnRequestFailed(tbody: untyped) =
+      let completed = newAsyncEvent()
+
+      let mainFut = (
+        proc(): Future[void] {.async.} =
+          tbody
+          completed.fire()
+      )()
+
+      let fastFailFut = (
+        proc(): Future[void] {.async.} =
+          try:
+            await requestFailedEvent.wait().wait(timeout = chronos.seconds(60))
+            completed.fire()
+            raise newException(TestFailedError, "storage request has failed")
+          except AsyncTimeoutError:
+            discard
+      )()
+
+      await completed.wait().wait(timeout = chronos.seconds(60 * 30))
+
+      if not fastFailFut.completed:
+        await fastFailFut.cancelAndWait()
+
+      if mainFut.failed:
+        raise mainFut.error
+
+      if fastFailFut.failed:
+        raise fastFailFut.error
+
     proc onRequestStarted(eventResult: ?!RequestFulfilled) {.raises: [].} =
       requestStartedEvent.fire()
 
     proc onRequestFailed(eventResult: ?!RequestFailed) {.raises: [].} =
       requestFailedEvent.fire()
-      if stopOnRequestFail:
-        fail()
 
     proc getCurrentPeriod(): Future[Period] {.async.} =
       return periodicity.periodOf((await ethProvider.currentTime()).truncate(uint64))
 
     proc waitForRequestToStart(
         seconds = 10 * 60 + 10
-    ): Future[Period] {.async: (raises: [CancelledError, AsyncTimeoutError]).} =
+    ): Future[Period] {.
+        async: (raises: [CancelledError, AsyncTimeoutError, TestFailedError])
+    .} =
       await requestStartedEvent.wait().wait(timeout = chronos.seconds(seconds))
       # Recreate a new future if we need to wait for another request
       requestStartedEvent = newAsyncEvent()
@@ -53,6 +94,7 @@ template marketplacesuite*(name: string, stopOnRequestFail: bool, body: untyped)
       let currentTime = (await ethProvider.currentTime()).truncate(uint64)
       let currentPeriod = periodicity.periodOf(currentTime)
       let endOfPeriod = periodicity.periodEnd(currentPeriod)
+
       await ethProvider.advanceTimeTo(endOfPeriod.u256 + 1)
 
     template eventuallyP(condition: untyped, finalPeriod: Period): bool =

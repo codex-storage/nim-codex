@@ -1,5 +1,4 @@
 import std/times
-import std/httpclient
 import ../../examples
 import ../../contracts/time
 import ../../contracts/deployment
@@ -7,7 +6,7 @@ import ./../marketplacesuite
 import ../twonodes
 import ../nodeconfigs
 
-marketplacesuite(name = "Marketplace", stopOnRequestFail = true):
+marketplacesuite(name = "Marketplace"):
   let marketplaceConfig = NodeConfigs(
     clients: CodexConfigs.init(nodes = 1).some,
     providers: CodexConfigs.init(nodes = 1).some,
@@ -65,14 +64,29 @@ marketplacesuite(name = "Marketplace", stopOnRequestFail = true):
 
     let purchase = (await client.getPurchase(id)).get
     check purchase.error == none string
+
+    let state = await marketplace.requestState(purchase.requestId)
+    check state == RequestState.Started
+
     let availabilities = (await host.getAvailabilities()).get
     check availabilities.len == 1
+
+    let datasetSize = datasetSize(blocks, ecNodes, ecTolerance)
     let newSize = availabilities[0].freeSize
-    check newSize > 0 and newSize < size
+    check newSize > 0 and newSize + datasetSize == size
 
     let reservations = (await host.getAvailabilityReservations(availability.id)).get
     check reservations.len == 3
     check reservations[0].requestId == purchase.requestId
+
+    let signer = ethProvider.getSigner(hostAccount)
+    let marketplaceWithProviderSigner = marketplace.connect(signer)
+    let slots = await marketplaceWithProviderSigner.mySlots()
+    check slots.len == 3
+
+    for slotId in slots:
+      let slot = await marketplaceWithProviderSigner.getActiveSlot(slotId)
+      check slot.request.id == purchase.requestId
 
   test "node slots gets paid out and rest of tokens are returned to client",
     marketplaceConfig:
@@ -85,6 +99,7 @@ marketplacesuite(name = "Marketplace", stopOnRequestFail = true):
 
     # host makes storage available
     let startBalanceHost = await token.balanceOf(hostAccount)
+    let startBalanceClient = await token.balanceOf(clientAccount)
     discard (
       await host.postAvailability(
         totalSize = size,
@@ -94,8 +109,63 @@ marketplacesuite(name = "Marketplace", stopOnRequestFail = true):
       )
     ).get
 
+    let slotSize = slotSize(blocks, ecNodes, ecTolerance)
+
+    var filledAtPerSlot: seq[UInt256] = @[]
+
+    proc storeFilledAtTimestamps() {.async.} =
+      let filledAt = await ethProvider.blockTime(BlockTag.latest)
+      filledAtPerSlot.add(filledAt)
+
+    proc onSlotFilled(eventResult: ?!SlotFilled) =
+      assert not eventResult.isErr
+      let event = !eventResult
+      asyncSpawn storeFilledAtTimestamps()
+
+    let filledSubscription = await marketplace.subscribe(SlotFilled, onSlotFilled)
+
     # client requests storage
     let cid = (await client.upload(data)).get
+
+    let pricePerSlotPerSecond = minPricePerBytePerSecond * slotSize
+    var providerRewardEvent = newAsyncEvent()
+
+    proc checkProviderRewards() {.async.} =
+      let endBalanceHost = await token.balanceOf(hostAccount)
+      let requestEnd = await marketplace.requestEnd(requestId)
+      let rewards = filledAtPerSlot
+        .mapIt((requestEnd.u256 - it) * pricePerSlotPerSecond)
+        .foldl(a + b, 0.u256)
+
+      if rewards + startBalanceHost == endBalanceHost:
+        providerRewardEvent.fire()
+
+    var clientFundsEvent = newAsyncEvent()
+
+    proc checkHostFunds() {.async.} =
+      var hostRewards = 0.u256
+
+      for filledAt in filledAtPerSlot:
+        hostRewards += (requestEnd.u256 - filledAt) * pricePerSlotPerSecond
+
+      let requestPrice = minPricePerBytePerSecond * slotSize * duration.u256 * 3
+      let fundsBackToClient = requestPrice - hostRewards
+      let endBalanceClient = await token.balanceOf(clientAccount)
+
+      if startBalanceClient + fundsBackToClient - requestPrice == endBalanceClient:
+        clientFundsEvent.fire()
+
+    var transferEvent = newAsyncEvent()
+
+    proc onTransfer(eventResult: ?!Transfer) =
+      assert not eventResult.isErr
+
+      let data = eventResult.get()
+      if data.receiver == hostAccount:
+        asyncSpawn checkProviderRewards()
+      if data.receiver == clientAccount:
+        asyncSpawn checkHostFunds()
+
     let id = await client.requestStorage(
       cid,
       duration = duration,
@@ -107,29 +177,23 @@ marketplacesuite(name = "Marketplace", stopOnRequestFail = true):
       tolerance = ecTolerance,
     )
 
+    let requestId = (await client.requestId(id)).get
+
     discard await waitForRequestToStart()
 
-    let purchase = (await client.getPurchase(id)).get
-    check purchase.error == none string
+    stopOnRequestFailed:
+      # Proving mechanism uses blockchain clock to do proving/collect/cleanup round
+      # hence we must use `advanceTime` over `sleepAsync` as Hardhat does mine new blocks
+      # only with new transaction
+      await ethProvider.advanceTime(duration.u256)
 
-    let clientBalanceBeforeFinished = await token.balanceOf(clientAccount)
+      let tokenSubscription = await token.subscribe(Transfer, onTransfer)
 
-    # Proving mechanism uses blockchain clock to do proving/collect/cleanup round
-    # hence we must use `advanceTime` over `sleepAsync` as Hardhat does mine new blocks
-    # only with new transaction
-    await ethProvider.advanceTime(duration.u256)
+      await clientFundsEvent.wait().wait(timeout = chronos.seconds(60))
+      await providerRewardEvent.wait().wait(timeout = chronos.seconds(60))
 
-    # Checking that the hosting node received reward for at least the time between <expiry;end>
-    let slotSize = slotSize(blocks, ecNodes, ecTolerance)
-    let pricePerSlotPerSecond = minPricePerBytePerSecond * slotSize
-    check eventually (await token.balanceOf(hostAccount)) - startBalanceHost >=
-      (duration - 5 * 60).u256 * pricePerSlotPerSecond * ecNodes.u256
-
-    # Checking that client node receives some funds back that were not used for the host nodes
-    check eventually(
-      (await token.balanceOf(clientAccount)) - clientBalanceBeforeFinished > 0,
-      timeout = 10 * 1000, # give client a bit of time to withdraw its funds
-    )
+      await tokenSubscription.unsubscribe()
+      await filledSubscription.unsubscribe()
 
   test "SP are able to process slots after workers were busy with other slots and ignored them",
     NodeConfigs(
@@ -204,9 +268,16 @@ marketplacesuite(name = "Marketplace", stopOnRequestFail = true):
     discard await waitForRequestToStart()
 
     # Double check, verify that our second SP hosts the 3 slots
-    check ((await provider1.client.getSlots()).get).len == 3
+    let signer = ethProvider.getSigner(hostAccount)
+    let marketplaceWithProviderSigner = marketplace.connect(signer)
+    let slots = await marketplaceWithProviderSigner.mySlots()
+    check slots.len == 3
 
-marketplacesuite(name = "Marketplace payouts", stopOnRequestFail = true):
+    for slotId in slots:
+      let slot = await marketplaceWithProviderSigner.getActiveSlot(slotId)
+      check slot.request.id == purchase.requestId
+
+marketplacesuite(name = "Marketplace payouts"):
   const minPricePerBytePerSecond = 1.u256
   const collateralPerByte = 1.u256
   const blocks = 8
@@ -241,6 +312,8 @@ marketplacesuite(name = "Marketplace payouts", stopOnRequestFail = true):
     let providerApi = provider.client
     let startBalanceProvider = await token.balanceOf(provider.ethAccount)
     let startBalanceClient = await token.balanceOf(client.ethAccount)
+    let hostAccount = providers()[0].ethAccount
+    let clientAccount = clients()[0].ethAccount
 
     # provider makes storage available
     let datasetSize = datasetSize(blocks, ecNodes, ecTolerance)
@@ -256,10 +329,20 @@ marketplacesuite(name = "Marketplace payouts", stopOnRequestFail = true):
 
     let cid = (await clientApi.upload(data)).get
 
-    var slotIdxFilled = none uint64
+    var filledAtPerSlot: seq[UInt256] = @[]
+    var slotIndex = 0.uint64
+    var slotFilledEvent = newAsyncEvent()
+
+    proc storeFilledAtTimestamps() {.async.} =
+      let filledAt = await ethProvider.blockTime(BlockTag.latest)
+      filledAtPerSlot.add(filledAt)
+      slotFilledEvent.fire()
+
     proc onSlotFilled(eventResult: ?!SlotFilled) =
       assert not eventResult.isErr
-      slotIdxFilled = some (!eventResult).slotIndex
+      let event = !eventResult
+      slotIndex = event.slotIndex
+      asyncSpawn storeFilledAtTimestamps()
 
     let slotFilledSubscription = await marketplace.subscribe(SlotFilled, onSlotFilled)
 
@@ -281,38 +364,61 @@ marketplacesuite(name = "Marketplace payouts", stopOnRequestFail = true):
       nodes = ecNodes,
       tolerance = ecTolerance,
     )
+    let requestId = (await clientApi.requestId(id)).get
 
     # wait until one slot is filled
-    check eventually(slotIdxFilled.isSome, timeout = expiry.int * 1000)
-    let slotId = slotId(!(await clientApi.requestId(id)), !slotIdxFilled)
+    await slotFilledEvent.wait().wait(timeout = chronos.seconds(expiry.int))
+    let slotId = slotId(!(await clientApi.requestId(id)), slotIndex)
+    let slotSize = slotSize(blocks, ecNodes, ecTolerance)
+
+    let pricePerSlotPerSecond = minPricePerBytePerSecond * slotSize
+    var providerRewardEvent = newAsyncEvent()
+
+    proc checkProviderRewards() {.async.} =
+      let requestEnd = await marketplace.requestEnd(requestId)
+      let rewards = filledAtPerSlot
+        .mapIt((requestEnd.u256 - it) * pricePerSlotPerSecond)
+        .foldl(a + b, 0.u256)
+      let endBalanceHost = await token.balanceOf(hostAccount)
+
+      if rewards + startBalanceProvider == endBalanceHost:
+        providerRewardEvent.fire()
+
+    proc onTransfer(eventResult: ?!Transfer) =
+      assert not eventResult.isErr
+
+      let data = eventResult.get()
+      if data.receiver == hostAccount:
+        asyncSpawn checkProviderRewards()
+
+    let tokenAddress = await marketplace.token()
+    let token = Erc20Token.new(tokenAddress, ethProvider.getSigner())
+    let tokenSubscription = await token.subscribe(Transfer, onTransfer)
 
     # wait until sale is cancelled
     await ethProvider.advanceTime(expiry.u256)
-
     await requestCancelledEvent.wait().wait(timeout = chronos.seconds(5))
-
     await advanceToNextPeriod()
 
-    let slotSize = slotSize(blocks, ecNodes, ecTolerance)
-    let pricePerSlotPerSecond = minPricePerBytePerSecond * slotSize
+    await providerRewardEvent.wait().wait(timeout = chronos.seconds(60))
 
-    check eventually (
-      let endBalanceProvider = (await token.balanceOf(provider.ethAccount))
-      endBalanceProvider > startBalanceProvider and
-        endBalanceProvider < startBalanceProvider + expiry.u256 * pricePerSlotPerSecond
-    )
-    check eventually(
-      (
-        let endBalanceClient = (await token.balanceOf(client.ethAccount))
-        let endBalanceProvider = (await token.balanceOf(provider.ethAccount))
-        (startBalanceClient - endBalanceClient) ==
-          (endBalanceProvider - startBalanceProvider)
-      ),
-      timeout = 10 * 1000, # give client a bit of time to withdraw its funds
+    # Ensure that total rewards stay within the payout limit 
+    # determined by the expiry date.
+    let requestEnd = await marketplace.requestEnd(requestId)
+    let rewards = filledAtPerSlot
+      .mapIt((requestEnd.u256 - it) * pricePerSlotPerSecond)
+      .foldl(a + b, 0.u256)
+    check expiry.u256 * pricePerSlotPerSecond >= rewards
+
+    let endBalanceProvider = (await token.balanceOf(provider.ethAccount))
+    let endBalanceClient = (await token.balanceOf(client.ethAccount))
+    check(
+      startBalanceClient - endBalanceClient == endBalanceProvider - startBalanceProvider
     )
 
     await slotFilledSubscription.unsubscribe()
     await requestCancelledSubscription.unsubscribe()
+    await tokenSubscription.unsubscribe()
 
   test "the collateral is returned after a sale is ignored",
     NodeConfigs(
@@ -378,20 +484,24 @@ marketplacesuite(name = "Marketplace payouts", stopOnRequestFail = true):
 
     discard await waitForRequestToStart()
 
-    # Here we will check that for each provider, the total remaining collateral
-    # will match the available slots.
-    # So if a SP hosts 1 slot, it should have enough total remaining collateral
-    # to host 2 more slots.
-    for provider in providers():
-      let client = provider.client
-      check eventually(
-        block:
-          let availabilities = (await client.getAvailabilities()).get
-          let availability = availabilities[0]
-          let slots = (await client.getSlots()).get
-          let availableSlots = (3 - slots.len).u256
+    stopOnRequestFailed:
+      # Here we will check that for each provider, the total remaining collateral
+      # will match the available slots.
+      # So if a SP hosts 1 slot, it should have enough total remaining collateral
+      # to host 2 more slots.
+      for provider in providers():
+        let client = provider.client
+        check eventually(
+          block:
+            try:
+              let availabilities = (await client.getAvailabilities()).get
+              let availability = availabilities[0]
+              let slots = (await client.getSlots()).get
+              let availableSlots = (3 - slots.len).u256
 
-          availability.totalRemainingCollateral ==
-            availableSlots * slotSize * minPricePerBytePerSecond,
-        timeout = 30 * 1000,
-      )
+              availability.totalRemainingCollateral ==
+                availableSlots * slotSize * minPricePerBytePerSecond
+            except HttpConnectionError:
+              return false,
+          timeout = 30 * 1000,
+        )

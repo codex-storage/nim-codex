@@ -17,7 +17,7 @@ proc findItem[T](items: seq[T], item: T): ?!T =
 
   return failure("Not found")
 
-marketplacesuite(name = "Sales", stopOnRequestFail = true):
+marketplacesuite(name = "Sales"):
   let salesConfig = NodeConfigs(
     clients: CodexConfigs.init(nodes = 1).some,
     providers: CodexConfigs.init(nodes = 1)
@@ -227,7 +227,6 @@ marketplacesuite(name = "Sales", stopOnRequestFail = true):
       availabilityId = availability.id, until = until.some
     )
 
-    check:
-      response.status == 422
-      (await response.body) ==
-        "Until parameter must be greater or equal to the longest currently hosted slot"
+    check response.status == 422
+    check (await response.body) ==
+      "Until parameter must be greater or equal to the longest currently hosted slot"
