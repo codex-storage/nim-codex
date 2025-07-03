@@ -1,37 +1,54 @@
+## Nim-Codex
+## Copyright (c) 2025 Status Research & Development GmbH
+## Licensed under either of
+##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
+##  * MIT license ([LICENSE-MIT](LICENSE-MIT))
+## at your option.
+## This file may not be copied, modified, or distributed except according to
+## those terms.
+
+{.push raises: [].}
+
 import std/sugar
 
 import pkg/questionable
 import pkg/questionable/results
 
+## Public interface:
+##
+## Attributes
+## - next - allows to set a custom function to be called when the next item is requested
+##
+## Operations:
+## - new - to create a new iterator (Iter)
+## - finish - to finish the iterator
+## - finished - to check if the iterator is finished
+## - next - to get the next item from the iterator
+## - items - to iterate over the iterator
+## - pairs - to iterate over the iterator and return the index of each item
+## - map - to convert one iterator (Iter) to another iterator (Iter)
+## - mapFilter - to convert one iterator (Iter) to another iterator (Iter) and apply filtering at the same time
+## - filter - to filter an iterator (Iter) and return another iterator (Iter)
+## - empty - to create an empty async iterator (AsyncIter)
+
 type
-  Function*[T, U] = proc(fut: T): U {.raises: [CatchableError], gcsafe, closure.}
-  IsFinished* = proc(): bool {.raises: [], gcsafe, closure.}
-  GenNext*[T] = proc(): T {.raises: [CatchableError], gcsafe.}
+  IterFunction[T, U] = proc(value: T): U {.raises: [CatchableError], gcsafe.}
+  IterIsFinished = proc(): bool {.raises: [], gcsafe.}
+  IterGenNext[T] = proc(): T {.raises: [CatchableError], gcsafe.}
   Iterator[T] = iterator (): T
+
   Iter*[T] = ref object
     finished: bool
-    next*: GenNext[T]
+    next*: IterGenNext[T]
 
-proc finish*[T](self: Iter[T]): void =
-  self.finished = true
-
-proc finished*[T](self: Iter[T]): bool =
-  self.finished
-
-iterator items*[T](self: Iter[T]): T =
-  while not self.finished:
-    yield self.next()
-
-iterator pairs*[T](self: Iter[T]): tuple[key: int, val: T] {.inline.} =
-  var i = 0
-  while not self.finished:
-    yield (i, self.next())
-    inc(i)
+########################################################################
+## Iter public interface methods
+########################################################################
 
 proc new*[T](
     _: type Iter[T],
-    genNext: GenNext[T],
-    isFinished: IsFinished,
+    genNext: IterGenNext[T],
+    isFinished: IterIsFinished,
     finishOnErr: bool = true,
 ): Iter[T] =
   ## Creates a new Iter using elements returned by supplier function `genNext`.
@@ -121,22 +138,28 @@ proc new*[T](_: type Iter[T], iter: Iterator[T]): Iter[T] =
   tryNext()
   Iter[T].new(genNext, isFinished)
 
-proc empty*[T](_: type Iter[T]): Iter[T] =
-  ## Creates an empty Iter
-  ##
+proc finish*[T](self: Iter[T]): void =
+  self.finished = true
 
-  proc genNext(): T {.raises: [CatchableError].} =
-    raise newException(CatchableError, "Next item requested from an empty Iter")
+proc finished*[T](self: Iter[T]): bool =
+  self.finished
 
-  proc isFinished(): bool =
-    true
+iterator items*[T](self: Iter[T]): T =
+  while not self.finished:
+    yield self.next()
 
-  Iter[T].new(genNext, isFinished)
+iterator pairs*[T](self: Iter[T]): tuple[key: int, val: T] {.inline.} =
+  var i = 0
+  while not self.finished:
+    yield (i, self.next())
+    inc(i)
 
-proc map*[T, U](iter: Iter[T], fn: Function[T, U]): Iter[U] =
+proc map*[T, U](iter: Iter[T], fn: IterFunction[T, U]): Iter[U] =
   Iter[U].new(genNext = () => fn(iter.next()), isFinished = () => iter.finished)
 
-proc mapFilter*[T, U](iter: Iter[T], mapPredicate: Function[T, Option[U]]): Iter[U] =
+proc mapFilter*[T, U](
+    iter: Iter[T], mapPredicate: IterFunction[T, Option[U]]
+): Iter[U] =
   var nextUOrErr: Option[?!U]
 
   proc tryFetch(): void =
@@ -167,7 +190,7 @@ proc mapFilter*[T, U](iter: Iter[T], mapPredicate: Function[T, Option[U]]): Iter
   tryFetch()
   Iter[U].new(genNext, isFinished)
 
-proc filter*[T](iter: Iter[T], predicate: Function[T, bool]): Iter[T] =
+proc filter*[T](iter: Iter[T], predicate: IterFunction[T, bool]): Iter[T] =
   proc wrappedPredicate(t: T): Option[T] =
     if predicate(t):
       some(t)
@@ -175,3 +198,15 @@ proc filter*[T](iter: Iter[T], predicate: Function[T, bool]): Iter[T] =
       T.none
 
   mapFilter[T, T](iter, wrappedPredicate)
+
+proc empty*[T](_: type Iter[T]): Iter[T] =
+  ## Creates an empty Iter
+  ##
+
+  proc genNext(): T {.raises: [CatchableError].} =
+    raise newException(CatchableError, "Next item requested from an empty Iter")
+
+  proc isFinished(): bool =
+    true
+
+  Iter[T].new(genNext, isFinished)
