@@ -96,6 +96,8 @@ asyncchecksuite "NetworkStore engine - 2 nodes":
   test "Should send want-have for block":
     let blk = bt.Block.new("Block 1".toBytes).tryGet()
     let blkFut = nodeCmps1.pendingBlocks.getWantHandle(blk.cid)
+    peerCtx2.blockRequestScheduled(blk.address)
+
     (await nodeCmps2.localStore.putBlock(blk)).tryGet()
 
     peerCtx1.wantedBlocks.incl(blk.address)
