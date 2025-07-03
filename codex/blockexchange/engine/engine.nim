@@ -279,7 +279,7 @@ proc downloadInternal(
         if not self.pendingBlocks.isRequested(address):
           let peer = self.selectPeer(peers.with)
           self.pendingBlocks.markRequested(address, peer.id)
-          peer.blockRequested(address)
+          peer.blockRequestScheduled(address)
           trace "Request block from block retry loop"
           await self.sendWantBlock(@[address], peer)
           peer
@@ -412,7 +412,7 @@ proc blockPresenceHandler*(
   for address in ourWantCids:
     self.pendingBlocks.decRetries(address)
     self.pendingBlocks.markRequested(address, peer)
-    peerCtx.blockRequested(address)
+    peerCtx.blockRequestScheduled(address)
 
   if ourWantCids.len > 0:
     trace "Peer has blocks in our wantList", peer, wants = ourWantCids
@@ -772,6 +772,8 @@ proc taskHandler*(
   var
     wantedBlocks = peerCtx.wantedBlocks.filterIt(not peerCtx.isBlockSent(it))
     sent: HashSet[BlockAddress]
+
+  trace "Running task for peer", peer = peerCtx.id
 
   for wantedBlock in wantedBlocks:
     peerCtx.markBlockAsSent(wantedBlock)
