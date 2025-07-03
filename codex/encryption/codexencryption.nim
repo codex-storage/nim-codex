@@ -27,11 +27,14 @@ type CodexEncryption* = ref object
   masterKey: seq[byte]
 
 proc newCodexEncryption*(): CodexEncryption =
-  let masterKey = newSeqWith(32, Rng.instance.rand(uint8.high).byte)
+  let masterKey = newSeqWith(MasterKeySize, Rng.instance.rand(uint8.high).byte)
   CodexEncryption(masterKey: masterKey)
 
 proc newCodexEncryption*(masterKey: seq[byte]): CodexEncryption =
   CodexEncryption(masterKey: masterKey)
+
+proc getKeyHexEncoded*(self: CodexEncryption): string =
+  self.masterKey.toHex()
 
 proc deriveKeyForBlockIndex(self: CodexEncryption, blockIndex: uint32): seq[byte] =
   let blockIndexArray = toBytes(blockIndex, bigEndian)

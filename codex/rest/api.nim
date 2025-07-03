@@ -39,6 +39,7 @@ import ../manifest
 import ../streams/asyncstreamwrapper
 import ../stores
 import ../utils/options
+import ../encryption/codexencryption
 
 import ./coders
 import ./json
@@ -230,6 +231,9 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
     if filename.isSome and not isValidFilename(filename.get()):
       return RestApiResponse.error(Http422, "The filename is not valid.")
 
+    # prepare encryption service
+    let encryption = newCodexEncryption()
+
     # Here we could check if the extension matches the filename if needed
 
     let reader = bodyReader.get()
@@ -240,6 +244,7 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
           AsyncStreamWrapper.new(reader = AsyncStreamReader(reader)),
           filename = filename,
           mimetype = mimetype,
+          encryption = encryption,
         )
       ), error:
         error "Error uploading file", exc = error.msg
@@ -247,7 +252,7 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
 
       codex_api_uploads.inc()
       trace "Uploaded file", cid
-      return RestApiResponse.response($cid)
+      return RestApiResponse.response($cid & ":" & encryption.getKeyHexEncoded())
     except CancelledError:
       trace "Upload cancelled error"
       return RestApiResponse.error(Http500)

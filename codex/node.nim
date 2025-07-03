@@ -46,6 +46,7 @@ import ./errors
 import ./logutils
 import ./utils/asynciter
 import ./utils/trackedfutures
+import ./encryption/codexencryption
 
 export logutils
 
@@ -403,6 +404,7 @@ proc store*(
     filename: ?string = string.none,
     mimetype: ?string = string.none,
     blockSize = DefaultBlockSize,
+    encryption: CodexEncryption,
 ): Future[?!Cid] {.async.} =
   ## Save stream contents as dataset with given blockSize
   ## to nodes's BlockStore, and return Cid of its manifest
@@ -416,15 +418,19 @@ proc store*(
 
   var cids: seq[Cid]
 
+  var blockIndex = 0.uint32
+
   try:
     while (let chunk = await chunker.getBytes(); chunk.len > 0):
-      without mhash =? MultiHash.digest($hcodec, chunk).mapFailure, err:
+      let encryptedChunk = encryption.encryptBlock(chunk, blockIndex)
+      blockIndex.inc()
+      without mhash =? MultiHash.digest($hcodec, encryptedChunk).mapFailure, err:
         return failure(err)
 
       without cid =? Cid.init(CIDv1, dataCodec, mhash).mapFailure, err:
         return failure(err)
 
-      without blk =? bt.Block.new(cid, chunk, verify = false):
+      without blk =? bt.Block.new(cid, encryptedChunk, verify = false):
         return failure("Unable to init block from chunk!")
 
       cids.add(cid)
