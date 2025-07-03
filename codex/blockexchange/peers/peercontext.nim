@@ -80,13 +80,16 @@ func price*(self: BlockExcPeerCtx, addresses: seq[BlockAddress]): UInt256 =
 
   price
 
-proc blockRequested*(self: BlockExcPeerCtx, address: BlockAddress) =
-  # We start counting the timeout from the first block requested.
+proc blockRequestScheduled*(self: BlockExcPeerCtx, address: BlockAddress) =
+  ## Adds a block the set of blocks that have been requested to this peer
+  ## (its request schedule).
   if self.blocksRequested.len == 0:
     self.lastExchange = Moment.now()
   self.blocksRequested.incl(address)
 
 proc blockRequestCancelled*(self: BlockExcPeerCtx, address: BlockAddress) =
+  ## Removes a block from the set of blocks that have been requested to this peer
+  ## (its request schedule).
   self.blocksRequested.excl(address)
 
 proc blockReceived*(self: BlockExcPeerCtx, address: BlockAddress): bool =
