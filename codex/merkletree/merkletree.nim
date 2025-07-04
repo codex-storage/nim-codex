@@ -161,7 +161,7 @@ func merkleTreeWorker*[H, K](
 
   success @[@xs] & ?self.merkleTreeWorker(ys, isBottomLayer = false)
 
-proc asyncMerkleTreeWorker*[H, K](task: ptr MerkleTask[H, K]) {.gcsafe.} =
+proc merkleTreeWorker*[H, K](task: ptr MerkleTask[H, K]) {.gcsafe.} =
   defer:
     discard task[].signal.fireSync()
 
