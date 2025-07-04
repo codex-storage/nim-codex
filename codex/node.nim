@@ -404,7 +404,7 @@ proc store*(
     filename: ?string = string.none,
     mimetype: ?string = string.none,
     blockSize = DefaultBlockSize,
-    encryption: CodexEncryption,
+    encryption: CodexEncryption = nil,
 ): Future[?!Cid] {.async.} =
   ## Save stream contents as dataset with given blockSize
   ## to nodes's BlockStore, and return Cid of its manifest
@@ -422,15 +422,21 @@ proc store*(
 
   try:
     while (let chunk = await chunker.getBytes(); chunk.len > 0):
-      let encryptedChunk = encryption.encryptBlock(chunk, blockIndex)
+      echo "chunk[", blockIndex, "]: ", byteutils.toHex(chunk)
+      let blockData =
+        if isNil(encryption):
+          chunk
+        else:
+          encryption.encryptBlock(chunk, blockIndex).get()
+      echo "blockData[", blockIndex, "]: ", byteutils.toHex(blockData)
       blockIndex.inc()
-      without mhash =? MultiHash.digest($hcodec, encryptedChunk).mapFailure, err:
+      without mhash =? MultiHash.digest($hcodec, blockData).mapFailure, err:
         return failure(err)
 
       without cid =? Cid.init(CIDv1, dataCodec, mhash).mapFailure, err:
         return failure(err)
 
-      without blk =? bt.Block.new(cid, encryptedChunk, verify = false):
+      without blk =? bt.Block.new(cid, blockData, verify = false):
         return failure("Unable to init block from chunk!")
 
       cids.add(cid)
