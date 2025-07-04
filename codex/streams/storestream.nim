@@ -55,10 +55,20 @@ proc new*(
   result.initStream()
 
 method `size`*(self: StoreStream): int =
-  ## The size of a StoreStream is the size of the original dataset, without
-  ## padding or parity blocks.
+  ## The size of a StoreStream is the size of the original dataset
+  ## padded to the boundary of the block - this is because we have
+  ## encrypted data, and when encrypting we always encrypt the whole block
   let m = self.manifest
-  (if m.protected: m.originalDatasetSize else: m.datasetSize).int
+  let size = if m.protected: m.originalDatasetSize else: m.datasetSize
+
+  (
+    if size mod m.blockSize == 0.NBytes:
+      size
+    else:
+      # Pad to the next block boundary
+      size + (m.blockSize - (size mod m.blockSize))
+  ).int # (size div m.blockSize.int + 1) * m.blockSize.int
+  # (if m.protected: m.originalDatasetSize else: m.datasetSize).int
 
 proc `size=`*(self: StoreStream, size: int) {.error: "Setting the size is forbidden".} =
   discard
