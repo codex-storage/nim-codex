@@ -8,8 +8,10 @@
 ## those terms.
 
 import std/sequtils
-import bearssl/[blockx, hash]
-import stew/[byteutils, endians2]
+
+import pkg/bearssl/[blockx, hash]
+import pkg/stew/[byteutils, endians2]
+import pkg/questionable/results
 
 import ../rng
 import ./bearsslhash
@@ -50,22 +52,32 @@ proc deriveIvForBlockIndex(self: CodexEncryption, blockIndex: uint32): seq[byte]
 
 proc encryptBlock*(
     self: CodexEncryption, blockData: seq[byte], blockIndex: uint32
-): seq[byte] =
+): ?!seq[byte] =
+  if blockData.len mod IvSize != 0:
+    return failure("Block data length is not a multiple of 16!")
+
   let key = self.deriveKeyForBlockIndex(blockIndex)
   let iv = self.deriveIvForBlockIndex(blockIndex)
-  result = blockData
+  var outBuff = newSeqUninit[byte](blockData.len)
+  copyMem(addr outBuff[0], addr blockData[0], blockData.len)
 
   var encCtx: AesBigCbcencKeys
   aesBigCbcencInit(encCtx, addr key[0], key.len.uint)
-  aesBigCbcencRun(encCtx, addr iv[0], addr result[0], iv.len.uint)
+  aesBigCbcencRun(encCtx, addr iv[0], addr outBuff[0], outBuff.len.uint)
+  success move outBuff
 
 proc decryptBlock*(
     self: CodexEncryption, encryptedBlockData: seq[byte], blockIndex: uint32
-): seq[byte] =
+): ?!seq[byte] =
+  if encryptedBlockData.len mod IvSize != 0:
+    return failure("Encrypted block data length is not a multiple of 16!")
+
   let key = self.deriveKeyForBlockIndex(blockIndex)
   let iv = self.deriveIvForBlockIndex(blockIndex)
-  result = encryptedBlockData
+  var outBuff = newSeqUninit[byte](encryptedBlockData.len)
+  copyMem(addr outBuff[0], addr encryptedBlockData[0], encryptedBlockData.len)
 
   var decCtx: AesBigCbcdecKeys
   aesBigCbcdecInit(decCtx, addr key[0], key.len.uint)
-  aesBigCbcdecRun(decCtx, addr iv[0], addr result[0], iv.len.uint)
+  aesBigCbcdecRun(decCtx, addr iv[0], addr outBuff[0], outBuff.len.uint)
+  success move outBuff
