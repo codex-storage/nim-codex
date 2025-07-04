@@ -73,7 +73,11 @@ proc isPending(resp: HttpResponseRef): bool =
   return resp.getResponseState() == HttpResponseState.Empty
 
 proc retrieveCid(
-    node: CodexNodeRef, cid: Cid, local: bool = true, resp: HttpResponseRef
+    node: CodexNodeRef,
+    cid: Cid,
+    local: bool = true,
+    resp: HttpResponseRef,
+    encryption: CodexEncryption = nil,
 ): Future[void] {.async: (raises: [CancelledError, HttpWriteError]).} =
   ## Download a file from the node in a streaming
   ## manner
@@ -126,9 +130,17 @@ proc retrieveCid(
 
     await resp.prepare(HttpResponseStreamType.Plain)
 
+    let datasetSize =
+      if manifest.protected:
+        manifest.originalDatasetSize.int
+      else:
+        manifest.datasetSize.int
+    let lastBlockOffset = datasetSize mod manifest.blockSize.int
+    var blockIndex = 0.uint32
+
     while not stream.atEof:
       var
-        buff = newSeqUninitialized[byte](DefaultBlockSize.int)
+        buff = newSeqUninit[byte](manifest.blockSize.int)
         len = await stream.readOnce(addr buff[0], buff.len)
 
       buff.setLen(len)
@@ -137,7 +149,25 @@ proc retrieveCid(
 
       bytes += buff.len
 
-      await resp.send(addr buff[0], buff.len)
+      echo "buff[", blockIndex, "]: ", byteutils.toHex(buff)
+
+      let data =
+        if isNil(encryption):
+          buff
+        else:
+          encryption.decryptBlock(buff, blockIndex).get()
+
+      echo "data[", blockIndex, "]: ", byteutils.toHex(data)
+
+      blockIndex.inc()
+
+      if bytes > datasetSize:
+        # yes, we needed the full last block for the purpose of decryption
+        # but now we only ever need to send the actual data to the user
+        bytes = datasetSize
+        await resp.send(addr data[0], lastBlockOffset)
+      else:
+        await resp.send(addr data[0], data.len)
     await resp.finish()
     codex_api_downloads.inc()
   except CancelledError as exc:
@@ -233,6 +263,7 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
 
     # prepare encryption service
     let encryption = newCodexEncryption()
+    # var encryption: CodexEncryption = nil
 
     # Here we could check if the extension matches the filename if needed
 
@@ -252,6 +283,7 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
 
       codex_api_uploads.inc()
       trace "Uploaded file", cid
+      # return RestApiResponse.response($cid)
       return RestApiResponse.response($cid & ":" & encryption.getKeyHexEncoded())
     except CancelledError:
       trace "Upload cancelled error"
@@ -276,9 +308,14 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
     await resp.sendBody("")
 
   router.api(MethodGet, "/api/codex/v1/data/{cid}") do(
-    cid: Cid, resp: HttpResponseRef
+    cid: Cid, key: Option[string], resp: HttpResponseRef
   ) -> RestApiResponse:
     var headers = buildCorsHeaders("GET", allowedOrigin)
+
+    var encryption: CodexEncryption = nil
+
+    if key =? key:
+      echo "Using encryption key: ", key
 
     ## Download a file from the local node in a streaming
     ## manner
@@ -289,7 +326,9 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
       resp.setCorsHeaders("GET", corsOrigin)
       resp.setHeader("Access-Control-Headers", "X-Requested-With")
 
-    await node.retrieveCid(cid.get(), local = true, resp = resp)
+    await node.retrieveCid(
+      cid.get(), local = true, resp = resp, encryption = encryption
+    )
 
   router.api(MethodDelete, "/api/codex/v1/data/{cid}") do(
     cid: Cid, resp: HttpResponseRef
@@ -334,11 +373,26 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
     return RestApiResponse.response($json, contentType = "application/json")
 
   router.api(MethodGet, "/api/codex/v1/data/{cid}/network/stream") do(
-    cid: Cid, resp: HttpResponseRef
+    cid: Cid, key: Option[string], resp: HttpResponseRef
   ) -> RestApiResponse:
     ## Download a file from the network in a streaming
     ## manner
     ##
+
+    var encryption: CodexEncryption = nil
+
+    if res =? key and key =? res:
+      echo "Using encryption key: ", key
+      let masterKey = key.hexToSeqByte()
+      echo "Master key: ", byteutils.toHex(masterKey)
+      encryption = newCodexEncryption(masterKey)
+      # let plaintext = "ala ma kota".toBytes
+      # echo "Plaintext: ", byteutils.toHex(plaintext)
+      # let enc = encryption.encryptBlock(plaintext, 0.uint32)
+      # echo "Encrypted: ", byteutils.toHex(enc)
+      # let dec1 = encryption.decryptBlock(enc, 0.uint32)
+      # echo "Decrypted: ", byteutils.toHex(dec1)
+      # echo "Decrypted: ", string.fromBytes(dec1)
 
     var headers = buildCorsHeaders("GET", allowedOrigin)
 
@@ -350,7 +404,9 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
       resp.setHeader("Access-Control-Headers", "X-Requested-With")
 
     resp.setHeader("Access-Control-Expose-Headers", "Content-Disposition")
-    await node.retrieveCid(cid.get(), local = false, resp = resp)
+    await node.retrieveCid(
+      cid.get(), local = false, resp = resp, encryption = encryption
+    )
 
   router.api(MethodGet, "/api/codex/v1/data/{cid}/network/manifest") do(
     cid: Cid, resp: HttpResponseRef
