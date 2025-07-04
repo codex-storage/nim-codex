@@ -46,4 +46,4 @@ docker/prometheus-data
 nim.cfg
 tests/integration/logs
 
-data/
+data*/
