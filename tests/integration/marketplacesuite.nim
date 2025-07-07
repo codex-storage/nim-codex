@@ -1,5 +1,4 @@
 import macros
-import std/strutils
 import std/unittest
 
 import pkg/chronos
@@ -9,7 +8,7 @@ import pkg/codex/contracts/marketplace as mp
 import pkg/codex/periods
 import pkg/codex/utils/json
 from pkg/codex/utils import roundUp, divUp
-import ./multinodes except Subscription
+import ./multinodes except Subscription, Event
 import ../contracts/time
 import ../contracts/deployment
 
@@ -22,72 +21,83 @@ template marketplacesuite*(name: string, body: untyped) =
     var period: uint64
     var periodicity: Periodicity
     var token {.inject, used.}: Erc20Token
-    var requestStartedEvent: AsyncEvent
-    var requestStartedSubscription: Subscription
-    var requestFailedEvent: AsyncEvent
-    var requestFailedSubscription: Subscription
-
-    template fail(reason: string) =
-      raise newException(TestFailedError, reason)
+    var subscriptions: seq[Subscription] = @[]
+    var tokenSubscription: Subscription
 
     proc check(cond: bool, reason = "Check failed"): void =
       if not cond:
         fail(reason)
 
-    template stopOnRequestFailed(tbody: untyped) =
-      let completed = newAsyncEvent()
+    proc marketplaceSubscribe[E: Event](
+        event: type E, handler: EventHandler[E]
+    ) {.async.} =
+      let sub = await marketplace.subscribe(event, handler)
+      subscriptions.add(sub)
 
-      let mainFut = (
-        proc(): Future[void] {.async.} =
-          tbody
-          completed.fire()
-      )()
+    proc tokenSubscribe(
+        handler: proc(event: ?!Transfer) {.gcsafe, raises: [].}
+    ) {.async.} =
+      let sub = await token.subscribe(Transfer, handler)
+      tokenSubscription = sub
 
-      let fastFailFut = (
-        proc(): Future[void] {.async.} =
-          try:
-            await requestFailedEvent.wait().wait(timeout = chronos.seconds(60))
-            completed.fire()
-            raise newException(TestFailedError, "storage request has failed")
-          except AsyncTimeoutError:
-            discard
-      )()
+    proc subscribeOnRequestFulfilled(
+        requestId: RequestId
+    ): Future[AsyncEvent] {.async.} =
+      let event = newAsyncEvent()
 
-      await completed.wait().wait(timeout = chronos.seconds(60 * 30))
+      proc onRequestFulfilled(eventResult: ?!RequestFulfilled) {.raises: [].} =
+        assert not eventResult.isErr
+        let er = !eventResult
 
-      if not fastFailFut.completed:
-        await fastFailFut.cancelAndWait()
+        if er.requestId == requestId:
+          event.fire()
 
-      if mainFut.failed:
-        raise mainFut.error
+      let sub = await marketplace.subscribe(RequestFulfilled, onRequestFulfilled)
+      subscriptions.add(sub)
 
-      if fastFailFut.failed:
-        raise fastFailFut.error
-
-    proc onRequestStarted(eventResult: ?!RequestFulfilled) {.raises: [].} =
-      requestStartedEvent.fire()
-
-    proc onRequestFailed(eventResult: ?!RequestFailed) {.raises: [].} =
-      requestFailedEvent.fire()
+      return event
 
     proc getCurrentPeriod(): Future[Period] {.async.} =
       return periodicity.periodOf((await ethProvider.currentTime()).truncate(uint64))
 
     proc waitForRequestToStart(
-        seconds = 10 * 60 + 10
-    ): Future[Period] {.
-        async: (raises: [CancelledError, AsyncTimeoutError, TestFailedError])
-    .} =
-      await requestStartedEvent.wait().wait(timeout = chronos.seconds(seconds))
-      # Recreate a new future if we need to wait for another request
-      requestStartedEvent = newAsyncEvent()
+        requestId: RequestId, seconds = 10 * 60 + 10
+    ): Future[void] {.async.} =
+      let event = newAsyncEvent()
+
+      proc onRequestFulfilled(eventResult: ?!RequestFulfilled) {.raises: [].} =
+        assert not eventResult.isErr
+        let er = !eventResult
+
+        if er.requestId == requestId:
+          event.fire()
+
+      let sub = await marketplace.subscribe(RequestFulfilled, onRequestFulfilled)
+      subscriptions.add(sub)
+
+      await event.wait().wait(timeout = chronos.seconds(seconds))
+
+    proc getSecondsTillRequestEnd(requestId: RequestId): Future[int64] {.async.} =
+      let currentTime = await ethProvider.currentTime()
+      let requestEnd = await marketplace.requestEnd(requestId)
+      return requestEnd.int64 - currentTime.truncate(int64)
 
     proc waitForRequestToFail(
-        seconds = (5 * 60) + 10
-    ): Future[Period] {.async: (raises: [CancelledError, AsyncTimeoutError]).} =
-      await requestFailedEvent.wait().wait(timeout = chronos.seconds(seconds))
-      # Recreate a new future if we need to wait for another request
-      requestFailedEvent = newAsyncEvent()
+        requestId: RequestId, seconds = (5 * 60) + 10
+    ): Future[void] {.async.} =
+      let event = newAsyncEvent()
+
+      proc onRequestFailed(eventResult: ?!RequestFailed) {.raises: [].} =
+        assert not eventResult.isErr
+        let er = !eventResult
+
+        if er.requestId == requestId:
+          event.fire()
+
+      let sub = await marketplace.subscribe(RequestFailed, onRequestFailed)
+      subscriptions.add(sub)
+
+      await event.wait().wait(timeout = chronos.seconds(seconds))
 
     proc advanceToNextPeriod() {.async.} =
       let periodicity = Periodicity(seconds: period)
@@ -145,7 +155,7 @@ template marketplacesuite*(name: string, body: untyped) =
         client: CodexClient,
         cid: Cid,
         proofProbability = 1.u256,
-        duration: uint64 = 12.periods,
+        duration: uint64 = 20 * 60.uint64,
         pricePerBytePerSecond = 1.u256,
         collateralPerByte = 1.u256,
         expiry: uint64 = 4.periods,
@@ -167,6 +177,36 @@ template marketplacesuite*(name: string, body: untyped) =
 
       return id
 
+    proc requestStorage(
+        client: CodexClient,
+        proofProbability = 3.u256,
+        duration = 20 * 60.uint64,
+        pricePerBytePerSecond = 1.u256,
+        collateralPerByte = 1.u256,
+        expiry = 10 * 60.uint64,
+        nodes = 3,
+        tolerance = 1,
+        blocks = 8,
+        data = seq[byte].none,
+    ): Future[(PurchaseId, RequestId)] {.async.} =
+      let bytes = data |? await RandomChunker.example(blocks = blocks)
+      let cid = (await client.upload(bytes)).get
+
+      let purchaseId = await client.requestStorage(
+        cid,
+        duration = duration,
+        pricePerBytePerSecond = pricePerBytePerSecond,
+        proofProbability = proofProbability,
+        expiry = expiry,
+        collateralPerByte = collateralPerByte,
+        nodes = nodes,
+        tolerance = tolerance,
+      )
+
+      let requestId = (await client.requestId(purchaseId)).get
+
+      return (purchaseId, requestId)
+
     setup:
       marketplace = Marketplace.new(Marketplace.address, ethProvider.getSigner())
       let tokenAddress = await marketplace.token()
@@ -174,18 +214,12 @@ template marketplacesuite*(name: string, body: untyped) =
       let config = await marketplace.configuration()
       period = config.proofs.period
       periodicity = Periodicity(seconds: period)
-
-      requestStartedEvent = newAsyncEvent()
-      requestFailedEvent = newAsyncEvent()
-
-      requestStartedSubscription =
-        await marketplace.subscribe(RequestFulfilled, onRequestStarted)
-
-      requestFailedSubscription =
-        await marketplace.subscribe(RequestFailed, onRequestFailed)
-
+      subscriptions = @[]
     teardown:
-      await requestStartedSubscription.unsubscribe()
-      await requestFailedSubscription.unsubscribe()
+      for subscription in subscriptions:
+        await subscription.unsubscribe()
+
+      if not tokenSubscription.isNil:
+        await tokenSubscription.unsubscribe()
 
     body

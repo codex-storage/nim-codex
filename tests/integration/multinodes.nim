@@ -107,7 +107,10 @@ template multinodesuite*(name: string, body: untyped) =
       currentTestName = tname
       nodeConfigs = startNodeConfigs
       test tname:
-        failAndTeardownOnError("test failed", tbody)
+        tbody
+
+    template fail(reason: string) =
+      raise newException(TestFailedError, reason)
 
     proc sanitize(pathSegment: string): string =
       var sanitized = pathSegment
@@ -255,21 +258,34 @@ template multinodesuite*(name: string, body: untyped) =
 
       return await newCodexProcess(validatorIdx, config, Role.Validator)
 
-    proc teardownImpl() {.async.} =
+    proc teardownImpl() {.async: (raises: [CancelledError]).} =
       for nodes in @[validators(), clients(), providers()]:
         for node in nodes:
-          await node.stop() # also stops rest client
-          node.removeDataDir()
+          try:
+            await node.stop() # also stops rest client
+            node.removeDataDir()
+          except CancelledError as e:
+            raise e
+          # Raised by removeDataDir
+          except Exception as e:
+            error "error when trying to stop the node", error = e.msg
 
       # if hardhat was started in the test, kill the node
       # otherwise revert the snapshot taken in the test setup
       let hardhat = hardhat()
       if not hardhat.isNil:
-        await hardhat.stop()
+        try:
+          await hardhat.stop()
+        except CancelledError as e:
+          raise e
+        except CatchableError as e:
+          error "error when trying to stop hardhat", error = e.msg
       else:
-        discard await send(ethProvider, "evm_revert", @[snapshot])
-
-        await ethProvider.close()
+        try:
+          discard await send(ethProvider, "evm_revert", @[snapshot])
+          await ethProvider.close()
+        except ProviderError as e:
+          error "error when trying to cleanup the evm", error = e.msg
 
       running = @[]
 
@@ -285,7 +301,7 @@ template multinodesuite*(name: string, body: untyped) =
         await teardownImpl()
         when declared(teardownAllIMPL):
           teardownAllIMPL()
-        raise er
+        fail(er.msg)
 
     proc updateBootstrapNodes(
         node: CodexProcess

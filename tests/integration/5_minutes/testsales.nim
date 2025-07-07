@@ -114,10 +114,11 @@ marketplacesuite(name = "Sales"):
   test "updating availability - updating totalSize does not allow bellow utilized",
     salesConfig:
     let originalSize = 0xFFFFFF.uint64
-    let data = await RandomChunker.example(blocks = 8)
     let minPricePerBytePerSecond = 3.u256
     let collateralPerByte = 1.u256
     let totalCollateral = originalSize.u256 * collateralPerByte
+    let expiry = 10 * 60.uint64
+
     let availability = (
       await host.postAvailability(
         totalSize = originalSize,
@@ -128,19 +129,11 @@ marketplacesuite(name = "Sales"):
     ).get
 
     # Lets create storage request that will utilize some of the availability's space
-    let cid = (await client.upload(data)).get
-    let id = await client.requestStorage(
-      cid,
-      duration = 20 * 60.uint64,
-      pricePerBytePerSecond = minPricePerBytePerSecond,
-      proofProbability = 3.u256,
-      expiry = (10 * 60).uint64,
-      collateralPerByte = collateralPerByte,
-      nodes = 3,
-      tolerance = 1,
+    let (purchaseId, requestId) = await requestStorage(
+      client = client, pricePerBytePerSecond = minPricePerBytePerSecond
     )
 
-    discard await waitForRequestToStart()
+    await waitForRequestToStart(requestId, expiry.int64)
 
     let updatedAvailability =
       ((await host.getAvailabilities()).get).findItem(availability).get
@@ -183,12 +176,9 @@ marketplacesuite(name = "Sales"):
   test "returns an error when trying to update the until date before an existing a request is finished",
     salesConfig:
     let size = 0xFFFFFF.uint64
-    let data = await RandomChunker.example(blocks = 8)
     let duration = 20 * 60.uint64
+    let expiry = 10 * 60.uint64
     let minPricePerBytePerSecond = 3.u256
-    let collateralPerByte = 1.u256
-    let ecNodes = 3.uint
-    let ecTolerance = 1.uint
 
     # host makes storage available
     let availability = (
@@ -200,24 +190,12 @@ marketplacesuite(name = "Sales"):
       )
     ).get
 
-    # client requests storage
-    let cid = (await client.upload(data)).get
-    let id = (
-      await client.requestStorage(
-        cid,
-        duration = duration,
-        pricePerBytePerSecond = minPricePerBytePerSecond,
-        proofProbability = 3.u256,
-        expiry = 10 * 60.uint64,
-        collateralPerByte = collateralPerByte,
-        nodes = ecNodes,
-        tolerance = ecTolerance,
-      )
-    ).get
+    let (purchaseId, requestId) =
+      await requestStorage(client, pricePerBytePerSecond = minPricePerBytePerSecond)
 
-    discard await waitForRequestToStart()
+    await waitForRequestToStart(requestId, expiry.int64)
 
-    let purchase = (await client.getPurchase(id)).get
+    let purchase = (await client.getPurchase(purchaseId)).get
     check purchase.error == none string
 
     let unixNow = getTime().toUnix()
