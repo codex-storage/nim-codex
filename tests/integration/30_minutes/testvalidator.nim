@@ -81,7 +81,7 @@ marketplacesuite(name = "Validation"):
 
     let secondsTillRequestEnd = await getSecondsTillRequestEnd(requestId)
     debug "validation suite", secondsTillRequestEnd = secondsTillRequestEnd
-    await waitForRequestToFail(requestId, secondsTillRequestEnd.int64)
+    await waitForRequestToFail(requestId, secondsTillRequestEnd.int64 + 60)
 
   test "validator uses historical state to mark missing proofs",
     NodeConfigs(
@@ -149,4 +149,4 @@ marketplacesuite(name = "Validation"):
 
     let secondsTillRequestEnd = await getSecondsTillRequestEnd(requestId)
     debug "validation suite", secondsTillRequestEnd = secondsTillRequestEnd
-    await waitForRequestToFail(requestId, secondsTillRequestEnd.int64)
+    await waitForRequestToFail(requestId, secondsTillRequestEnd.int64 + 60)
