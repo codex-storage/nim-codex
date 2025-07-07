@@ -90,7 +90,7 @@ marketplacesuite(name = "SP Slot Repair"):
         totalSize = 2 * size.truncate(uint64),
         duration = duration,
         minPricePerBytePerSecond = minPricePerBytePerSecond,
-        totalCollateral = 3 * size * collateralPerByte,
+        totalCollateral = 2 * size * collateralPerByte,
       )
     ).get
     let availability1 = (
@@ -128,6 +128,7 @@ marketplacesuite(name = "SP Slot Repair"):
     await provider0.client.patchAvailability(
       availabilityId = availability0.id,
       totalSize = (3 * size.truncate(uint64)).uint64.some,
+      totalCollateral = (3.u256 * size * collateralPerByte).some,
     )
 
     await marketplaceSubscribe(SlotFilled, onSlotFilled)
