@@ -402,28 +402,8 @@ proc blocksDeliveryHandler*(
       peer = peer
       address = bd.address
 
-    try:
-      if err =? self.validateBlockDelivery(bd).errorOption:
-        warn "Block validation failed", msg = err.msg
-        continue
-
-      if err =? (await self.localStore.putBlock(bd.blk)).errorOption:
-        error "Unable to store block", err = err.msg
-        continue
-
-      if bd.address.leaf:
-        without proof =? bd.proof:
-          warn "Proof expected for a leaf block delivery"
-          continue
-        if err =? (
-          await self.localStore.putCidAndProof(
-            bd.address.treeCid, bd.address.index, bd.blk.cid, proof
-          )
-        ).errorOption:
-          warn "Unable to store proof and cid for a block"
-          continue
-    except CatchableError as exc:
-      warn "Error handling block delivery", error = exc.msg
+    if err =? self.validateBlockDelivery(bd).errorOption:
+      warn "Block validation failed", msg = err.msg
       continue
 
     validatedBlocksDelivery.add(bd)
