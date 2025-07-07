@@ -23,6 +23,56 @@ template marketplacesuite*(name: string, body: untyped) =
     var token {.inject, used.}: Erc20Token
     var subscriptions: seq[Subscription] = @[]
     var tokenSubscription: Subscription
+    var requestFailedEvent: AsyncEvent
+
+    template test(tname, startNodeConfigs, stopOnRequestFail, tbody) =
+      test tname, startNodeConfigs:
+        stopOnRequestFailed:
+          tbody
+
+    template stopOnRequestFailed(tbody: untyped) =
+      let completed = newAsyncEvent()
+      let requestFailedEvent = newAsyncEvent()
+
+      proc onRequestFailed(eventResult: ?!RequestFailed) {.raises: [].} =
+        assert not eventResult.isErr
+        requestFailedEvent.fire()
+
+      let sub = await marketplace.subscribe(RequestFailed, onRequestFailed)
+      subscriptions.add(sub)
+
+      let mainFut = (
+        proc(): Future[void] {.async.} =
+          try:
+            tbody
+            completed.fire()
+          except CancelledError as e:
+            raise e
+          except CatchableError as e:
+            completed.fire()
+            raise e
+      )()
+
+      let fastFailFut = (
+        proc(): Future[void] {.async.} =
+          try:
+            await requestFailedEvent.wait().wait(timeout = chronos.seconds(60))
+            completed.fire()
+            raise newException(TestFailedError, "storage request has failed")
+          except AsyncTimeoutError:
+            discard
+      )()
+
+      await completed.wait().wait(timeout = chronos.seconds(60 * 30))
+
+      if not fastFailFut.completed:
+        await fastFailFut.cancelAndWait()
+
+      if mainFut.failed:
+        raise mainFut.error
+
+      if fastFailFut.failed:
+        raise fastFailFut.error
 
     proc check(cond: bool, reason = "Check failed"): void =
       if not cond:
@@ -215,6 +265,7 @@ template marketplacesuite*(name: string, body: untyped) =
       period = config.proofs.period
       periodicity = Periodicity(seconds: period)
       subscriptions = @[]
+      requestFailedEvent = newAsyncEvent()
     teardown:
       for subscription in subscriptions:
         await subscription.unsubscribe()

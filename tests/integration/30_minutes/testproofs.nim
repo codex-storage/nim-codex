@@ -34,7 +34,8 @@ marketplacesuite(name = "Hosts submit regular proofs"):
       # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
       # .withLogTopics("marketplace", "sales", "reservations", "node", "clock")
       .some,
-    ):
+    ),
+    stopOnRequestFail = true:
     let client0 = clients()[0].client
     let expiry = 10.periods
     let duration = expiry + 5.periods
@@ -118,7 +119,8 @@ marketplacesuite(name = "Simulate invalid proofs"):
       # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
       # .withLogTopics("validator", "onchain", "ethers", "clock")
       .some,
-    ):
+    ),
+    stopOnRequestFail = true:
     let client0 = clients()[0].client
     let expiry = 10.periods
     let duration = expiry + 10.periods
@@ -162,7 +164,8 @@ marketplacesuite(name = "Simulate invalid proofs"):
       # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
       # .withLogTopics("validator", "onchain", "ethers", "clock")
       .some,
-    ):
+    ),
+    stopOnRequestFail = true:
     let client0 = clients()[0].client
     let expiry = 10.periods
     let duration = expiry + 10.periods

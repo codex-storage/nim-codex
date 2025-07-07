@@ -4,7 +4,7 @@ import ../../contracts/time
 import ../../contracts/deployment
 import ../../codex/helpers
 import ../../examples
-import ../marketplacesuite
+import ../marketplacesuite as marketplacesuite
 import ../nodeconfigs
 
 export logutils
@@ -75,7 +75,8 @@ marketplacesuite(name = "SP Slot Repair"):
         # .debug()
         # .withLogFile()
         # .withLogTopics("validator").some,
-    ):
+    ),
+    stopOnRequestFail = true:
     let client0 = clients()[0]
     let provider0 = providers()[0]
     let provider1 = providers()[1]
@@ -154,7 +155,8 @@ marketplacesuite(name = "SP Slot Repair"):
         # .debug()
         .withLogFile()
         .withLogTopics("marketplace", "sales", "statemachine", "reservations").some,
-    ):
+    ),
+    stopOnRequestFail = true:
     let client0 = clients()[0]
     let provider0 = providers()[0]
     let provider1 = providers()[1]
@@ -236,7 +238,8 @@ marketplacesuite(name = "SP Slot Repair"):
       # .withLogFile()
       # .withLogTopics("marketplace", "sales", "statemachine", "reservations")
       .some,
-    ):
+    ),
+    stopOnRequestFail = true:
     let client0 = clients()[0]
     let provider0 = providers()[0]
     let provider1 = providers()[1]

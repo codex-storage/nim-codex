@@ -34,7 +34,7 @@ marketplacesuite(name = "Sales"):
     host = providers()[0].client
     client = clients()[0].client
 
-  test "node handles new storage availability", salesConfig:
+  test "node handles new storage availability", salesConfig, stopOnRequestFail = true:
     let availability1 = (
       await host.postAvailability(
         totalSize = 1.uint64,
@@ -53,7 +53,7 @@ marketplacesuite(name = "Sales"):
     ).get
     check availability1 != availability2
 
-  test "node lists storage that is for sale", salesConfig:
+  test "node lists storage that is for sale", salesConfig, stopOnRequestFail = true:
     let availability = (
       await host.postAvailability(
         totalSize = 1.uint64,
@@ -64,7 +64,7 @@ marketplacesuite(name = "Sales"):
     ).get
     check availability in (await host.getAvailabilities()).get
 
-  test "updating availability", salesConfig:
+  test "updating availability", salesConfig, stopOnRequestFail = true:
     let availability = (
       await host.postAvailability(
         totalSize = 140000.uint64,
@@ -95,7 +95,8 @@ marketplacesuite(name = "Sales"):
     check updatedAvailability.enabled == false
     check updatedAvailability.until == until
 
-  test "updating availability - updating totalSize", salesConfig:
+  test "updating availability - updating totalSize",
+    salesConfig, stopOnRequestFail = true:
     let availability = (
       await host.postAvailability(
         totalSize = 140000.uint64,
@@ -112,7 +113,7 @@ marketplacesuite(name = "Sales"):
     check updatedAvailability.freeSize == 100000
 
   test "updating availability - updating totalSize does not allow bellow utilized",
-    salesConfig:
+    salesConfig, stopOnRequestFail = true:
     let originalSize = 0xFFFFFF.uint64
     let minPricePerBytePerSecond = 3.u256
     let collateralPerByte = 1.u256
@@ -157,7 +158,8 @@ marketplacesuite(name = "Sales"):
     check newUpdatedAvailability.totalSize == originalSize + 20000
     check newUpdatedAvailability.freeSize - updatedAvailability.freeSize == 20000
 
-  test "updating availability fails with until negative", salesConfig:
+  test "updating availability fails with until negative",
+    salesConfig, stopOnRequestFail = true:
     let availability = (
       await host.postAvailability(
         totalSize = 140000.uint64,
@@ -174,7 +176,7 @@ marketplacesuite(name = "Sales"):
       (await response.body) == "Cannot set until to a negative value"
 
   test "returns an error when trying to update the until date before an existing a request is finished",
-    salesConfig:
+    salesConfig, stopOnRequestFail = true:
     let size = 0xFFFFFF.uint64
     let duration = 20 * 60.uint64
     let expiry = 10 * 60.uint64

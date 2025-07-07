@@ -40,7 +40,8 @@ marketplacesuite(name = "Marketplace"):
     # As we use in tests ethProvider.currentTime() which uses block timestamp this can lead to synchronization issues.
     await ethProvider.advanceTime(1.u256)
 
-  test "nodes negotiate contracts on the marketplace", marketplaceConfig:
+  test "nodes negotiate contracts on the marketplace",
+    marketplaceConfig, stopOnRequestFail = true:
     # host makes storage available
     let availability = (
       await host.postAvailability(
@@ -83,7 +84,7 @@ marketplacesuite(name = "Marketplace"):
       check slot.request.id == purchase.requestId
 
   test "node slots gets paid out and rest of tokens are returned to client",
-    marketplaceConfig:
+    marketplaceConfig, stopOnRequestFail = true:
     var providerRewardEvent = newAsyncEvent()
     var clientFundsEvent = newAsyncEvent()
     var transferEvent = newAsyncEvent()
@@ -177,7 +178,8 @@ marketplacesuite(name = "Marketplace"):
       # .withLogFile()
       # .withLogTopics("marketplace", "sales", "statemachine","slotqueue", "reservations")
       .some,
-    ):
+    ),
+    stopOnRequestFail = true:
     var requestId: RequestId
 
     # We create an avavilability allowing the first SP to host the 3 slots.
@@ -254,7 +256,8 @@ marketplacesuite(name = "Marketplace payouts"):
       #   "node", "marketplace", "sales", "reservations", "node", "statemachine"
       # )
       .some,
-    ):
+    ),
+    stopOnRequestFail = true:
     let client = clients()[0]
     let provider = providers()[0]
     let clientApi = client.client
@@ -365,7 +368,8 @@ marketplacesuite(name = "Marketplace payouts"):
       #   "node", "marketplace", "sales", "reservations", "statemachine"
       # )
       .some,
-    ):
+    ),
+    stopOnRequestFail = true:
     let client0 = clients()[0]
     let provider0 = providers()[0]
     let provider1 = providers()[1]
