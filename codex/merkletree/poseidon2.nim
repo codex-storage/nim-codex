@@ -100,7 +100,7 @@ proc init*(
 
   var tree = Poseidon2Tree(compress: compressor, zero: Poseidon2Zero)
   var task = Poseidon2TreeTask(
-    tree: cast[ptr Poseidon2Tree](addr tree), leaves: @leaves, signal: signal
+    tree: cast[ptr Poseidon2Tree](addr tree), leaves: leaves, signal: signal
   )
 
   doAssert tp.numThreads > 1,
