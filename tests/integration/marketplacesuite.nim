@@ -155,7 +155,7 @@ template marketplacesuite*(name: string, body: untyped) =
         client: CodexClient,
         cid: Cid,
         proofProbability = 1.u256,
-        duration: uint64 = 20 * 60.uint64,
+        duration: uint64 = 12.periods,
         pricePerBytePerSecond = 1.u256,
         collateralPerByte = 1.u256,
         expiry: uint64 = 4.periods,
