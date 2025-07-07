@@ -3,6 +3,7 @@ import std/options
 import ../../../asynctest
 
 import pkg/chronos
+import pkg/taskpools
 import pkg/poseidon2
 import pkg/serde/json
 
@@ -77,6 +78,7 @@ suite "Test Circom Compat Backend":
     challenge: array[32, byte]
     builder: Poseidon2Builder
     sampler: Poseidon2Sampler
+    taskPool: Taskpool
 
   setup:
     let
@@ -85,11 +87,13 @@ suite "Test Circom Compat Backend":
 
     store = RepoStore.new(repoDs, metaDs)
 
+    taskPool = Taskpool.new()
+
     (manifest, protected, verifiable) = await createVerifiableManifest(
-      store, numDatasetBlocks, ecK, ecM, blockSize, cellSize
+      store, numDatasetBlocks, ecK, ecM, blockSize, cellSize, taskPool
     )
 
-    builder = Poseidon2Builder.new(store, verifiable).tryGet
+    builder = Poseidon2Builder.new(store, verifiable, taskPool).tryGet
     sampler = Poseidon2Sampler.new(slotId, store, builder).tryGet
 
     circom = CircomCompat.init(r1cs, wasm, zkey)
@@ -101,6 +105,7 @@ suite "Test Circom Compat Backend":
     circom.release() # this comes from the rust FFI
     await repoTmp.destroyDb()
     await metaTmp.destroyDb()
+    taskPool.shutdown()
 
   test "Should verify with correct input":
     var proof = circom.prove(proofInputs).tryGet

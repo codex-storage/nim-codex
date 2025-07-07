@@ -1,4 +1,5 @@
 import std/sequtils
+import std/times
 
 import pkg/questionable/results
 import pkg/stew/byteutils
@@ -48,6 +49,7 @@ suite "Test CodexTree":
     var
       expectedLeaves = data.mapIt(MultiHash.digest($sha256, it).tryGet())
       tree = CodexTree.init(leaves = expectedLeaves)
+
     check:
       tree.isOk
       tree.get().leaves == expectedLeaves.mapIt(it.digestBytes)

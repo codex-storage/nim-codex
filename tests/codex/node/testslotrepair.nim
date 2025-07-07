@@ -13,6 +13,7 @@ import pkg/codex/contracts
 import pkg/codex/slots
 import pkg/codex/manifest
 import pkg/codex/erasure
+import pkg/taskpools
 import pkg/codex/blocktype as bt
 import pkg/chronos/transports/stream
 
@@ -51,6 +52,7 @@ asyncchecksuite "Test Node - Slot Repair":
     )
   var
     manifest: Manifest
+    taskPool: Taskpool
     builder: Poseidon2Builder
     verifiable: Manifest
     verifiableBlock: bt.Block
@@ -100,7 +102,7 @@ asyncchecksuite "Test Node - Slot Repair":
     (await localStore.putBlock(manifestBlock)).tryGet()
 
     protected = (await erasure.encode(manifest, ecK, ecM)).tryGet()
-    builder = Poseidon2Builder.new(localStore, protected).tryGet()
+    builder = Poseidon2Builder.new(localStore, protected, taskPool).tryGet()
     verifiable = (await builder.buildManifest()).tryGet()
     verifiableBlock =
       bt.Block.new(verifiable.encode().tryGet(), codec = ManifestCodec).tryGet()
@@ -118,6 +120,7 @@ asyncchecksuite "Test Node - Slot Repair":
     await nodes[1].switch.stop() # slot 0 missing now
 
     # repair missing slot
+
     (await nodes[4].onStore(request, expiry, 0.uint64, nil, isRepairing = true)).tryGet()
 
     await nodes[2].switch.stop() # slot 1 missing now
@@ -131,16 +134,19 @@ asyncchecksuite "Test Node - Slot Repair":
     await nodes[4].switch.stop() # slot 0 missing now
 
     # repair missing slot from repaired slots
+
     (await nodes[7].onStore(request, expiry, 0.uint64, nil, isRepairing = true)).tryGet()
 
     await nodes[5].switch.stop() # slot 1 missing now
 
     # repair missing slot from repaired slots
+
     (await nodes[8].onStore(request, expiry, 1.uint64, nil, isRepairing = true)).tryGet()
 
     await nodes[6].switch.stop() # slot 2 missing now
 
     # repair missing slot from repaired slots
+
     (await nodes[9].onStore(request, expiry, 2.uint64, nil, isRepairing = true)).tryGet()
 
     let
@@ -179,7 +185,7 @@ asyncchecksuite "Test Node - Slot Repair":
     (await localStore.putBlock(manifestBlock)).tryGet()
 
     protected = (await erasure.encode(manifest, ecK, ecM)).tryGet()
-    builder = Poseidon2Builder.new(localStore, protected).tryGet()
+    builder = Poseidon2Builder.new(localStore, protected, cluster.taskpool).tryGet()
     verifiable = (await builder.buildManifest()).tryGet()
     verifiableBlock =
       bt.Block.new(verifiable.encode().tryGet(), codec = ManifestCodec).tryGet()
@@ -198,19 +204,24 @@ asyncchecksuite "Test Node - Slot Repair":
     await nodes[3].switch.stop() # slot 2 missing now
 
     # repair missing slots
+
     (await nodes[6].onStore(request, expiry, 0.uint64, nil, isRepairing = true)).tryGet()
+
     (await nodes[7].onStore(request, expiry, 2.uint64, nil, isRepairing = true)).tryGet()
 
     await nodes[2].switch.stop() # slot 1 missing now
     await nodes[4].switch.stop() # slot 3 missing now
 
     # repair missing slots from repaired slots
+
     (await nodes[8].onStore(request, expiry, 1.uint64, nil, isRepairing = true)).tryGet()
+
     (await nodes[9].onStore(request, expiry, 3.uint64, nil, isRepairing = true)).tryGet()
 
     await nodes[5].switch.stop() # slot 4 missing now
 
     # repair missing slot from repaired slots
+
     (await nodes[10].onStore(request, expiry, 4.uint64, nil, isRepairing = true)).tryGet()
 
     let

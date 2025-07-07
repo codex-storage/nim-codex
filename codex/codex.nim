@@ -56,7 +56,7 @@ type
     codexNode: CodexNodeRef
     repoStore: RepoStore
     maintenance: BlockMaintainer
-    taskpool: Taskpool
+    taskPool: Taskpool
 
   CodexPrivateKey* = libp2p.PrivateKey # alias
   EthWallet = ethers.Wallet
@@ -194,8 +194,8 @@ proc stop*(s: CodexServer) {.async.} =
     error "Failed to stop codex node", failures = res.failure.len
     raiseAssert "Failed to stop codex node"
 
-  if not s.taskpool.isNil:
-    s.taskpool.shutdown()
+  if not s.taskPool.isNil:
+    s.taskPool.shutdown()
 
 proc new*(
     T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey
@@ -216,16 +216,16 @@ proc new*(
 
   var
     cache: CacheStore = nil
-    taskpool: Taskpool
+    taskPool: Taskpool
 
   try:
     if config.numThreads == ThreadCount(0):
-      taskpool = Taskpool.new(numThreads = min(countProcessors(), 16))
+      taskPool = Taskpool.new(numThreads = min(countProcessors(), 16))
     else:
-      taskpool = Taskpool.new(numThreads = int(config.numThreads))
-    info "Threadpool started", numThreads = taskpool.numThreads
+      taskPool = Taskpool.new(numThreads = int(config.numThreads))
+    info "Threadpool started", numThreads = taskPool.numThreads
   except CatchableError as exc:
-    raiseAssert("Failure in taskpool initialization:" & exc.msg)
+    raiseAssert("Failure in taskPool initialization:" & exc.msg)
 
   if config.cacheSize > 0'nb:
     cache = CacheStore.new(cacheSize = config.cacheSize)
@@ -307,7 +307,7 @@ proc new*(
       if config.prover:
         let backend =
           config.initializeBackend().expect("Unable to create prover backend.")
-        some Prover.new(store, backend, config.numProofSamples)
+        some Prover.new(store, backend, config.numProofSamples, taskPool)
       else:
         none Prover
 
@@ -317,7 +317,7 @@ proc new*(
       engine = engine,
       discovery = discovery,
       prover = prover,
-      taskPool = taskpool,
+      taskPool = taskPool,
     )
 
     restServer = RestServerRef
@@ -337,5 +337,5 @@ proc new*(
     restServer: restServer,
     repoStore: repoStore,
     maintenance: maintenance,
-    taskpool: taskpool,
+    taskPool: taskPool,
   )
