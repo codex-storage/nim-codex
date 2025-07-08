@@ -24,19 +24,12 @@ asyncchecksuite "NetworkStore engine - 2 nodes":
     pendingBlocks1, pendingBlocks2: seq[BlockHandle]
 
   setup:
-    blocks1 = await makeRandomBlocks(datasetSize = 2048, blockSize = 256'nb)
-    blocks2 = await makeRandomBlocks(datasetSize = 2048, blockSize = 256'nb)
+    blocks1 = makeRandomBlocks(nBlocks = 8, blockSize = 256'nb)
+    blocks2 = makeRandomBlocks(nBlocks = 8, blockSize = 256'nb)
     nodeCmps1 = generateNodes(1, blocks1)[0]
     nodeCmps2 = generateNodes(1, blocks2)[0]
 
-    await allFuturesThrowing(
-      nodeCmps1.switch.start(),
-      nodeCmps1.blockDiscovery.start(),
-      nodeCmps1.engine.start(),
-      nodeCmps2.switch.start(),
-      nodeCmps2.blockDiscovery.start(),
-      nodeCmps2.engine.start(),
-    )
+    await allFuturesThrowing(nodeCmps1.start(), nodeCmps2.start())
 
     # initialize our want lists
     pendingBlocks1 =
@@ -65,14 +58,7 @@ asyncchecksuite "NetworkStore engine - 2 nodes":
     check isNil(peerCtx2).not
 
   teardown:
-    await allFuturesThrowing(
-      nodeCmps1.blockDiscovery.stop(),
-      nodeCmps1.engine.stop(),
-      nodeCmps1.switch.stop(),
-      nodeCmps2.blockDiscovery.stop(),
-      nodeCmps2.engine.stop(),
-      nodeCmps2.switch.stop(),
-    )
+    await allFuturesThrowing(nodeCmps1.stop(), nodeCmps2.stop())
 
   test "Should exchange blocks on connect":
     await allFuturesThrowing(allFinished(pendingBlocks1)).wait(10.seconds)
@@ -145,7 +131,7 @@ asyncchecksuite "NetworkStore - multiple nodes":
     blocks: seq[bt.Block]
 
   setup:
-    blocks = await makeRandomBlocks(datasetSize = 4096, blockSize = 256'nb)
+    blocks = makeRandomBlocks(nBlocks = 16, blockSize = 256'nb)
     nodes = generateNodes(5)
     for e in nodes:
       await e.engine.start()
@@ -203,3 +189,28 @@ asyncchecksuite "NetworkStore - multiple nodes":
 
     check pendingBlocks1.mapIt(it.read) == blocks[0 .. 3]
     check pendingBlocks2.mapIt(it.read) == blocks[12 .. 15]
+
+asyncchecksuite "NetworkStore - dissemination":
+  var nodes: seq[NodesComponents]
+
+  teardown:
+    if nodes.len > 0:
+      await nodes.stop()
+
+  test "Should disseminate blocks across large diameter swarm":
+    let dataset = makeRandomDataset(nBlocks = 60, blockSize = 256'nb).tryGet()
+
+    nodes = generateNodes(6, enableDiscovery = false)
+
+    await assignBlocks(nodes[0], dataset, 0 .. 9)
+    await assignBlocks(nodes[1], dataset, 10 .. 19)
+    await assignBlocks(nodes[2], dataset, 20 .. 29)
+    await assignBlocks(nodes[3], dataset, 30 .. 39)
+    await assignBlocks(nodes[4], dataset, 40 .. 49)
+    await assignBlocks(nodes[5], dataset, 50 .. 59)
+
+    await nodes.start()
+    await nodes.linearTopology()
+
+    let downloads = nodes.mapIt(downloadDataset(it, dataset))
+    await allFuturesThrowing(downloads).wait(20.seconds)

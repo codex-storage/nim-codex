@@ -54,7 +54,7 @@ asyncchecksuite "Block Advertising and Discovery":
     peerStore = PeerCtxStore.new()
     pendingBlocks = PendingBlocksManager.new()
 
-    (manifest, tree) = makeManifestAndTree(blocks).tryGet()
+    (_, tree, manifest) = makeDataset(blocks).tryGet()
     manifestBlock =
       bt.Block.new(manifest.encode().tryGet(), codec = ManifestCodec).tryGet()
 
@@ -172,7 +172,7 @@ asyncchecksuite "E2E - Multiple Nodes Discovery":
           break
 
         blocks.add(bt.Block.new(chunk).tryGet())
-      let (manifest, tree) = makeManifestAndTree(blocks).tryGet()
+      let (_, tree, manifest) = makeDataset(blocks).tryGet()
       manifests.add(manifest)
       mBlocks.add(manifest.asBlock())
       trees.add(tree)

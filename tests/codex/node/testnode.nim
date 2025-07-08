@@ -82,7 +82,7 @@ asyncchecksuite "Test Node - Basic":
       ).tryGet()
 
   test "Block Batching with corrupted blocks":
-    let blocks = await makeRandomBlocks(datasetSize = 64.KiBs.int, blockSize = 64.KiBs)
+    let blocks = makeRandomBlocks(nBlocks = 1, blockSize = 64.KiBs)
     assert blocks.len == 1
 
     let blk = blocks[0]
@@ -215,7 +215,7 @@ asyncchecksuite "Test Node - Basic":
 
   test "Should delete an entire dataset":
     let
-      blocks = await makeRandomBlocks(datasetSize = 2048, blockSize = 256'nb)
+      blocks = makeRandomBlocks(nBlocks = 8, blockSize = 256'nb)
       manifest = await storeDataGetManifest(localStore, blocks)
       manifestBlock = (await store.storeManifest(manifest)).tryGet()
       manifestCid = manifestBlock.cid
