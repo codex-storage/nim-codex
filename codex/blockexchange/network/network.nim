@@ -341,7 +341,7 @@ proc handlePeerDeparted*(
   if not self.handlers.onPeerDeparted.isNil:
     await self.handlers.onPeerDeparted(peer)
 
-method init*(self: BlockExcNetwork) =
+method init*(self: BlockExcNetwork) {.raises: [].} =
   ## Perform protocol initialization
   ##
 
