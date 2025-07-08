@@ -85,7 +85,7 @@ proc retrieveCid(
 
   var lpStream: LPStream
 
-  var bytes = 0
+  var bytes = 0.NBytes
   try:
     without stream =? (await node.retrieve(cid, local)), error:
       if error of BlockNotFoundError:
@@ -121,21 +121,24 @@ proc retrieveCid(
     else:
       resp.setHeader("Content-Disposition", "attachment")
 
-    # For erasure-coded datasets, we need to return the _original_ length; i.e.,
+    # When the encryption key is provided, for erasure-coded datasets, 
+    # we need to return the _original_ length; i.e.,
     # the length of the non-erasure-coded dataset, as that's what we will be
     # returning to the client.
-    let contentLength =
+    # When no encryption key is provided, we always return the full encrypted
+    # last block.
+    let datasetSize =
       if manifest.protected: manifest.originalDatasetSize else: manifest.datasetSize
+    let contentLength =
+      if not isNil(encryption):
+        datasetSize
+      else:
+        datasetSize + (manifest.blockSize - (datasetSize mod manifest.blockSize))
     resp.setHeader("Content-Length", $(contentLength.int))
 
     await resp.prepare(HttpResponseStreamType.Plain)
 
-    let datasetSize =
-      if manifest.protected:
-        manifest.originalDatasetSize.int
-      else:
-        manifest.datasetSize.int
-    let lastBlockOffset = datasetSize mod manifest.blockSize.int
+    let lastBlockOffset = datasetSize.int mod manifest.blockSize.int
     var blockIndex = 0.uint32
 
     while not stream.atEof:
@@ -147,7 +150,7 @@ proc retrieveCid(
       if buff.len <= 0:
         break
 
-      bytes += buff.len
+      bytes += buff.len.NBytes
 
       echo "buff[", blockIndex, "]: ", byteutils.toHex(buff)
 
@@ -161,7 +164,7 @@ proc retrieveCid(
 
       blockIndex.inc()
 
-      if bytes > datasetSize:
+      if bytes > datasetSize and not isNil(encryption):
         # yes, we needed the full last block for the purpose of decryption
         # but now we only ever need to send the actual data to the user
         bytes = datasetSize
@@ -178,7 +181,7 @@ proc retrieveCid(
     if resp.isPending():
       await resp.sendBody(exc.msg)
   finally:
-    info "Sent bytes", cid = cid, bytes
+    info "Sent bytes", cid = cid, bytes = bytes.int
     if not lpStream.isNil:
       await lpStream.close()
 
