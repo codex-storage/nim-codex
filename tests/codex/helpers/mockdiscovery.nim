@@ -70,3 +70,31 @@ method provide*(
     return
 
   await d.publishHostProvideHandler(d, host)
+
+proc nullDiscovery*(): MockDiscovery =
+  proc findBlockProvidersHandler(
+      d: MockDiscovery, cid: Cid
+  ): Future[seq[SignedPeerRecord]] {.async: (raises: [CancelledError]).} =
+    return @[]
+
+  proc publishBlockProvideHandler(
+      d: MockDiscovery, cid: Cid
+  ): Future[void] {.async: (raises: [CancelledError]).} =
+    return
+
+  proc findHostProvidersHandler(
+      d: MockDiscovery, host: ca.Address
+  ): Future[seq[SignedPeerRecord]] {.async: (raises: [CancelledError]).} =
+    return @[]
+
+  proc publishHostProvideHandler(
+      d: MockDiscovery, host: ca.Address
+  ): Future[void] {.async: (raises: [CancelledError]).} =
+    return
+
+  return MockDiscovery(
+    findBlockProvidersHandler: findBlockProvidersHandler,
+    publishBlockProvideHandler: publishBlockProvideHandler,
+    findHostProvidersHandler: findHostProvidersHandler,
+    publishHostProvideHandler: publishHostProvideHandler,
+  )

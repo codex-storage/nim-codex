@@ -26,7 +26,7 @@ import ../../logutils
 export payments, nitro
 
 const
-  MinRefreshInterval = 5.seconds
+  MinRefreshInterval = 1.seconds
   MaxRefreshBackoff = 36 # 3 minutes
 
 type BlockExcPeerCtx* = ref object of RootObj
