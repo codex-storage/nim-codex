@@ -29,14 +29,7 @@ asyncchecksuite "NetworkStore engine - 2 nodes":
     nodeCmps1 = generateNodes(1, blocks1).components[0]
     nodeCmps2 = generateNodes(1, blocks2).components[0]
 
-    await allFuturesThrowing(
-      nodeCmps1.switch.start(),
-      nodeCmps1.blockDiscovery.start(),
-      nodeCmps1.engine.start(),
-      nodeCmps2.switch.start(),
-      nodeCmps2.blockDiscovery.start(),
-      nodeCmps2.engine.start(),
-    )
+    await allFuturesThrowing(nodeCmps1.start(), nodeCmps2.start())
 
     # initialize our want lists
     pendingBlocks1 =
@@ -65,14 +58,7 @@ asyncchecksuite "NetworkStore engine - 2 nodes":
     check isNil(peerCtx2).not
 
   teardown:
-    await allFuturesThrowing(
-      nodeCmps1.blockDiscovery.stop(),
-      nodeCmps1.engine.stop(),
-      nodeCmps1.switch.stop(),
-      nodeCmps2.blockDiscovery.stop(),
-      nodeCmps2.engine.stop(),
-      nodeCmps2.switch.stop(),
-    )
+    await allFuturesThrowing(nodeCmps1.stop(), nodeCmps2.stop())
 
   test "Should exchange blocks on connect":
     await allFuturesThrowing(allFinished(pendingBlocks1)).wait(10.seconds)
@@ -203,3 +189,38 @@ asyncchecksuite "NetworkStore - multiple nodes":
 
     check pendingBlocks1.mapIt(it.read) == blocks[0 .. 3]
     check pendingBlocks2.mapIt(it.read) == blocks[12 .. 15]
+
+asyncchecksuite "NetworkStore - dissemination":
+  var nodes: seq[NodesComponents]
+
+  teardown:
+    if nodes.len > 0:
+      await nodes.stop()
+
+  test "Should disseminate blocks across large diameter swarm":
+    let dataset = (await makeRandomDataset(nBlocks = 60, blockSize = 256'nb)).tryGet()
+
+    nodes = generateNodes(
+      6,
+      config = NodeConfig(
+        useRepoStore: false,
+        findFreePorts: false,
+        basePort: 8080,
+        createFullNode: false,
+        enableBootstrap: false,
+        enableDiscovery: true,
+      ),
+    )
+
+    await assignBlocks(nodes[0], dataset, 0 .. 9)
+    await assignBlocks(nodes[1], dataset, 10 .. 19)
+    await assignBlocks(nodes[2], dataset, 20 .. 29)
+    await assignBlocks(nodes[3], dataset, 30 .. 39)
+    await assignBlocks(nodes[4], dataset, 40 .. 49)
+    await assignBlocks(nodes[5], dataset, 50 .. 59)
+
+    await nodes.start()
+    await nodes.linearTopology()
+
+    let downloads = nodes.mapIt(downloadDataset(it, dataset))
+    await allFuturesThrowing(downloads).wait(20.seconds)

@@ -121,7 +121,6 @@ proc blockexcTaskRunner(self: BlockExcEngine) {.async: (raises: []).}
 proc start*(self: BlockExcEngine) {.async: (raises: []).} =
   ## Start the blockexc task
   ##
-
   await self.discovery.start()
   await self.advertiser.start()
 
@@ -200,11 +199,14 @@ proc refreshBlockKnowledge(self: BlockExcEngine) {.async: (raises: [CancelledErr
 
     # In dynamic swarms, staleness will dominate latency.
     if peer.lastRefresh < self.pendingBlocks.lastInclusion or peer.isKnowledgeStale:
+      trace "Refreshing block knowledge for peer", peer = peer.id
       peer.refreshRequested()
       # TODO: optimize this by keeping track of what was sent and sending deltas.
       #   This should allow us to run much more frequent refreshes, and be way more
       #   efficient about it.
       await self.refreshBlockKnowledge(peer)
+    else:
+      trace "Not refreshing: peer is up to date", peer = peer.id
 
 proc searchForNewPeers(self: BlockExcEngine, cid: Cid) =
   if self.lastDiscRequest + DiscoveryRateLimit < Moment.now():
@@ -336,10 +338,11 @@ proc requestBlocks*(
   for address in addresses:
     self.trackedFutures.track(self.downloadInternal(address))
 
-  var completed: int = 0
+  let totalHandles = handles.len
+  var completed = 0
 
   proc isFinished(): bool =
-    completed == handles.len
+    completed == totalHandles
 
   proc genNext(): Future[?!Block] {.async: (raises: [CancelledError]).} =
     # Be it success or failure, we're completing this future.
