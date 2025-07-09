@@ -118,10 +118,10 @@ proc init*(
   if not task.success.load():
     return failure("merkle tree task failed")
 
-  defer:
-    task.layers = default(Isolated[seq[seq[Poseidon2Hash]]])
+  # defer:
+  #   task.layers = default(Isolated[seq[seq[Poseidon2Hash]]])
 
-  tree.layers = task.layers.extract
+  tree.layers = extractValue(task.layers)
 
   success tree
 

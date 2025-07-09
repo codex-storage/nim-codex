@@ -23,7 +23,7 @@ type DigestTask* = object
   bytes: seq[byte]
   chunkSize: int
   success: Atomic[bool]
-  digest: Isolated[Poseidon2Hash]
+  digest: ptr Poseidon2Hash
 
 export DigestTask
 
@@ -85,7 +85,8 @@ proc digestWorker(tp: Taskpool, task: ptr DigestTask) {.gcsafe.} =
     task[].success.store(false)
     return
 
-  task[].digest = isolate(res.get())
+  var isolatedDigest = isolate(res.get())
+  task[].digest[] = extract(isolatedDigest)
   task[].success.store(true)
 
 proc digest*(
@@ -93,14 +94,18 @@ proc digest*(
 ): Future[?!Poseidon2Hash] {.async: (raises: [CancelledError]).} =
   without signal =? ThreadSignalPtr.new():
     return failure("Unable to create thread signal")
-
   defer:
     signal.close().expect("closing once works")
 
   doAssert tp.numThreads > 1,
     "Must have at least one separate thread or signal will never be fired"
 
-  var task = DigestTask(signal: signal, bytes: bytes, chunkSize: chunkSize)
+  var task = DigestTask(
+    signal: signal,
+    bytes: bytes,
+    chunkSize: chunkSize,
+    digest: cast[ptr Poseidon2Hash](allocShared(sizeof(Poseidon2Hash))),
+  )
 
   tp.spawn digestWorker(tp, addr task)
 
@@ -114,11 +119,10 @@ proc digest*(
   if not task.success.load():
     return failure("digest task failed")
 
+  var isolatedDigest = isolate(task.digest[])
+  var digest = extract(isolatedDigest)
   defer:
-    task.digest = default(Isolated[Poseidon2Hash])
-
-  var digest = task.digest.extract
-
+    deallocShared(task.digest)
   success digest
 
 func digestMhash*(

@@ -52,7 +52,6 @@ asyncchecksuite "Test Node - Slot Repair":
     )
   var
     manifest: Manifest
-    taskPool: Taskpool
     builder: Poseidon2Builder
     verifiable: Manifest
     verifiableBlock: bt.Block
@@ -102,7 +101,7 @@ asyncchecksuite "Test Node - Slot Repair":
     (await localStore.putBlock(manifestBlock)).tryGet()
 
     protected = (await erasure.encode(manifest, ecK, ecM)).tryGet()
-    builder = Poseidon2Builder.new(localStore, protected, taskPool).tryGet()
+    builder = Poseidon2Builder.new(localStore, protected, cluster.taskpool).tryGet()
     verifiable = (await builder.buildManifest()).tryGet()
     verifiableBlock =
       bt.Block.new(verifiable.encode().tryGet(), codec = ManifestCodec).tryGet()
