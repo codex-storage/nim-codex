@@ -78,7 +78,7 @@ func peersWant*(self: PeerCtxStore, cid: Cid): seq[BlockExcPeerCtx] =
 proc getPeersForBlock*(self: PeerCtxStore, address: BlockAddress): PeersForBlock =
   var res: PeersForBlock = (@[], @[])
   for peer in self:
-    if address in peer.peerHave:
+    if address in peer:
       res.with.add(peer)
     else:
       res.without.add(peer)
