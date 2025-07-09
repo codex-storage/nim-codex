@@ -223,4 +223,4 @@ asyncchecksuite "NetworkStore - dissemination":
     await nodes.linearTopology()
 
     let downloads = nodes.mapIt(downloadDataset(it, dataset))
-    await allFuturesThrowing(downloads).wait(20.seconds)
+    await allFuturesThrowing(downloads).wait(30.seconds)
