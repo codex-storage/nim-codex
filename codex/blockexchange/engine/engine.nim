@@ -12,6 +12,7 @@ import std/sets
 import std/options
 import std/algorithm
 import std/sugar
+import std/random
 
 import pkg/chronos
 import pkg/libp2p/[cid, switch, multihash, multicodec]
@@ -199,7 +200,6 @@ proc refreshBlockKnowledge(self: BlockExcEngine) {.async: (raises: [CancelledErr
 
     # In dynamic swarms, staleness will dominate latency.
     if peer.lastRefresh < self.pendingBlocks.lastInclusion or peer.isKnowledgeStale:
-      trace "Refreshing block knowledge for peer", peer = peer.id
       peer.refreshRequested()
       # TODO: optimize this by keeping track of what was sent and sending deltas.
       #   This should allow us to run much more frequent refreshes, and be way more
@@ -269,8 +269,9 @@ proc downloadInternal(
 
         # We now wait for a bit and then retry. If the handle gets completed in the
         # meantime (cause the presence handler might have requested the block and
-        # received it in the meantime), we are done.
-        await handle or sleepAsync(self.pendingBlocks.retryInterval)
+        # received it in the meantime), we are done. Retry delays are randomized
+        # so we don't get all block loops spinning at the same time.
+        await handle or sleepAsync(secs(rand(self.pendingBlocks.retryInterval.secs)))
         if handle.finished:
           break
         # If we still don't have the block, we'll go for another cycle.
@@ -483,6 +484,9 @@ proc cancelBlocks(
       if intersection.len > 0:
         # If so, schedules a cancellation.
         scheduledCancellations[peerCtx.id] = intersection
+
+    if scheduledCancellations.len == 0:
+      return
 
     let (succeededFuts, failedFuts) = await allFinishedFailed[PeerId](
       toSeq(scheduledCancellations.pairs).map(dispatchCancellations)
