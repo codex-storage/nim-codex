@@ -191,7 +191,7 @@ proc init*(
   var tree = CodexTree(compress: compressor, zero: Zero, mcodec: mcodec)
 
   var task =
-    CodexTreeTask(tree: cast[ptr ByteTree](addr tree), leaves: @leaves, signal: signal)
+    CodexTreeTask(tree: cast[ptr ByteTree](addr tree), leaves: leaves, signal: signal)
 
   doAssert tp.numThreads > 1,
     "Must have at least one separate thread or signal will never be fired"
@@ -208,10 +208,10 @@ proc init*(
   if not task.success.load():
     return failure("merkle tree task failed")
 
-  defer:
-    task.layers = default(Isolated[seq[seq[ByteHash]]])
+  # defer:
+  #   task.layers = default(Isolated[seq[seq[ByteHash]]])
 
-  tree.layers = task.layers.extract
+  tree.layers = extractValue(task.layers)
 
   success tree
 

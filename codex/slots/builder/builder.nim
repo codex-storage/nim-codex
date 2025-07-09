@@ -191,11 +191,11 @@ proc getBlockDigest*[T, H](
   if blk.isEmpty:
     return self.emptyDigestTree.root
 
-  without digest =? (await T.digest(self.taskPool, blk.data, self.cellSize.int)), err:
+  without dg =? (await T.digest(self.taskPool, blk.data, self.cellSize.int)), err:
     error "Failed to create digest for block", err = err.msg
     return failure(err)
 
-  return success digest
+  return success dg
 
 proc getCellHashes*[T, H](
     self: SlotsBuilder[T, H], slotIndex: Natural
