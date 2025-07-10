@@ -4,6 +4,8 @@ on:
   push:
     tags:
       - 'v*.*.*'
+    branches:
+      - master
   workflow_dispatch:
 
 env:
@@ -169,6 +171,33 @@ jobs:
           name: archives-and-checksums
           path: /tmp/release/
           retention-days: 30
+
+      - name: Release - Upload to the cloud
+        env:
+          s3_endpoint: ${{ secrets.S3_ENDPOINT }}
+          s3_bucket: ${{ secrets.S3_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+        run: |
+          # Variables
+          branch="${GITHUB_REF_NAME/\//-}"
+          folder="/tmp/release"
+
+          # Tagged releases
+          if [[ "${{ github.ref }}" == *"refs/tags/"* ]]; then
+            aws s3 cp --recursive "${folder}" s3://${{ env.s3_bucket }}/releases/${branch} --endpoint-url ${{ env.s3_endpoint }}
+            echo "${branch}" >  "${folder}"/latest
+            aws s3 cp "${folder}"/latest s3://${{ env.s3_bucket }}/releases/latest --endpoint-url ${{ env.s3_endpoint }}
+
+          # master branch
+          elif [[ "${branch}" == "${{ github.event.repository.default_branch }}" ]]; then
+            aws s3 cp --recursive "${folder}" s3://${{ env.s3_bucket }}/${branch} --endpoint-url ${{ env.s3_endpoint }}
+
+          # Custom branch
+          else
+            aws s3 cp --recursive "${folder}" s3://${{ env.s3_bucket }}/branches/${branch} --endpoint-url ${{ env.s3_endpoint }}
+          fi
 
       - name: Release
         uses: softprops/action-gh-release@v2
