@@ -19,6 +19,7 @@ import pkg/constantine/platforms/abstractions
 import pkg/questionable/results
 
 import ../utils
+import ../utils/uniqueptr
 import ../rng
 
 import ./merkletree
@@ -117,9 +118,6 @@ proc init*(
 
   if not task.success.load():
     return failure("merkle tree task failed")
-
-  # defer:
-  #   task.layers = default(Isolated[seq[seq[Poseidon2Hash]]])
 
   tree.layers = extractValue(task.layers)
 

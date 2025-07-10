@@ -15,6 +15,7 @@ import pkg/stew/byteutils
 import pkg/taskpools
 import pkg/chronos
 import pkg/chronos/threadsync
+import ./uniqueptr
 
 import ../merkletree
 
@@ -23,7 +24,7 @@ type DigestTask* = object
   bytes: seq[byte]
   chunkSize: int
   success: Atomic[bool]
-  digest: ptr Poseidon2Hash
+  digest: UniquePtr[Poseidon2Hash]
 
 export DigestTask
 
@@ -85,8 +86,7 @@ proc digestWorker(tp: Taskpool, task: ptr DigestTask) {.gcsafe.} =
     task[].success.store(false)
     return
 
-  var isolatedDigest = isolate(res.get())
-  task[].digest[] = extract(isolatedDigest)
+  task[].digest = newUniquePtr(res.get())
   task[].success.store(true)
 
 proc digest*(
@@ -100,12 +100,7 @@ proc digest*(
   doAssert tp.numThreads > 1,
     "Must have at least one separate thread or signal will never be fired"
 
-  var task = DigestTask(
-    signal: signal,
-    bytes: bytes,
-    chunkSize: chunkSize,
-    digest: cast[ptr Poseidon2Hash](allocShared(sizeof(Poseidon2Hash))),
-  )
+  var task = DigestTask(signal: signal, bytes: bytes, chunkSize: chunkSize)
 
   tp.spawn digestWorker(tp, addr task)
 
@@ -119,11 +114,7 @@ proc digest*(
   if not task.success.load():
     return failure("digest task failed")
 
-  var isolatedDigest = isolate(task.digest[])
-  var digest = extract(isolatedDigest)
-  defer:
-    deallocShared(task.digest)
-  success digest
+  success extractValue(task.digest)
 
 func digestMhash*(
     _: type Poseidon2Tree, bytes: openArray[byte], chunkSize: int

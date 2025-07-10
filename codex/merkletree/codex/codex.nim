@@ -25,6 +25,8 @@ import ../../blocktype
 
 from ../../utils/digest import digestBytes
 
+import ../../utils/uniqueptr
+
 import ../merkletree
 
 export merkletree
@@ -207,9 +209,6 @@ proc init*(
 
   if not task.success.load():
     return failure("merkle tree task failed")
-
-  # defer:
-  #   task.layers = default(Isolated[seq[seq[ByteHash]]])
 
   tree.layers = extractValue(task.layers)
 

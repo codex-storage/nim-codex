@@ -63,11 +63,9 @@ suite "Test Poseidon2Tree":
       tree == fromNodes
 
   test "Build poseidon2 tree from poseidon2 leaves asynchronously":
-    echo "Build poseidon2 tree from poseidon2 leaves asynchronously"
     var tp = Taskpool.new()
     defer:
       tp.shutdown()
-      echo "@@@@@"
 
     let tree = (await Poseidon2Tree.init(tp, leaves = expectedLeaves)).tryGet()
     check:

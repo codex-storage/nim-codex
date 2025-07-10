@@ -16,68 +16,7 @@ import pkg/taskpools
 import pkg/chronos/threadsync
 
 import ../errors
-
-type UniqueSeq*[T] = object
-  ## A unique pointer to a seq[seq[T]] in shared memory
-  ## Can only be moved, not copied
-  data: ptr seq[seq[T]]
-
-proc newUniqueSeq*[T](data: sink Isolated[seq[seq[T]]]): UniqueSeq[T] =
-  ## Creates a new unique sequence in shared memory
-  ## The memory is automatically freed when the object is destroyed
-  result.data = cast[ptr seq[seq[T]]](allocShared0(sizeof(seq[seq[T]])))
-
-  result.data[] = extract(data)
-
-proc `=destroy`*[T](p: var UniqueSeq[T]) =
-  ## Destructor for UniqueSeq
-  if p.data != nil:
-    # Clear the sequence to release inner sequences
-    p.data[].setLen(0)
-    echo "destroying unique seq"
-    deallocShared(p.data)
-    p.data = nil
-
-proc `=copy`*[T](
-  dest: var UniqueSeq[T], src: UniqueSeq[T]
-) {.error: "UniqueSeq cannot be copied, only moved".}
-
-proc `=sink`*[T](dest: var UniqueSeq[T], src: UniqueSeq[T]) =
-  ## Move constructor for UniqueSeq
-  if dest.data != nil:
-    `=destroy`(dest)
-  dest.data = src.data
-  # We need to nil out the source data to prevent double-free
-  # This is handled by Nim's destructive move semantics
-
-proc `[]`*[T](p: UniqueSeq[T]): lent seq[seq[T]] =
-  ## Access the data (read-only)
-  if p.data == nil:
-    raise newException(NilAccessDefect, "accessing nil UniqueSeq")
-  p.data[]
-
-proc `[]`*[T](p: var UniqueSeq[T]): var seq[seq[T]] =
-  ## Access the data (mutable)
-  if p.data == nil:
-    raise newException(NilAccessDefect, "accessing nil UniqueSeq")
-  p.data[]
-
-proc isNil*[T](p: UniqueSeq[T]): bool =
-  ## Check if the UniqueSeq is nil
-  p.data == nil
-
-proc extractValue*[T](p: var UniqueSeq[T]): seq[seq[T]] =
-  ## Extract the value from the UniqueSeq and release the memory
-  if p.data == nil:
-    raise newException(NilAccessDefect, "extracting from nil UniqueSeq")
-
-  # Move the value out
-  var isolated = isolate(p.data[])
-  result = extract(isolated)
-
-  # Free the shared memory
-  deallocShared(p.data)
-  p.data = nil
+import ../utils/uniqueptr
 
 type
   CompressFn*[H, K] = proc(x, y: H, key: K): ?!H {.noSideEffect, raises: [].}
@@ -98,7 +37,7 @@ type
     tree*: ptr MerkleTree[H, K]
     leaves*: seq[H]
     signal*: ThreadSignalPtr
-    layers*: UniqueSeq[H]
+    layers*: UniquePtr[seq[seq[H]]]
     success*: Atomic[bool]
 
 func depth*[H, K](self: MerkleTree[H, K]): int =
@@ -233,12 +172,11 @@ proc merkleTreeWorker*[H, K](task: ptr MerkleTask[H, K]) {.gcsafe.} =
     task[].success.store(false)
     return
 
-  var l = res.get()
-  var newOuterSeq = newSeq[seq[H]](l.len)
-  for i in 0 ..< l.len:
-    var isoInner = isolate(l[i])
+  var layers = res.get()
+  var newOuterSeq = newSeq[seq[H]](layers.len)
+  for i in 0 ..< layers.len:
+    var isoInner = isolate(layers[i])
     newOuterSeq[i] = extract(isoInner)
 
-  var isolatedLayers = isolate(newOuterSeq)
-  task[].layers = newUniqueSeq(isolatedLayers)
+  task[].layers = newUniquePtr(newOuterSeq)
   task[].success.store(true)
