@@ -32,6 +32,7 @@ import ../utils/asynciter
 import ../indexingstrategy
 import ../errors
 import ../utils/arrayutils
+import ../utils/uniqueptr
 
 import pkg/stew/byteutils
 
@@ -98,7 +99,7 @@ type
     success: Atomic[bool]
     erasure: ptr Erasure
     blocks: seq[seq[byte]]
-    parity: Isolated[seq[seq[byte]]]
+    parity: UniquePtr[seq[seq[byte]]]
     blockSize, parityLen: int
     signal: ThreadSignalPtr
 
@@ -107,7 +108,7 @@ type
     erasure: ptr Erasure
     blocks: seq[seq[byte]]
     parity: seq[seq[byte]]
-    recovered: Isolated[seq[seq[byte]]]
+    recovered: UniquePtr[seq[seq[byte]]]
     blockSize, recoveredLen: int
     signal: ThreadSignalPtr
 
@@ -311,8 +312,12 @@ proc leopardEncodeTask(tp: Taskpool, task: ptr EncodeTask) {.gcsafe.} =
 
     task[].success.store(false)
   else:
-    var isolatedParity = isolate(parity)
-    task[].parity = move isolatedParity
+    var isolatedSeq = newSeq[seq[byte]](task[].parityLen)
+    for i in 0 ..< task[].parityLen:
+      var innerSeq = isolate(parity[i])
+      isolatedSeq[i] = extract(innerSeq)
+
+    task[].parity = newUniquePtr(isolatedSeq)
     task[].success.store(true)
 
 proc asyncEncode*(
@@ -349,12 +354,7 @@ proc asyncEncode*(
   if not task.success.load():
     return failure("Leopard encoding task failed")
 
-  defer:
-    task.parity = default(Isolated[seq[seq[byte]]])
-
-  var parity = task.parity.extract
-
-  success parity
+  success extractValue(task.parity)
 
 proc encodeData(
     self: ErasureRef, manifest: Manifest, params: EncodingParams
@@ -474,8 +474,12 @@ proc leopardDecodeTask(tp: Taskpool, task: ptr DecodeTask) {.gcsafe.} =
     warn "Error from leopard decoder backend!", error = $res.error
     task[].success.store(false)
   else:
-    var isolatedRecovered = isolate(recovered)
-    task[].recovered = move isolatedRecovered
+    var isolatedSeq = newSeq[seq[byte]](task[].blocks.len)
+    for i in 0 ..< task[].blocks.len:
+      var innerSeq = isolate(recovered[i])
+      isolatedSeq[i] = extract(innerSeq)
+
+    task[].recovered = newUniquePtr(isolatedSeq)
     task[].success.store(true)
 
 proc asyncDecode*(
@@ -509,15 +513,10 @@ proc asyncDecode*(
 
     return failure(err)
 
-  defer:
-    task.recovered = default(Isolated[seq[seq[byte]]])
-
   if not task.success.load():
     return failure("Leopard decoding task failed")
 
-  var recovered = task.recovered.extract
-
-  success(recovered)
+  success extractValue(task.recovered)
 
 proc decodeInternal(
     self: ErasureRef, encoded: Manifest
