@@ -72,7 +72,7 @@ type
     contracts*: Contracts
     clock*: Clock
     storage*: Contracts
-    taskpool: Taskpool
+    taskPool: Taskpool
     trackedFutures: TrackedFutures
 
   CodexNodeRef* = ref CodexNode
@@ -294,7 +294,7 @@ proc streamEntireDataset(
       try:
         # Spawn an erasure decoding job
         let erasure = Erasure.new(
-          self.networkStore, leoEncoderProvider, leoDecoderProvider, self.taskpool
+          self.networkStore, leoEncoderProvider, leoDecoderProvider, self.taskPool
         )
         without _ =? (await erasure.decode(manifest)), error:
           error "Unable to erasure decode manifest", manifestCid, exc = error.msg
@@ -439,7 +439,7 @@ proc store*(
   finally:
     await stream.close()
 
-  without tree =? CodexTree.init(cids), err:
+  without tree =? (await CodexTree.init(self.taskPool, cids)), err:
     return failure(err)
 
   without treeCid =? tree.rootCid(CIDv1, dataCodec), err:
@@ -533,14 +533,15 @@ proc setupRequest(
 
   # Erasure code the dataset according to provided parameters
   let erasure = Erasure.new(
-    self.networkStore.localStore, leoEncoderProvider, leoDecoderProvider, self.taskpool
+    self.networkStore.localStore, leoEncoderProvider, leoDecoderProvider, self.taskPool
   )
 
   without encoded =? (await erasure.encode(manifest, ecK, ecM)), error:
     trace "Unable to erasure code dataset"
     return failure(error)
 
-  without builder =? Poseidon2Builder.new(self.networkStore.localStore, encoded), err:
+  without builder =?
+    Poseidon2Builder.new(self.networkStore.localStore, encoded, self.taskPool), err:
     trace "Unable to create slot builder"
     return failure(err)
 
@@ -644,7 +645,9 @@ proc onStore(
     return failure(err)
 
   without builder =?
-    Poseidon2Builder.new(self.networkStore, manifest, manifest.verifiableStrategy), err:
+    Poseidon2Builder.new(
+      self.networkStore, manifest, self.taskPool, manifest.verifiableStrategy
+    ), err:
     trace "Unable to create slots builder", err = err.msg
     return failure(err)
 
@@ -679,7 +682,7 @@ proc onStore(
     trace "start repairing slot", slotIdx
     try:
       let erasure = Erasure.new(
-        self.networkStore, leoEncoderProvider, leoDecoderProvider, self.taskpool
+        self.networkStore, leoEncoderProvider, leoDecoderProvider, self.taskPool
       )
       if err =? (await erasure.repair(manifest)).errorOption:
         error "Unable to erasure decode repairing manifest",
@@ -880,7 +883,7 @@ proc new*(
     networkStore: NetworkStore,
     engine: BlockExcEngine,
     discovery: Discovery,
-    taskpool: Taskpool,
+    taskPool: Taskpool,
     prover = Prover.none,
     contracts = Contracts.default,
 ): CodexNodeRef =
@@ -893,7 +896,7 @@ proc new*(
     engine: engine,
     prover: prover,
     discovery: discovery,
-    taskPool: taskpool,
+    taskPool: taskPool,
     contracts: contracts,
     trackedFutures: TrackedFutures(),
   )

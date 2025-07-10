@@ -9,11 +9,14 @@
 
 {.push raises: [].}
 
-import std/bitops
+import std/[bitops, atomics]
 
 import pkg/questionable/results
+import pkg/taskpools
+import pkg/chronos/threadsync
 
 import ../errors
+import ../utils/uniqueptr
 
 type
   CompressFn*[H, K] = proc(x, y: H, key: K): ?!H {.noSideEffect, raises: [].}
@@ -29,6 +32,13 @@ type
     nleaves*: int # number of leaves in the tree (=size of input)
     compress*: CompressFn[H, K] # compress function
     zero*: H # zero value
+
+  MerkleTask*[H, K] = object
+    tree*: ptr MerkleTree[H, K]
+    leaves*: seq[H]
+    signal*: ThreadSignalPtr
+    layers*: UniquePtr[seq[seq[H]]]
+    success*: Atomic[bool]
 
 func depth*[H, K](self: MerkleTree[H, K]): int =
   return self.layers.len - 1
@@ -151,3 +161,22 @@ func merkleTreeWorker*[H, K](
     ys[halfn] = ?self.compress(xs[n], self.zero, key = key)
 
   success @[@xs] & ?self.merkleTreeWorker(ys, isBottomLayer = false)
+
+proc merkleTreeWorker*[H, K](task: ptr MerkleTask[H, K]) {.gcsafe.} =
+  defer:
+    discard task[].signal.fireSync()
+
+  let res = merkleTreeWorker(task[].tree[], task[].leaves, isBottomLayer = true)
+
+  if res.isErr:
+    task[].success.store(false)
+    return
+
+  var layers = res.get()
+  var newOuterSeq = newSeq[seq[H]](layers.len)
+  for i in 0 ..< layers.len:
+    var isoInner = isolate(layers[i])
+    newOuterSeq[i] = extract(isoInner)
+
+  task[].layers = newUniquePtr(newOuterSeq)
+  task[].success.store(true)

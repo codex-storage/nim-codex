@@ -5,6 +5,7 @@ import ../../../asynctest
 
 import pkg/questionable/results
 
+import pkg/taskpools
 import pkg/codex/stores
 import pkg/codex/merkletree
 import pkg/codex/utils/json
@@ -26,11 +27,16 @@ suite "Test Sampler - control samples":
     inputData: string
     inputJson: JsonNode
     proofInput: ProofInputs[Poseidon2Hash]
+    taskpool: Taskpool
 
   setup:
     inputData = readFile("tests/circuits/fixtures/input.json")
     inputJson = !JsonNode.parse(inputData)
     proofInput = Poseidon2Hash.jsonToProofInput(inputJson)
+    taskpool = Taskpool.new()
+
+  teardown:
+    taskpool.shutdown()
 
   test "Should verify control samples":
     let
@@ -87,25 +93,29 @@ suite "Test Sampler":
     manifest: Manifest
     protected: Manifest
     verifiable: Manifest
+    taskpool: Taskpool
 
   setup:
     let
       repoDs = repoTmp.newDb()
       metaDs = metaTmp.newDb()
 
+    taskpool = Taskpool.new()
+
     store = RepoStore.new(repoDs, metaDs)
 
     (manifest, protected, verifiable) = await createVerifiableManifest(
-      store, datasetBlocks, ecK, ecM, blockSize, cellSize
+      store, datasetBlocks, ecK, ecM, blockSize, cellSize, taskpool
     )
 
     # create sampler
-    builder = Poseidon2Builder.new(store, verifiable).tryGet
+    builder = Poseidon2Builder.new(store, verifiable, taskpool).tryGet
 
   teardown:
     await store.close()
     await repoTmp.destroyDb()
     await metaTmp.destroyDb()
+    taskpool.shutdown()
 
   test "Should fail instantiating for invalid slot index":
     let sampler = Poseidon2Sampler.new(builder.slotRoots.len, store, builder)
@@ -114,7 +124,7 @@ suite "Test Sampler":
 
   test "Should fail instantiating for non verifiable builder":
     let
-      nonVerifiableBuilder = Poseidon2Builder.new(store, protected).tryGet
+      nonVerifiableBuilder = Poseidon2Builder.new(store, protected, taskpool).tryGet
       sampler = Poseidon2Sampler.new(slotIndex, store, nonVerifiableBuilder)
 
     check sampler.isErr
