@@ -423,7 +423,7 @@ proc nattedAddress*(
           it.remapAddr(ip = newIP, port = tcp)
         else:
           # NAT mapping failed - use original address
-          error "Failed to get external IP, using original address", it
+          error "Failed to get external IP, using original address"
           discoveryAddrs.add(getMultiAddrWithIPAndUDPPort(ipPart.get, udpPort))
           it
       else:
