@@ -312,12 +312,12 @@ proc leopardEncodeTask(tp: Taskpool, task: ptr EncodeTask) {.gcsafe.} =
 
     task[].success.store(false)
   else:
-    var isolatedSeq = newSeq[seq[byte]](task[].parityLen)
+    var paritySeq = newSeq[seq[byte]](task[].parityLen)
     for i in 0 ..< task[].parityLen:
       var innerSeq = isolate(parity[i])
-      isolatedSeq[i] = extract(innerSeq)
+      paritySeq[i] = extract(innerSeq)
 
-    task[].parity = newUniquePtr(isolatedSeq)
+    task[].parity = newUniquePtr(paritySeq)
     task[].success.store(true)
 
 proc asyncEncode*(
@@ -474,12 +474,12 @@ proc leopardDecodeTask(tp: Taskpool, task: ptr DecodeTask) {.gcsafe.} =
     warn "Error from leopard decoder backend!", error = $res.error
     task[].success.store(false)
   else:
-    var isolatedSeq = newSeq[seq[byte]](task[].blocks.len)
+    var recoveredSeq = newSeq[seq[byte]](task[].blocks.len)
     for i in 0 ..< task[].blocks.len:
       var innerSeq = isolate(recovered[i])
-      isolatedSeq[i] = extract(innerSeq)
+      recoveredSeq[i] = extract(innerSeq)
 
-    task[].recovered = newUniquePtr(isolatedSeq)
+    task[].recovered = newUniquePtr(recoveredSeq)
     task[].success.store(true)
 
 proc asyncDecode*(

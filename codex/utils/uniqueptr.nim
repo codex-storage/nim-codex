@@ -4,15 +4,15 @@ type UniquePtr*[T] = object
   ## Can only be moved, not copied
   data: ptr T
 
-template newUniquePtr*[T](data: T): UniquePtr[T] =
-  newUniquePtr(isolate(data))
-
 proc newUniquePtr*[T](data: sink Isolated[T]): UniquePtr[T] =
   ## Creates a new unique sequence in shared memory
   ## The memory is automatically freed when the object is destroyed
   result.data = cast[ptr T](allocShared0(sizeof(T)))
 
   result.data[] = extract(data)
+
+template newUniquePtr*[T](data: T): UniquePtr[T] =
+  newUniquePtr(isolate(data))
 
 proc `=destroy`*[T](p: var UniquePtr[T]) =
   ## Destructor for UniquePtr
