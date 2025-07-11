@@ -68,6 +68,10 @@ on:
         description: Specifies compatible smart contract image
         required: false
         type: string
+    outputs:
+      codex_image:
+        description: Codex Docker image tag
+        value: ${{ jobs.publish.outputs.codex_image }}
 
 
 env:
@@ -91,15 +95,16 @@ env:
 
 
 jobs:
+  # Compute variables
   compute:
-      name: Compute build ID
-      runs-on: ubuntu-latest
-      outputs:
-        build_id: ${{ steps.build_id.outputs.build_id }}
-      steps:
-        - name: Generate unique build id
-          id: build_id
-          run: echo "build_id=$(openssl rand -hex 5)" >> $GITHUB_OUTPUT
+    name: Compute build ID
+    runs-on: ubuntu-latest
+    outputs:
+      build_id: ${{ steps.build_id.outputs.build_id }}
+    steps:
+      - name: Generate unique build id
+        id: build_id
+        run: echo "build_id=$(openssl rand -hex 5)" >> $GITHUB_OUTPUT
 
   # Build platform specific image
   build:
@@ -134,7 +139,7 @@ jobs:
         run: |
           # Create contract label for compatible contract image if specified
           if [[ -n "${{ env.CONTRACT_IMAGE }}" ]]; then
-            echo "CONTRACT_LABEL=storage.codex.nim-codex.blockchain-image=${{ env.CONTRACT_IMAGE }}" >>$GITHUB_ENV
+            echo "CONTRACT_LABEL=storage.codex.nim-codex.blockchain-image=${{ env.CONTRACT_IMAGE }}" >> $GITHUB_ENV
           fi
 
       - name: Docker - Meta
@@ -189,35 +194,35 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.meta.outputs.version }}
+      codex_image: ${{ steps.image_tag.outputs.codex_image }}
     needs: [build, compute]
     steps:
-
       - name: Docker - Variables
         run: |
-          # Adjust custom suffix when set and
+          # Adjust custom suffix when set
           if [[ -n "${{ env.TAG_SUFFIX }}" ]]; then
-            echo "TAG_SUFFIX=-${{ env.TAG_SUFFIX }}" >>$GITHUB_ENV
+            echo "TAG_SUFFIX=-${{ env.TAG_SUFFIX }}" >> $GITHUB_ENV
           fi
           # Disable SHA tags on tagged release
           if [[ ${{ startsWith(github.ref, 'refs/tags/') }} == "true" ]]; then
-            echo "TAG_SHA=false" >>$GITHUB_ENV
+            echo "TAG_SHA=false" >> $GITHUB_ENV
           fi
           # Handle latest and latest-custom using raw
           if [[ ${{ env.TAG_SHA }} == "false" ]]; then
-            echo "TAG_LATEST=false" >>$GITHUB_ENV
-            echo "TAG_RAW=true" >>$GITHUB_ENV
+            echo "TAG_LATEST=false" >> $GITHUB_ENV
+            echo "TAG_RAW=true" >> $GITHUB_ENV
             if [[ -z "${{ env.TAG_SUFFIX }}" ]]; then
-              echo "TAG_RAW_VALUE=latest" >>$GITHUB_ENV
+              echo "TAG_RAW_VALUE=latest" >> $GITHUB_ENV
             else
-              echo "TAG_RAW_VALUE=latest-{{ env.TAG_SUFFIX }}" >>$GITHUB_ENV
+              echo "TAG_RAW_VALUE=latest-{{ env.TAG_SUFFIX }}" >> $GITHUB_ENV
             fi
           else
-            echo "TAG_RAW=false" >>$GITHUB_ENV
+            echo "TAG_RAW=false" >> $GITHUB_ENV
           fi
           
           # Create contract label for compatible contract image if specified
           if [[ -n "${{ env.CONTRACT_IMAGE }}" ]]; then
-            echo "CONTRACT_LABEL=storage.codex.nim-codex.blockchain-image=${{ env.CONTRACT_IMAGE }}" >>$GITHUB_ENV
+            echo "CONTRACT_LABEL=storage.codex.nim-codex.blockchain-image=${{ env.CONTRACT_IMAGE }}" >> $GITHUB_ENV
           fi
 
       - name: Docker - Download digests
@@ -257,9 +262,12 @@ jobs:
           docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
             $(printf '${{ env.DOCKER_REPO }}@sha256:%s ' *)
 
+      - name: Docker - Image tag
+        id: image_tag
+        run: echo "codex_image=${{ env.DOCKER_REPO }}:${{ steps.meta.outputs.version }}" >> "$GITHUB_OUTPUT"
+
       - name: Docker - Inspect image
-        run: |
-          docker buildx imagetools inspect ${{ env.DOCKER_REPO }}:${{ steps.meta.outputs.version }}
+        run: docker buildx imagetools inspect ${{ steps.image_tag.outputs.codex_image }}
 
 
   # Compute Tests inputs
