@@ -44,7 +44,6 @@ import ./indexingstrategy
 import ./utils
 import ./errors
 import ./logutils
-import ./utils/asynciter
 import ./utils/trackedfutures
 
 export logutils

@@ -162,15 +162,17 @@ marketplacesuite(name = "SP Slot Repair", stopOnRequestFail = true):
 
   test "repair from local and remote store",
     NodeConfigs(
-      clients: CodexConfigs.init(nodes = 1)
-      # .debug()
-      # .withLogTopics("node", "erasure")
-      .some,
-      providers: CodexConfigs.init(nodes = 3)
-      # .debug()
-      # .withLogFile()
-      # .withLogTopics("marketplace", "sales", "statemachine", "reservations")
-      .some,
+      clients: CodexConfigs
+        .init(nodes = 1)
+        # .debug()
+        # .withLogTopics("node", "erasure")
+        .withLogFile().some,
+      providers: CodexConfigs
+        .init(nodes = 3)
+        # .debug()
+        .withLogFile()
+        # .withLogTopics("marketplace", "sales", "statemachine", "reservations")
+        .some,
     ):
     let client0 = clients()[0]
     let provider0 = providers()[0]
@@ -241,7 +243,7 @@ marketplacesuite(name = "SP Slot Repair", stopOnRequestFail = true):
     NodeConfigs(
       clients: CodexConfigs.init(nodes = 1)
       # .debug()
-      #   .withLogFile()
+      # .withLogFile()
       # .withLogTopics("node", "erasure")
       .some,
       providers: CodexConfigs.init(nodes = 3)
