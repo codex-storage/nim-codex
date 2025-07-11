@@ -17,7 +17,7 @@ proc findItem[T](items: seq[T], item: T): ?!T =
 
   return failure("Not found")
 
-marketplacesuite(name = "Sales", stopOnRequestFail = true):
+marketplacesuite(name = "Sales"):
   let salesConfig = NodeConfigs(
     clients: CodexConfigs.init(nodes = 1).some,
     providers: CodexConfigs.init(nodes = 1)
@@ -34,7 +34,7 @@ marketplacesuite(name = "Sales", stopOnRequestFail = true):
     host = providers()[0].client
     client = clients()[0].client
 
-  test "node handles new storage availability", salesConfig:
+  test "node handles new storage availability", salesConfig, stopOnRequestFail = true:
     let availability1 = (
       await host.postAvailability(
         totalSize = 1.uint64,
@@ -53,7 +53,7 @@ marketplacesuite(name = "Sales", stopOnRequestFail = true):
     ).get
     check availability1 != availability2
 
-  test "node lists storage that is for sale", salesConfig:
+  test "node lists storage that is for sale", salesConfig, stopOnRequestFail = true:
     let availability = (
       await host.postAvailability(
         totalSize = 1.uint64,
@@ -64,7 +64,7 @@ marketplacesuite(name = "Sales", stopOnRequestFail = true):
     ).get
     check availability in (await host.getAvailabilities()).get
 
-  test "updating availability", salesConfig:
+  test "updating availability", salesConfig, stopOnRequestFail = true:
     let availability = (
       await host.postAvailability(
         totalSize = 140000.uint64,
@@ -95,7 +95,8 @@ marketplacesuite(name = "Sales", stopOnRequestFail = true):
     check updatedAvailability.enabled == false
     check updatedAvailability.until == until
 
-  test "updating availability - updating totalSize", salesConfig:
+  test "updating availability - updating totalSize",
+    salesConfig, stopOnRequestFail = true:
     let availability = (
       await host.postAvailability(
         totalSize = 140000.uint64,
@@ -112,12 +113,13 @@ marketplacesuite(name = "Sales", stopOnRequestFail = true):
     check updatedAvailability.freeSize == 100000
 
   test "updating availability - updating totalSize does not allow bellow utilized",
-    salesConfig:
+    salesConfig, stopOnRequestFail = true:
     let originalSize = 0xFFFFFF.uint64
-    let data = await RandomChunker.example(blocks = 8)
     let minPricePerBytePerSecond = 3.u256
     let collateralPerByte = 1.u256
     let totalCollateral = originalSize.u256 * collateralPerByte
+    let expiry = 10 * 60.uint64
+
     let availability = (
       await host.postAvailability(
         totalSize = originalSize,
@@ -128,19 +130,11 @@ marketplacesuite(name = "Sales", stopOnRequestFail = true):
     ).get
 
     # Lets create storage request that will utilize some of the availability's space
-    let cid = (await client.upload(data)).get
-    let id = await client.requestStorage(
-      cid,
-      duration = 20 * 60.uint64,
-      pricePerBytePerSecond = minPricePerBytePerSecond,
-      proofProbability = 3.u256,
-      expiry = (10 * 60).uint64,
-      collateralPerByte = collateralPerByte,
-      nodes = 3,
-      tolerance = 1,
+    let (purchaseId, requestId) = await requestStorage(
+      client = client, pricePerBytePerSecond = minPricePerBytePerSecond
     )
 
-    discard await waitForRequestToStart()
+    await waitForRequestToStart(requestId, expiry.int64)
 
     let updatedAvailability =
       ((await host.getAvailabilities()).get).findItem(availability).get
@@ -164,7 +158,8 @@ marketplacesuite(name = "Sales", stopOnRequestFail = true):
     check newUpdatedAvailability.totalSize == originalSize + 20000
     check newUpdatedAvailability.freeSize - updatedAvailability.freeSize == 20000
 
-  test "updating availability fails with until negative", salesConfig:
+  test "updating availability fails with until negative",
+    salesConfig, stopOnRequestFail = true:
     let availability = (
       await host.postAvailability(
         totalSize = 140000.uint64,
@@ -181,14 +176,11 @@ marketplacesuite(name = "Sales", stopOnRequestFail = true):
       (await response.body) == "Cannot set until to a negative value"
 
   test "returns an error when trying to update the until date before an existing a request is finished",
-    salesConfig:
+    salesConfig, stopOnRequestFail = true:
     let size = 0xFFFFFF.uint64
-    let data = await RandomChunker.example(blocks = 8)
     let duration = 20 * 60.uint64
+    let expiry = 10 * 60.uint64
     let minPricePerBytePerSecond = 3.u256
-    let collateralPerByte = 1.u256
-    let ecNodes = 3.uint
-    let ecTolerance = 1.uint
 
     # host makes storage available
     let availability = (
@@ -200,24 +192,12 @@ marketplacesuite(name = "Sales", stopOnRequestFail = true):
       )
     ).get
 
-    # client requests storage
-    let cid = (await client.upload(data)).get
-    let id = (
-      await client.requestStorage(
-        cid,
-        duration = duration,
-        pricePerBytePerSecond = minPricePerBytePerSecond,
-        proofProbability = 3.u256,
-        expiry = 10 * 60.uint64,
-        collateralPerByte = collateralPerByte,
-        nodes = ecNodes,
-        tolerance = ecTolerance,
-      )
-    ).get
+    let (purchaseId, requestId) =
+      await requestStorage(client, pricePerBytePerSecond = minPricePerBytePerSecond)
 
-    discard await waitForRequestToStart()
+    await waitForRequestToStart(requestId, expiry.int64)
 
-    let purchase = (await client.getPurchase(id)).get
+    let purchase = (await client.getPurchase(purchaseId)).get
     check purchase.error == none string
 
     let unixNow = getTime().toUnix()
@@ -227,7 +207,6 @@ marketplacesuite(name = "Sales", stopOnRequestFail = true):
       availabilityId = availability.id, until = until.some
     )
 
-    check:
-      response.status == 422
-      (await response.body) ==
-        "Until parameter must be greater or equal to the longest currently hosted slot"
+    check response.status == 422
+    check (await response.body) ==
+      "Until parameter must be greater or equal to the longest currently hosted slot"

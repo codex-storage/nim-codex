@@ -4,9 +4,7 @@ import ../marketplacesuite
 import ../nodeconfigs
 import ../hardhatconfig
 
-marketplacesuite(
-  name = "Bug #821 - node crashes during erasure coding", stopOnRequestFail = true
-):
+marketplacesuite(name = "Bug #821 - node crashes during erasure coding"):
   test "should be able to create storage request and download dataset",
     NodeConfigs(
       clients: CodexConfigs
@@ -18,42 +16,29 @@ marketplacesuite(
       providers: CodexConfigs.init(nodes = 0).some,
     ):
     let
-      pricePerBytePerSecond = 1.u256
       duration = 20.periods
-      collateralPerByte = 1.u256
       expiry = 10.periods
-      data = await RandomChunker.example(blocks = 8)
       client = clients()[0]
       clientApi = client.client
+      data = await RandomChunker.example(blocks = 8)
 
-    let cid = (await clientApi.upload(data)).get
-
-    var requestId = none RequestId
-    proc onStorageRequested(eventResult: ?!StorageRequested) =
-      assert not eventResult.isErr
-      requestId = some (!eventResult).requestId
-
-    let subscription = await marketplace.subscribe(StorageRequested, onStorageRequested)
-
-    # client requests storage but requires multiple slots to host the content
-    let id = await clientApi.requestStorage(
-      cid,
-      duration = duration,
-      pricePerBytePerSecond = pricePerBytePerSecond,
-      expiry = expiry,
-      collateralPerByte = collateralPerByte,
-      nodes = 3,
-      tolerance = 1,
+    let (purchaseId, requestId) = await requestStorage(
+      clientApi, duration = duration, expiry = expiry, data = data.some
     )
 
-    check eventually(requestId.isSome, timeout = expiry.int * 1000)
+    let storageRequestedEvent = newAsyncEvent()
+
+    proc onStorageRequested(eventResult: ?!StorageRequested) =
+      assert not eventResult.isErr
+      storageRequestedEvent.fire()
+
+    await marketplaceSubscribe(StorageRequested, onStorageRequested)
+    await storageRequestedEvent.wait().wait(timeout = chronos.seconds(expiry.int64))
 
     let
-      request = await marketplace.getRequest(requestId.get)
+      request = await marketplace.getRequest(requestId)
       cidFromRequest = request.content.cid
       downloaded = await clientApi.downloadBytes(cidFromRequest, local = true)
 
     check downloaded.isOk
     check downloaded.get.toHex == data.toHex
-
-    await subscription.unsubscribe()
