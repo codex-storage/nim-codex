@@ -28,9 +28,42 @@ env:
 
 
 jobs:
+  deploy-contracts:
+    name: Deploy contracts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create access token
+        uses: actions/create-github-app-token@v2
+        id: app-token
+        with:
+          app-id: ${{ secrets.DEPLOYER_APP_ID }}
+          private-key: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
+          repositories: codex-contracts-eth
+
+      - name: Checkout sources
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Get contracts submodule ref
+        id: contracts
+        run: echo "ref=$(git rev-parse HEAD:vendor/codex-contracts-eth)" >> $GITHUB_OUTPUT
+
+      - name: Deploy smart contracts
+        uses: the-actions-org/workflow-dispatch@v4
+        with:
+          repo: codex-storage/codex-contracts-eth
+          workflow: devnet-contracts.yml
+          token: ${{ steps.app-token.outputs.token }}
+          wait-for-completion-timeout: 20m
+          wait-for-completion-interval: 20s
+          inputs: '{ "network": "codex_devnet", "contracts_ref": "${{ steps.contracts.outputs.ref }}" }'
+
+
   bootstrap-nodes:
     name: Bootstrap nodes
     runs-on: ubuntu-latest
+    needs: deploy-contracts
     steps:
       - name: Codex Bootstrap - Update
         uses: appleboy/ssh-action@v1
