@@ -100,7 +100,7 @@ jobs:
         run: |
           for node in {1..1}; do
             kubectl -n "${{ env.CODEX_NAMESPACE }}" patch statefulset codex-validator-${node} \
-              --patch '{"spec": {"template": {"spec":{"containers":[{"name": "codex", "image":"codexstorage/nim-codex:sha-352273f-dist-tests"}]}}}}'
+              --patch '{"spec": {"template": {"spec":{"containers":[{"name": "codex", "image":"${{ env.CODEX_IMAGE }}"}]}}}}'
           done
 
       - name: Codex Storage - Status
