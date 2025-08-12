@@ -4,7 +4,7 @@ import ../../contracts/time
 import ../../contracts/deployment
 import ../../codex/helpers
 import ../../examples
-import ../marketplacesuite
+import ../marketplacesuite as marketplacesuite
 import ../nodeconfigs
 
 export logutils
@@ -12,7 +12,7 @@ export logutils
 logScope:
   topics = "integration test slot repair"
 
-marketplacesuite(name = "SP Slot Repair", stopOnRequestFail = true):
+marketplacesuite(name = "SP Slot Repair"):
   const minPricePerBytePerSecond = 1.u256
   const collateralPerByte = 1.u256
   const blocks = 3
@@ -20,18 +20,17 @@ marketplacesuite(name = "SP Slot Repair", stopOnRequestFail = true):
   const ecTolerance = 1
   const size = slotSize(blocks, ecNodes, ecTolerance)
 
-  var filledSlotIds: seq[SlotId] = @[]
-  var freedSlotId = none SlotId
+  var freedSlotIndex = none uint64
   var requestId: RequestId
+  var slotFilledEvent: AsyncEvent
 
   # Here we are keeping track of the slot filled using their ids.
   proc onSlotFilled(eventResult: ?!SlotFilled) =
     assert not eventResult.isErr
     let event = !eventResult
 
-    if event.requestId == requestId:
-      let slotId = slotId(event.requestId, event.slotIndex)
-      filledSlotIds.add slotId
+    if event.requestId == requestId and event.slotIndex == freedSlotIndex.get:
+      slotFilledEvent.fire()
 
   # Here we are retrieving the slot id freed.
   # When the event is triggered, the slot id is removed
@@ -42,44 +41,23 @@ marketplacesuite(name = "SP Slot Repair", stopOnRequestFail = true):
     let slotId = slotId(event.requestId, event.slotIndex)
 
     if event.requestId == requestId:
-      assert slotId in filledSlotIds
-      filledSlotIds.del(filledSlotIds.find(slotId))
-      freedSlotId = some(slotId)
+      freedSlotIndex = some event.slotIndex
 
-  proc createPurchase(client: CodexClient): Future[PurchaseId] {.async.} =
-    let data = await RandomChunker.example(blocks = blocks)
-    let cid = (await client.upload(data)).get
-
-    let purchaseId = await client.requestStorage(
-      cid,
-      expiry = 10.periods,
-      duration = 20.periods,
-      nodes = ecNodes,
-      tolerance = ecTolerance,
-      collateralPerByte = 1.u256,
-      pricePerBytePerSecond = minPricePerBytePerSecond,
-      proofProbability = 1.u256,
-    )
-    requestId = (await client.requestId(purchaseId)).get
-
-    return purchaseId
-
-  proc freeSlot(provider: CodexClient): Future[void] {.async.} =
+  proc freeSlot(provider: CodexProcess): Future[void] {.async.} =
     # Get the second provider signer.
-    let signer = ethProvider.getSigner(accounts[2])
+    let signer = ethProvider.getSigner(provider.ethAccount)
     let marketplaceWithSecondProviderSigner = marketplace.connect(signer)
 
     # Call freeSlot to speed up the process.
     # It accelerates the test by skipping validator
     # proof verification and not waiting for the full period.
     # The downside is that this doesn't reflect the real slot freed process.
-    let slots = (await provider.getSlots()).get()
+    let slots = (await provider.client.getSlots()).get()
     let slotId = slotId(requestId, slots[0].slotIndex)
     discard await marketplaceWithSecondProviderSigner.freeSlot(slotId)
 
   setup:
-    filledSlotIds = @[]
-    freedSlotId = none SlotId
+    slotFilledEvent = newAsyncEvent()
 
   test "repair from local store",
     NodeConfigs(
@@ -97,7 +75,8 @@ marketplacesuite(name = "SP Slot Repair", stopOnRequestFail = true):
         # .debug()
         # .withLogFile()
         # .withLogTopics("validator").some,
-    ):
+    ),
+    stopOnRequestFail = true:
     let client0 = clients()[0]
     let provider0 = providers()[0]
     let provider1 = providers()[1]
@@ -112,7 +91,7 @@ marketplacesuite(name = "SP Slot Repair", stopOnRequestFail = true):
         totalSize = 2 * size.truncate(uint64),
         duration = duration,
         minPricePerBytePerSecond = minPricePerBytePerSecond,
-        totalCollateral = 3 * size * collateralPerByte,
+        totalCollateral = 2 * size * collateralPerByte,
       )
     ).get
     let availability1 = (
@@ -124,13 +103,17 @@ marketplacesuite(name = "SP Slot Repair", stopOnRequestFail = true):
       )
     ).get
 
-    let purchaseId = await createPurchase(client0.client)
-
-    let filledSubscription = await marketplace.subscribe(SlotFilled, onSlotFilled)
-    let slotFreedsubscription = await marketplace.subscribe(SlotFreed, onSlotFreed)
+    let (purchaseId, id) = await requestStorage(
+      client0.client,
+      blocks = blocks,
+      expiry = expiry,
+      duration = duration,
+      proofProbability = 1.u256,
+    )
+    requestId = id
 
     # Wait for purchase starts, meaning that the slots are filled.
-    discard await waitForRequestToStart(expiry.int)
+    await waitForRequestToStart(requestId, expiry.int64)
 
     # stop client so it doesn't serve any blocks anymore
     await client0.stop()
@@ -146,32 +129,34 @@ marketplacesuite(name = "SP Slot Repair", stopOnRequestFail = true):
     await provider0.client.patchAvailability(
       availabilityId = availability0.id,
       totalSize = (3 * size.truncate(uint64)).uint64.some,
+      totalCollateral = (3.u256 * size * collateralPerByte).some,
     )
+
+    await marketplaceSubscribe(SlotFilled, onSlotFilled)
+    await marketplaceSubscribe(SlotFreed, onSlotFreed)
 
     # Let's free the slot to speed up the process
-    await freeSlot(provider1.client)
+    await freeSlot(provider1)
 
-    # We expect that the freed slot is added in the filled slot id list,
+    # We expect that the freed slot is filled again,
     # meaning that the slot was repaired locally by SP 1.
-    check eventually(
-      freedSlotId.get in filledSlotIds, timeout = (duration - expiry).int * 1000
-    )
-
-    await filledSubscription.unsubscribe()
-    await slotFreedsubscription.unsubscribe()
+    let secondsTillRequestEnd = await getSecondsTillRequestEnd(requestId)
+    await slotFilledEvent.wait().wait(timeout = chronos.seconds(secondsTillRequestEnd))
 
   test "repair from local and remote store",
     NodeConfigs(
-      clients: CodexConfigs.init(nodes = 1)
-      # .debug()
-      # .withLogTopics("node", "erasure")
-      .some,
-      providers: CodexConfigs.init(nodes = 3)
-      # .debug()
-      # .withLogFile()
-      # .withLogTopics("marketplace", "sales", "statemachine", "reservations")
-      .some,
-    ):
+      clients: CodexConfigs
+        .init(nodes = 1)
+        # .debug()
+        .withLogFile()
+        .withLogTopics("node", "erasure").some,
+      providers: CodexConfigs
+        .init(nodes = 3)
+        # .debug()
+        .withLogFile()
+        .withLogTopics("marketplace", "sales", "statemachine", "reservations").some,
+    ),
+    stopOnRequestFail = true:
     let client0 = clients()[0]
     let provider0 = providers()[0]
     let provider1 = providers()[1]
@@ -203,13 +188,17 @@ marketplacesuite(name = "SP Slot Repair", stopOnRequestFail = true):
       totalCollateral = size * collateralPerByte,
     )
 
-    let purchaseId = await createPurchase(client0.client)
-
-    let filledSubscription = await marketplace.subscribe(SlotFilled, onSlotFilled)
-    let slotFreedsubscription = await marketplace.subscribe(SlotFreed, onSlotFreed)
+    let (purchaseId, id) = await requestStorage(
+      client0.client,
+      blocks = blocks,
+      expiry = expiry,
+      duration = duration,
+      proofProbability = 1.u256,
+    )
+    requestId = id
 
     # Wait for purchase starts, meaning that the slots are filled.
-    discard await waitForRequestToStart(expiry.int)
+    await waitForRequestToStart(requestId, expiry.int64)
 
     # stop client so it doesn't serve any blocks anymore
     await client0.stop()
@@ -226,16 +215,16 @@ marketplacesuite(name = "SP Slot Repair", stopOnRequestFail = true):
       totalCollateral = (2 * size * collateralPerByte).some,
     )
 
+    await marketplaceSubscribe(SlotFilled, onSlotFilled)
+    await marketplaceSubscribe(SlotFreed, onSlotFreed)
+
     # Let's free the slot to speed up the process
-    await freeSlot(provider1.client)
+    await freeSlot(provider1)
 
-    # We expect that the freed slot is added in the filled slot id list,
+    # We expect that the freed slot is filled again,
     # meaning that the slot was repaired locally and remotely (using SP 3) by SP 1.
-    check eventually(freedSlotId.isSome, timeout = expiry.int * 1000)
-    check eventually(freedSlotId.get in filledSlotIds, timeout = expiry.int * 1000)
-
-    await filledSubscription.unsubscribe()
-    await slotFreedsubscription.unsubscribe()
+    let secondsTillRequestEnd = await getSecondsTillRequestEnd(requestId)
+    await slotFilledEvent.wait().wait(timeout = chronos.seconds(secondsTillRequestEnd))
 
   test "repair from remote store only",
     NodeConfigs(
@@ -249,7 +238,8 @@ marketplacesuite(name = "SP Slot Repair", stopOnRequestFail = true):
       # .withLogFile()
       # .withLogTopics("marketplace", "sales", "statemachine", "reservations")
       .some,
-    ):
+    ),
+    stopOnRequestFail = true:
     let client0 = clients()[0]
     let provider0 = providers()[0]
     let provider1 = providers()[1]
@@ -274,13 +264,17 @@ marketplacesuite(name = "SP Slot Repair", stopOnRequestFail = true):
       )
     ).get
 
-    let purchaseId = await createPurchase(client0.client)
-
-    let filledSubscription = await marketplace.subscribe(SlotFilled, onSlotFilled)
-    let slotFreedsubscription = await marketplace.subscribe(SlotFreed, onSlotFreed)
+    let (purchaseId, id) = await requestStorage(
+      client0.client,
+      blocks = blocks,
+      expiry = expiry,
+      duration = duration,
+      proofProbability = 1.u256,
+    )
+    requestId = id
 
     # Wait for purchase starts, meaning that the slots are filled.
-    discard await waitForRequestToStart(expiry.int)
+    await waitForRequestToStart(requestId, expiry.int64)
 
     # stop client so it doesn't serve any blocks anymore
     await client0.stop()
@@ -298,12 +292,12 @@ marketplacesuite(name = "SP Slot Repair", stopOnRequestFail = true):
     # SP 2 will not pick the slot again.
     await provider1.client.patchAvailability(availability1.id, enabled = false.some)
 
+    await marketplaceSubscribe(SlotFilled, onSlotFilled)
+    await marketplaceSubscribe(SlotFreed, onSlotFreed)
+
     # Let's free the slot to speed up the process
-    await freeSlot(provider1.client)
+    await freeSlot(provider1)
 
     # At this point, SP 3 should repair the slot from SP 1 and host it.
-    check eventually(freedSlotId.isSome, timeout = expiry.int * 1000)
-    check eventually(freedSlotId.get in filledSlotIds, timeout = expiry.int * 1000)
-
-    await filledSubscription.unsubscribe()
-    await slotFreedsubscription.unsubscribe()
+    let secondsTillRequestEnd = await getSecondsTillRequestEnd(requestId)
+    await slotFilledEvent.wait().wait(timeout = chronos.seconds(secondsTillRequestEnd))
