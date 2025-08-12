@@ -18,18 +18,20 @@ import pkg/chronos
 import pkg/questionable
 import pkg/questionable/results
 import pkg/constantine/math/io/io_fields
+import pkg/taskpools
 
 import ../../logutils
 import ../../utils
 import ../../stores
 import ../../manifest
 import ../../merkletree
+import ../../utils/poseidon2digest
 import ../../utils/asynciter
 import ../../indexingstrategy
 
 import ../converters
 
-export converters, asynciter
+export converters, asynciter, poseidon2digest
 
 logScope:
   topics = "codex slotsbuilder"
@@ -45,6 +47,7 @@ type SlotsBuilder*[T, H] = ref object of RootObj
   emptyBlock: seq[byte] # empty block
   verifiableTree: ?T # verification tree (dataset tree)
   emptyDigestTree: T # empty digest tree for empty blocks
+  taskPool: Taskpool
 
 func verifiable*[T, H](self: SlotsBuilder[T, H]): bool {.inline.} =
   ## Returns true if the slots are verifiable.
@@ -165,6 +168,35 @@ proc buildBlockTree*[T, H](
 
     success (blk.data, tree)
 
+proc getBlockDigest*[T, H](
+    self: SlotsBuilder[T, H], blkIdx: Natural, slotPos: Natural
+): Future[?!H] {.async: (raises: [CancelledError]).} =
+  logScope:
+    blkIdx = blkIdx
+    slotPos = slotPos
+    numSlotBlocks = self.manifest.numSlotBlocks
+    cellSize = self.cellSize
+
+  trace "Building block tree"
+
+  if slotPos > (self.manifest.numSlotBlocks - 1):
+    # pad blocks are 0 byte blocks
+    trace "Returning empty digest tree for pad block"
+    return self.emptyDigestTree.root
+
+  without blk =? await self.store.getBlock(self.manifest.treeCid, blkIdx), err:
+    error "Failed to get block CID for tree at index", err = err.msg
+    return failure(err)
+
+  if blk.isEmpty:
+    return self.emptyDigestTree.root
+
+  without dg =? (await T.digest(self.taskPool, blk.data, self.cellSize.int)), err:
+    error "Failed to create digest for block", err = err.msg
+    return failure(err)
+
+  return success dg
+
 proc getCellHashes*[T, H](
     self: SlotsBuilder[T, H], slotIndex: Natural
 ): Future[?!seq[H]] {.async: (raises: [CancelledError, IndexingError]).} =
@@ -190,8 +222,7 @@ proc getCellHashes*[T, H](
         pos = i
 
       trace "Getting block CID for tree at index"
-      without (_, tree) =? (await self.buildBlockTree(blkIdx, i)) and digest =? tree.root,
-        err:
+      without digest =? (await self.getBlockDigest(blkIdx, i)), err:
         error "Failed to get block CID for tree at index", err = err.msg
         return failure(err)
 
@@ -310,6 +341,7 @@ proc new*[T, H](
     _: type SlotsBuilder[T, H],
     store: BlockStore,
     manifest: Manifest,
+    taskPool: Taskpool,
     strategy = LinearStrategy,
     cellSize = DefaultCellSize,
 ): ?!SlotsBuilder[T, H] =
@@ -383,6 +415,7 @@ proc new*[T, H](
     emptyBlock: emptyBlock,
     numSlotBlocks: numSlotBlocksTotal,
     emptyDigestTree: emptyDigestTree,
+    taskPool: taskPool,
   )
 
   if manifest.verifiable:
