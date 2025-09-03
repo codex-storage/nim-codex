@@ -78,6 +78,7 @@ template setupAndTearDown*() {.dirty.} =
     pendingBlocks: PendingBlocksManager
     discovery: DiscoveryEngine
     advertiser: Advertiser
+    taskpool: Taskpool
 
   let
     path = currentSourcePath().parentDir
@@ -85,6 +86,7 @@ template setupAndTearDown*() {.dirty.} =
     metaTmp = TempLevelDb.new()
 
   setup:
+    taskpool = Taskpool.new()
     file = open(path /../ "" /../ "fixtures" / "test.jpg")
     chunker = FileChunker.new(file = file, chunkSize = DefaultBlockSize)
     switch = newStandardSwitch()
@@ -119,7 +121,7 @@ template setupAndTearDown*() {.dirty.} =
       engine = engine,
       prover = Prover.none,
       discovery = blockDiscovery,
-      taskpool = Taskpool.new(),
+      taskpool = taskpool,
     )
 
   teardown:
@@ -127,3 +129,5 @@ template setupAndTearDown*() {.dirty.} =
     await node.stop()
     await metaTmp.destroyDb()
     await repoTmp.destroyDb()
+    if not taskpool.isNil:
+      taskpool.shutdown()

@@ -75,14 +75,14 @@ asyncchecksuite "Test Node - Host contracts":
     let
       manifestBlock =
         bt.Block.new(manifest.encode().tryGet(), codec = ManifestCodec).tryGet()
-      erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider, Taskpool.new)
+      erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider, taskpool)
 
     manifestCid = manifestBlock.cid
 
     (await localStore.putBlock(manifestBlock)).tryGet()
 
     protected = (await erasure.encode(manifest, 3, 2)).tryGet()
-    builder = Poseidon2Builder.new(localStore, protected).tryGet()
+    builder = Poseidon2Builder.new(localStore, protected, erasure).tryGet()
     verifiable = (await builder.buildManifest()).tryGet()
     verifiableBlock =
       bt.Block.new(verifiable.encode().tryGet(), codec = ManifestCodec).tryGet()

@@ -17,6 +17,7 @@ import pkg/questionable/results
 import pkg/libp2p/cid
 
 import ../../manifest
+import ../../erasure
 import ../../merkletree
 import ../../stores
 import ../../market
@@ -46,6 +47,7 @@ type
   Prover* = ref object of RootObj
     backend: AnyBackend
     store: BlockStore
+    erasure: Erasure
     nSamples: int
 
 proc prove*(
@@ -61,7 +63,7 @@ proc prove*(
 
   trace "Received proof challenge"
 
-  without builder =? AnyBuilder.new(self.store, manifest), err:
+  without builder =? AnyBuilder.new(self.store, manifest, self.erasure), err:
     error "Unable to create slots builder", err = err.msg
     return failure(err)
 
@@ -88,6 +90,10 @@ proc verify*(
   self.backend.verify(proof, inputs)
 
 proc new*(
-    _: type Prover, store: BlockStore, backend: AnyBackend, nSamples: int
+    _: type Prover,
+    store: BlockStore,
+    erasure: Erasure,
+    backend: AnyBackend,
+    nSamples: int,
 ): Prover =
-  Prover(store: store, backend: backend, nSamples: nSamples)
+  Prover(store: store, backend: backend, nSamples: nSamples, erasure: erasure)

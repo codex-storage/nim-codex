@@ -540,7 +540,9 @@ proc setupRequest(
     trace "Unable to erasure code dataset"
     return failure(error)
 
-  without builder =? Poseidon2Builder.new(self.networkStore.localStore, encoded), err:
+  without builder =? Poseidon2Builder.new(
+    self.networkStore.localStore, encoded, erasure
+  ), err:
     trace "Unable to create slot builder"
     return failure(err)
 
@@ -643,8 +645,14 @@ proc onStore(
     trace "Unable to fetch manifest for cid", cid, err = err.msg
     return failure(err)
 
+  let erasure = Erasure.new(
+    self.networkStore, leoEncoderProvider, leoDecoderProvider, self.taskpool
+  )
+
   without builder =?
-    Poseidon2Builder.new(self.networkStore, manifest, manifest.verifiableStrategy), err:
+    Poseidon2Builder.new(
+      self.networkStore, manifest, erasure, manifest.verifiableStrategy
+    ), err:
     trace "Unable to create slots builder", err = err.msg
     return failure(err)
 
@@ -678,9 +686,6 @@ proc onStore(
   if isRepairing:
     trace "start repairing slot", slotIdx
     try:
-      let erasure = Erasure.new(
-        self.networkStore, leoEncoderProvider, leoDecoderProvider, self.taskpool
-      )
       if err =? (await erasure.repair(manifest)).errorOption:
         error "Unable to erasure decode repairing manifest",
           cid = manifest.treeCid, exc = err.msg

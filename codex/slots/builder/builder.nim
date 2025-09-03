@@ -12,6 +12,7 @@
 import std/math
 import std/sequtils
 import std/sugar
+import std/[random, sets]
 
 import pkg/libp2p
 import pkg/chronos
@@ -21,8 +22,10 @@ import pkg/constantine/math/io/io_fields
 
 import ../../logutils
 import ../../utils
+import ../../utils/encoding2d
 import ../../stores
 import ../../manifest
+import ../../erasure
 import ../../merkletree
 import ../../utils/asynciter
 import ../../indexingstrategy
@@ -37,7 +40,8 @@ logScope:
 type SlotsBuilder*[T, H] = ref object of RootObj
   store: BlockStore
   manifest: Manifest # current manifest
-  strategy: IndexingStrategy # indexing strategy
+  erasure: Erasure
+  strategy: StrategyType # indexing strategy
   cellSize: NBytes # cell size
   numSlotBlocks: Natural
     # number of blocks per slot (should yield a power of two number of cells)
@@ -45,6 +49,8 @@ type SlotsBuilder*[T, H] = ref object of RootObj
   emptyBlock: seq[byte] # empty block
   verifiableTree: ?T # verification tree (dataset tree)
   emptyDigestTree: T # empty digest tree for empty blocks
+  numSlotBlocksEncoded: Natural # number of blocks per slot after slot encoding (2D)
+  slotEncodedTreeCids: seq[Cid] # Encoded tree CIDs
 
 func verifiable*[T, H](self: SlotsBuilder[T, H]): bool {.inline.} =
   ## Returns true if the slots are verifiable.
@@ -113,27 +119,38 @@ func numSlotCells*[T, H](self: SlotsBuilder[T, H]): Natural =
 
   self.numBlockCells * self.numSlotBlocks
 
-func slotIndicesIter*[T, H](self: SlotsBuilder[T, H], slot: Natural): ?!Iter[int] =
-  ## Returns the slot indices.
-  ##
-
-  self.strategy.getIndices(slot).catch
-
-func slotIndices*[T, H](self: SlotsBuilder[T, H], slot: Natural): seq[int] =
-  ## Returns the slot indices.
-  ##
-
-  if iter =? self.strategy.getIndices(slot).catch:
-    return toSeq(iter)
-
 func manifest*[T, H](self: SlotsBuilder[T, H]): Manifest =
   ## Returns the manifest.
   ##
 
   self.manifest
 
+func numSlotBlocksEncoded*[T, H](self: SlotsBuilder[T, H]): Natural =
+  ## Number of blocks per slot for encoded (2D) slots.
+  ##
+
+  self.numSlotBlocksEncoded
+
+func numSlotCellsEncoded*[T, H](self: SlotsBuilder[T, H]): Natural =
+  ## Number of cells per slot for encoded (2D) slots.
+  ##
+
+  (self.numSlotBlocksEncoded * self.numBlockCells).Natural
+
+func numSlotBlocksPadded*[T, H](self: SlotsBuilder[T, H]): Natural =
+  ## Returns the padded number of blocks (power of two) for tree construction
+  ##
+
+  nextPowerOfTwo(self.numSlotBlocksEncoded)
+
+func isEmptyBlockIndex*[T, H](self: SlotsBuilder[T, H], blkIdx: Natural): bool =
+  ## Returns true if this block index should be filled with empty blocks
+  ##
+
+  blkIdx >= self.numSlotBlocksEncoded
+
 proc buildBlockTree*[T, H](
-    self: SlotsBuilder[T, H], blkIdx: Natural, slotPos: Natural
+    self: SlotsBuilder[T, H], treeCid: Cid, blkIdx: Natural
 ): Future[?!(seq[byte], T)] {.async: (raises: [CancelledError]).} =
   ## Build the block digest tree and return a tuple with the
   ## block data and the tree.
@@ -141,18 +158,15 @@ proc buildBlockTree*[T, H](
 
   logScope:
     blkIdx = blkIdx
-    slotPos = slotPos
     numSlotBlocks = self.manifest.numSlotBlocks
     cellSize = self.cellSize
 
   trace "Building block tree"
 
-  if slotPos > (self.manifest.numSlotBlocks - 1):
-    # pad blocks are 0 byte blocks
-    trace "Returning empty digest tree for pad block"
+  if self.isEmptyBlockIndex(blkIdx):
     return success (self.emptyBlock, self.emptyDigestTree)
 
-  without blk =? await self.store.getBlock(self.manifest.treeCid, blkIdx), err:
+  without blk =? await self.store.getBlock(treeCid, blkIdx), err:
     error "Failed to get block CID for tree at index", err = err.msg
     return failure(err)
 
@@ -167,11 +181,10 @@ proc buildBlockTree*[T, H](
 
 proc getCellHashes*[T, H](
     self: SlotsBuilder[T, H], slotIndex: Natural
-): Future[?!seq[H]] {.async: (raises: [CancelledError, IndexingError]).} =
-  ## Collect all the cells from a block and return
+): Future[?!seq[H]] {.async: (raises: [CancelledError]).} =
+  ## Collect all the cells from a 2D encoded slot and return
   ## their hashes.
   ##
-
   let
     treeCid = self.manifest.treeCid
     blockCount = self.manifest.blocksCount
@@ -183,21 +196,31 @@ proc getCellHashes*[T, H](
     numberOfSlots = numberOfSlots
     slotIndex = slotIndex
 
+  trace "Starting 2D encoding for slot to get cell hashes"
+
+  without encoded2DTreeCid =?
+    ?(await self.erasure.encode2DSlot(self.manifest, self.strategy, slotIndex)).catch,
+    err:
+    error "Failed to 2D encode slot for cell hashes", err = err.msg
+    return failure(err)
+
+  trace "2D encoding completed, collecting cell hashes from encoded blocks"
+
   let hashes = collect(newSeq):
-    for i, blkIdx in self.strategy.getIndices(slotIndex):
+    for blkIdx in 0 ..< self.numSlotBlocksPadded:
       logScope:
         blkIdx = blkIdx
-        pos = i
 
-      trace "Getting block CID for tree at index"
-      without (_, tree) =? (await self.buildBlockTree(blkIdx, i)) and digest =? tree.root,
-        err:
+      trace "Getting 2D encoded block for cell hash"
+      without (_, tree) =? (await self.buildBlockTree(encoded2DTreeCid, blkIdx)) and
+        digest =? tree.root, err:
         error "Failed to get block CID for tree at index", err = err.msg
         return failure(err)
 
       trace "Get block digest", digest = digest.toHex
       digest
 
+  self.slotEncodedTreeCids[slotIndex] = encoded2DTreeCid
   success hashes
 
 proc buildSlotTree*[T, H](
@@ -303,19 +326,24 @@ proc buildManifest*[T, H](
     return failure(err)
 
   Manifest.new(
-    self.manifest, rootProvingCid, rootCids, self.cellSize, self.strategy.strategyType
+    self.manifest, rootProvingCid, rootCids, self.slotEncodedTreeCids, self.cellSize,
+    self.strategy,
   )
 
 proc new*[T, H](
     _: type SlotsBuilder[T, H],
     store: BlockStore,
     manifest: Manifest,
+    erasure: Erasure,
     strategy = LinearStrategy,
     cellSize = DefaultCellSize,
 ): ?!SlotsBuilder[T, H] =
   if not manifest.protected:
     trace "Manifest is not protected."
     return failure("Manifest is not protected.")
+
+  if strategy != LinearStrategy:
+    return failure("strategy is not linear.")
 
   logScope:
     blockSize = manifest.blockSize
@@ -333,56 +361,32 @@ proc new*[T, H](
     trace msg
     return failure(msg)
 
+  without numSlotBlocksEncoded =? encoding2d.calculate2DSlotBlocks(manifest), err:
+    return failure(err)
+
   let
     numSlotBlocks = manifest.numSlotBlocks
-    numBlockCells = (manifest.blockSize div cellSize).int # number of cells per block
-    numSlotCells = manifest.numSlotBlocks * numBlockCells
-      # number of uncorrected slot cells
-    pow2SlotCells = nextPowerOfTwo(numSlotCells) # pow2 cells per slot
-    numPadSlotBlocks = (pow2SlotCells div numBlockCells) - numSlotBlocks
-      # pow2 blocks per slot
-
-    numSlotBlocksTotal =
-      # pad blocks per slot
-      if numPadSlotBlocks > 0:
-        numPadSlotBlocks + numSlotBlocks
-      else:
-        numSlotBlocks
-
-    numBlocksTotal = numSlotBlocksTotal * manifest.numSlots # number of blocks per slot
-
     emptyBlock = newSeq[byte](manifest.blockSize.int)
     emptyDigestTree = ?T.digestTree(emptyBlock, cellSize.int)
 
-    strategy =
-      ?strategy.init(
-        0,
-        manifest.blocksCount - 1,
-        manifest.numSlots,
-        manifest.numSlots,
-        numPadSlotBlocks,
-      ).catch
-
   logScope:
     numSlotBlocks = numSlotBlocks
-    numBlockCells = numBlockCells
-    numSlotCells = numSlotCells
-    pow2SlotCells = pow2SlotCells
-    numPadSlotBlocks = numPadSlotBlocks
-    numBlocksTotal = numBlocksTotal
-    numSlotBlocksTotal = numSlotBlocksTotal
-    strategy = strategy.strategyType
+    numSlotBlocksEncoded = numSlotBlocksEncoded
+    strategy = strategy
 
   trace "Creating slots builder"
 
   var self = SlotsBuilder[T, H](
     store: store,
     manifest: manifest,
+    erasure: erasure,
     strategy: strategy,
     cellSize: cellSize,
     emptyBlock: emptyBlock,
-    numSlotBlocks: numSlotBlocksTotal,
+    numSlotBlocks: numSlotBlocks,
+    numSlotBlocksEncoded: numSlotBlocksEncoded,
     emptyDigestTree: emptyDigestTree,
+    slotEncodedTreeCids: newSeq[Cid](manifest.numSlots),
   )
 
   if manifest.verifiable:
@@ -400,5 +404,6 @@ proc new*[T, H](
 
     self.slotRoots = slotRoots
     self.verifiableTree = some tree
+    self.slotEncodedTreeCids = manifest.slotEncodedTreeCids
 
   success self

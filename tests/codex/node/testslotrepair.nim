@@ -100,7 +100,7 @@ asyncchecksuite "Test Node - Slot Repair":
     (await localStore.putBlock(manifestBlock)).tryGet()
 
     protected = (await erasure.encode(manifest, ecK, ecM)).tryGet()
-    builder = Poseidon2Builder.new(localStore, protected).tryGet()
+    builder = Poseidon2Builder.new(localStore, protected, erasure).tryGet()
     verifiable = (await builder.buildManifest()).tryGet()
     verifiableBlock =
       bt.Block.new(verifiable.encode().tryGet(), codec = ManifestCodec).tryGet()
@@ -179,7 +179,7 @@ asyncchecksuite "Test Node - Slot Repair":
     (await localStore.putBlock(manifestBlock)).tryGet()
 
     protected = (await erasure.encode(manifest, ecK, ecM)).tryGet()
-    builder = Poseidon2Builder.new(localStore, protected).tryGet()
+    builder = Poseidon2Builder.new(localStore, protected, erasure).tryGet()
     verifiable = (await builder.buildManifest()).tryGet()
     verifiableBlock =
       bt.Block.new(verifiable.encode().tryGet(), codec = ManifestCodec).tryGet()

@@ -90,6 +90,8 @@ proc encode*(manifest: Manifest): ?!seq[byte] =
         verificationInfo.write(2, slotRoot.data.buffer)
       verificationInfo.write(3, manifest.cellSize.uint32)
       verificationInfo.write(4, manifest.verifiableStrategy.uint32)
+      for slotEncodedTreeCid in manifest.slotEncodedTreeCids:
+        verificationInfo.write(5, slotEncodedTreeCid.data.buffer)
       erasureInfo.write(6, verificationInfo)
 
     erasureInfo.finish()
@@ -127,6 +129,7 @@ proc decode*(_: type Manifest, data: openArray[byte]): ?!Manifest =
     protectedStrategy: uint32
     verifyRoot: seq[byte]
     slotRoots: seq[seq[byte]]
+    slotEncodedTreeCids: seq[seq[byte]]
     cellSize: uint32
     verifiableStrategy: uint32
     filename: string
@@ -199,6 +202,9 @@ proc decode*(_: type Manifest, data: openArray[byte]): ?!Manifest =
       if pbVerificationInfo.getField(4, verifiableStrategy).isErr:
         return failure("Unable to decode `verifiableStrategy` from manifest!")
 
+      if pbVerificationInfo.getRepeatedField(5, slotEncodedTreeCids).isErr:
+        slotEncodedTreeCids = @[]
+
   let treeCid = ?Cid.init(treeCidBuf).mapFailure
 
   var filenameOption = if filename.len == 0: string.none else: filename.some
@@ -239,11 +245,17 @@ proc decode*(_: type Manifest, data: openArray[byte]): ?!Manifest =
     let
       verifyRootCid = ?Cid.init(verifyRoot).mapFailure
       slotRootCids = slotRoots.mapIt(?Cid.init(it).mapFailure)
+      slotEncodedTreeCidsSeq =
+        if slotEncodedTreeCids.len > 0:
+          slotEncodedTreeCids.mapIt(?Cid.init(it).mapFailure)
+        else:
+          newSeq[Cid](slotRootCids.len)
 
     return Manifest.new(
       manifest = self,
       verifyRoot = verifyRootCid,
       slotRoots = slotRootCids,
+      slotEncodedTreeCids = slotEncodedTreeCidsSeq,
       cellSize = cellSize.NBytes,
       strategy = StrategyType(verifiableStrategy),
     )

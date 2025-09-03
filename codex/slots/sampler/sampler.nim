@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/sugar
+import std/[sugar, math]
 
 import pkg/chronos
 import pkg/questionable
@@ -53,14 +53,11 @@ proc getSample*[T, H](
     cellsPerBlock = self.builder.numBlockCells
     blkCellIdx = cellIdx.toCellInBlk(cellsPerBlock) # block cell index
     blkSlotIdx = cellIdx.toBlkInSlot(cellsPerBlock) # slot tree index
-    origBlockIdx = self.builder.slotIndices(self.index)[blkSlotIdx]
-      # convert to original dataset block index
 
   logScope:
     cellIdx = cellIdx
     blkSlotIdx = blkSlotIdx
     blkCellIdx = blkCellIdx
-    origBlockIdx = origBlockIdx
 
   trace "Retrieving sample from block tree"
   let
@@ -70,7 +67,11 @@ proc getSample*[T, H](
     slotProof = proof.toVerifiableProof().valueOr:
       return failure("Failed to get verifiable proof")
 
-    (bytes, blkTree) = (await self.builder.buildBlockTree(origBlockIdx, blkSlotIdx)).valueOr:
+    slotEncodedTreeCid = self.builder.manifest.slotEncodedTreeCids[self.index]
+
+    (bytes, blkTree) = (
+      await self.builder.buildBlockTree(slotEncodedTreeCid, blkSlotIdx)
+    ).valueOr:
       return failure("Failed to build block tree")
 
     cellData = self.getCell(bytes, blkCellIdx)
@@ -100,23 +101,30 @@ proc getProofInput*[T, H](
 
     slotTreeCid = self.builder.manifest.slotRoots[self.index]
     slotRoot = self.builder.slotRoots[self.index]
-    cellIdxs = entropy.cellIndices(slotRoot, self.builder.numSlotCells, nSamples)
+    numSlotCellsEncoded = self.builder.numSlotCellsEncoded
+    nCellsPerSlotEncoded = nextPowerOfTwo(numSlotCellsEncoded)
+    cellIdxs = entropy.cellIndices(slotRoot, nCellsPerSlotEncoded, nSamples)
 
   logScope:
     cells = cellIdxs
 
   trace "Collecting input for proof"
-  let samples = collect(newSeq):
-    for cellIdx in cellIdxs:
-      (await self.getSample(cellIdx, slotTreeCid, slotRoot)).valueOr:
-        return failure("Failed to get sample")
+  let sampleFutures = cellIdxs.mapIt(self.getSample(it, slotTreeCid, slotRoot))
+
+  var samples: seq[Sample[H]] = @[]
+  for i in 0 ..< sampleFutures.len:
+    let res = await sampleFutures[i]
+    if res.isErr:
+      return
+        failure("Failed to get sample for cell " & $cellIdxs[i] & ": " & res.error.msg)
+    samples.add(res.get())
 
   success ProofInputs[H](
     entropy: entropy,
     datasetRoot: datasetRoot,
     slotProof: slotProof.path,
     nSlotsPerDataSet: self.builder.numSlots,
-    nCellsPerSlot: self.builder.numSlotCells,
+    nCellsPerSlot: nCellsPerSlotEncoded,
     slotRoot: slotRoot,
     slotIndex: self.index,
     samples: samples,

@@ -305,9 +305,11 @@ proc new*(
     store = NetworkStore.new(engine, repoStore)
     prover =
       if config.prover:
-        let backend =
-          config.initializeBackend().expect("Unable to create prover backend.")
-        some Prover.new(store, backend, config.numProofSamples)
+        let
+          backend =
+            config.initializeBackend().expect("Unable to create prover backend.")
+          erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider, taskpool)
+        some Prover.new(store, erasure, backend, config.numProofSamples)
       else:
         none Prover
 

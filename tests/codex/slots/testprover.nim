@@ -1,12 +1,14 @@
 import ../../asynctest
 
 import pkg/chronos
+import pkg/taskpools
 import pkg/libp2p/cid
 
 import pkg/codex/merkletree
 import pkg/codex/chunker
 import pkg/codex/blocktype as bt
 import pkg/codex/slots
+import pkg/codex/erasure
 import pkg/codex/stores
 import pkg/codex/conf
 import pkg/confutils/defs
@@ -29,6 +31,8 @@ suite "Test Prover":
   var
     store: BlockStore
     prover: Prover
+    taskpool: Taskpool
+    erasure: Erasure
 
   setup:
     let
@@ -47,20 +51,30 @@ suite "Test Prover":
       backend = config.initializeBackend().tryGet()
 
     store = RepoStore.new(repoDs, metaDs)
-    prover = Prover.new(store, backend, config.numProofSamples)
+    taskpool = Taskpool.new()
+    erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider, taskpool)
+    prover = Prover.new(store, erasure, backend, config.numProofSamples)
 
   teardown:
     await repoTmp.destroyDb()
     await metaTmp.destroyDb()
 
+    if not taskpool.isNil:
+      taskpool.shutdown()
+
+    reset(store)
+    reset(prover)
+    reset(taskpool)
+
   test "Should sample and prove a slot":
     let (_, _, verifiable) = await createVerifiableManifest(
       store,
-      8, # number of blocks in the original dataset (before EC)
-      5, # ecK
-      3, # ecM
+      5, # number of blocks in the original dataset (before EC)
+      2, # ecK
+      1, # ecM
       blockSize,
       cellSize,
+      erasure,
     )
 
     let (inputs, proof) = (await prover.prove(1, verifiable, challenge)).tryGet
@@ -80,6 +94,7 @@ suite "Test Prover":
       1, # ecM
       blockSize,
       cellSize,
+      erasure,
     )
 
     let (inputs, proof) = (await prover.prove(1, verifiable, challenge)).tryGet

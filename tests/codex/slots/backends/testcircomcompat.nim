@@ -3,6 +3,7 @@ import std/options
 import ../../../asynctest
 
 import pkg/chronos
+import pkg/taskpools
 import pkg/poseidon2
 import pkg/serde/json
 
@@ -12,6 +13,7 @@ import pkg/codex/merkletree
 import pkg/codex/codextypes
 import pkg/codex/manifest
 import pkg/codex/stores
+import pkg/codex/erasure
 
 import ./helpers
 import ../helpers
@@ -77,6 +79,8 @@ suite "Test Circom Compat Backend":
     challenge: array[32, byte]
     builder: Poseidon2Builder
     sampler: Poseidon2Sampler
+    taskpool: Taskpool
+    erasure: Erasure
 
   setup:
     let
@@ -84,12 +88,14 @@ suite "Test Circom Compat Backend":
       metaDs = metaTmp.newDb()
 
     store = RepoStore.new(repoDs, metaDs)
+    taskpool = Taskpool.new()
+    erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider, taskpool)
 
     (manifest, protected, verifiable) = await createVerifiableManifest(
-      store, numDatasetBlocks, ecK, ecM, blockSize, cellSize
+      store, numDatasetBlocks, ecK, ecM, blockSize, cellSize, erasure
     )
 
-    builder = Poseidon2Builder.new(store, verifiable).tryGet
+    builder = Poseidon2Builder.new(store, verifiable, erasure).tryGet
     sampler = Poseidon2Sampler.new(slotId, store, builder).tryGet
 
     circom = CircomCompat.init(r1cs, wasm, zkey)
@@ -101,6 +107,11 @@ suite "Test Circom Compat Backend":
     circom.release() # this comes from the rust FFI
     await repoTmp.destroyDb()
     await metaTmp.destroyDb()
+
+    if not taskpool.isNil:
+      taskpool.shutdown()
+
+    reset(taskpool)
 
   test "Should verify with correct input":
     var proof = circom.prove(proofInputs).tryGet

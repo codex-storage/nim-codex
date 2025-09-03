@@ -1,11 +1,12 @@
-import std/sequtils
-import std/options
+import std/[sequtils, options, math]
 
 import ../../../asynctest
 
+import pkg/taskpools
 import pkg/questionable/results
 
 import pkg/codex/stores
+import pkg/codex/erasure
 import pkg/codex/merkletree
 import pkg/codex/utils/json
 import pkg/codex/codextypes
@@ -87,6 +88,8 @@ suite "Test Sampler":
     manifest: Manifest
     protected: Manifest
     verifiable: Manifest
+    taskpool: Taskpool
+    erasure: Erasure
 
   setup:
     let
@@ -94,18 +97,25 @@ suite "Test Sampler":
       metaDs = metaTmp.newDb()
 
     store = RepoStore.new(repoDs, metaDs)
+    taskpool = Taskpool.new()
+    erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider, taskpool)
 
     (manifest, protected, verifiable) = await createVerifiableManifest(
-      store, datasetBlocks, ecK, ecM, blockSize, cellSize
+      store, datasetBlocks, ecK, ecM, blockSize, cellSize, erasure
     )
 
     # create sampler
-    builder = Poseidon2Builder.new(store, verifiable).tryGet
+    builder = Poseidon2Builder.new(store, verifiable, erasure).tryGet
 
   teardown:
     await store.close()
     await repoTmp.destroyDb()
     await metaTmp.destroyDb()
+
+    if not taskpool.isNil:
+      taskpool.shutdown()
+
+    reset(taskpool)
 
   test "Should fail instantiating for invalid slot index":
     let sampler = Poseidon2Sampler.new(builder.slotRoots.len, store, builder)
@@ -114,7 +124,7 @@ suite "Test Sampler":
 
   test "Should fail instantiating for non verifiable builder":
     let
-      nonVerifiableBuilder = Poseidon2Builder.new(store, protected).tryGet
+      nonVerifiableBuilder = Poseidon2Builder.new(store, protected, erasure).tryGet
       sampler = Poseidon2Sampler.new(slotIndex, store, nonVerifiableBuilder)
 
     check sampler.isErr
@@ -129,22 +139,24 @@ suite "Test Sampler":
       slotTreeCid = verifiable.slotRoots[slotIndex]
         # get slot tree cid to retrieve proof from storage
       slotRoot = builder.slotRoots[slotIndex] # get slot root hash
-      cellIdxs = entropy.cellIndices(slotRoot, builder.numSlotCells, nSamples)
-
+      nSlotCellsEncoded = builder.numSlotCellsEncoded
+      pow2SlotCellsEncoded = nextPowerOfTwo(nSlotCellsEncoded)
+      cellIdxs = entropy.cellIndices(slotRoot, pow2SlotCellsEncoded, nSamples)
       nBlockCells = builder.numBlockCells
-      nSlotCells = builder.numSlotCells
 
     for i, cellIdx in cellIdxs:
       let
         sample = (await sampler.getSample(cellIdx, slotTreeCid, slotRoot)).tryGet
 
         cellProof = Poseidon2Proof.init(
-          cellIdx.toCellInBlk(nBlockCells), nSlotCells, sample.merklePaths[0 ..< 5]
+          cellIdx.toCellInBlk(nBlockCells),
+          nSlotCellsEncoded,
+          sample.merklePaths[0 ..< 5],
         ).tryGet
 
         slotProof = Poseidon2Proof.init(
           cellIdx.toBlkInSlot(nBlockCells),
-          nSlotCells,
+          nSlotCellsEncoded,
           sample.merklePaths[5 ..< sample.merklePaths.len],
         ).tryGet
 

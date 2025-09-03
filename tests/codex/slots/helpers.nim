@@ -1,11 +1,13 @@
 import std/sugar
 
 import pkg/chronos
+import pkg/taskpools
 import pkg/libp2p/cid
 
 import pkg/codex/codextypes
 import pkg/codex/stores
 import pkg/codex/merkletree
+import pkg/codex/erasure
 import pkg/codex/manifest
 import pkg/codex/blocktype as bt
 import pkg/codex/chunker
@@ -145,6 +147,7 @@ proc createVerifiableManifest*(
     ecM: int,
     blockSize: NBytes,
     cellSize: NBytes,
+    erasure: Erasure,
 ): Future[tuple[manifest: Manifest, protected: Manifest, verifiable: Manifest]] {.
     async
 .} =
@@ -165,7 +168,10 @@ proc createVerifiableManifest*(
       totalDatasetSize,
     )
 
-    builder = Poseidon2Builder.new(store, protectedManifest, cellSize = cellSize).tryGet
+  let
+    builder = Poseidon2Builder.new(
+      store, protectedManifest, erasure, cellSize = cellSize
+    ).tryGet
     verifiableManifest = (await builder.buildManifest()).tryGet
 
   # build the slots and manifest

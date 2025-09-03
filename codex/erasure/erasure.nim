@@ -12,7 +12,7 @@ import pkg/upraises
 push:
   {.upraises: [].}
 
-import std/[sugar, atomics, sequtils]
+import std/[sugar, atomics, sequtils, math, algorithm]
 
 import pkg/chronos
 import pkg/chronos/threadsync
@@ -29,6 +29,7 @@ import ../clock
 import ../blocktype as bt
 import ../utils
 import ../utils/asynciter
+import ../utils/encoding2d
 import ../indexingstrategy
 import ../errors
 import ../utils/arrayutils
@@ -85,6 +86,13 @@ type
     blocksCount: Natural
     strategy: StrategyType
 
+  EncodingParams2D = object
+    ecK: Natural
+    ecM: Natural
+    numSlotBlocks: Natural
+    protectedNumSlotBlocks: Natural
+    strategy: StrategyType
+
   ErasureError* = object of CodexError
   InsufficientBlocksError* = object of ErasureError
     # Minimum size, in bytes, that the dataset must have had
@@ -120,8 +128,86 @@ func indexToPos(steps, idx, step: int): int {.inline.} =
 
   (idx - step) div steps
 
+proc init*(
+    _: type EncodingParams,
+    manifest: Manifest,
+    ecK: Natural,
+    ecM: Natural,
+    strategy: StrategyType,
+): ?!EncodingParams =
+  if ecK > manifest.blocksCount:
+    let exc = (ref InsufficientBlocksError)(
+      msg:
+        "Unable to encode manifest, not enough blocks, ecK = " & $ecK &
+        ", blocksCount = " & $manifest.blocksCount,
+      minSize: ecK.NBytes * manifest.blockSize,
+    )
+    return failure(exc)
+
+  let
+    rounded = roundUp(manifest.blocksCount, ecK)
+    steps = divUp(rounded, ecK)
+    blocksCount = rounded + (steps * ecM)
+
+  success EncodingParams(
+    ecK: ecK,
+    ecM: ecM,
+    rounded: rounded,
+    steps: steps,
+    blocksCount: blocksCount,
+    strategy: strategy,
+  )
+
+proc init(
+    _: type EncodingParams2D, manifest: Manifest, strategy: StrategyType
+): ?!EncodingParams2D =
+  if not manifest.protected:
+    return failure("2D encoding requires a protected manifest")
+
+  let
+    numSlotBlocks = manifest.numSlotBlocks
+    (ecK, ecM) = ?encoding2d.calculate2DErasureParams(numSlotBlocks.uint64)
+
+  success EncodingParams2D(
+    ecK: ecK,
+    ecM: ecM,
+    numSlotBlocks: (ecK + ecM) * (ecK + ecM),
+    protectedNumSlotBlocks: numSlotBlocks.Natural,
+    strategy: strategy,
+  )
+
+proc calculate2DIndices*(
+    self: EncodingParams2D, manifest: Manifest, slotIndex: int
+): ?!Iter[int] =
+  without slotIndicesIter =?
+    self.strategy
+    .init(0, manifest.blocksCount - 1, manifest.numSlots)
+    .getIndices(slotIndex).catch, err:
+    return failure(err)
+
+  let nextAvailableIndex =
+    if slotIndex == 0:
+      manifest.blocksCount
+    else:
+      let additionalIndicesPerSlot = self.numSlotBlocks - self.protectedNumSlotBlocks
+      manifest.blocksCount + (slotIndex * additionalIndicesPerSlot)
+
+  let
+    additionalIndices = self.numSlotBlocks - self.protectedNumSlotBlocks
+    combinedIter = Iter[int].new(
+      iterator (): int {.gcsafe.} =
+        for idx in slotIndicesIter:
+          yield idx
+
+        for i in 0 ..< additionalIndices:
+          yield nextAvailableIndex + i
+
+    )
+
+  success combinedIter
+
 proc getPendingBlocks(
-    self: Erasure, manifest: Manifest, indices: seq[int]
+    self: Erasure, manifest: Manifest, indicesIter: Iter[int]
 ): AsyncIter[(?!bt.Block, int)] =
   ## Get pending blocks iterator
   ##
@@ -133,7 +219,7 @@ proc getPendingBlocks(
     ## avoids closure capture issues
     return (await fut, i)
 
-  for blockIndex in indices:
+  for blockIndex in indicesIter:
     # request blocks from the store
     let fut = self.store.getBlock(BlockAddress.init(manifest.treeCid, blockIndex))
     pendingBlocks.add(attachIndex(fut, blockIndex))
@@ -168,13 +254,22 @@ proc prepareEncodingData(
   ## Prepare data for encoding
   ##
 
+  let strategy = params.strategy.init(
+    firstIndex = 0, lastIndex = params.rounded - 1, iterations = params.steps
+  )
+
+  without indicesIter =? strategy.getIndices(step).catch, err:
+    return failure(err)
+
   let
-    strategy = params.strategy.init(
-      firstIndex = 0, lastIndex = params.rounded - 1, iterations = params.steps
+    indices = Iter[int].new(
+      iterator (): int {.gcsafe.} =
+        for idx in indicesIter:
+          if idx < manifest.blocksCount:
+            yield idx
+
     )
-    indices = toSeq(strategy.getIndices(step))
-    pendingBlocksIter =
-      self.getPendingBlocks(manifest, indices.filterIt(it < manifest.blocksCount))
+    pendingBlocksIter = self.getPendingBlocks(manifest, indices)
 
   var resolved = 0
   for fut in pendingBlocksIter:
@@ -189,14 +284,19 @@ proc prepareEncodingData(
 
     resolved.inc()
 
-  for idx in indices.filterIt(it >= manifest.blocksCount):
-    let pos = indexToPos(params.steps, idx, step)
-    trace "Padding with empty block", idx
-    shallowCopy(data[pos], emptyBlock)
-    without emptyBlockCid =? emptyCid(manifest.version, manifest.hcodec, manifest.codec),
-      err:
-      return failure(err)
-    cids[idx] = emptyBlockCid
+  without paddingIndicesIter =? strategy.getIndices(step).catch, err:
+    return failure(err)
+
+  without emptyBlockCid =? emptyCid(manifest.version, manifest.hcodec, manifest.codec),
+    err:
+    return failure(err)
+
+  for idx in paddingIndicesIter:
+    if idx >= manifest.blocksCount:
+      let pos = indexToPos(params.steps, idx, step)
+      trace "Padding with empty block", idx
+      shallowCopy(data[pos], emptyBlock)
+      cids[idx] = emptyBlockCid
 
   success(resolved.Natural)
 
@@ -222,7 +322,7 @@ proc prepareDecodingData(
     strategy = encoded.protectedStrategy.init(
       firstIndex = 0, lastIndex = encoded.blocksCount - 1, iterations = encoded.steps
     )
-    indices = toSeq(strategy.getIndices(step))
+    indices = strategy.getIndices(step)
     pendingBlocksIter = self.getPendingBlocks(encoded, indices)
 
   var
@@ -264,36 +364,6 @@ proc prepareDecodingData(
     resolved.inc
 
   return success (dataPieces.Natural, parityPieces.Natural)
-
-proc init*(
-    _: type EncodingParams,
-    manifest: Manifest,
-    ecK: Natural,
-    ecM: Natural,
-    strategy: StrategyType,
-): ?!EncodingParams =
-  if ecK > manifest.blocksCount:
-    let exc = (ref InsufficientBlocksError)(
-      msg:
-        "Unable to encode manifest, not enough blocks, ecK = " & $ecK &
-        ", blocksCount = " & $manifest.blocksCount,
-      minSize: ecK.NBytes * manifest.blockSize,
-    )
-    return failure(exc)
-
-  let
-    rounded = roundUp(manifest.blocksCount, ecK)
-    steps = divUp(rounded, ecK)
-    blocksCount = rounded + (steps * ecM)
-
-  success EncodingParams(
-    ecK: ecK,
-    ecM: ecM,
-    rounded: rounded,
-    steps: steps,
-    blocksCount: blocksCount,
-    strategy: strategy,
-  )
 
 proc leopardEncodeTask(tp: Taskpool, task: ptr EncodeTask) {.gcsafe.} =
   # Task suitable for running in taskpools - look, no GC!
@@ -476,6 +546,364 @@ proc encode*(
     return failure(err)
 
   return success encodedManifest
+
+proc prepare2DRowData(
+    self: Erasure,
+    manifest: Manifest,
+    rowIndices: seq[int],
+    rowIndex: int,
+    params: EncodingParams2D,
+    rowData: ref seq[seq[byte]],
+    cids: ref seq[Cid],
+    emptyBlock: seq[byte],
+    slotIndices: seq[int],
+): Future[?!Natural] {.async.} =
+  var resolved = 0
+
+  let
+    rowIndicesIter = Iter[int].new(
+      iterator (): int {.gcsafe.} =
+        for idx in rowIndices:
+          if idx < manifest.blocksCount:
+            yield idx
+
+    )
+    pendingBlocksIter = self.getPendingBlocks(manifest, rowIndicesIter)
+
+  for fut in pendingBlocksIter:
+    let (blkOrErr, idx) = await fut
+    without blk =? blkOrErr, err:
+      warn "Failed retrieving a block for 2D encoding row",
+        treeCid = manifest.treeCid, idx, rowIndex, msg = err.msg
+      return failure(err)
+
+    let colPos = rowIndices.find(idx)
+    if colPos >= 0:
+      shallowCopy(rowData[colPos], if blk.isEmpty: emptyBlock else: blk.data)
+
+      let slotPos = slotIndices.find(idx)
+      if slotPos >= 0 and slotPos < cids[].len:
+        cids[slotPos] = blk.cid
+      resolved.inc()
+
+  for col in resolved ..< params.ecK:
+    shallowCopy(rowData[col], emptyBlock)
+
+  success(resolved.Natural)
+
+proc encode2DRows(
+    self: Erasure,
+    manifest: Manifest,
+    params: EncodingParams2D,
+    slotIndex: int,
+    cids: ref seq[Cid],
+    emptyBlock: seq[byte],
+): Future[?!void] {.async.} =
+  without allIndicesIter =? params.calculate2DIndices(manifest, slotIndex), err:
+    return failure("Failed to calculate 2D indices: " & err.msg)
+
+  var
+    slotIndices: seq[int] = @[]
+    additionalIndices: seq[int] = @[]
+    indexCount = 0
+
+  for idx in allIndicesIter:
+    if indexCount < params.protectedNumSlotBlocks:
+      slotIndices.add(idx)
+    else:
+      additionalIndices.add(idx)
+    indexCount.inc()
+
+  without emptyBlockCid =? emptyCid(manifest.version, manifest.hcodec, manifest.codec),
+    err:
+    return failure(err)
+
+  let
+    dataPositionsNeeded = params.ecK * params.ecK
+    paddingBlockCount = max(0, dataPositionsNeeded - params.protectedNumSlotBlocks)
+
+  for i in 0 ..< paddingBlockCount:
+    if i < additionalIndices.len:
+      let cidPos = slotIndices.len + i
+      if cidPos < cids[].len:
+        cids[cidPos] = emptyBlockCid
+
+  var nextParityPos = slotIndices.len + paddingBlockCount
+
+  for rowIdx in 0 ..< params.ecK:
+    var
+      rowData = seq[seq[byte]].new()
+      rowParity = createDoubleArray(params.ecM, manifest.blockSize.int)
+    defer:
+      freeDoubleArray(rowParity, params.ecM)
+
+    rowData[].setLen(params.ecK)
+
+    without slotIndicesIter =?
+      params.strategy
+      .init(0, manifest.blocksCount - 1, manifest.numSlots)
+      .getIndices(slotIndex).catch, err:
+      trace "Unable to get slot indices for row", rowIdx, error = err.msg
+      return failure(err)
+
+    var
+      rowIndices: seq[int] = @[]
+      currentIdx = 0
+
+    for slotIdx in slotIndicesIter:
+      let dataIdx = currentIdx
+      if dataIdx >= rowIdx * params.ecK and dataIdx < (rowIdx + 1) * params.ecK:
+        rowIndices.add(slotIdx)
+      currentIdx.inc
+      if currentIdx >= params.protectedNumSlotBlocks:
+        break
+
+    await sleepAsync(10.millis)
+
+    without resolved =? (
+      await self.prepare2DRowData(
+        manifest, rowIndices, rowIdx, params, rowData, cids, emptyBlock, slotIndices
+      )
+    ), err:
+      trace "Unable to prepare row data for 2D encoding", rowIdx, error = err.msg
+      return failure(err)
+
+    if err =? (
+      await self.asyncEncode(
+        manifest.blockSize.int, params.ecK, params.ecM, rowData, rowParity
+      )
+    ).errorOption:
+      return failure(err)
+
+    for parityCol in 0 ..< params.ecM:
+      var innerPtr: ptr UncheckedArray[byte] = rowParity[][parityCol]
+
+      without blk =? bt.Block.new(innerPtr.toOpenArray(0, manifest.blockSize.int - 1)),
+        error:
+        trace "Unable to create row parity block", rowIdx, parityCol, err = error.msg
+        return failure(error)
+
+      if nextParityPos < cids[].len:
+        cids[nextParityPos] = blk.cid
+        nextParityPos.inc()
+
+      if error =? (await self.store.putBlock(blk)).errorOption:
+        warn "Unable to store row parity block!", cid = blk.cid, msg = error.msg
+        return failure("Unable to store row parity block!")
+
+  success()
+
+proc prepare2DColumnData(
+    self: Erasure,
+    manifest: Manifest,
+    colIndex: int,
+    params: EncodingParams2D,
+    colData: ref seq[seq[byte]],
+    cids: ref seq[Cid],
+    emptyBlock: seq[byte],
+    columnIndices: seq[int],
+    slotIndices: seq[int],
+): Future[?!Natural] {.async.} =
+  var resolved = 0
+
+  if colIndex < params.ecK:
+    let columnIndicesIter = Iter[int].new(
+      iterator (): int {.gcsafe.} =
+        for idx in columnIndices:
+          if idx < manifest.blocksCount:
+            yield idx
+
+    )
+
+    let pendingBlocksIter = self.getPendingBlocks(manifest, columnIndicesIter)
+    var colPosition = 0
+
+    for fut in pendingBlocksIter:
+      let (blkOrErr, idx) = await fut
+      without blk =? blkOrErr, err:
+        return failure("Failed retrieving data block for column encoding: " & err.msg)
+
+      if colPosition < params.ecK:
+        shallowCopy(colData[colPosition], if blk.isEmpty: emptyBlock else: blk.data)
+        resolved.inc()
+        colPosition.inc()
+
+    for row in colPosition ..< params.ecK:
+      shallowCopy(colData[row], emptyBlock)
+  else:
+    for row in 0 ..< params.ecK:
+      let
+        parityCol = colIndex - params.ecK
+        dataPositionsNeeded = params.ecK * params.ecK
+        paddingCount = max(0, dataPositionsNeeded - params.protectedNumSlotBlocks)
+        cidPos = slotIndices.len + paddingCount + (row * params.ecM + parityCol)
+
+      if cidPos >= 0 and cidPos < cids[].len and not cids[cidPos].isEmpty:
+        without blk =? await self.store.getBlock(BlockAddress.init(cids[cidPos])), err:
+          return failure(
+            "Failed retrieving row parity block for column encoding: " & err.msg
+          )
+
+        shallowCopy(colData[row], if blk.isEmpty: emptyBlock else: blk.data)
+        resolved.inc()
+      else:
+        return failure("Row parity block CID not found at position " & $cidPos)
+
+  success(resolved.Natural)
+
+proc encode2DColumns(
+    self: Erasure,
+    manifest: Manifest,
+    params: EncodingParams2D,
+    slotIndex: int,
+    cids: ref seq[Cid],
+    emptyBlock: seq[byte],
+): Future[?!void] {.async.} =
+  without allIndicesIter =? params.calculate2DIndices(manifest, slotIndex), err:
+    return failure("Failed to calculate 2D indices: " & err.msg)
+
+  var
+    slotIndices: seq[int] = @[]
+    additionalIndices: seq[int] = @[]
+    indexCount = 0
+
+  for idx in allIndicesIter:
+    if indexCount < params.protectedNumSlotBlocks:
+      slotIndices.add(idx)
+    else:
+      additionalIndices.add(idx)
+    indexCount.inc()
+
+  let
+    dataPositionsNeeded = params.ecK * params.ecK
+    paddingCount = max(0, dataPositionsNeeded - params.protectedNumSlotBlocks)
+    rowParityCount = params.ecK * params.ecM
+  var nextColParityPos = slotIndices.len + paddingCount + rowParityCount
+
+  for colIdx in 0 ..< (params.ecK + params.ecM):
+    var
+      colData = seq[seq[byte]].new()
+      colParity = createDoubleArray(params.ecM, manifest.blockSize.int)
+
+    defer:
+      freeDoubleArray(colParity, params.ecM)
+
+    colData[].setLen(params.ecK)
+
+    without slotIndicesIter =?
+      params.strategy
+      .init(0, manifest.blocksCount - 1, manifest.numSlots)
+      .getIndices(slotIndex).catch, err:
+      trace "Unable to get slot indices for column", colIdx, error = err.msg
+      return failure(err)
+
+    var
+      columnIndices: seq[int] = @[]
+      currentIdx = 0
+    for slotIdx in slotIndicesIter:
+      let
+        row = currentIdx div params.ecK
+        col = currentIdx mod params.ecK
+      if col == colIdx and row < params.ecK:
+        columnIndices.add(slotIdx)
+      currentIdx.inc
+      if currentIdx >= params.protectedNumSlotBlocks:
+        break
+
+    await sleepAsync(10.millis)
+
+    without resolved =? (
+      await self.prepare2DColumnData(
+        manifest, colIdx, params, colData, cids, emptyBlock, columnIndices, slotIndices
+      )
+    ), err:
+      trace "Unable to prepare column data for 2D encoding", colIdx, error = err.msg
+      return failure(err)
+
+    if err =? (
+      await self.asyncEncode(
+        manifest.blockSize.int, params.ecK, params.ecM, colData, colParity
+      )
+    ).errorOption:
+      return failure(err)
+
+    for parityRow in 0 ..< params.ecM:
+      var innerPtr: ptr UncheckedArray[byte] = colParity[][parityRow]
+
+      without blk =? bt.Block.new(innerPtr.toOpenArray(0, manifest.blockSize.int - 1)),
+        error:
+        trace "Unable to create column parity block", colIdx, parityRow, err = error.msg
+        return failure(error)
+
+      if nextColParityPos < cids[].len:
+        cids[nextColParityPos] = blk.cid
+        nextColParityPos.inc()
+
+      if error =? (await self.store.putBlock(blk)).errorOption:
+        warn "Unable to store column parity block!", cid = blk.cid, msg = error.msg
+        return failure("Unable to store column parity block!")
+
+  success()
+
+proc encode2DSlot*(
+    self: Erasure, manifest: Manifest, strategy: StrategyType, slotIndex: int
+): Future[?!Cid] {.async.} =
+  if not manifest.protected:
+    return failure("2D encoding requires a protected manifest")
+
+  without params =? EncodingParams2D.init(manifest, strategy), err:
+    return failure(err)
+
+  logScope:
+    slotIndex = slotIndex
+    ecK = params.ecK
+    ecM = params.ecM
+
+  trace "Starting 2D erasure encoding for slot"
+
+  var
+    cids = seq[Cid].new()
+    emptyBlock = newSeq[byte](manifest.blockSize.int)
+
+  cids[].setLen(params.numSlotBlocks)
+
+  try:
+    if err =?
+        (await self.encode2DRows(manifest, params, slotIndex, cids, emptyBlock)).errorOption:
+      trace "Row encoding failed", error = err.msg
+      return failure(err)
+
+    trace "Row encoding completed for slot"
+
+    if err =? (
+      await self.encode2DColumns(manifest, params, slotIndex, cids, emptyBlock)
+    ).errorOption:
+      trace "Column encoding failed", error = err.msg
+      return failure(err)
+
+    trace "Column encoding completed for slot"
+
+    without tree =? CodexTree.init(cids[]), err:
+      return failure(err)
+
+    without treeCid =? tree.rootCid, err:
+      return failure(err)
+
+    if err =? (await self.store.putAllProofs(tree)).errorOption:
+      return failure(err)
+
+    trace "2D erasure encoding completed successfully for slot",
+      treeCid,
+      totalBlocks = params.numSlotBlocks,
+      protectedNumSlotBlocks = params.protectedNumSlotBlocks
+
+    success treeCid
+  except CancelledError as exc:
+    trace "2D erasure coding encoding cancelled for slot"
+    raise exc
+  except CatchableError as exc:
+    trace "2D erasure coding encoding error for slot", exc = exc.msg
+    return failure(exc)
 
 proc leopardDecodeTask(tp: Taskpool, task: ptr DecodeTask) {.gcsafe.} =
   # Task suitable for running in taskpools - look, no GC!

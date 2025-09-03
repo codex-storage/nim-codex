@@ -52,6 +52,7 @@ type Manifest* = ref object of RootObj
       slotRoots: seq[Cid] # Individual slot root built from the original dataset blocks
       cellSize: NBytes # Size of each slot cell
       verifiableStrategy: StrategyType # Indexing strategy used to build the slot roots
+      slotEncodedTreeCids: seq[Cid]
     else:
       discard
   else:
@@ -108,6 +109,9 @@ func verifyRoot*(self: Manifest): Cid =
 
 func slotRoots*(self: Manifest): seq[Cid] =
   self.slotRoots
+
+func slotEncodedTreeCids*(self: Manifest): seq[Cid] =
+  self.slotEncodedTreeCids
 
 func numSlots*(self: Manifest): int =
   self.ecK + self.ecM
@@ -324,6 +328,7 @@ func new*(
     manifest: Manifest,
     verifyRoot: Cid,
     slotRoots: openArray[Cid],
+    slotEncodedTreeCids: openArray[Cid],
     cellSize = DefaultCellSize,
     strategy = LinearStrategy,
 ): ?!Manifest =
@@ -338,6 +343,9 @@ func new*(
 
   if slotRoots.len != manifest.numSlots:
     return failure newException(CodexError, "Wrong number of slot roots.")
+
+  if slotEncodedTreeCids.len != manifest.numSlots:
+    return failure newException(CodexError, "Wrong number of 2D tree CIDs.")
 
   success Manifest(
     treeCid: manifest.treeCid,
@@ -355,6 +363,7 @@ func new*(
     verifiable: true,
     verifyRoot: verifyRoot,
     slotRoots: @slotRoots,
+    slotEncodedTreeCids: @slotEncodedTreeCids,
     cellSize: cellSize,
     verifiableStrategy: strategy,
     filename: manifest.filename,

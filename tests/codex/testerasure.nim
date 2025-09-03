@@ -274,8 +274,12 @@ suite "Erasure encode/decode":
       slotCids = collect(newSeq):
         for i in 0 ..< encoded.numSlots:
           Cid.example
+      slotEncodedTreeCids = collect(newSeq):
+        for i in 0 ..< encoded.numSlots:
+          Cid.example
 
-      verifiable = Manifest.new(encoded, Cid.example, slotCids).tryGet()
+      verifiable =
+        Manifest.new(encoded, Cid.example, slotCids, slotEncodedTreeCids).tryGet()
 
       decoded = (await erasure.decode(verifiable)).tryGet()
 

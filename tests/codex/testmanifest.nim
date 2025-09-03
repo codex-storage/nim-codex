@@ -32,13 +32,17 @@ suite "Manifest":
     ]
 
     slotLeavesCids = leaves.toSlotCids().tryGet
+    slotEncodedTreeCids = [Cid.example, Cid.example, Cid.example, Cid.example]
 
     tree = Poseidon2Tree.init(leaves).tryGet
     verifyCid = tree.root.tryGet.toVerifyCid().tryGet
 
     verifiableManifest = Manifest
       .new(
-        manifest = protectedManifest, verifyRoot = verifyCid, slotRoots = slotLeavesCids
+        manifest = protectedManifest,
+        verifyRoot = verifyCid,
+        slotRoots = slotLeavesCids,
+        slotEncodedTreeCids = slotEncodedTreeCids,
       )
       .tryGet()
 
@@ -91,6 +95,7 @@ suite "Manifest - Attribute Inheritance":
         manifest = makeProtectedManifest(SteppedStrategy),
         verifyRoot = Cid.example,
         slotRoots = @[Cid.example, Cid.example],
+        slotEncodedTreeCids = @[Cid.example, Cid.example],
       )
       .tryGet()
 
@@ -101,6 +106,7 @@ suite "Manifest - Attribute Inheritance":
         manifest = makeProtectedManifest(LinearStrategy),
         verifyRoot = Cid.example,
         slotRoots = @[Cid.example, Cid.example],
+        slotEncodedTreeCids = @[Cid.example, Cid.example],
       )
       .tryGet()
 
@@ -112,6 +118,7 @@ suite "Manifest - Attribute Inheritance":
         manifest = makeProtectedManifest(SteppedStrategy),
         verifyRoot = Cid.example,
         slotRoots = @[Cid.example, Cid.example],
+        slotEncodedTreeCids = @[Cid.example, Cid.example],
       )
       .tryGet()
 
