@@ -53,6 +53,52 @@ To get acquainted with Codex, consider:
 
 The client exposes a REST API that can be used to interact with the clients. Overview of the API can be found on [api.codex.storage](https://api.codex.storage).
 
+## Bindings
+
+Codex provides a C API that can be wrapped by other languages. The bindings is located in the `library` folder.
+Currently, only a Go binding is included.
+
+### Build the C library
+
+```bash
+make libcodex
+```
+
+This produces the shared library under `build/`.
+
+### Run the Go example
+
+Build the Go example:
+
+```bash
+go build -o codex-go examples/golang/codex.go
+```
+
+Export the library path:
+
+```bash
+export LD_LIBRARY_PATH=build
+```
+
+Run the example:
+
+```bash
+./codex-go
+```
+
+### Static vs Dynamic build
+
+By default, Codex builds a dynamic library (`libcodex.so`), which you can load at runtime.
+If you prefer a static library (`libcodex.a`), set the `STATIC` flag:
+
+```bash
+# Build dynamic (default)
+make libcodex
+
+# Build static
+make STATIC=1 libcodex
+```
+
 ## Contributing and development
 
 Feel free to dive in, contributions are welcomed! Open an issue or submit PRs.

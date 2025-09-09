@@ -25,6 +25,20 @@ proc buildBinary(name: string, srcDir = "./", params = "", lang = "c") =
 
   exec(cmd)
 
+proc buildLibrary(name: string, srcDir = "./", params = "", `type` = "static") =
+  if not dirExists "build":
+    mkDir "build"
+  # allow something like "nim nimbus --verbosity:0 --hints:off nimbus.nims"
+  var extra_params = params
+  if `type` == "static":
+    exec "nim c" & " --out:build/" & name &
+      ".a --threads:on --app:staticlib --opt:size --noMain --mm:refc --header --d:metrics --nimMainPrefix:libcodex --skipParentCfg:on -d:noSignalHandler " &
+      extra_params & " " & srcDir & name & ".nim"
+  else:
+    exec "nim c" & " --out:build/" & name &
+      ".so --threads:on --app:lib --opt:size --noMain --mm:refc --header --d:metrics --nimMainPrefix:libcodex --skipParentCfg:on -d:noSignalHandler -d:LeopardCmakeFlags=\"-DCMAKE_POSITION_INDEPENDENT_CODE=ON\"" &
+      extra_params & " " & srcDir & name & ".nim"
+
 proc test(name: string, srcDir = "tests/", params = "", lang = "c") =
   buildBinary name, srcDir, params
   exec "build/" & name
@@ -121,3 +135,11 @@ task showCoverage, "open coverage html":
   echo " ======== Opening HTML coverage report in browser... ======== "
   if findExe("open") != "":
     exec("open coverage/report/index.html")
+
+task libcodexDynamic, "Generate bindings":
+  let name = "libcodex"
+  buildLibrary name, "library/", "", "dynamic"
+
+task libcodextatic, "Generate bindings":
+  let name = "libcodex"
+  buildLibrary name, "library/", "", "static"
