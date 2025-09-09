@@ -195,7 +195,11 @@ proc stop*(s: CodexServer) {.async.} =
     raiseAssert "Failed to stop codex node"
 
   if not s.taskpool.isNil:
-    s.taskpool.shutdown()
+    try:
+      s.taskpool.shutdown()
+    except Exception as exc:
+      error "Failed to stop the taskpool", failures = res.failure.len
+      raiseAssert("Failure in taskpool shutdown:" & exc.msg)
 
 proc new*(
     T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey
