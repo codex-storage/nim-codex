@@ -54,6 +54,16 @@ when isMainModule:
     ,
   )
   config.setupLogging()
+
+  try:
+    updateLogLevel(config.logLevel)
+  except ValueError as err:
+    try:
+      stderr.write "Invalid value for --log-level. " & err.msg & "\n"
+    except IOError:
+      echo "Invalid value for --log-level. " & err.msg
+    quit QuitFailure
+
   config.setupMetrics()
 
   if not (checkAndCreateDataDir((config.dataDir).string)):
