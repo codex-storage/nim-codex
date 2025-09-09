@@ -232,6 +232,7 @@ format:
 	$(NPH) *.nim
 	$(NPH) codex/
 	$(NPH) tests/
+	$(NPH) library/
 
 clean-nph:
 	rm -f $(NPH)
@@ -242,4 +243,21 @@ print-nph-path:
 
 clean: | clean-nph
 
+################
+## C Bindings ##
+################
+.PHONY: libcodex
+
+STATIC ?= 0
+
+libcodex: deps
+	rm -f build/libcodex*
+
+ifeq ($(STATIC), 1)
+		echo -e $(BUILD_MSG) "build/$@.a" && \
+		$(ENV_SCRIPT) nim libcodexStatic $(NIM_PARAMS) codex.nims
+else
+		echo -e $(BUILD_MSG) "build/$@.so" && \
+		$(ENV_SCRIPT) nim libcodexDynamic $(NIM_PARAMS) codex.nims
+endif
 endif # "variables.mk" was not included
