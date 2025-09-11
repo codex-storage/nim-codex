@@ -41,20 +41,6 @@ template checkLibcodexParams*(
   if isNil(callback):
     return RET_MISSING_CALLBACK
 
-proc handleRequest(
-    ctx: ptr CodexContext,
-    requestType: RequestType,
-    content: pointer,
-    callback: CodexCallback,
-    userData: pointer,
-): cint =
-  codex_context.sendRequestToCodexThread(ctx, requestType, content, callback, userData).isOkOr:
-    let msg = "libcodex error: " & $error
-    callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
-    return RET_ERR
-
-  return RET_OK
-
 # From Nim doc: 
 # "the C targets require you to initialize Nim's internals, which is done calling a NimMain function."
 # "The name NimMain can be influenced via the --nimMainPrefix:prefix switch."
@@ -86,7 +72,7 @@ proc initializeLibrary() {.exported.} =
 
 proc codex_new(
     configJson: cstring, callback: CodexCallback, userData: pointer
-): pointer {.dynlib, exportc, cdecl.} =
+): pointer {.dynlib, exported.} =
   initializeLibrary()
 
   if isNil(callback):
@@ -100,17 +86,14 @@ proc codex_new(
 
   ctx.userData = userData
 
-  let retCode = handleRequest(
-    ctx,
-    RequestType.LIFECYCLE,
-    NodeLifecycleRequest.createShared(
-      NodeLifecycleMsgType.CREATE_NODE, configJson # , appCallbacks
-    ),
-    callback,
-    userData,
-  )
+  let reqContent =
+    NodeLifecycleRequest.createShared(NodeLifecycleMsgType.CREATE_NODE, configJson)
 
-  if retCode == RET_ERR:
+  codex_context.sendRequestToCodexThread(
+    ctx, RequestType.LIFECYCLE, reqContent, callback, userData
+  ).isOkOr:
+    let msg = "libcodex error: " & $error
+    callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
     return nil
 
   return ctx
@@ -136,26 +119,36 @@ proc codex_start(
 ): cint {.dynlib, exportc.} =
   initializeLibrary()
   checkLibcodexParams(ctx, callback, userData)
-  handleRequest(
-    ctx,
-    RequestType.LIFECYCLE,
-    NodeLifecycleRequest.createShared(NodeLifecycleMsgType.START_NODE),
-    callback,
-    userData,
-  )
+
+  let reqContent: ptr NodeLifecycleRequest =
+    NodeLifecycleRequest.createShared(NodeLifecycleMsgType.START_NODE)
+
+  codex_context.sendRequestToCodexThread(
+    ctx, RequestType.LIFECYCLE, reqContent, callback, userData
+  ).isOkOr:
+    let msg = "libcodex error: " & $error
+    callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
+    return RET_ERR
+
+  return RET_OK
 
 proc codex_stop(
     ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
   initializeLibrary()
   checkLibcodexParams(ctx, callback, userData)
-  handleRequest(
-    ctx,
-    RequestType.LIFECYCLE,
-    NodeLifecycleRequest.createShared(NodeLifecycleMsgType.STOP_NODE),
-    callback,
-    userData,
-  )
+
+  let reqContent: ptr NodeLifecycleRequest =
+    NodeLifecycleRequest.createShared(NodeLifecycleMsgType.STOP_NODE)
+
+  codex_context.sendRequestToCodexThread(
+    ctx, RequestType.LIFECYCLE, reqContent, callback, userData
+  ).isOkOr:
+    let msg = "libcodex error: " & $error
+    callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
+    return RET_ERR
+
+  return RET_OK
 
 proc codex_set_event_callback(
     ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
