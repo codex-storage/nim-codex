@@ -40,6 +40,12 @@ proc createShared*(
   ret[].userData = userData
   return ret
 
+# NOTE: User callbacks are executed on the working thread.
+# They must be fast and non-blocking; otherwise this thread will be blocked
+# and no further requests can be processed.
+# We can improve this by dispatching the callbacks to a thread pool or
+# moving to a MP channel.
+# See: https://github.com/codex-storage/nim-codex/pull/1322#discussion_r2340708316
 proc handleRes[T: string | void](
     res: Result[T, string], request: ptr CodexThreadRequest
 ) =
