@@ -91,6 +91,10 @@ Run the example:
 By default, Codex builds a dynamic library (`libcodex.so`), which you can load at runtime.
 If you prefer a static library (`libcodex.a`), set the `STATIC` flag:
 
+### Limitation
+
+Callbacks must be fast and non-blocking; otherwise, the working thread will hang and prevent other requests from being processed.
+
 ```bash
 # Build dynamic (default)
 make libcodex
