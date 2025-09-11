@@ -1,4 +1,3 @@
-
 {.push raises: [].}
 
 import std/times
