@@ -1,3 +1,6 @@
+
+{.push raises: [].}
+
 import std/times
 import pkg/ethers
 import pkg/questionable
@@ -68,7 +71,7 @@ method stop*(clock: OnChainClock) {.async.} =
   await clock.trackedFutures.cancelTracked()
   clock.started = false
 
-method now*(clock: OnChainClock): SecondsSince1970 {.raises: [].} =
+method now*(clock: OnChainClock): SecondsSince1970 =
   doAssert clock.started, "clock should be started before calling now()"
   return toUnix(getTime() + clock.offset)
 
