@@ -87,18 +87,25 @@ proc destroyShared(self: ptr NodeLifecycleRequest) =
   deallocShared(self[].configJson)
   deallocShared(self)
 
-proc createCodex(configJson: cstring): Future[Result[CodexServer, string]] {.async.} =
-  var conf = CodexConf.load(
-    version = codexFullVersion,
-    envVarsPrefix = "codex",
-    cmdLine = @[],
-    secondarySources = proc(
-        config: CodexConf, sources: auto
-    ) {.gcsafe, raises: [ConfigurationError].} =
-      if configJson.len > 0:
-        sources.addConfigFileContent(Json, $(configJson))
-    ,
-  )
+proc createCodex(
+    configJson: cstring
+): Future[Result[CodexServer, string]] {.async: (raises: []).} =
+  var conf: CodexConf
+
+  try:
+    conf = CodexConf.load(
+      version = codexFullVersion,
+      envVarsPrefix = "codex",
+      cmdLine = @[],
+      secondarySources = proc(
+          config: CodexConf, sources: auto
+      ) {.gcsafe, raises: [ConfigurationError].} =
+        if configJson.len > 0:
+          sources.addConfigFileContent(Json, $(configJson))
+      ,
+    )
+  except ConfigurationError as e:
+    return err("Failed to load configuration: " & e.msg)
 
   conf.setupLogging()
   conf.setupMetrics()
@@ -136,7 +143,7 @@ proc createCodex(configJson: cstring): Future[Result[CodexServer, string]] {.asy
 
 proc process*(
     self: ptr NodeLifecycleRequest, codex: ptr CodexServer
-): Future[Result[string, string]] {.async.} =
+): Future[Result[string, string]] {.async: (raises: []).} =
   defer:
     destroyShared(self)
 
