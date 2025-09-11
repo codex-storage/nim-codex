@@ -511,10 +511,10 @@ proc parseCmdArg*(
     if res.isOk:
       ma = res.get()
     else:
-      warn "Invalid MultiAddress", input = input, error = res.error()
+      fatal "Invalid MultiAddress", input = input, error = res.error()
       quit QuitFailure
   except LPError as exc:
-    warn "Invalid MultiAddress uri", uri = input, error = exc.msg
+    fatal "Invalid MultiAddress uri", uri = input, error = exc.msg
     quit QuitFailure
   ma
 
@@ -530,7 +530,7 @@ proc parse*(T: type ThreadCount, p: string): Result[ThreadCount, string] =
 proc parseCmdArg*(T: type ThreadCount, input: string): T =
   let val = ThreadCount.parse(input)
   if val.isErr:
-    warn "Cannot parse the thread count.", input = input, error = val.error()
+    fatal "Cannot parse the thread count.", input = input, error = val.error()
     quit QuitFailure
   return val.get()
 
@@ -547,7 +547,7 @@ proc parse*(T: type SignedPeerRecord, p: string): Result[SignedPeerRecord, strin
 proc parseCmdArg*(T: type SignedPeerRecord, uri: string): T =
   let res = SignedPeerRecord.parse(uri)
   if res.isErr:
-    warn "Cannot parse the signed peer.", error = res.error(), input = uri
+    fatal "Cannot parse the signed peer.", error = res.error(), input = uri
     quit QuitFailure
   return res.get()
 
@@ -575,7 +575,7 @@ func parse*(T: type NatConfig, p: string): Result[NatConfig, string] =
 proc parseCmdArg*(T: type NatConfig, p: string): T =
   let res = NatConfig.parse(p)
   if res.isErr:
-    warn "Cannot parse the NAT config.", error = res.error(), input = p
+    fatal "Cannot parse the NAT config.", error = res.error(), input = p
     quit QuitFailure
   return res.get()
 
@@ -595,7 +595,7 @@ func parse*(T: type NBytes, p: string): Result[NBytes, string] =
 proc parseCmdArg*(T: type NBytes, val: string): T =
   let res = NBytes.parse(val)
   if res.isErr:
-    warn "Cannot parse NBytes.", error = res.error(), input = val
+    fatal "Cannot parse NBytes.", error = res.error(), input = val
     quit QuitFailure
   return res.get()
 
@@ -603,7 +603,7 @@ proc parseCmdArg*(T: type Duration, val: string): T =
   var dur: Duration
   let count = parseDuration(val, dur)
   if count == 0:
-    warn "Cannot parse duration", dur = dur
+    fatal "Cannot parse duration", dur = dur
     quit QuitFailure
   dur
 
@@ -620,7 +620,7 @@ proc readValue*(r: var TomlReader, val: var SignedPeerRecord) =
   try:
     val = SignedPeerRecord.parseCmdArg(uri)
   except LPError as err:
-    warn "Invalid SignedPeerRecord uri", uri = uri, error = err.msg
+    fatal "Invalid SignedPeerRecord uri", uri = uri, error = err.msg
     quit QuitFailure
 
 proc readValue*(r: var TomlReader, val: var MultiAddress) =
@@ -632,7 +632,7 @@ proc readValue*(r: var TomlReader, val: var MultiAddress) =
   if res.isOk:
     val = res.get()
   else:
-    warn "Invalid MultiAddress", input = input, error = res.error()
+    fatal "Invalid MultiAddress", input = input, error = res.error()
     quit QuitFailure
 
 proc readValue*(
