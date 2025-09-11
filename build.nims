@@ -25,18 +25,18 @@ proc buildBinary(name: string, srcDir = "./", params = "", lang = "c") =
 
   exec(cmd)
 
-proc buildLibrary(name: string, srcDir = "./", params = "", `type` = "static") =
+proc buildLibrary(name: string, srcDir = "./", params = "", `type` = "dynamic") =
   if not dirExists "build":
     mkDir "build"
   # allow something like "nim nimbus --verbosity:0 --hints:off nimbus.nims"
   var extra_params = params
-  if `type` == "static":
+  if `type` == "dynamic":
     exec "nim c" & " --out:build/" & name &
-      ".a --threads:on --app:staticlib --opt:size --noMain --mm:refc --header --d:metrics --nimMainPrefix:libcodex --skipParentCfg:on -d:noSignalHandler " &
+      ".so --threads:on --app:lib --opt:size --noMain --mm:refc --header --d:metrics --nimMainPrefix:libcodex --skipParentCfg:on -d:noSignalHandler -d:LeopardCmakeFlags=\"-DCMAKE_POSITION_INDEPENDENT_CODE=ON\"" &
       extra_params & " " & srcDir & name & ".nim"
   else:
     exec "nim c" & " --out:build/" & name &
-      ".so --threads:on --app:lib --opt:size --noMain --mm:refc --header --d:metrics --nimMainPrefix:libcodex --skipParentCfg:on -d:noSignalHandler -d:LeopardCmakeFlags=\"-DCMAKE_POSITION_INDEPENDENT_CODE=ON\"" &
+      ".a --threads:on --app:staticlib --opt:size --noMain --mm:refc --header --d:metrics --nimMainPrefix:libcodex --skipParentCfg:on -d:noSignalHandler " &
       extra_params & " " & srcDir & name & ".nim"
 
 proc test(name: string, srcDir = "tests/", params = "", lang = "c") =
