@@ -67,7 +67,7 @@ proc handleRes[T: string | void](
 
 proc process*(
     T: type CodexThreadRequest, request: ptr CodexThreadRequest, codex: ptr CodexServer
-) {.async.} =
+) {.async: (raises: []).} =
   ## Processes the request in the Codex thread.
   ## Dispatch to the appropriate request handler based on reqType.
   let retFut =

@@ -65,7 +65,7 @@ template callEventCallback(ctx: ptr CodexContext, eventName: string, body: untyp
       cast[CodexCallback](ctx[].eventCallback)(
         RET_OK, unsafeAddr event[0], cast[csize_t](len(event)), ctx[].eventUserData
       )
-    except Exception, CatchableError:
+    except CatchableError:
       let msg =
         "Exception " & eventName & " when calling 'eventCallBack': " &
         getCurrentExceptionMsg()
@@ -114,12 +114,16 @@ proc sendRequestToCodexThread*(
   ## process proc. See the 'codex_thread_request.nim' module for more details.
   ok()
 
-proc runCodex(ctx: ptr CodexContext) {.async.} =
+proc runCodex(ctx: ptr CodexContext) {.async: (raises: []).} =
   var codex: CodexServer
 
   while true:
-    # Wait until a request is available
-    await ctx.reqSignal.wait()
+    try:
+      # Wait until a request is available
+      await ctx.reqSignal.wait()
+    except Exception as e:
+      error "codex thread error while waiting for reqSignal", error = e.msg
+      continue
 
     # If codex_destroy was called, exit the loop
     if ctx.running.load == false:
