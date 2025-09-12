@@ -137,8 +137,14 @@ proc runCodex(ctx: ptr CodexContext) {.async: (raises: []).} =
       error "codex thread could not receive a request"
       continue
 
-    # Dispatch the request to be processed asynchronously  
-    asyncSpawn CodexThreadRequest.process(request, addr codex)
+    # yield immediately to the event loop
+    # with asyncSpawn only, the code will be executed
+    # synchronously until the first await
+    asyncSpawn (
+      proc() {.async.} =
+        await sleepAsync(0)
+        await CodexThreadRequest.process(request, addr codex)
+    )()
 
     # Notify the main thread that we picked up the request
     let fireRes = ctx.reqReceivedSignal.fireSync()
