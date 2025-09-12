@@ -114,6 +114,20 @@ proc codex_version(
 
   return RET_OK
 
+proc codex_revision(
+    ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
+): cint {.dynlib, exportc.} =
+  initializeLibrary()
+  checkLibcodexParams(ctx, callback, userData)
+  callback(
+    RET_OK,
+    cast[ptr cchar]($conf.codexRevision),
+    cast[csize_t](len($conf.codexRevision)),
+    userData,
+  )
+
+  return RET_OK
+
 proc codex_destroy(
     ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
