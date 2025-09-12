@@ -475,7 +475,7 @@ func prover*(self: CodexConf): bool =
   self.persistence and self.persistenceCmd == PersistenceCmd.prover
 
 proc getCodexVersion(): string =
-  let tag = strip(staticExec("git tag"))
+  let tag = strip(staticExec("git describe --tags --abbrev=0"))
   if tag.isEmptyOrWhitespace:
     return "untagged build"
   return tag
