@@ -842,8 +842,39 @@ proc blockexcTaskRunner(self: BlockExcEngine) {.async: (raises: []).} =
 
   info "Exiting blockexc task runner"
 
-proc selectRandom*(peers: seq[BlockExcPeerCtx]): BlockExcPeerCtx =
-  Rng.instance.sample(peers)
+proc selectRandom*(
+    peers: seq[BlockExcPeerCtx]
+): BlockExcPeerCtx {.gcsafe, raises: [].} =
+  if peers.len == 1:
+    return peers[0]
+
+  proc evalPeerScore(peer: BlockExcPeerCtx): float =
+    let
+      loadPenalty = peer.blocksRequested.len.float * 2.0
+      successRate =
+        if peer.exchanged > 0:
+          peer.exchanged.float / (peer.exchanged + peer.blocksRequested.len).float
+        else:
+          0.5
+      failurePenalty = (1.0 - successRate) * 5.0
+    return loadPenalty + failurePenalty
+
+  let
+    scores = peers.mapIt(evalPeerScore(it))
+    maxScore = scores.max() + 1.0
+    weights = scores.mapIt(maxScore - it)
+
+  var totalWeight = 0.0
+  for w in weights:
+    totalWeight += w
+
+  var r = rand(totalWeight)
+  for i, weight in weights:
+    r -= weight
+    if r <= 0.0:
+      return peers[i]
+
+  return peers[^1]
 
 proc new*(
     T: type BlockExcEngine,
