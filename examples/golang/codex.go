@@ -84,6 +84,10 @@ package main
 		CODEX_CALL(codex_version(codexCtx, (CodexCallback) callback, resp));
 	}
 
+	static void cGoCodexRevision(void* codexCtx, void* resp) {
+		CODEX_CALL(codex_revision(codexCtx, (CodexCallback) callback, resp));
+	}
+
 	static void cGoCodexStart(void* codexCtx, void* resp) {
 		CODEX_CALL(codex_start(codexCtx, (CodexCallback) callback, resp));
 	}
@@ -216,6 +220,19 @@ func (self *CodexNode) CodexVersion() (string, error) {
 	return "", errors.New(errMsg)
 }
 
+func (self *CodexNode) CodexRevision() (string, error) {
+	var resp = C.allocResp()
+	defer C.freeResp(resp)
+	C.cGoCodexRevision(self.ctx, resp)
+
+	if C.getRet(resp) == C.RET_OK {
+		return C.GoStringN(C.getMyCharPtr(resp), C.int(C.getMyCharLen(resp))), nil
+	}
+
+	errMsg := "error CodexStart: " + C.GoStringN(C.getMyCharPtr(resp), C.int(C.getMyCharLen(resp)))
+	return "", errors.New(errMsg)
+}
+
 func (self *CodexNode) CodexStart() error {
 	var resp = C.allocResp()
 	defer C.freeResp(resp)
@@ -292,6 +309,14 @@ func main() {
 	}
 
 	log.Println("Codex version:", version)
+
+	revision, err := node.CodexRevision()
+	if err != nil {
+		fmt.Println("Error happened:", err.Error())
+		return
+	}
+
+	log.Println("Codex revision:", revision)
 
 	log.Println("Starting Codex...")
 
