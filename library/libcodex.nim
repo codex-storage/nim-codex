@@ -32,6 +32,8 @@ import ./codex_thread_requests/codex_thread_request
 import ./codex_thread_requests/requests/node_lifecycle_request
 import ./ffi_types
 
+from ../codex/conf import codexVersion
+
 template checkLibcodexParams*(
     ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
 ) =
@@ -98,8 +100,22 @@ proc codex_new(
 
   return ctx
 
+proc codex_version(
+    ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
+): cint {.dynlib, exportc.} =
+  initializeLibrary()
+  checkLibcodexParams(ctx, callback, userData)
+  callback(
+    RET_OK,
+    cast[ptr cchar]($conf.codexVersion),
+    cast[csize_t](len($conf.codexVersion)),
+    userData,
+  )
+
+  return RET_OK
+
 proc codex_destroy(
-    ctx: ptr CodexContext, callback: COdexCallback, userData: pointer
+    ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
   initializeLibrary()
   checkLibcodexParams(ctx, callback, userData)
