@@ -35,6 +35,11 @@ int codex_version(
                 CodexCallback callback,
                 void* userData);
 
+int codex_revision(
+                void* ctx,
+                CodexCallback callback,
+                void* userData);
+
 int codex_start(void* ctx,
                CodexCallback callback,
                void* userData);
