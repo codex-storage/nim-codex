@@ -107,14 +107,28 @@ proc codex_version(
   checkLibcodexParams(ctx, callback, userData)
   callback(
     RET_OK,
-    cast[ptr cchar]($conf.codexVersion),
-    cast[csize_t](len($conf.codexVersion)),
+    cast[ptr cchar](conf.codexVersion),
+    cast[csize_t](len(conf.codexVersion)),
     userData,
   )
 
-  return RET_OK
+  return RET_ACK
 
 proc codex_revision(
+    ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
+): cint {.dynlib, exportc.} =
+  initializeLibrary()
+  checkLibcodexParams(ctx, callback, userData)
+  callback(
+    RET_OK,
+    cast[ptr cchar](conf.codexRevision),
+    cast[csize_t](len(conf.codexRevision)),
+    userData,
+  )
+
+  return RET_ACK
+
+proc codex_repo(
     ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
   initializeLibrary()
@@ -126,7 +140,7 @@ proc codex_revision(
     userData,
   )
 
-  return RET_OK
+  return RET_ACK
 
 proc codex_destroy(
     ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
@@ -142,7 +156,7 @@ proc codex_destroy(
   ## always need to invoke the callback although we don't retrieve value to the caller
   callback(RET_OK, nil, 0, userData)
 
-  return RET_OK
+  return RET_ACK
 
 proc codex_start(
     ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
@@ -160,7 +174,7 @@ proc codex_start(
     callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
     return RET_ERR
 
-  return RET_OK
+  return RET_ACK
 
 proc codex_stop(
     ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
@@ -178,7 +192,7 @@ proc codex_stop(
     callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
     return RET_ERR
 
-  return RET_OK
+  return RET_ACK
 
 proc codex_set_event_callback(
     ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
