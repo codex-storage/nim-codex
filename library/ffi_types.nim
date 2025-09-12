@@ -11,8 +11,9 @@ type CodexCallback* = proc(
 ) {.cdecl, gcsafe, raises: [].}
 
 const RET_OK*: cint = 0
-const RET_ERR*: cint = 1
-const RET_MISSING_CALLBACK*: cint = 2
+const RET_ACK*: cint = 1
+const RET_ERR*: cint = 2
+const RET_MISSING_CALLBACK*: cint = 3
 
 ### End of exported types
 ################################################################################

@@ -7,6 +7,7 @@ package main
 	#include "../../library/libcodex.h"
 	#include <stdio.h>
 	#include <stdlib.h>
+	#include <stdint.h>
 
 	void libcodexNimMain(void);
 	static void codex_host_init_once(void){
@@ -20,10 +21,17 @@ package main
 		int ret;
 		char* msg;
 		size_t len;
+		uintptr_t h;
 	} Resp;
 
 	static void* allocResp() {
 		return calloc(1, sizeof(Resp));
+	}
+
+	static void* allocRespWithHandle(uintptr_t h) {
+		Resp* r = (Resp*)calloc(1, sizeof(Resp));
+		r->h = h;
+		return r;
 	}
 
 	static void freeResp(void* resp) {
@@ -57,19 +65,12 @@ package main
 	}
 
 	// resp must be set != NULL in case interest on retrieving data from the callback
-	static void callback(int ret, char* msg, size_t len, void* resp) {
-		if (resp != NULL) {
-			Resp* m = (Resp*) resp;
-			m->ret = ret;
-			m->msg = msg;
-			m->len = len;
-		}
-	}
+	void callback(int ret, char* msg, size_t len, void* resp);
 
 	#define CODEX_CALL(call)                                                        \
 	do {                                                                           \
 		int ret = call;                                                              \
-		if (ret != 0) {                                                              \
+		if (ret != RET_OK && ret != RET_ACK) {                                                              \
 			printf("Failed the call to: %s. Returned code: %d\n", #call, ret);         \
 			exit(1);                                                                   \
 		}                                                                            \
@@ -126,6 +127,8 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"runtime/cgo"
+	"sync"
 	"syscall"
 	"unsafe"
 )
@@ -186,88 +189,196 @@ type CodexNode struct {
 	ctx unsafe.Pointer
 }
 
+type bridgeCtx struct {
+	wg     *sync.WaitGroup
+	h      cgo.Handle
+	resp   unsafe.Pointer
+	result string
+	err    error
+}
+
+func newBridgeCtx() *bridgeCtx {
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	bridge := &bridgeCtx{wg: &wg}
+	bridge.h = cgo.NewHandle(bridge)
+	bridge.resp = C.allocRespWithHandle(C.uintptr_t(uintptr(bridge.h)))
+
+	return bridge
+}
+
+func (b *bridgeCtx) free() {
+	if b.resp != nil {
+		C.freeResp(b.resp)
+		b.resp = nil
+	}
+}
+
+func (b *bridgeCtx) isACK() bool {
+	return C.getRet(b.resp) == C.RET_ACK
+}
+
+func (b *bridgeCtx) isOK() bool {
+	return C.getRet(b.resp) == C.RET_OK
+}
+
+func (b *bridgeCtx) isError() bool {
+	return C.getRet(b.resp) == C.RET_ERR
+}
+
+// TODO: Check the error here after the wait
+func (b *bridgeCtx) wait() {
+	b.wg.Wait()
+}
+
+func (b *bridgeCtx) getMsg() string {
+	return C.GoStringN(C.getMyCharPtr(b.resp), C.int(C.getMyCharLen(b.resp)))
+}
+
+//export callback
+func callback(ret C.int, msg *C.char, len C.size_t, resp unsafe.Pointer) {
+	if resp == nil {
+		return
+	}
+
+	m := (*C.Resp)(resp)
+	m.ret = ret
+	m.msg = msg
+	m.len = len
+
+	if m.h != 0 {
+		h := cgo.Handle(m.h)
+		if v, ok := h.Value().(*bridgeCtx); ok {
+			if ret == C.RET_OK || ret == C.RET_ERR {
+				msg := C.GoStringN(msg, C.int(len))
+
+				if ret == C.RET_OK {
+					v.result = msg
+				} else {
+					v.err = errors.New(msg)
+				}
+
+				h.Delete()
+
+				if v.wg != nil {
+					v.wg.Done()
+				}
+			}
+		}
+	}
+}
+
 func CodexNew(config CodexConfig) (*CodexNode, error) {
+	bridge := newBridgeCtx()
+	defer bridge.free()
+
 	jsonConfig, err := json.Marshal(config)
 	if err != nil {
 		return nil, err
 	}
 
-	var cJsonConfig = C.CString(string(jsonConfig))
-	var resp = C.allocResp()
-
+	cJsonConfig := C.CString(string(jsonConfig))
 	defer C.free(unsafe.Pointer(cJsonConfig))
-	defer C.freeResp(resp)
 
-	ctx := C.cGoCodexNew(cJsonConfig, resp)
-	if C.getRet(resp) == C.RET_OK {
+	ctx := C.cGoCodexNew(cJsonConfig, bridge.resp)
+
+	if bridge.isACK() {
+		bridge.wait()
+		return &CodexNode{ctx: ctx}, bridge.err
+	}
+
+	if bridge.isOK() {
 		return &CodexNode{ctx: ctx}, nil
 	}
 
-	errMsg := "error CodexNew: " + C.GoStringN(C.getMyCharPtr(resp), C.int(C.getMyCharLen(resp)))
-	return nil, errors.New(errMsg)
+	return nil, errors.New(bridge.getMsg())
 }
 
 func (self *CodexNode) CodexVersion() (string, error) {
-	var resp = C.allocResp()
-	defer C.freeResp(resp)
-	C.cGoCodexVersion(self.ctx, resp)
+	bridge := newBridgeCtx()
+	defer bridge.free()
 
-	if C.getRet(resp) == C.RET_OK {
-		return C.GoStringN(C.getMyCharPtr(resp), C.int(C.getMyCharLen(resp))), nil
+	C.cGoCodexVersion(self.ctx, bridge.resp)
+
+	if bridge.isACK() {
+		bridge.wait()
+		return bridge.result, bridge.err
 	}
 
-	errMsg := "error CodexStart: " + C.GoStringN(C.getMyCharPtr(resp), C.int(C.getMyCharLen(resp)))
-	return "", errors.New(errMsg)
+	if bridge.isOK() {
+		return bridge.getMsg(), nil
+	}
+
+	return "", errors.New(bridge.getMsg())
 }
 
 func (self *CodexNode) CodexRevision() (string, error) {
-	var resp = C.allocResp()
-	defer C.freeResp(resp)
-	C.cGoCodexRevision(self.ctx, resp)
+	bridge := newBridgeCtx()
+	defer bridge.free()
 
-	if C.getRet(resp) == C.RET_OK {
-		return C.GoStringN(C.getMyCharPtr(resp), C.int(C.getMyCharLen(resp))), nil
+	C.cGoCodexRevision(self.ctx, bridge.resp)
+
+	if bridge.isACK() {
+		bridge.wait()
+		return bridge.result, bridge.err
 	}
 
-	errMsg := "error CodexStart: " + C.GoStringN(C.getMyCharPtr(resp), C.int(C.getMyCharLen(resp)))
-	return "", errors.New(errMsg)
+	if bridge.isOK() {
+		return bridge.result, nil
+	}
+
+	return "", errors.New(bridge.getMsg())
 }
 
-func (self *CodexNode) CodexStart() error {
-	var resp = C.allocResp()
-	defer C.freeResp(resp)
-	C.cGoCodexStart(self.ctx, resp)
+// CodexStart returns the bridgeCtx to allow the caller
+// to wait for the operation to complete or not.
+// TODO: be consistent and do not free the bridgeCtx here
+func (self *CodexNode) CodexStart() (*bridgeCtx, error) {
+	bridge := newBridgeCtx()
 
-	if C.getRet(resp) == C.RET_OK {
-		return nil
+	C.cGoCodexStart(self.ctx, bridge.resp)
+
+	if bridge.isError() {
+		bridge.free()
+		return nil, errors.New(bridge.getMsg())
 	}
 
-	errMsg := "error CodexStart: " + C.GoStringN(C.getMyCharPtr(resp), C.int(C.getMyCharLen(resp)))
-	return errors.New(errMsg)
+	return bridge, nil
 }
 
-func (self *CodexNode) CodexStop() error {
-	var resp = C.allocResp()
-	defer C.freeResp(resp)
-	C.cGoCodexStop(self.ctx, resp)
+// CodexStop returns the bridgeCtx to allow the caller
+// to wait for the operation to complete or not.
+// TODO: be consistent and do not free the bridgeCtx here
+func (self *CodexNode) CodexStop() (*bridgeCtx, error) {
+	bridge := newBridgeCtx()
 
-	if C.getRet(resp) == C.RET_OK {
-		return nil
+	C.cGoCodexStop(self.ctx, bridge.resp)
+
+	if bridge.isError() {
+		bridge.free()
+		return nil, errors.New(bridge.getMsg())
 	}
-	errMsg := "error CodexStop: " + C.GoStringN(C.getMyCharPtr(resp), C.int(C.getMyCharLen(resp)))
-	return errors.New(errMsg)
+
+	return bridge, nil
 }
 
 func (self *CodexNode) CodexDestroy() error {
-	var resp = C.allocResp()
-	defer C.freeResp(resp)
-	C.cGoCodexDestroy(self.ctx, resp)
+	bridge := newBridgeCtx()
+	defer bridge.free()
 
-	if C.getRet(resp) == C.RET_OK {
+	C.cGoCodexDestroy(self.ctx, bridge.resp)
+
+	if bridge.isACK() {
+		bridge.wait()
+		return bridge.err
+	}
+
+	if bridge.isOK() {
 		return nil
 	}
-	errMsg := "error CodexDestroy: " + C.GoStringN(C.getMyCharPtr(resp), C.int(C.getMyCharLen(resp)))
-	return errors.New(errMsg)
+
+	return errors.New(bridge.getMsg())
 }
 
 //export globalEventCallback
@@ -279,7 +390,7 @@ func globalEventCallback(callerRet C.int, msg *C.char, len C.size_t, userData un
 }
 
 func (self *CodexNode) MyEventCallback(callerRet C.int, msg *C.char, len C.size_t) {
-	fmt.Println("Event received:", C.GoStringN(msg, C.int(len)))
+	log.Println("Event received:", C.GoStringN(msg, C.int(len)))
 }
 
 func (self *CodexNode) CodexSetEventCallback() {
@@ -320,8 +431,17 @@ func main() {
 
 	log.Println("Starting Codex...")
 
-	err = node.CodexStart()
+	bridge, err := node.CodexStart()
+
 	if err != nil {
+		fmt.Println("Error happened:", err.Error())
+		return
+	}
+
+	bridge.wait()
+	defer bridge.free()
+
+	if bridge.err != nil {
 		fmt.Println("Error happened:", err.Error())
 		return
 	}
@@ -335,8 +455,19 @@ func main() {
 
 	log.Println("Stopping the node...")
 
-	err = node.CodexStop()
+	bridge, err = node.CodexStop()
+
 	if err != nil {
+		fmt.Println("Error happened:", err.Error())
+		return
+	}
+
+	bridge.wait()
+	defer bridge.free()
+
+	log.Println("Codex stopped...")
+
+	if bridge.err != nil {
 		fmt.Println("Error happened:", err.Error())
 		return
 	}
