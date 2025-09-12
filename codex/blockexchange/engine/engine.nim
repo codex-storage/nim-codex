@@ -836,8 +836,19 @@ proc blockexcTaskRunner(self: BlockExcEngine) {.async: (raises: []).} =
 
   info "Exiting blockexc task runner"
 
-proc selectRandom*(peers: seq[BlockExcPeerCtx]): BlockExcPeerCtx =
-  Rng.instance.sample(peers)
+proc selectRandom*(peers: seq[BlockExcPeerCtx]): BlockExcPeerCtx {.gcsafe, raises: [].} =
+  if peers.len == 1:
+    return peers[0]
+
+  try:
+    let sortedPeers = peers.sortedByIt(it.blocksRequested.len)
+
+    # Take top 40% of least loaded peers (minimum 3, maximum 8)
+    let selectionPoolSize = max(3, min(8, int(float(peers.len) * 0.4)))
+    let candidates = sortedPeers[0 ..< min(selectionPoolSize, sortedPeers.len)]
+    return Rng.instance.sample(candidates)
+  except CatchableError:
+    return Rng.instance.sample(peers)
 
 proc new*(
     T: type BlockExcEngine,
