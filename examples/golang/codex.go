@@ -88,6 +88,10 @@ package main
 		return codex_debug(codexCtx, (CodexCallback) callback, resp);
 	}
 
+	static int cGoCodexSpr(void* codexCtx, void* resp) {
+		return codex_spr(codexCtx, (CodexCallback) callback, resp);
+	}
+
 	static int cGoCodexStart(void* codexCtx, void* resp) {
 		return codex_start(codexCtx, (CodexCallback) callback, resp);
 	}
@@ -160,6 +164,16 @@ const (
 	SQLite  RepoKind = "sqlite"
 	LevelDb RepoKind = "leveldb"
 )
+
+type Spr string
+
+type SprJson struct {
+	Spr string `json:"spr"`
+}
+
+func (s Spr) Json() SprJson {
+	return SprJson{Spr: string(s)}
+}
 
 type CodexConfig struct {
 	LogLevel                       LogLevel  `json:"log-level,omitempty"`
@@ -375,6 +389,22 @@ func (self *CodexNode) CodexDebug() (CodexDebugInfo, error) {
 	return info, err
 }
 
+func (self *CodexNode) CodexSpr() (Spr, error) {
+	bridge := newBridgeCtx()
+	defer bridge.free()
+
+	if C.cGoCodexSpr(self.ctx, bridge.resp) != C.RET_OK {
+		return "", bridge.CallError("cGoCodexSpr")
+	}
+
+	value, err := bridge.wait()
+	if err != nil {
+		return "", err
+	}
+
+	return Spr(value), nil
+}
+
 func (self *CodexNode) CodexStart() error {
 	bridge := newBridgeCtx()
 	defer bridge.free()
@@ -500,6 +530,13 @@ func main() {
 	}
 
 	log.Println(string(pretty))
+
+	spr, err := node.CodexSpr()
+	if err != nil {
+		log.Fatal("Error happened:", err.Error())
+	}
+
+	log.Println("Codex SPR:", spr.Json())
 
 	// Wait for a SIGINT or SIGTERM signal
 	ch := make(chan os.Signal, 1)

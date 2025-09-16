@@ -14,13 +14,12 @@ from ../../../codex/codex import CodexServer, config, node
 type NodeInfoMsgType* = enum
   REPO
   DEBUG
+  SPR
 
 type NodeInfoRequest* = object
   operation: NodeInfoMsgType
 
-proc createShared*(
-    T: type NodeInfoRequest, op: NodeInfoMsgType, configJson: cstring = ""
-): ptr type T =
+proc createShared*(T: type NodeInfoRequest, op: NodeInfoMsgType): ptr type T =
   var ret = createShared(T)
   ret[].operation = op
   return ret
@@ -51,6 +50,15 @@ proc getDebug(
 
   return ok($json)
 
+proc getSpr(
+    codex: ptr CodexServer
+): Future[Result[string, string]] {.async: (raises: []).} =
+  let spr = codex[].node.discovery.dhtRecord
+  if spr.isNone:
+    return err("No SPR record found")
+
+  return ok(spr.get.toURI)
+
 proc process*(
     self: ptr NodeInfoRequest, codex: ptr CodexServer
 ): Future[Result[string, string]] {.async: (raises: []).} =
@@ -66,6 +74,12 @@ proc process*(
     return res
   of DEBUG:
     let res = (await getDebug(codex))
+    if res.isErr:
+      error "DEBUG failed", error = res.error
+      return err($res.error)
+    return res
+  of SPR:
+    let res = (await getSpr(codex))
     if res.isErr:
       error "DEBUG failed", error = res.error
       return err($res.error)
