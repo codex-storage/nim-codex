@@ -51,7 +51,7 @@ logScope:
 
 type
   CodexServer* = ref object
-    config: CodexConf
+    config*: CodexConf
     restServer: RestServerRef
     codexNode: CodexNodeRef
     repoStore: RepoStore
