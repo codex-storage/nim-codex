@@ -146,6 +146,23 @@ proc codex_repo(
 
   return RET_OK
 
+proc codex_debug(
+    ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
+): cint {.dynlib, exportc.} =
+  initializeLibrary()
+  checkLibcodexParams(ctx, callback, userData)
+
+  let reqContent = NodeInfoRequest.createShared(NodeInfoMsgType.DEBUG)
+
+  codex_context.sendRequestToCodexThread(
+    ctx, RequestType.INFO, reqContent, callback, userData
+  ).isOkOr:
+    let msg = "libcodex error: " & $error
+    callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
+    return RET_ERR
+
+  return RET_OK
+
 proc codex_destroy(
     ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
 ): cint {.dynlib, exportc.} =

@@ -84,6 +84,10 @@ package main
 		return codex_repo(codexCtx, (CodexCallback) callback, resp);
 	}
 
+	static int cGoCodexDebug(void* codexCtx, void* resp) {
+		return codex_debug(codexCtx, (CodexCallback) callback, resp);
+	}
+
 	static int cGoCodexStart(void* codexCtx, void* resp) {
 		return codex_start(codexCtx, (CodexCallback) callback, resp);
 	}
@@ -178,6 +182,27 @@ type CodexConfig struct {
 	BlockMaintenanceNumberOfBlocks int       `json:"block-mn,omitempty"`
 	CacheSize                      int       `json:"cache-size,omitempty"`
 	LogFile                        string    `json:"log-file,omitempty"`
+}
+
+type RestNode struct {
+	NodeId  string  `json:"nodeId"`
+	PeerId  string  `json:"peerId"`
+	Record  string  `json:"record"`
+	Address *string `json:"address"` // Use pointer for nullable
+	Seen    bool    `json:"seen"`
+}
+
+type RestRoutingTable struct {
+	LocalNode RestNode   `json:"localNode"`
+	Nodes     []RestNode `json:"nodes"`
+}
+
+type CodexDebugInfo struct {
+	ID                string           `json:"id"`
+	Addrs             []string         `json:"addrs"`
+	Spr               string           `json:"spr"`
+	AnnounceAddresses []string         `json:"announceAddresses"`
+	Table             RestRoutingTable `json:"table"`
 }
 
 type CodexNode struct {
@@ -330,6 +355,26 @@ func (self *CodexNode) CodexRepo() (string, error) {
 	return bridge.wait()
 }
 
+func (self *CodexNode) CodexDebug() (CodexDebugInfo, error) {
+	var info CodexDebugInfo
+
+	bridge := newBridgeCtx()
+	defer bridge.free()
+
+	if C.cGoCodexDebug(self.ctx, bridge.resp) != C.RET_OK {
+		return info, bridge.CallError("cGoCodexDebug")
+	}
+
+	value, err := bridge.wait()
+	if err != nil {
+		return info, err
+	}
+
+	err = json.Unmarshal([]byte(value), &info)
+
+	return info, err
+}
+
 func (self *CodexNode) CodexStart() error {
 	bridge := newBridgeCtx()
 	defer bridge.free()
@@ -404,8 +449,6 @@ func main() {
 		LogLevel: Info,
 	}
 
-	log.Println("Creating Codex...")
-
 	node, err := CodexNew(config)
 	if err != nil {
 		log.Fatal("Error happened:", err.Error())
@@ -415,8 +458,6 @@ func main() {
 
 	// node.CodexSetEventCallback()
 
-	log.Println("Getting version...")
-
 	version, err := node.CodexVersion()
 	if err != nil {
 		log.Fatal("Error happened:", err.Error())
@@ -424,16 +465,12 @@ func main() {
 
 	log.Println("Codex version:", version)
 
-	log.Println("Getting revision...")
-
 	revision, err := node.CodexRevision()
 	if err != nil {
 		log.Fatal("Error happened:", err.Error())
 	}
 
 	log.Println("Codex revision:", revision)
-
-	log.Println("Getting repo...")
 
 	repo, err := node.CodexRepo()
 	if err != nil {
@@ -451,6 +488,18 @@ func main() {
 	}
 
 	log.Println("Codex started...")
+
+	debug, err := node.CodexDebug()
+	if err != nil {
+		log.Fatal("Error happened:", err.Error())
+	}
+
+	pretty, err := json.MarshalIndent(debug, "", "  ")
+	if err != nil {
+		log.Fatal("Error happened:", err.Error())
+	}
+
+	log.Println(string(pretty))
 
 	// Wait for a SIGINT or SIGTERM signal
 	ch := make(chan os.Signal, 1)
