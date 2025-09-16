@@ -30,6 +30,7 @@ import chronos
 import ./codex_context
 import ./codex_thread_requests/codex_thread_request
 import ./codex_thread_requests/requests/node_lifecycle_request
+import ./codex_thread_requests/requests/node_info_request
 import ./ffi_types
 
 from ../codex/conf import codexVersion
@@ -133,12 +134,15 @@ proc codex_repo(
 ): cint {.dynlib, exportc.} =
   initializeLibrary()
   checkLibcodexParams(ctx, callback, userData)
-  callback(
-    RET_OK,
-    cast[ptr cchar]($conf.codexRevision),
-    cast[csize_t](len($conf.codexRevision)),
-    userData,
-  )
+
+  let reqContent = NodeInfoRequest.createShared(NodeInfoMsgType.REPO)
+
+  codex_context.sendRequestToCodexThread(
+    ctx, RequestType.INFO, reqContent, callback, userData
+  ).isOkOr:
+    let msg = "libcodex error: " & $error
+    callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
+    return RET_ERR
 
   return RET_ACK
 
