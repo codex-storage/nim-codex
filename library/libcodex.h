@@ -50,6 +50,11 @@ int codex_debug(
                 CodexCallback callback,
                 void* userData);
 
+int codex_spr(
+                void* ctx,
+                CodexCallback callback,
+                void* userData);
+
 int codex_start(void* ctx,
                CodexCallback callback,
                void* userData);
