@@ -4,12 +4,16 @@ import std/[options]
 import chronos
 import chronicles
 import confutils
+import codexdht/discv5/spr
 import ../../../codex/conf
+import ../../../codex/rest/json
+import ../../../codex/node
 
-from ../../../codex/codex import CodexServer
+from ../../../codex/codex import CodexServer, config, node
 
 type NodeInfoMsgType* = enum
   REPO
+  DEBUG
 
 type NodeInfoRequest* = object
   operation: NodeInfoMsgType
@@ -29,6 +33,24 @@ proc getRepo(
 ): Future[Result[string, string]] {.async: (raises: []).} =
   return ok($(codex[].config.dataDir))
 
+proc getDebug(
+    codex: ptr CodexServer
+): Future[Result[string, string]] {.async: (raises: []).} =
+  let node = codex[].node
+  let table = RestRoutingTable.init(node.discovery.protocol.routingTable)
+
+  let json =
+    %*{
+      "id": $node.switch.peerInfo.peerId,
+      "addrs": node.switch.peerInfo.addrs.mapIt($it),
+      "spr":
+        if node.discovery.dhtRecord.isSome: node.discovery.dhtRecord.get.toURI else: "",
+      "announceAddresses": node.discovery.announceAddrs,
+      "table": table,
+    }
+
+  return ok($json)
+
 proc process*(
     self: ptr NodeInfoRequest, codex: ptr CodexServer
 ): Future[Result[string, string]] {.async: (raises: []).} =
@@ -39,7 +61,13 @@ proc process*(
   of REPO:
     let res = (await getRepo(codex))
     if res.isErr:
-      error "INFO failed", error = res.error
+      error "REPO failed", error = res.error
+      return err($res.error)
+    return res
+  of DEBUG:
+    let res = (await getDebug(codex))
+    if res.isErr:
+      error "DEBUG failed", error = res.error
       return err($res.error)
     return res
 
