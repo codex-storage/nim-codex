@@ -45,6 +45,11 @@ int codex_repo(
                 CodexCallback callback,
                 void* userData);
 
+int codex_debug(
+                void* ctx,
+                CodexCallback callback,
+                void* userData);
+
 int codex_start(void* ctx,
                CodexCallback callback,
                void* userData);
