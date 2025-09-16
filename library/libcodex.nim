@@ -113,7 +113,7 @@ proc codex_version(
     userData,
   )
 
-  return RET_ACK
+  return RET_OK
 
 proc codex_revision(
     ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
@@ -127,7 +127,7 @@ proc codex_revision(
     userData,
   )
 
-  return RET_ACK
+  return RET_OK
 
 proc codex_repo(
     ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
@@ -144,7 +144,7 @@ proc codex_repo(
     callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
     return RET_ERR
 
-  return RET_ACK
+  return RET_OK
 
 proc codex_destroy(
     ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
@@ -160,7 +160,7 @@ proc codex_destroy(
   ## always need to invoke the callback although we don't retrieve value to the caller
   callback(RET_OK, nil, 0, userData)
 
-  return RET_ACK
+  return RET_OK
 
 proc codex_start(
     ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
@@ -178,7 +178,7 @@ proc codex_start(
     callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
     return RET_ERR
 
-  return RET_ACK
+  return RET_OK
 
 proc codex_stop(
     ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
@@ -196,7 +196,7 @@ proc codex_stop(
     callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
     return RET_ERR
 
-  return RET_ACK
+  return RET_OK
 
 proc codex_set_event_callback(
     ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
