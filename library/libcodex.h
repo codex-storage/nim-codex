@@ -16,9 +16,8 @@
 
 // The possible returned values for the functions that return int
 #define RET_OK                0
-#define RET_ACK               1
-#define RET_ERR               2
-#define RET_MISSING_CALLBACK  3
+#define RET_ERR               1
+#define RET_MISSING_CALLBACK  2
 
 #ifdef __cplusplus
 extern "C" {
