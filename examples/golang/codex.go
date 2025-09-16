@@ -330,30 +330,44 @@ func (self *CodexNode) CodexRepo() (string, error) {
 	return bridge.wait()
 }
 
-// CodexStart returns the bridgeCtx to allow the caller
-// to wait for the operation to complete or not.
-// TODO: be consistent and do not free the bridgeCtx here
-func (self *CodexNode) CodexStart() (*bridgeCtx, error) {
+func (self *CodexNode) CodexStart() error {
 	bridge := newBridgeCtx()
+	defer bridge.free()
 
 	if C.cGoCodexStart(self.ctx, bridge.resp) != C.RET_OK {
-		return nil, bridge.CallError("cGoCodexStart")
+		return bridge.CallError("cGoCodexStart")
 	}
 
-	return bridge, nil
+	_, err := bridge.wait()
+	return err
 }
 
-// CodexStop returns the bridgeCtx to allow the caller
-// to wait for the operation to complete or not.
-// TODO: be consistent and do not free the bridgeCtx here
-func (self *CodexNode) CodexStop() (*bridgeCtx, error) {
+func (self *CodexNode) CodexStartAsync(cb func(error)) error {
 	bridge := newBridgeCtx()
+	defer bridge.free()
 
-	if C.cGoCodexStop(self.ctx, bridge.resp) != C.RET_OK {
-		return nil, bridge.CallError("cGoCodexStop")
+	if C.cGoCodexStart(self.ctx, bridge.resp) != C.RET_OK {
+		return bridge.CallError("cGoCodexStart")
 	}
 
-	return bridge, nil
+	go func() {
+		_, err := bridge.wait()
+		cb(err)
+	}()
+
+	return nil
+}
+
+func (self *CodexNode) CodexStop() error {
+	bridge := newBridgeCtx()
+	defer bridge.free()
+
+	if C.cGoCodexStop(self.ctx, bridge.resp) != C.RET_OK {
+		return bridge.CallError("cGoCodexStop")
+	}
+
+	_, err := bridge.wait()
+	return err
 }
 
 func (self *CodexNode) CodexDestroy() error {
@@ -430,16 +444,10 @@ func main() {
 
 	log.Println("Starting Codex...")
 
-	bridge, err := node.CodexStart()
+	err = node.CodexStart()
 
 	if err != nil {
 		log.Fatal("Error happened:", err.Error())
-	}
-
-	defer bridge.free()
-
-	if _, err := bridge.wait(); err != nil {
-		log.Fatal("Error happened:", err)
 	}
 
 	log.Println("Codex started...")
@@ -451,19 +459,13 @@ func main() {
 
 	log.Println("Stopping the node...")
 
-	bridge, err = node.CodexStop()
+	err = node.CodexStop()
 
 	if err != nil {
 		log.Fatal("Error happened:", err.Error())
 	}
 
-	defer bridge.free()
-
 	log.Println("Codex stopped...")
-
-	if _, err := bridge.wait(); err != nil {
-		log.Fatal("Error happened:", err)
-	}
 
 	log.Println("Destroying the node...")
 
