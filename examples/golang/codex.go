@@ -89,6 +89,10 @@ package main
 		CODEX_CALL(codex_revision(codexCtx, (CodexCallback) callback, resp));
 	}
 
+	static void cGoCodexRepo(void* codexCtx, void* resp) {
+		CODEX_CALL(codex_repo(codexCtx, (CodexCallback) callback, resp));
+	}
+
 	static void cGoCodexStart(void* codexCtx, void* resp) {
 		CODEX_CALL(codex_start(codexCtx, (CodexCallback) callback, resp));
 	}
@@ -209,10 +213,8 @@ func newBridgeCtx() *bridgeCtx {
 }
 
 func (b *bridgeCtx) free() {
-	if b.resp != nil {
-		C.freeResp(b.resp)
-		b.resp = nil
-	}
+	C.freeResp(b.resp)
+	b.resp = nil
 }
 
 func (b *bridgeCtx) isACK() bool {
@@ -228,12 +230,29 @@ func (b *bridgeCtx) isError() bool {
 }
 
 // TODO: Check the error here after the wait
-func (b *bridgeCtx) wait() {
+func (b *bridgeCtx) wait() error {
 	b.wg.Wait()
+	return b.err
 }
 
 func (b *bridgeCtx) getMsg() string {
 	return C.GoStringN(C.getMyCharPtr(b.resp), C.int(C.getMyCharLen(b.resp)))
+}
+
+func (b *bridgeCtx) StringResult() (string, error) {
+	if b.isACK() {
+		if b.wait() != nil {
+			return "", b.err
+		}
+
+		return b.result, b.err
+	}
+
+	if b.isOK() {
+		return b.getMsg(), nil
+	}
+
+	return "", errors.New(b.getMsg())
 }
 
 //export callback
@@ -242,6 +261,8 @@ func callback(ret C.int, msg *C.char, len C.size_t, resp unsafe.Pointer) {
 		return
 	}
 
+	// log.Println("Callback called with ret:", ret, " msg:", C.GoStringN(msg, C.int(len)), " len:", len)
+
 	m := (*C.Resp)(resp)
 	m.ret = ret
 	m.msg = msg
@@ -249,20 +270,27 @@ func callback(ret C.int, msg *C.char, len C.size_t, resp unsafe.Pointer) {
 
 	if m.h != 0 {
 		h := cgo.Handle(m.h)
+
+		if h == 0 {
+			return
+		}
+
 		if v, ok := h.Value().(*bridgeCtx); ok {
 			if ret == C.RET_OK || ret == C.RET_ERR {
-				msg := C.GoStringN(msg, C.int(len))
+				retMsg := C.GoStringN(msg, C.int(len))
 
 				if ret == C.RET_OK {
-					v.result = msg
+					v.result = retMsg
 				} else {
-					v.err = errors.New(msg)
+					v.err = errors.New(retMsg)
 				}
 
 				h.Delete()
+				m.h = 0
 
 				if v.wg != nil {
 					v.wg.Done()
+					v = nil
 				}
 			}
 		}
@@ -284,7 +312,10 @@ func CodexNew(config CodexConfig) (*CodexNode, error) {
 	ctx := C.cGoCodexNew(cJsonConfig, bridge.resp)
 
 	if bridge.isACK() {
-		bridge.wait()
+		if bridge.wait() != nil {
+			return nil, bridge.err
+		}
+
 		return &CodexNode{ctx: ctx}, bridge.err
 	}
 
@@ -301,16 +332,7 @@ func (self *CodexNode) CodexVersion() (string, error) {
 
 	C.cGoCodexVersion(self.ctx, bridge.resp)
 
-	if bridge.isACK() {
-		bridge.wait()
-		return bridge.result, bridge.err
-	}
-
-	if bridge.isOK() {
-		return bridge.getMsg(), nil
-	}
-
-	return "", errors.New(bridge.getMsg())
+	return bridge.StringResult()
 }
 
 func (self *CodexNode) CodexRevision() (string, error) {
@@ -319,16 +341,16 @@ func (self *CodexNode) CodexRevision() (string, error) {
 
 	C.cGoCodexRevision(self.ctx, bridge.resp)
 
-	if bridge.isACK() {
-		bridge.wait()
-		return bridge.result, bridge.err
-	}
+	return bridge.StringResult()
+}
 
-	if bridge.isOK() {
-		return bridge.result, nil
-	}
+func (self *CodexNode) CodexRepo() (string, error) {
+	bridge := newBridgeCtx()
+	defer bridge.free()
 
-	return "", errors.New(bridge.getMsg())
+	C.cGoCodexRepo(self.ctx, bridge.resp)
+
+	return bridge.StringResult()
 }
 
 // CodexStart returns the bridgeCtx to allow the caller
@@ -340,7 +362,6 @@ func (self *CodexNode) CodexStart() (*bridgeCtx, error) {
 	C.cGoCodexStart(self.ctx, bridge.resp)
 
 	if bridge.isError() {
-		bridge.free()
 		return nil, errors.New(bridge.getMsg())
 	}
 
@@ -352,11 +373,11 @@ func (self *CodexNode) CodexStart() (*bridgeCtx, error) {
 // TODO: be consistent and do not free the bridgeCtx here
 func (self *CodexNode) CodexStop() (*bridgeCtx, error) {
 	bridge := newBridgeCtx()
+	defer bridge.free()
 
 	C.cGoCodexStop(self.ctx, bridge.resp)
 
 	if bridge.isError() {
-		bridge.free()
 		return nil, errors.New(bridge.getMsg())
 	}
 
@@ -370,11 +391,13 @@ func (self *CodexNode) CodexDestroy() error {
 	C.cGoCodexDestroy(self.ctx, bridge.resp)
 
 	if bridge.isACK() {
-		bridge.wait()
-		return bridge.err
+		err := bridge.wait()
+		self.ctx = nil
+		return err
 	}
 
 	if bridge.isOK() {
+		self.ctx = nil
 		return nil
 	}
 
@@ -411,7 +434,11 @@ func main() {
 		return
 	}
 
-	node.CodexSetEventCallback()
+	log.Println("Codex created.")
+
+	// node.CodexSetEventCallback()
+
+	log.Println("Getting version...")
 
 	version, err := node.CodexVersion()
 	if err != nil {
@@ -421,6 +448,8 @@ func main() {
 
 	log.Println("Codex version:", version)
 
+	log.Println("Getting revision...")
+
 	revision, err := node.CodexRevision()
 	if err != nil {
 		fmt.Println("Error happened:", err.Error())
@@ -428,6 +457,16 @@ func main() {
 	}
 
 	log.Println("Codex revision:", revision)
+
+	log.Println("Getting repo...")
+
+	repo, err := node.CodexRepo()
+	if err != nil {
+		fmt.Println("Error happened:", err.Error())
+		return
+	}
+
+	log.Println("Codex repo:", repo)
 
 	log.Println("Starting Codex...")
 
@@ -438,11 +477,10 @@ func main() {
 		return
 	}
 
-	bridge.wait()
 	defer bridge.free()
 
-	if bridge.err != nil {
-		fmt.Println("Error happened:", err.Error())
+	if err := bridge.wait(); err != nil {
+		fmt.Println("Error happened:", err)
 		return
 	}
 
@@ -462,13 +500,12 @@ func main() {
 		return
 	}
 
-	bridge.wait()
 	defer bridge.free()
 
 	log.Println("Codex stopped...")
 
-	if bridge.err != nil {
-		fmt.Println("Error happened:", err.Error())
+	if err := bridge.wait(); err != nil {
+		fmt.Println("Error happened:", err)
 		return
 	}
 
