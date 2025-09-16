@@ -51,7 +51,7 @@ logScope:
 
 type
   CodexServer* = ref object
-    config*: CodexConf
+    config: CodexConf
     restServer: RestServerRef
     codexNode: CodexNodeRef
     repoStore: RepoStore
@@ -60,6 +60,12 @@ type
 
   CodexPrivateKey* = libp2p.PrivateKey # alias
   EthWallet = ethers.Wallet
+
+func config*(self: CodexServer): CodexConf =
+  return self.config
+
+func node*(self: CodexServer): CodexNodeRef =
+  return self.codexNode
 
 proc waitForSync(provider: Provider): Future[void] {.async.} =
   var sleepTime = 1
