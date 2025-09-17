@@ -96,6 +96,10 @@ package main
 		return codex_peer_id(codexCtx, (CodexCallback) callback, resp);
 	}
 
+	static int cGoCodexLogLevel(void* codexCtx, char* logLevel, void* resp) {
+		return codex_log_level(codexCtx, logLevel, (CodexCallback) callback, resp);
+	}
+
 	static int cGoCodexStart(void* codexCtx, void* resp) {
 		return codex_start(codexCtx, (CodexCallback) callback, resp);
 	}
@@ -405,6 +409,21 @@ func (self *CodexNode) CodexPeerId() (string, error) {
 	return bridge.wait()
 }
 
+func (self *CodexNode) CodexLogLevel(logLevel LogLevel) error {
+	bridge := newBridgeCtx()
+	defer bridge.free()
+
+	var cLogLevel = C.CString(fmt.Sprintf("%s", logLevel))
+	defer C.free(unsafe.Pointer(cLogLevel))
+
+	if C.cGoCodexLogLevel(self.ctx, cLogLevel, bridge.resp) != C.RET_OK {
+		return bridge.CallError("cGoCodexLogLevel")
+	}
+
+	_, err := bridge.wait()
+	return err
+}
+
 func (self *CodexNode) CodexStart() error {
 	bridge := newBridgeCtx()
 	defer bridge.free()
@@ -544,6 +563,13 @@ func main() {
 	}
 
 	log.Println("Codex Peer Id:", peerId)
+
+	err = node.CodexLogLevel(Trace)
+	if err != nil {
+		log.Fatal("Error happened:", err.Error())
+	}
+
+	log.Println("Codex Log Level set to TRACE")
 
 	// Wait for a SIGINT or SIGTERM signal
 	ch := make(chan os.Signal, 1)
