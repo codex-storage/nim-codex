@@ -13,8 +13,8 @@ from ../../../codex/codex import CodexServer, config, node
 
 type NodeInfoMsgType* = enum
   REPO
-  DEBUG
   SPR
+  PEERID
 
 type NodeInfoRequest* = object
   operation: NodeInfoMsgType
@@ -32,24 +32,6 @@ proc getRepo(
 ): Future[Result[string, string]] {.async: (raises: []).} =
   return ok($(codex[].config.dataDir))
 
-proc getDebug(
-    codex: ptr CodexServer
-): Future[Result[string, string]] {.async: (raises: []).} =
-  let node = codex[].node
-  let table = RestRoutingTable.init(node.discovery.protocol.routingTable)
-
-  let json =
-    %*{
-      "id": $node.switch.peerInfo.peerId,
-      "addrs": node.switch.peerInfo.addrs.mapIt($it),
-      "spr":
-        if node.discovery.dhtRecord.isSome: node.discovery.dhtRecord.get.toURI else: "",
-      "announceAddresses": node.discovery.announceAddrs,
-      "table": table,
-    }
-
-  return ok($json)
-
 proc getSpr(
     codex: ptr CodexServer
 ): Future[Result[string, string]] {.async: (raises: []).} =
@@ -58,6 +40,11 @@ proc getSpr(
     return err("No SPR record found")
 
   return ok(spr.get.toURI)
+
+proc getPeerId(
+    codex: ptr CodexServer
+): Future[Result[string, string]] {.async: (raises: []).} =
+  return ok($codex[].node.switch.peerInfo.peerId)
 
 proc process*(
     self: ptr NodeInfoRequest, codex: ptr CodexServer
@@ -72,16 +59,16 @@ proc process*(
       error "REPO failed", error = res.error
       return err($res.error)
     return res
-  of DEBUG:
-    let res = (await getDebug(codex))
-    if res.isErr:
-      error "DEBUG failed", error = res.error
-      return err($res.error)
-    return res
   of SPR:
     let res = (await getSpr(codex))
     if res.isErr:
-      error "DEBUG failed", error = res.error
+      error "SPR failed", error = res.error
+      return err($res.error)
+    return res
+  of PEERID:
+    let res = (await getPeerId(codex))
+    if res.isErr:
+      error "PEERID failed", error = res.error
       return err($res.error)
     return res
 

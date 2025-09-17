@@ -8,12 +8,14 @@ import chronos
 import ../ffi_types
 import ./requests/node_lifecycle_request
 import ./requests/node_info_request
+import ./requests/node_debug_request
 
 from ../../codex/codex import CodexServer
 
 type RequestType* {.pure.} = enum
   LIFECYCLE
   INFO
+  DEBUG
 
 type CodexThreadRequest* = object
   reqType: RequestType
@@ -84,6 +86,8 @@ proc process*(
       cast[ptr NodeLifecycleRequest](request[].reqContent).process(codex)
     of INFO:
       cast[ptr NodeInfoRequest](request[].reqContent).process(codex)
+    of RequestType.DEBUG:
+      cast[ptr NodeDebugRequest](request[].reqContent).process(codex)
 
   handleRes(await retFut, request)
 
