@@ -3,9 +3,8 @@
 import std/[options]
 import chronos
 import chronicles
-# import confutils
 import codexdht/discv5/spr
-# import ../../../codex/conf
+import ../../../codex/conf
 import ../../../codex/rest/json
 import ../../../codex/node
 
