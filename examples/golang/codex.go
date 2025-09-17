@@ -104,6 +104,10 @@ package main
 		return codex_connect(codexCtx, peerId, peerAddresses, peerAddressesSize, (CodexCallback) callback, resp);
 	}
 
+	static int cGoCodexPeerDebug(void* codexCtx, char* peerId, void* resp) {
+		return codex_peer_debug(codexCtx, peerId, (CodexCallback) callback, resp);
+	}
+
 	static int cGoCodexStart(void* codexCtx, void* resp) {
 		return codex_start(codexCtx, (CodexCallback) callback, resp);
 	}
@@ -199,6 +203,15 @@ type CodexConfig struct {
 	LogFile                        string    `json:"log-file,omitempty"`
 }
 
+type RestPeerRecord struct {
+	PeerId    string   `json:"peerId"`
+	SeqNo     int      `json:"seqNo"`
+	Addresses []string `json:"addresses,omitempty"`
+}
+
+// peerId* {.serialize.}: PeerId
+// seqNo* {.serialize.}: uint64
+// addresses* {.serialize.}: seq[AddressInfo]
 type RestNode struct {
 	NodeId  string  `json:"nodeId"`
 	PeerId  string  `json:"peerId"`
@@ -434,18 +447,47 @@ func (self *CodexNode) CodexConnect(peerId string, peerAddresses []string) error
 	var cPeerId = C.CString(peerId)
 	defer C.free(unsafe.Pointer(cPeerId))
 
-	var cAddresses = make([]*C.char, len(peerAddresses))
-	for i, addr := range peerAddresses {
-		cAddresses[i] = C.CString(addr)
-		defer C.free(unsafe.Pointer(cAddresses[i]))
-	}
+	if len(peerAddresses) > 0 {
+		var cAddresses = make([]*C.char, len(peerAddresses))
+		for i, addr := range peerAddresses {
+			cAddresses[i] = C.CString(addr)
+			defer C.free(unsafe.Pointer(cAddresses[i]))
+		}
 
-	if C.cGoCodexConnect(self.ctx, cPeerId, &cAddresses[0], C.uintptr_t(len(peerAddresses)), bridge.resp) != C.RET_OK {
-		return bridge.CallError("cGoCodexConnect")
+		if C.cGoCodexConnect(self.ctx, cPeerId, &cAddresses[0], C.uintptr_t(len(peerAddresses)), bridge.resp) != C.RET_OK {
+			return bridge.CallError("cGoCodexConnect")
+		}
+	} else {
+		if C.cGoCodexConnect(self.ctx, cPeerId, nil, 0, bridge.resp) != C.RET_OK {
+			return bridge.CallError("cGoCodexConnect")
+		}
 	}
 
 	_, err := bridge.wait()
 	return err
+}
+
+func (self *CodexNode) CodexPeerDebug(peerId string) (RestPeerRecord, error) {
+	var record RestPeerRecord
+
+	bridge := newBridgeCtx()
+	defer bridge.free()
+
+	var cPeerId = C.CString(peerId)
+	defer C.free(unsafe.Pointer(cPeerId))
+
+	if C.cGoCodexPeerDebug(self.ctx, cPeerId, bridge.resp) != C.RET_OK {
+		return record, bridge.CallError("cGoCodexPeerDebug")
+	}
+
+	value, err := bridge.wait()
+	if err != nil {
+		return record, err
+	}
+
+	err = json.Unmarshal([]byte(value), &record)
+
+	return record, err
 }
 
 func (self *CodexNode) CodexStart() error {
@@ -592,6 +634,20 @@ func main() {
 	}
 
 	log.Println("Codex Log Level set to TRACE")
+
+	// err = node.CodexConnect(peerId, []string{})
+	// if err != nil {
+	// 	log.Fatal("Error happened:", err.Error())
+	// }
+
+	// log.Println("Codex connecting to self...")
+
+	// val, err := node.CodexPeerDebug(peerId)
+	// if err != nil {
+	// 	log.Fatal("Error happened:", err.Error())
+	// }
+
+	// log.Println("Codex debugging self...", val)
 
 	// Wait for a SIGINT or SIGTERM signal
 	ch := make(chan os.Signal, 1)

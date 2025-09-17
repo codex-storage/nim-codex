@@ -3,8 +3,8 @@
 import std/[options]
 import chronos
 import chronicles
-import ../../alloc
 import libp2p
+import ../../alloc
 import ../../../codex/node
 
 from ../../../codex/codex import CodexServer, node
