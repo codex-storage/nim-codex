@@ -32,6 +32,7 @@ import ./codex_thread_requests/codex_thread_request
 import ./codex_thread_requests/requests/node_lifecycle_request
 import ./codex_thread_requests/requests/node_info_request
 import ./codex_thread_requests/requests/node_debug_request
+import ./codex_thread_requests/requests/node_p2p_request
 import ./ffi_types
 
 from ../codex/conf import codexVersion, updateLogLevel
@@ -215,6 +216,35 @@ proc codex_log_level(
     return RET_ERR
 
   callback(RET_OK, cast[ptr cchar](""), cast[csize_t](len("")), userData)
+
+  return RET_OK
+
+proc codex_connect(
+    ctx: ptr CodexContext,
+    peerId: cstring,
+    peerAddressesPtr: ptr cstring,
+    peerAddressesLength: csize_t,
+    callback: CodexCallback,
+    userData: pointer,
+): cint {.dynlib, exportc.} =
+  initializeLibrary()
+  checkLibcodexParams(ctx, callback, userData)
+
+  var peerAddresses = newSeq[cstring](peerAddressesLength)
+  let peers = cast[ptr UncheckedArray[cstring]](peerAddressesPtr)
+  for i in 0 ..< peerAddressesLength:
+    peerAddresses[i] = peers[i]
+
+  let reqContent = NodeP2PRequest.createShared(
+    NodeP2PMsgType.CONNECT, peerId = peerId, peerAddresses = peerAddresses
+  )
+
+  codex_context.sendRequestToCodexThread(
+    ctx, RequestType.P2P, reqContent, callback, userData
+  ).isOkOr:
+    let msg = "libcodex error: " & $error
+    callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
+    return RET_ERR
 
   return RET_OK
 
