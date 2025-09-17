@@ -100,6 +100,10 @@ package main
 		return codex_log_level(codexCtx, logLevel, (CodexCallback) callback, resp);
 	}
 
+	static int cGoCodexConnect(void* codexCtx, char* peerId, const char** peerAddresses, uintptr_t peerAddressesSize,  void* resp) {
+		return codex_connect(codexCtx, peerId, peerAddresses, peerAddressesSize, (CodexCallback) callback, resp);
+	}
+
 	static int cGoCodexStart(void* codexCtx, void* resp) {
 		return codex_start(codexCtx, (CodexCallback) callback, resp);
 	}
@@ -417,6 +421,27 @@ func (self *CodexNode) CodexLogLevel(logLevel LogLevel) error {
 
 	if C.cGoCodexLogLevel(self.ctx, cLogLevel, bridge.resp) != C.RET_OK {
 		return bridge.CallError("cGoCodexLogLevel")
+	}
+
+	_, err := bridge.wait()
+	return err
+}
+
+func (self *CodexNode) CodexConnect(peerId string, peerAddresses []string) error {
+	bridge := newBridgeCtx()
+	defer bridge.free()
+
+	var cPeerId = C.CString(peerId)
+	defer C.free(unsafe.Pointer(cPeerId))
+
+	var cAddresses = make([]*C.char, len(peerAddresses))
+	for i, addr := range peerAddresses {
+		cAddresses[i] = C.CString(addr)
+		defer C.free(unsafe.Pointer(cAddresses[i]))
+	}
+
+	if C.cGoCodexConnect(self.ctx, cPeerId, &cAddresses[0], C.uintptr_t(len(peerAddresses)), bridge.resp) != C.RET_OK {
+		return bridge.CallError("cGoCodexConnect")
 	}
 
 	_, err := bridge.wait()
