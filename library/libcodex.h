@@ -60,6 +60,12 @@ int codex_peer_id(
                 CodexCallback callback,
                 void* userData);
 
+int codex_log_level(
+                void* ctx,
+                const char* logLevel,
+                CodexCallback callback,
+                void* userData);
+
 int codex_start(void* ctx,
                CodexCallback callback,
                void* userData);
