@@ -34,7 +34,7 @@ import ./codex_thread_requests/requests/node_info_request
 import ./codex_thread_requests/requests/node_debug_request
 import ./ffi_types
 
-from ../codex/conf import codexVersion
+from ../codex/conf import codexVersion, updateLogLevel
 
 template checkLibcodexParams*(
     ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
@@ -195,6 +195,26 @@ proc codex_peer_id(
     let msg = "libcodex error: " & $error
     callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
     return RET_ERR
+
+  return RET_OK
+
+## Set the log level of the library at runtime.
+## It uses updateLogLevel which is a synchronous proc and
+## cannot be used inside an async context because of gcsafe issue.
+proc codex_log_level(
+    ctx: ptr CodexContext, logLevel: cstring, callback: CodexCallback, userData: pointer
+): cint {.dynlib, exportc.} =
+  initializeLibrary()
+  checkLibcodexParams(ctx, callback, userData)
+
+  try:
+    updateLogLevel($logLevel)
+  except ValueError as e:
+    let msg = "Cannot set log level: " & $e.msg
+    callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
+    return RET_ERR
+
+  callback(RET_OK, cast[ptr cchar](""), cast[csize_t](len("")), userData)
 
   return RET_OK
 
