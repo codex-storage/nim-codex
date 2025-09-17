@@ -31,6 +31,7 @@ import ./codex_context
 import ./codex_thread_requests/codex_thread_request
 import ./codex_thread_requests/requests/node_lifecycle_request
 import ./codex_thread_requests/requests/node_info_request
+import ./codex_thread_requests/requests/node_debug_request
 import ./ffi_types
 
 from ../codex/conf import codexVersion
@@ -152,10 +153,10 @@ proc codex_debug(
   initializeLibrary()
   checkLibcodexParams(ctx, callback, userData)
 
-  let reqContent = NodeInfoRequest.createShared(NodeInfoMsgType.DEBUG)
+  let reqContent = NodeDebugRequest.createShared(NodeDebugMsgType.DEBUG)
 
   codex_context.sendRequestToCodexThread(
-    ctx, RequestType.INFO, reqContent, callback, userData
+    ctx, RequestType.DEBUG, reqContent, callback, userData
   ).isOkOr:
     let msg = "libcodex error: " & $error
     callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
@@ -170,6 +171,23 @@ proc codex_spr(
   checkLibcodexParams(ctx, callback, userData)
 
   let reqContent = NodeInfoRequest.createShared(NodeInfoMsgType.SPR)
+
+  codex_context.sendRequestToCodexThread(
+    ctx, RequestType.INFO, reqContent, callback, userData
+  ).isOkOr:
+    let msg = "libcodex error: " & $error
+    callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
+    return RET_ERR
+
+  return RET_OK
+
+proc codex_peer_id(
+    ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
+): cint {.dynlib, exportc.} =
+  initializeLibrary()
+  checkLibcodexParams(ctx, callback, userData)
+
+  let reqContent = NodeInfoRequest.createShared(NodeInfoMsgType.PEERID)
 
   codex_context.sendRequestToCodexThread(
     ctx, RequestType.INFO, reqContent, callback, userData
