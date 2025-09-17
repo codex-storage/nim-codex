@@ -174,7 +174,6 @@ const (
 )
 
 type CodexConfig struct {
-	LogLevel                       LogLevel  `json:"log-level,omitempty"`
 	LogFormat                      LogFormat `json:"log-format,omitempty"`
 	MetricsEnabled                 bool      `json:"metrics,omitempty"`
 	MetricsAddress                 string    `json:"metrics-address,omitempty"`
@@ -494,9 +493,7 @@ func (self *CodexNode) CodexSetEventCallback() {
 }
 
 func main() {
-	config := CodexConfig{
-		LogLevel: Info,
-	}
+	config := CodexConfig{}
 
 	node, err := CodexNew(config)
 	if err != nil {
