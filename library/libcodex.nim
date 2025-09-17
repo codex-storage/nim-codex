@@ -248,6 +248,23 @@ proc codex_connect(
 
   return RET_OK
 
+proc codex_peer_debug(
+    ctx: ptr CodexContext, peerId: cstring, callback: CodexCallback, userData: pointer
+): cint {.dynlib, exportc.} =
+  initializeLibrary()
+  checkLibcodexParams(ctx, callback, userData)
+
+  let reqContent = NodeDebugRequest.createShared(NodeDebugMsgType.PEER, peerId = peerId)
+
+  codex_context.sendRequestToCodexThread(
+    ctx, RequestType.DEBUG, reqContent, callback, userData
+  ).isOkOr:
+    let msg = "libcodex error: " & $error
+    callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
+    return RET_ERR
+
+  return RET_OK
+
 proc codex_destroy(
     ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
