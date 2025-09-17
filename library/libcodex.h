@@ -66,6 +66,14 @@ int codex_log_level(
                 CodexCallback callback,
                 void* userData);
 
+int codex_connect(
+                void* ctx,
+                const char* peerId,
+                const char** peerAddresses,
+                size_t peerAddressesSize,
+                CodexCallback callback,
+                void* userData);
+
 int codex_start(void* ctx,
                CodexCallback callback,
                void* userData);
