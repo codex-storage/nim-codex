@@ -74,6 +74,12 @@ int codex_connect(
                 CodexCallback callback,
                 void* userData);
 
+int codex_peer_debug(
+                void* ctx,
+                const char* peerId,
+                CodexCallback callback,
+                void* userData);
+
 int codex_start(void* ctx,
                CodexCallback callback,
                void* userData);
