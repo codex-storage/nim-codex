@@ -9,6 +9,7 @@ import ../ffi_types
 import ./requests/node_lifecycle_request
 import ./requests/node_info_request
 import ./requests/node_debug_request
+import ./requests/node_p2p_request
 
 from ../../codex/codex import CodexServer
 
@@ -16,6 +17,7 @@ type RequestType* {.pure.} = enum
   LIFECYCLE
   INFO
   DEBUG
+  P2P
 
 type CodexThreadRequest* = object
   reqType: RequestType
@@ -88,6 +90,8 @@ proc process*(
       cast[ptr NodeInfoRequest](request[].reqContent).process(codex)
     of RequestType.DEBUG:
       cast[ptr NodeDebugRequest](request[].reqContent).process(codex)
+    of P2P:
+      cast[ptr NodeP2PRequest](request[].reqContent).process(codex)
 
   handleRes(await retFut, request)
 
