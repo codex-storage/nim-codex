@@ -55,6 +55,11 @@ int codex_spr(
                 CodexCallback callback,
                 void* userData);
 
+int codex_peer_id(
+                void* ctx,
+                CodexCallback callback,
+                void* userData);
+
 int codex_start(void* ctx,
                CodexCallback callback,
                void* userData);

@@ -92,6 +92,10 @@ package main
 		return codex_spr(codexCtx, (CodexCallback) callback, resp);
 	}
 
+	static int cGoCodexPeerId(void* codexCtx, void* resp) {
+		return codex_peer_id(codexCtx, (CodexCallback) callback, resp);
+	}
+
 	static int cGoCodexStart(void* codexCtx, void* resp) {
 		return codex_start(codexCtx, (CodexCallback) callback, resp);
 	}
@@ -164,16 +168,6 @@ const (
 	SQLite  RepoKind = "sqlite"
 	LevelDb RepoKind = "leveldb"
 )
-
-type Spr string
-
-type SprJson struct {
-	Spr string `json:"spr"`
-}
-
-func (s Spr) Json() SprJson {
-	return SprJson{Spr: string(s)}
-}
 
 type CodexConfig struct {
 	LogLevel                       LogLevel  `json:"log-level,omitempty"`
@@ -389,7 +383,7 @@ func (self *CodexNode) CodexDebug() (CodexDebugInfo, error) {
 	return info, err
 }
 
-func (self *CodexNode) CodexSpr() (Spr, error) {
+func (self *CodexNode) CodexSpr() (string, error) {
 	bridge := newBridgeCtx()
 	defer bridge.free()
 
@@ -397,12 +391,18 @@ func (self *CodexNode) CodexSpr() (Spr, error) {
 		return "", bridge.CallError("cGoCodexSpr")
 	}
 
-	value, err := bridge.wait()
-	if err != nil {
-		return "", err
+	return bridge.wait()
+}
+
+func (self *CodexNode) CodexPeerId() (string, error) {
+	bridge := newBridgeCtx()
+	defer bridge.free()
+
+	if C.cGoCodexPeerId(self.ctx, bridge.resp) != C.RET_OK {
+		return "", bridge.CallError("cGoCodexPeerId")
 	}
 
-	return Spr(value), nil
+	return bridge.wait()
 }
 
 func (self *CodexNode) CodexStart() error {
@@ -536,7 +536,14 @@ func main() {
 		log.Fatal("Error happened:", err.Error())
 	}
 
-	log.Println("Codex SPR:", spr.Json())
+	log.Println("Codex SPR:", spr)
+
+	peerId, err := node.CodexPeerId()
+	if err != nil {
+		log.Fatal("Error happened:", err.Error())
+	}
+
+	log.Println("Codex Peer Id:", peerId)
 
 	// Wait for a SIGINT or SIGTERM signal
 	ch := make(chan os.Signal, 1)
