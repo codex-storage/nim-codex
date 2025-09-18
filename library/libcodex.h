@@ -91,7 +91,7 @@ int codex_upload_init(
 int codex_upload_chunk(
                 void* ctx,
                 const char* sessionId,
-                const uint8_t* chunk,
+                const uint32_t* chunk,
                 size_t len,
                 CodexCallback callback,
                 void* userData);
