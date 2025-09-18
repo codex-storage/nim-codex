@@ -108,7 +108,7 @@ package main
 		return codex_upload_init(codexCtx, mimetype, filename, (CodexCallback) callback, resp);
 	}
 
-	static int cGoCodexUploadChunk(void* codexCtx, char* sessionId, const uint8_t* chunk, size_t len, void* resp) {
+	static int cGoCodexUploadChunk(void* codexCtx, char* sessionId, const uint32_t* chunk, size_t len, void* resp) {
 		return codex_upload_chunk(codexCtx, sessionId, chunk, len, (CodexCallback) callback, resp);
 	}
 
@@ -519,9 +519,9 @@ func (self *CodexNode) CodexUploadChunk(sessionId string, chunk []byte) error {
 	var cSessionId = C.CString(sessionId)
 	defer C.free(unsafe.Pointer(cSessionId))
 
-	var cChunkPtr *C.uint8_t
+	var cChunkPtr *C.uint32_t
 	if len(chunk) > 0 {
-		cChunkPtr = (*C.uint8_t)(unsafe.Pointer(&chunk[0]))
+		cChunkPtr = (*C.uint32_t)(unsafe.Pointer(&chunk[0]))
 	}
 
 	if C.cGoCodexUploadChunk(self.ctx, cSessionId, cChunkPtr, C.size_t(len(chunk)), bridge.resp) != C.RET_OK {
