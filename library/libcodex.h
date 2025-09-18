@@ -80,6 +80,34 @@ int codex_peer_debug(
                 CodexCallback callback,
                 void* userData);
 
+
+int codex_upload_init(
+                void* ctx,
+                const char* mimetype,
+                const char* filename,
+                CodexCallback callback,
+                void* userData);
+
+int codex_upload_chunk(
+                void* ctx,
+                const char* sessionId,
+                const uint8_t* chunk,
+                size_t len,
+                CodexCallback callback,
+                void* userData);
+
+int codex_upload_finalize(
+                void* ctx,
+                const char* sessionId,
+                CodexCallback callback,
+                void* userData);
+
+int codex_upload_cancel(
+                void* ctx,
+                const char* sessionId,
+                CodexCallback callback,
+                void* userData);
+
 int codex_start(void* ctx,
                CodexCallback callback,
                void* userData);

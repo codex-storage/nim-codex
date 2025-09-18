@@ -10,6 +10,7 @@ import ./requests/node_lifecycle_request
 import ./requests/node_info_request
 import ./requests/node_debug_request
 import ./requests/node_p2p_request
+import ./requests/node_upload_request
 
 from ../../codex/codex import CodexServer
 
@@ -18,6 +19,7 @@ type RequestType* {.pure.} = enum
   INFO
   DEBUG
   P2P
+  UPLOAD
 
 type CodexThreadRequest* = object
   reqType: RequestType
@@ -92,6 +94,8 @@ proc process*(
       cast[ptr NodeDebugRequest](request[].reqContent).process(codex)
     of P2P:
       cast[ptr NodeP2PRequest](request[].reqContent).process(codex)
+    of UPLOAD:
+      cast[ptr NodeUploadRequest](request[].reqContent).process(codex)
 
   handleRes(await retFut, request)
 
