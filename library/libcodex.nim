@@ -113,14 +113,28 @@ proc codex_version(
 ): cint {.dynlib, exportc.} =
   init(ctx, callback, userData)
 
-  return callback.success(conf.codexVersion, userData)
+  callback(
+    RET_OK,
+    cast[ptr cchar](conf.codexVersion),
+    cast[csize_t](len(conf.codexVersion)),
+    userData,
+  )
+
+  return RET_OK
 
 proc codex_revision(
     ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
   init(ctx, callback, userData)
 
-  return callback.success(conf.codexRevision, userData)
+  callback(
+    RET_OK,
+    cast[ptr cchar](conf.codexRevision),
+    cast[csize_t](len(conf.codexRevision)),
+    userData,
+  )
+
+  return RET_OK
 
 proc codex_repo(
     ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
