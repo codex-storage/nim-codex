@@ -114,10 +114,6 @@ proc finalize(
     return err("Stream error: " & $e.msg)
   except CancelledError as e:
     return err("Operation cancelled")
-  # except LPError as e:
-  #   return err("Stream error: " & $e.msg)
-  # except CancelledError as e:
-  #   return err("Operation cancelled")
 
   try:
     let res = await session.fut

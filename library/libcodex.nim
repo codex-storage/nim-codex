@@ -76,6 +76,10 @@ proc initializeLibrary() {.exported.} =
     locals = addr(locals)
     nimGC_setStackBottom(locals)
 
+template init(ctx, callback, userData) =
+  initializeLibrary()
+  checkLibcodexParams(ctx, callback, userData)
+
 proc codex_new(
     configJson: cstring, callback: CodexCallback, userData: pointer
 ): pointer {.dynlib, exported.} =
@@ -107,98 +111,64 @@ proc codex_new(
 proc codex_version(
     ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
-  initializeLibrary()
-  checkLibcodexParams(ctx, callback, userData)
-  callback(
-    RET_OK,
-    cast[ptr cchar](conf.codexVersion),
-    cast[csize_t](len(conf.codexVersion)),
-    userData,
-  )
+  init(ctx, callback, userData)
 
-  return RET_OK
+  return callback.success(conf.codexVersion, userData)
 
 proc codex_revision(
     ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
-  initializeLibrary()
-  checkLibcodexParams(ctx, callback, userData)
-  callback(
-    RET_OK,
-    cast[ptr cchar](conf.codexRevision),
-    cast[csize_t](len(conf.codexRevision)),
-    userData,
-  )
+  init(ctx, callback, userData)
 
-  return RET_OK
+  return callback.success(conf.codexRevision, userData)
 
 proc codex_repo(
     ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
-  initializeLibrary()
-  checkLibcodexParams(ctx, callback, userData)
+  init(ctx, callback, userData)
 
   let reqContent = NodeInfoRequest.createShared(NodeInfoMsgType.REPO)
-
-  codex_context.sendRequestToCodexThread(
+  let res = codex_context.sendRequestToCodexThread(
     ctx, RequestType.INFO, reqContent, callback, userData
-  ).isOkOr:
-    let msg = "libcodex error: " & $error
-    callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
-    return RET_ERR
+  )
 
-  return RET_OK
+  return callback.okOrError(res, userData)
 
 proc codex_debug(
     ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
-  initializeLibrary()
-  checkLibcodexParams(ctx, callback, userData)
+  init(ctx, callback, userData)
 
   let reqContent = NodeDebugRequest.createShared(NodeDebugMsgType.DEBUG)
-
-  codex_context.sendRequestToCodexThread(
+  let res = codex_context.sendRequestToCodexThread(
     ctx, RequestType.DEBUG, reqContent, callback, userData
-  ).isOkOr:
-    let msg = "libcodex error: " & $error
-    callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
-    return RET_ERR
+  )
 
-  return RET_OK
+  return callback.okOrError(res, userData)
 
 proc codex_spr(
     ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
-  initializeLibrary()
-  checkLibcodexParams(ctx, callback, userData)
+  init(ctx, callback, userData)
 
   let reqContent = NodeInfoRequest.createShared(NodeInfoMsgType.SPR)
-
-  codex_context.sendRequestToCodexThread(
+  let res = codex_context.sendRequestToCodexThread(
     ctx, RequestType.INFO, reqContent, callback, userData
-  ).isOkOr:
-    let msg = "libcodex error: " & $error
-    callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
-    return RET_ERR
+  )
 
-  return RET_OK
+  return callback.okOrError(res, userData)
 
 proc codex_peer_id(
     ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
-  initializeLibrary()
-  checkLibcodexParams(ctx, callback, userData)
+  init(ctx, callback, userData)
 
   let reqContent = NodeInfoRequest.createShared(NodeInfoMsgType.PEERID)
-
-  codex_context.sendRequestToCodexThread(
+  let res = codex_context.sendRequestToCodexThread(
     ctx, RequestType.INFO, reqContent, callback, userData
-  ).isOkOr:
-    let msg = "libcodex error: " & $error
-    callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
-    return RET_ERR
+  )
 
-  return RET_OK
+  return callback.okOrError(res, userData)
 
 ## Set the log level of the library at runtime.
 ## It uses updateLogLevel which is a synchronous proc and
@@ -206,19 +176,14 @@ proc codex_peer_id(
 proc codex_log_level(
     ctx: ptr CodexContext, logLevel: cstring, callback: CodexCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
-  initializeLibrary()
-  checkLibcodexParams(ctx, callback, userData)
+  init(ctx, callback, userData)
 
   try:
     updateLogLevel($logLevel)
   except ValueError as e:
-    let msg = "Cannot set log level: " & $e.msg
-    callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
-    return RET_ERR
+    return callback.error(e.msg, userData)
 
-  callback(RET_OK, cast[ptr cchar](""), cast[csize_t](len("")), userData)
-
-  return RET_OK
+  return callback.success("", userData)
 
 proc codex_connect(
     ctx: ptr CodexContext,
@@ -228,8 +193,7 @@ proc codex_connect(
     callback: CodexCallback,
     userData: pointer,
 ): cint {.dynlib, exportc.} =
-  initializeLibrary()
-  checkLibcodexParams(ctx, callback, userData)
+  init(ctx, callback, userData)
 
   var peerAddresses = newSeq[cstring](peerAddressesLength)
   let peers = cast[ptr UncheckedArray[cstring]](peerAddressesPtr)
@@ -239,48 +203,34 @@ proc codex_connect(
   let reqContent = NodeP2PRequest.createShared(
     NodeP2PMsgType.CONNECT, peerId = peerId, peerAddresses = peerAddresses
   )
-
-  codex_context.sendRequestToCodexThread(
+  let res = codex_context.sendRequestToCodexThread(
     ctx, RequestType.P2P, reqContent, callback, userData
-  ).isOkOr:
-    let msg = "libcodex error: " & $error
-    callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
-    return RET_ERR
+  )
 
-  return RET_OK
+  return callback.okOrError(res, userData)
 
 proc codex_peer_debug(
     ctx: ptr CodexContext, peerId: cstring, callback: CodexCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
-  initializeLibrary()
-  checkLibcodexParams(ctx, callback, userData)
+  init(ctx, callback, userData)
 
   let reqContent = NodeDebugRequest.createShared(NodeDebugMsgType.PEER, peerId = peerId)
-
-  codex_context.sendRequestToCodexThread(
+  let res = codex_context.sendRequestToCodexThread(
     ctx, RequestType.DEBUG, reqContent, callback, userData
-  ).isOkOr:
-    let msg = "libcodex error: " & $error
-    callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
-    return RET_ERR
+  )
 
-  return RET_OK
+  return callback.okOrError(res, userData)
 
 proc codex_destroy(
     ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
-  initializeLibrary()
-  checkLibcodexParams(ctx, callback, userData)
+  init(ctx, callback, userData)
 
-  codex_context.destroyCodexContext(ctx).isOkOr:
-    let msg = "libcodex error: " & $error
-    callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
-    return RET_ERR
+  let res = codex_context.destroyCodexContext(ctx)
+  if res.isErr:
+    return callback.error(res.error, userData)
 
-  ## always need to invoke the callback although we don't retrieve value to the caller
-  callback(RET_OK, nil, 0, userData)
-
-  return RET_OK
+  return callback.success("", userData)
 
 proc codex_upload_init(
     ctx: ptr CodexContext,
@@ -289,21 +239,16 @@ proc codex_upload_init(
     callback: CodexCallback,
     userData: pointer,
 ): cint {.dynlib, exportc.} =
-  initializeLibrary()
-  checkLibcodexParams(ctx, callback, userData)
+  init(ctx, callback, userData)
 
   let reqContent = NodeUploadRequest.createShared(
     NodeUploadMsgType.INIT, mimetype = mimetype, filename = filename
   )
-
-  codex_context.sendRequestToCodexThread(
+  let res = codex_context.sendRequestToCodexThread(
     ctx, RequestType.UPLOAD, reqContent, callback, userData
-  ).isOkOr:
-    let msg = "libcodex error: " & $error
-    callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
-    return RET_ERR
+  )
 
-  return RET_OK
+  return callback.okOrError(res, userData)
 
 proc codex_upload_chunk(
     ctx: ptr CodexContext,
@@ -313,8 +258,7 @@ proc codex_upload_chunk(
     callback: CodexCallback,
     userData: pointer,
 ): cint {.dynlib, exportc.} =
-  initializeLibrary()
-  checkLibcodexParams(ctx, callback, userData)
+  init(ctx, callback, userData)
 
   let chunk = newSeq[byte](len)
   copyMem(addr chunk[0], data, len)
@@ -322,15 +266,11 @@ proc codex_upload_chunk(
   let reqContent = NodeUploadRequest.createShared(
     NodeUploadMsgType.CHUNK, sessionId = sessionId, chunk = chunk
   )
-
-  codex_context.sendRequestToCodexThread(
+  let res = codex_context.sendRequestToCodexThread(
     ctx, RequestType.UPLOAD, reqContent, callback, userData
-  ).isOkOr:
-    let msg = "libcodex error: " & $error
-    callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
-    return RET_ERR
+  )
 
-  return RET_OK
+  return callback.okOrError(res, userData)
 
 proc codex_upload_finalize(
     ctx: ptr CodexContext,
@@ -338,20 +278,15 @@ proc codex_upload_finalize(
     callback: CodexCallback,
     userData: pointer,
 ): cint {.dynlib, exportc.} =
-  initializeLibrary()
-  checkLibcodexParams(ctx, callback, userData)
+  init(ctx, callback, userData)
 
   let reqContent =
     NodeUploadRequest.createShared(NodeUploadMsgType.FINALIZE, sessionId = sessionId)
-
-  codex_context.sendRequestToCodexThread(
+  let res = codex_context.sendRequestToCodexThread(
     ctx, RequestType.UPLOAD, reqContent, callback, userData
-  ).isOkOr:
-    let msg = "libcodex error: " & $error
-    callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
-    return RET_ERR
+  )
 
-  return RET_OK
+  return callback.okOrError(res, userData)
 
 proc codex_upload_cancel(
     ctx: ptr CodexContext,
@@ -359,56 +294,42 @@ proc codex_upload_cancel(
     callback: CodexCallback,
     userData: pointer,
 ): cint {.dynlib, exportc.} =
-  initializeLibrary()
-  checkLibcodexParams(ctx, callback, userData)
+  init(ctx, callback, userData)
 
   let reqContent =
     NodeUploadRequest.createShared(NodeUploadMsgType.CANCEL, sessionId = sessionId)
 
-  codex_context.sendRequestToCodexThread(
+  let res = codex_context.sendRequestToCodexThread(
     ctx, RequestType.UPLOAD, reqContent, callback, userData
-  ).isOkOr:
-    let msg = "libcodex error: " & $error
-    callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
-    return RET_ERR
+  )
 
-  return RET_OK
+  return callback.okOrError(res, userData)
 
 proc codex_start(
     ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
-  initializeLibrary()
-  checkLibcodexParams(ctx, callback, userData)
+  init(ctx, callback, userData)
 
   let reqContent: ptr NodeLifecycleRequest =
     NodeLifecycleRequest.createShared(NodeLifecycleMsgType.START_NODE)
-
-  codex_context.sendRequestToCodexThread(
+  let res = codex_context.sendRequestToCodexThread(
     ctx, RequestType.LIFECYCLE, reqContent, callback, userData
-  ).isOkOr:
-    let msg = "libcodex error: " & $error
-    callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
-    return RET_ERR
+  )
 
-  return RET_OK
+  return callback.okOrError(res, userData)
 
 proc codex_stop(
     ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
-  initializeLibrary()
-  checkLibcodexParams(ctx, callback, userData)
+  init(ctx, callback, userData)
 
   let reqContent: ptr NodeLifecycleRequest =
     NodeLifecycleRequest.createShared(NodeLifecycleMsgType.STOP_NODE)
-
-  codex_context.sendRequestToCodexThread(
+  let res = codex_context.sendRequestToCodexThread(
     ctx, RequestType.LIFECYCLE, reqContent, callback, userData
-  ).isOkOr:
-    let msg = "libcodex error: " & $error
-    callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
-    return RET_ERR
+  )
 
-  return RET_OK
+  return callback.okOrError(res, userData)
 
 proc codex_set_event_callback(
     ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
