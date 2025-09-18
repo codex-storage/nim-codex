@@ -33,6 +33,7 @@ import ./codex_thread_requests/requests/node_lifecycle_request
 import ./codex_thread_requests/requests/node_info_request
 import ./codex_thread_requests/requests/node_debug_request
 import ./codex_thread_requests/requests/node_p2p_request
+import ./codex_thread_requests/requests/node_upload_request
 import ./ffi_types
 
 from ../codex/conf import codexVersion, updateLogLevel
@@ -278,6 +279,98 @@ proc codex_destroy(
 
   ## always need to invoke the callback although we don't retrieve value to the caller
   callback(RET_OK, nil, 0, userData)
+
+  return RET_OK
+
+proc codex_upload_init(
+    ctx: ptr CodexContext,
+    mimetype: cstring,
+    filename: cstring,
+    callback: CodexCallback,
+    userData: pointer,
+): cint {.dynlib, exportc.} =
+  initializeLibrary()
+  checkLibcodexParams(ctx, callback, userData)
+
+  let reqContent = NodeUploadRequest.createShared(
+    NodeUploadMsgType.INIT, mimetype = mimetype, filename = filename
+  )
+
+  codex_context.sendRequestToCodexThread(
+    ctx, RequestType.UPLOAD, reqContent, callback, userData
+  ).isOkOr:
+    let msg = "libcodex error: " & $error
+    callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
+    return RET_ERR
+
+  return RET_OK
+
+proc codex_upload_chunk(
+    ctx: ptr CodexContext,
+    sessionId: cstring,
+    data: ptr byte,
+    len: int,
+    callback: CodexCallback,
+    userData: pointer,
+): cint {.dynlib, exportc.} =
+  initializeLibrary()
+  checkLibcodexParams(ctx, callback, userData)
+
+  let chunk = newSeq[byte](len)
+  copyMem(addr chunk[0], data, len)
+
+  let reqContent = NodeUploadRequest.createShared(
+    NodeUploadMsgType.CHUNK, sessionId = sessionId, chunk = chunk
+  )
+
+  codex_context.sendRequestToCodexThread(
+    ctx, RequestType.UPLOAD, reqContent, callback, userData
+  ).isOkOr:
+    let msg = "libcodex error: " & $error
+    callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
+    return RET_ERR
+
+  return RET_OK
+
+proc codex_upload_finalize(
+    ctx: ptr CodexContext,
+    sessionId: cstring,
+    callback: CodexCallback,
+    userData: pointer,
+): cint {.dynlib, exportc.} =
+  initializeLibrary()
+  checkLibcodexParams(ctx, callback, userData)
+
+  let reqContent =
+    NodeUploadRequest.createShared(NodeUploadMsgType.FINALIZE, sessionId = sessionId)
+
+  codex_context.sendRequestToCodexThread(
+    ctx, RequestType.UPLOAD, reqContent, callback, userData
+  ).isOkOr:
+    let msg = "libcodex error: " & $error
+    callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
+    return RET_ERR
+
+  return RET_OK
+
+proc codex_upload_cancel(
+    ctx: ptr CodexContext,
+    sessionId: cstring,
+    callback: CodexCallback,
+    userData: pointer,
+): cint {.dynlib, exportc.} =
+  initializeLibrary()
+  checkLibcodexParams(ctx, callback, userData)
+
+  let reqContent =
+    NodeUploadRequest.createShared(NodeUploadMsgType.CANCEL, sessionId = sessionId)
+
+  codex_context.sendRequestToCodexThread(
+    ctx, RequestType.UPLOAD, reqContent, callback, userData
+  ).isOkOr:
+    let msg = "libcodex error: " & $error
+    callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
+    return RET_ERR
 
   return RET_OK
 
