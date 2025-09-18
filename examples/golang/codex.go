@@ -152,9 +152,11 @@ package main
 import "C"
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/signal"
@@ -279,9 +281,7 @@ func (b *bridgeCtx) isError() bool {
 }
 
 func (b *bridgeCtx) CallError(name string) error {
-	return errors.New(
-		fmt.Sprintf("Failed the call to %s. Returned code: %d.", name, C.getRet(b.resp)),
-	)
+	return fmt.Errorf("Failed the call to %s. Returned code: %d.", name, C.getRet(b.resp))
 }
 
 func (b *bridgeCtx) wait() (string, error) {
@@ -290,17 +290,11 @@ func (b *bridgeCtx) wait() (string, error) {
 	return b.result, b.err
 }
 
-func (b *bridgeCtx) getMsg() string {
-	return C.GoStringN(C.getMyCharPtr(b.resp), C.int(C.getMyCharLen(b.resp)))
-}
-
 //export callback
 func callback(ret C.int, msg *C.char, len C.size_t, resp unsafe.Pointer) {
 	if resp == nil {
 		return
 	}
-
-	// log.Println("Callback called with ret:", ret, " msg:", C.GoStringN(msg, C.int(len)), " len:", len)
 
 	m := (*C.Resp)(resp)
 	m.ret = ret
@@ -320,6 +314,8 @@ func callback(ret C.int, msg *C.char, len C.size_t, resp unsafe.Pointer) {
 	if v, ok := h.Value().(*bridgeCtx); ok {
 		if ret == C.RET_OK || ret == C.RET_ERR {
 			retMsg := C.GoStringN(msg, C.int(len))
+
+			// log.Println("Callback called with ret:", ret, " msg:", retMsg, " len:", len)
 
 			if ret == C.RET_OK {
 				v.result = retMsg
@@ -565,6 +561,35 @@ func (self *CodexNode) CodexUploadCancel(sessionId string) error {
 	return err
 }
 
+func (self *CodexNode) CodexUploadReader(mimetype, filename string, r io.Reader, chunkSize int) (string, error) {
+	sessionId, err := self.CodexUploadInit(mimetype, filename)
+	if err != nil {
+		return "", err
+	}
+
+	buf := make([]byte, chunkSize)
+	for {
+		n, err := r.Read(buf)
+		if n > 0 {
+			if err := self.CodexUploadChunk(sessionId, buf[:n]); err != nil {
+				return "", err
+			}
+		}
+
+		if err == io.EOF {
+			break
+		}
+
+		if err != nil {
+			self.CodexUploadCancel(sessionId)
+
+			return "", err
+		}
+	}
+
+	return self.CodexUploadFinalize(sessionId)
+}
+
 func (self *CodexNode) CodexStart() error {
 	bridge := newBridgeCtx()
 	defer bridge.free()
@@ -733,6 +758,14 @@ func main() {
 	}
 
 	log.Println("Codex Upload Finalized, cid:", cid)
+
+	buf := bytes.NewBuffer([]byte("Hello World!"))
+	cid, err = node.CodexUploadReader("text/plain", "hello.txt", buf, 16*1024)
+	if err != nil {
+		log.Fatal("Error happened:", err.Error())
+	}
+
+	log.Println("Codex Upload Finalized from reader, cid:", cid)
 
 	// err = node.CodexConnect(peerId, []string{})
 	// if err != nil {
