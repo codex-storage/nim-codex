@@ -247,17 +247,12 @@ proc codex_destroy(
   return callback.success("", userData)
 
 proc codex_upload_init(
-    ctx: ptr CodexContext,
-    mimetype: cstring,
-    filename: cstring,
-    callback: CodexCallback,
-    userData: pointer,
+    ctx: ptr CodexContext, filepath: cstring, callback: CodexCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
   init(ctx, callback, userData)
 
-  let reqContent = NodeUploadRequest.createShared(
-    NodeUploadMsgType.INIT, mimetype = mimetype, filename = filename
-  )
+  let reqContent =
+    NodeUploadRequest.createShared(NodeUploadMsgType.INIT, filepath = filepath)
   let res = codex_context.sendRequestToCodexThread(
     ctx, RequestType.UPLOAD, reqContent, callback, userData
   )
@@ -268,7 +263,7 @@ proc codex_upload_chunk(
     ctx: ptr CodexContext,
     sessionId: cstring,
     data: ptr byte,
-    len: int,
+    len: csize_t,
     callback: CodexCallback,
     userData: pointer,
 ): cint {.dynlib, exportc.} =
@@ -312,6 +307,25 @@ proc codex_upload_cancel(
 
   let reqContent =
     NodeUploadRequest.createShared(NodeUploadMsgType.CANCEL, sessionId = sessionId)
+
+  let res = codex_context.sendRequestToCodexThread(
+    ctx, RequestType.UPLOAD, reqContent, callback, userData
+  )
+
+  return callback.okOrError(res, userData)
+
+proc codex_upload_file(
+    ctx: ptr CodexContext,
+    sessionId: cstring,
+    chunkSize: csize_t,
+    callback: CodexCallback,
+    userData: pointer,
+): cint {.dynlib, exportc.} =
+  init(ctx, callback, userData)
+
+  let reqContent = NodeUploadRequest.createShared(
+    NodeUploadMsgType.FILE, sessionId = sessionId, chunkSize = chunkSize
+  )
 
   let res = codex_context.sendRequestToCodexThread(
     ctx, RequestType.UPLOAD, reqContent, callback, userData
