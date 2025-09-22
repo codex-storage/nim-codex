@@ -706,13 +706,11 @@ func (self *CodexNode) CodexUploadFile(options CodexUploadOptions) (string, erro
 	return cid, err
 }
 
-// TODO provide an async version of CodexUploadFile
-// that starts a gorountine to upload the file
-// and take:
-// a callback to be called when done
-// another callback to cancel the upload
-func (self *CodexNode) CodexUploadFileAsync(filepath string, chunkSize int, cb func(error)) (string, error) {
-	return "", nil
+func (self *CodexNode) CodexUploadFileAsync(options CodexUploadOptions, onDone func(cid string, err error)) {
+	go func() {
+		cid, err := self.CodexUploadFile(options)
+		onDone(cid, err)
+	}()
 }
 
 func (self *CodexNode) CodexStart() error {
@@ -889,8 +887,8 @@ func main() {
 	}
 
 	// Choose a big file to see the progress logs
-	// filepath := path.Join(current, "examples", "golang", "hello.txt")
-	filepath := path.Join(current, "examples", "golang", "discord-0.0.109.deb")
+	filepath := path.Join(current, "examples", "golang", "hello.txt")
+	// filepath := path.Join(current, "examples", "golang", "discord-0.0.109.deb")
 	options := CodexUploadOptions{filepath: filepath, onProgress: func(read, total int, percent float64) {
 		log.Printf("Uploaded %d bytes, total %d bytes (%.2f%%)\n", read, total, percent)
 	}}
