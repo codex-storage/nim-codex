@@ -14,6 +14,7 @@ type CodexCallback* = proc(
 const RET_OK*: cint = 0
 const RET_ERR*: cint = 1
 const RET_MISSING_CALLBACK*: cint = 2
+const RET_PROGRESS*: cint = 3
 
 ## Returns RET_OK as acknowledgment and call the callback
 ## with RET_OK code and the provided message.
