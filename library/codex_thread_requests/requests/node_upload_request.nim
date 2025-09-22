@@ -180,7 +180,7 @@ proc cancel(
 
   try:
     let session = uploadSessions[$sessionId]
-    session.fut.cancel()
+    session.fut.cancelSoon()
   except KeyError as e:
     return err("Invalid session ID")
 
@@ -223,7 +223,7 @@ proc file(
   except CatchableError as e:
     return err("Upload failed: " & $e.msg)
   finally:
-    session.fut.cancel()
+    session.fut.cancelSoon()
     uploadSessions.del($sessionId)
 
 proc process*(
