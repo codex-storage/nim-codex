@@ -616,6 +616,11 @@ func (self *CodexNode) CodexUploadReader(options CodexUploadOptions, r io.Reader
 
 			options.onProgress = func(read, total int, _ float64) {
 				percent := float64(total) / float64(size) * 100.0
+				// The last block could be a bit over the size due to padding
+				// on the chunk size.
+				if percent > 100.0 {
+					percent = 100.0
+				}
 				fn(read, total, percent)
 			}
 		}
@@ -669,6 +674,11 @@ func (self *CodexNode) CodexUploadFile(options CodexUploadOptions) (string, erro
 
 			options.onProgress = func(read, total int, _ float64) {
 				percent := float64(total) / float64(size) * 100.0
+				// The last block could be a bit over the size due to padding
+				// on the chunk size.
+				if percent > 100.0 {
+					percent = 100.0
+				}
 				fn(read, total, percent)
 			}
 		}
@@ -879,12 +889,12 @@ func main() {
 	}
 
 	// Choose a big file to see the progress logs
-	filepath := path.Join(current, "examples", "golang", "hello.txt")
-	// filepath := path.Join(current, "examples", "golang", "bigfile.zip")
-
-	cid, err = node.CodexUploadFile(CodexUploadOptions{filepath: filepath, onProgress: func(read, total int, percent float64) {
+	// filepath := path.Join(current, "examples", "golang", "hello.txt")
+	filepath := path.Join(current, "examples", "golang", "discord-0.0.109.deb")
+	options := CodexUploadOptions{filepath: filepath, onProgress: func(read, total int, percent float64) {
 		log.Printf("Uploaded %d bytes, total %d bytes (%.2f%%)\n", read, total, percent)
-	}})
+	}}
+	cid, err = node.CodexUploadFile(options)
 
 	if err != nil {
 		log.Fatal("Error happened:", err.Error())
