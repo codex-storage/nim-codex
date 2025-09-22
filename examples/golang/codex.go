@@ -104,8 +104,8 @@ package main
 		return codex_peer_debug(codexCtx, peerId, (CodexCallback) callback, resp);
 	}
 
-	static int cGoCodexUploadInit(void* codexCtx, char* filepath, void* resp) {
-		return codex_upload_init(codexCtx, filepath, (CodexCallback) callback, resp);
+	static int cGoCodexUploadInit(void* codexCtx, char* filepath, size_t chunkSize, void* resp) {
+		return codex_upload_init(codexCtx, filepath, chunkSize, (CodexCallback) callback, resp);
 	}
 
 	static int cGoCodexUploadChunk(void* codexCtx, char* sessionId, const uint8_t* chunk, size_t len, void* resp) {
@@ -120,8 +120,8 @@ package main
 		return codex_upload_cancel(codexCtx, sessionId, (CodexCallback) callback, resp);
 	}
 
-	static int cGoCodexUploadFile(void* codexCtx, char* sessionId, size_t chunkSize, void* resp) {
-		return codex_upload_file(codexCtx, sessionId, chunkSize, (CodexCallback) callback, resp);
+	static int cGoCodexUploadFile(void* codexCtx, char* sessionId, void* resp) {
+		return codex_upload_file(codexCtx, sessionId, (CodexCallback) callback, resp);
 	}
 
 	static int cGoCodexStart(void* codexCtx, void* resp) {
@@ -253,12 +253,23 @@ type CodexNode struct {
 	ctx unsafe.Pointer
 }
 
+const defaultBlockSize = 1024 * 64
+
+type CodexUploadOptions struct {
+	filepath   string
+	chunkSize  int
+	onProgress func(read, total int, percent float64)
+}
+
 type bridgeCtx struct {
 	wg     *sync.WaitGroup
 	h      cgo.Handle
 	resp   unsafe.Pointer
 	result string
 	err    error
+
+	// Callback used for upload and download
+	onProgress func(read int)
 }
 
 func newBridgeCtx() *bridgeCtx {
@@ -273,16 +284,11 @@ func newBridgeCtx() *bridgeCtx {
 }
 
 func (b *bridgeCtx) free() {
+	b.h.Delete()
+	b.h = 0
+
 	C.freeResp(b.resp)
 	b.resp = nil
-}
-
-func (b *bridgeCtx) isOK() bool {
-	return C.getRet(b.resp) == C.RET_OK
-}
-
-func (b *bridgeCtx) isError() bool {
-	return C.getRet(b.resp) == C.RET_ERR
 }
 
 func (b *bridgeCtx) CallError(name string) error {
@@ -295,6 +301,21 @@ func (b *bridgeCtx) wait() (string, error) {
 	return b.result, b.err
 }
 
+func getReaderSize(r io.Reader) int64 {
+	switch v := r.(type) {
+	case *os.File:
+		stat, err := v.Stat()
+		if err != nil {
+			return 0
+		}
+		return stat.Size()
+	case *bytes.Buffer:
+		return int64(v.Len())
+	default:
+		return 0
+	}
+}
+
 //export callback
 func callback(ret C.int, msg *C.char, len C.size_t, resp unsafe.Pointer) {
 	if resp == nil {
@@ -305,6 +326,16 @@ func callback(ret C.int, msg *C.char, len C.size_t, resp unsafe.Pointer) {
 	m.ret = ret
 	m.msg = msg
 	m.len = len
+
+	if ret == C.RET_PROGRESS {
+		if m.h != 0 {
+			h := cgo.Handle(m.h)
+			if v, ok := h.Value().(*bridgeCtx); ok && v.onProgress != nil {
+				v.onProgress(int(len))
+			}
+		}
+		return
+	}
 
 	if m.h == 0 {
 		return
@@ -320,20 +351,15 @@ func callback(ret C.int, msg *C.char, len C.size_t, resp unsafe.Pointer) {
 		if ret == C.RET_OK || ret == C.RET_ERR {
 			retMsg := C.GoStringN(msg, C.int(len))
 
-			// log.Println("Callback called with ret:", ret, " msg:", retMsg, " len:", len)
-
 			if ret == C.RET_OK {
 				v.result = retMsg
+				v.err = nil
 			} else {
 				v.err = errors.New(retMsg)
 			}
 
-			h.Delete()
-			m.h = 0
-
 			if v.wg != nil {
 				v.wg.Done()
-				v = nil
 			}
 		}
 	}
@@ -500,14 +526,32 @@ func (self *CodexNode) CodexPeerDebug(peerId string) (RestPeerRecord, error) {
 	return record, err
 }
 
-func (self *CodexNode) CodexUploadInit(filename string) (string, error) {
+func (self *CodexNode) CodexUploadInit(options *CodexUploadOptions) (string, error) {
 	bridge := newBridgeCtx()
-	defer bridge.free()
+	totalRead := 0
 
-	var cFilename = C.CString(filename)
+	bridge.onProgress = func(bytes int) {
+		if bytes == -1 {
+			bridge.free()
+		} else {
+			totalRead += bytes
+
+			if options.onProgress != nil {
+				options.onProgress(bytes, totalRead, 0)
+			}
+		}
+	}
+
+	var cFilename = C.CString(options.filepath)
 	defer C.free(unsafe.Pointer(cFilename))
 
-	if C.cGoCodexUploadInit(self.ctx, cFilename, bridge.resp) != C.RET_OK {
+	if options.chunkSize == 0 {
+		options.chunkSize = defaultBlockSize
+	}
+
+	var cChunkSize = C.size_t(options.chunkSize)
+
+	if C.cGoCodexUploadInit(self.ctx, cFilename, cChunkSize, bridge.resp) != C.RET_OK {
 		return "", bridge.CallError("cGoCodexUploadInit")
 	}
 
@@ -563,13 +607,26 @@ func (self *CodexNode) CodexUploadCancel(sessionId string) error {
 	return err
 }
 
-func (self *CodexNode) CodexUploadReader(filename string, r io.Reader, chunkSize int) (string, error) {
-	sessionId, err := self.CodexUploadInit(filename)
+func (self *CodexNode) CodexUploadReader(options CodexUploadOptions, r io.Reader) (string, error) {
+	if options.onProgress != nil {
+		size := getReaderSize(r)
+
+		if size > 0 {
+			fn := options.onProgress
+
+			options.onProgress = func(read, total int, _ float64) {
+				percent := float64(total) / float64(size) * 100.0
+				fn(read, total, percent)
+			}
+		}
+	}
+
+	sessionId, err := self.CodexUploadInit(&options)
 	if err != nil {
 		return "", err
 	}
 
-	buf := make([]byte, chunkSize)
+	buf := make([]byte, options.chunkSize)
 	for {
 		n, err := r.Read(buf)
 		if n > 0 {
@@ -592,23 +649,38 @@ func (self *CodexNode) CodexUploadReader(filename string, r io.Reader, chunkSize
 	return self.CodexUploadFinalize(sessionId)
 }
 
-// TODO provide an async version of CodexUploadReader
-// that starts a gorountine to upload the chunks
-// and take:
-// a callback to be called when done
-// another callback to cancel the upload
-func (self *CodexNode) CodexUploadReaderAsync(filename string, r io.Reader, chunkSize int) (string, error) {
-	return "", nil
+func (self *CodexNode) CodexUploadReaderAsync(options CodexUploadOptions, r io.Reader, onDone func(cid string, err error)) {
+	go func() {
+		cid, err := self.CodexUploadReader(options, r)
+		onDone(cid, err)
+	}()
 }
 
-func (self *CodexNode) CodexUploadFile(filepath string, chunkSize int) (string, error) {
+func (self *CodexNode) CodexUploadFile(options CodexUploadOptions) (string, error) {
+	if options.onProgress != nil {
+		stat, err := os.Stat(options.filepath)
+		if err != nil {
+			return "", err
+		}
+
+		size := stat.Size()
+		if size > 0 {
+			fn := options.onProgress
+
+			options.onProgress = func(read, total int, _ float64) {
+				percent := float64(total) / float64(size) * 100.0
+				fn(read, total, percent)
+			}
+		}
+	}
+
 	bridge := newBridgeCtx()
 	defer bridge.free()
 
-	var cFilePath = C.CString(filepath)
+	var cFilePath = C.CString(options.filepath)
 	defer C.free(unsafe.Pointer(cFilePath))
 
-	sessionId, err := self.CodexUploadInit(filepath)
+	sessionId, err := self.CodexUploadInit(&options)
 	if err != nil {
 		return "", err
 	}
@@ -616,12 +688,7 @@ func (self *CodexNode) CodexUploadFile(filepath string, chunkSize int) (string, 
 	var cSessionId = C.CString(sessionId)
 	defer C.free(unsafe.Pointer(cSessionId))
 
-	var cChunkSize = C.size_t(0)
-	if chunkSize > 0 {
-		cChunkSize = C.size_t(chunkSize)
-	}
-
-	if C.cGoCodexUploadFile(self.ctx, cSessionId, cChunkSize, bridge.resp) != C.RET_OK {
+	if C.cGoCodexUploadFile(self.ctx, cSessionId, bridge.resp) != C.RET_OK {
 		return "", bridge.CallError("cGoCodexUploadFile")
 	}
 
@@ -634,7 +701,7 @@ func (self *CodexNode) CodexUploadFile(filepath string, chunkSize int) (string, 
 // and take:
 // a callback to be called when done
 // another callback to cancel the upload
-func (self *CodexNode) CodexUploadFileAsync(filepath string, chunkSize int) (string, error) {
+func (self *CodexNode) CodexUploadFileAsync(filepath string, chunkSize int, cb func(error)) (string, error) {
 	return "", nil
 }
 
@@ -650,20 +717,11 @@ func (self *CodexNode) CodexStart() error {
 	return err
 }
 
-func (self *CodexNode) CodexStartAsync(cb func(error)) error {
-	bridge := newBridgeCtx()
-	defer bridge.free()
-
-	if C.cGoCodexStart(self.ctx, bridge.resp) != C.RET_OK {
-		return bridge.CallError("cGoCodexStart")
-	}
-
+func (self *CodexNode) CodexStartAsync(onDone func(error)) {
 	go func() {
-		_, err := bridge.wait()
-		cb(err)
+		err := self.CodexStart()
+		onDone(err)
 	}()
-
-	return nil
 }
 
 func (self *CodexNode) CodexStop() error {
@@ -717,7 +775,7 @@ func main() {
 
 	log.Println("Codex created.")
 
-	// node.CodexSetEventCallback()
+	node.CodexSetEventCallback()
 
 	version, err := node.CodexVersion()
 	if err != nil {
@@ -783,7 +841,7 @@ func main() {
 
 	log.Println("Codex Log Level set to TRACE")
 
-	sessionId, err := node.CodexUploadInit("hello.txt")
+	sessionId, err := node.CodexUploadInit(&CodexUploadOptions{filepath: "hello.txt"})
 	if err != nil {
 		log.Fatal("Error happened:", err.Error())
 	}
@@ -808,7 +866,7 @@ func main() {
 	log.Println("Codex Upload Finalized, cid:", cid)
 
 	buf := bytes.NewBuffer([]byte("Hello World!"))
-	cid, err = node.CodexUploadReader("hello.txt", buf, 16*1024)
+	cid, err = node.CodexUploadReader(CodexUploadOptions{filepath: "hello.txt"}, buf)
 	if err != nil {
 		log.Fatal("Error happened:", err.Error())
 	}
@@ -820,9 +878,14 @@ func main() {
 		log.Fatal("Error happened:", err.Error())
 	}
 
+	// Choose a big file to see the progress logs
 	filepath := path.Join(current, "examples", "golang", "hello.txt")
-	log.Println("Uploading file:", filepath)
-	cid, err = node.CodexUploadFile(filepath, 1024)
+	// filepath := path.Join(current, "examples", "golang", "bigfile.zip")
+
+	cid, err = node.CodexUploadFile(CodexUploadOptions{filepath: filepath, onProgress: func(read, total int, percent float64) {
+		log.Printf("Uploaded %d bytes, total %d bytes (%.2f%%)\n", read, total, percent)
+	}})
+
 	if err != nil {
 		log.Fatal("Error happened:", err.Error())
 	}
