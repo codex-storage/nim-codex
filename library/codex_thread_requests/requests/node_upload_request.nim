@@ -18,12 +18,16 @@ type NodeUploadMsgType* = enum
   CANCEL
   FILE
 
+type OnProgressHandler =
+  proc(bytes: int): Future[void] {.gcsafe, async: (raises: [CancelledError]).}
+
 type NodeUploadRequest* = object
   operation: NodeUploadMsgType
   sessionId: cstring
   filepath: cstring
   chunk: seq[byte]
   chunkSize: csize_t
+  onProgress: OnProgressHandler
 
 type
   UploadSessionId* = string
@@ -32,6 +36,7 @@ type
     stream: BufferStream
     fut: Future[?!Cid]
     filepath: string
+    chunkSize: int
 
 var uploadSessions {.threadvar.}: Table[UploadSessionId, UploadSession]
 var nexUploadSessionCount {.threadvar.}: UploadSessionCount
@@ -42,6 +47,7 @@ proc createShared*(
     sessionId: cstring = "",
     filepath: cstring = "",
     chunk: seq[byte] = @[],
+    onProgress: OnProgressHandler = nil,
     chunkSize: csize_t = 0,
 ): ptr type T =
   var ret = createShared(T)
@@ -50,6 +56,7 @@ proc createShared*(
   ret[].filepath = filepath.alloc()
   ret[].chunk = chunk
   ret[].chunkSize = chunkSize
+  ret[].onProgress = onProgress
   return ret
 
 proc destroyShared(self: ptr NodeUploadRequest) =
@@ -64,7 +71,10 @@ proc destroyShared(self: ptr NodeUploadRequest) =
 ## or it can be the filename when the file will be uploaded via chunks.
 ## The mimetype is deduced from the filename extension.
 proc init(
-    codex: ptr CodexServer, filepath: cstring = ""
+    codex: ptr CodexServer,
+    filepath: cstring = "",
+    chunkSize: csize_t = 0,
+    onProgress: OnProgressHandler,
 ): Future[Result[string, string]] {.async: (raises: []).} =
   var filenameOpt, mimetypeOpt = string.none
 
@@ -94,9 +104,25 @@ proc init(
   let stream = BufferStream.new()
   let lpStream = LPStream(stream)
   let node = codex[].node
-  let fut = node.store(lpStream, filenameOpt, mimetypeOpt)
-  uploadSessions[sessionId] =
-    UploadSession(stream: stream, fut: fut, filepath: $filepath)
+
+  let onBlockStore = proc(
+      chunk: seq[byte]
+  ): Future[void] {.gcsafe, async: (raises: [CancelledError]).} =
+    discard onProgress(chunk.len)
+
+  let blockSize =
+    if chunkSize.NBytes > 0.NBytes: chunkSize.NBytes else: DefaultBlockSize
+  let fut = node.store(lpStream, filenameOpt, mimetypeOpt, blockSize, onBlockStore)
+
+  proc cb(_: pointer) {.raises: [].} =
+    # Signal end of upload
+    discard onProgress(-1)
+
+  fut.addCallback(cb)
+
+  uploadSessions[sessionId] = UploadSession(
+    stream: stream, fut: fut, filepath: $filepath, chunkSize: blockSize.int
+  )
 
   return ok(sessionId)
 
@@ -163,20 +189,21 @@ proc cancel(
   return ok("")
 
 proc file(
-    codex: ptr CodexServer, sessionId: cstring, chunkSize: csize_t = 1024
+    codex: ptr CodexServer, sessionId: cstring
 ): Future[Result[string, string]] {.raises: [], async: (raises: []).} =
   if not uploadSessions.contains($sessionId):
     return err("Invalid session ID")
 
-  let size = if chunkSize > 0: chunkSize else: 1024
-  var buffer = newSeq[byte](size)
   var session: UploadSession
 
   ## Here we certainly need to spawn a new thread to avoid blocking
   ## the worker thread while reading the file.
   try:
     session = uploadSessions[$sessionId]
+    var buffer = newSeq[byte](session.chunkSize)
     let fs = openFileStream(session.filepath)
+    defer:
+      fs.close()
 
     while true:
       let bytesRead = fs.readData(addr buffer[0], buffer.len)
@@ -185,13 +212,7 @@ proc file(
         break
       await session.stream.pushData(buffer[0 ..< bytesRead])
 
-    await session.stream.pushEof()
-
-    let res = await session.fut
-    if res.isErr:
-      return err("Upload failed: " & res.error().msg)
-
-    return ok($res.get())
+    return await codex.finalize(sessionId)
   except KeyError as e:
     return err("Invalid session ID")
   except LPStreamError, IOError:
@@ -202,6 +223,7 @@ proc file(
   except CatchableError as e:
     return err("Upload failed: " & $e.msg)
   finally:
+    session.fut.cancel()
     uploadSessions.del($sessionId)
 
 proc process*(
@@ -212,7 +234,7 @@ proc process*(
 
   case self.operation
   of NodeUploadMsgType.INIT:
-    let res = (await init(codex, self.filepath))
+    let res = (await init(codex, self.filepath, self.chunkSize, self.onProgress))
     if res.isErr:
       error "INIT failed", error = res.error
       return err($res.error)
@@ -236,7 +258,7 @@ proc process*(
       return err($res.error)
     return res
   of NodeUploadMsgType.FILE:
-    let res = (await file(codex, self.sessionId, self.chunkSize))
+    let res = (await file(codex, self.sessionId))
     if res.isErr:
       error "FILE failed", error = res.error
       return err($res.error)
