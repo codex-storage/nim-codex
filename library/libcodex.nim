@@ -247,12 +247,25 @@ proc codex_destroy(
   return callback.success("", userData)
 
 proc codex_upload_init(
-    ctx: ptr CodexContext, filepath: cstring, callback: CodexCallback, userData: pointer
+    ctx: ptr CodexContext,
+    filepath: cstring,
+    chunkSize: csize_t,
+    callback: CodexCallback,
+    userData: pointer,
 ): cint {.dynlib, exportc.} =
   init(ctx, callback, userData)
 
-  let reqContent =
-    NodeUploadRequest.createShared(NodeUploadMsgType.INIT, filepath = filepath)
+  let onProgress = proc(
+      bytes: int
+  ): Future[void] {.gcsafe, async: (raises: [CancelledError]).} =
+    callback(RET_PROGRESS, nil, bytes.csize_t, userData)
+
+  let reqContent = NodeUploadRequest.createShared(
+    NodeUploadMsgType.INIT,
+    filepath = filepath,
+    chunkSize = chunkSize,
+    onProgress = onProgress,
+  )
   let res = codex_context.sendRequestToCodexThread(
     ctx, RequestType.UPLOAD, reqContent, callback, userData
   )
@@ -317,15 +330,13 @@ proc codex_upload_cancel(
 proc codex_upload_file(
     ctx: ptr CodexContext,
     sessionId: cstring,
-    chunkSize: csize_t,
     callback: CodexCallback,
     userData: pointer,
 ): cint {.dynlib, exportc.} =
   init(ctx, callback, userData)
 
-  let reqContent = NodeUploadRequest.createShared(
-    NodeUploadMsgType.FILE, sessionId = sessionId, chunkSize = chunkSize
-  )
+  let reqContent =
+    NodeUploadRequest.createShared(NodeUploadMsgType.FILE, sessionId = sessionId)
 
   let res = codex_context.sendRequestToCodexThread(
     ctx, RequestType.UPLOAD, reqContent, callback, userData

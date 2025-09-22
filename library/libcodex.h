@@ -18,6 +18,7 @@
 #define RET_OK                0
 #define RET_ERR               1
 #define RET_MISSING_CALLBACK  2
+#define RET_PROGRESS          3
 
 #ifdef __cplusplus
 extern "C" {
@@ -84,6 +85,7 @@ int codex_peer_debug(
 int codex_upload_init(
                 void* ctx,
                 const char* filepath,
+                size_t chunkSize,
                 CodexCallback callback,
                 void* userData);
 
@@ -110,7 +112,6 @@ int codex_upload_cancel(
 int codex_upload_file(
                 void* ctx,
                 const char* sessionId,
-                size_t chunkSize,
                 CodexCallback callback,
                 void* userData);
 
