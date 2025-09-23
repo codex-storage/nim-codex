@@ -2,7 +2,8 @@
 
 ## This file contains the debug info available with Codex.
 ## The DEBUG type will return info about the P2P node.
-## The PEER type will return info about a specific peer if available.
+## The PEER type is available only with codex_enable_api_debug_peers flag.
+## It will return info about a specific peer if available.
 
 import std/[options]
 import chronos
