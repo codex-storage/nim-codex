@@ -1,4 +1,7 @@
-## This file contains the lifecycle request type that will be handled.
+{.push raises: [].}
+
+## This file contains the P2p request type that will be handled.
+## CONNECT: connect to a peer with the provided peer ID and optional addresses.
 
 import std/[options]
 import chronos

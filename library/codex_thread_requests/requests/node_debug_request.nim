@@ -1,4 +1,8 @@
-## This file contains the lifecycle request type that will be handled.
+{.push raises: [].}
+
+## This file contains the debug info available with Codex.
+## The DEBUG type will return info about the P2P node.
+## The PEER type will return info about a specific peer if available.
 
 import std/[options]
 import chronos
