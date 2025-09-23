@@ -1,7 +1,9 @@
 ## This file contains the lifecycle request type that will be handled.
+## CREATE_NODE: create a new Codex node with the provided config.json.
+## START_NODE: start the provided Codex node.
+## STOP_NODE: stop the provided Codex node.
 
 import std/[options, json, strutils, net, os]
-import confutils/defs
 import codexdht/discv5/spr
 import stew/shims/parseutils
 import contractabi/address
@@ -10,6 +12,7 @@ import chronicles
 import results
 import confutils
 import confutils/std/net
+import confutils/defs
 import libp2p
 import json_serialization
 import json_serialization/std/[options, net]
@@ -17,6 +20,7 @@ import ../../alloc
 import ../../../codex/conf
 import ../../../codex/utils
 import ../../../codex/utils/[keyutils, fileutils]
+import ../../../codex/units
 
 from ../../../codex/codex import CodexServer, new, start, stop
 
