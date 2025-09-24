@@ -73,9 +73,9 @@ declareCounter(
 const
   DefaultMaxPeersPerRequest* = 10
   # The default max message length of nim-libp2p is 100 megabytes, meaning we can
-  # in principle fit up to 1600 64k blocks per message, so 500 is well under
+  # in principle fit up to 1600 64k blocks per message, so 50 is well under
   # that number.
-  DefaultMaxBlocksPerMessage = 500
+  DefaultMaxBlocksPerMessage = 50
   DefaultTaskQueueSize = 100
   DefaultConcurrentTasks = 10
   # Don't do more than one discovery request per `DiscoveryRateLimit` seconds.
