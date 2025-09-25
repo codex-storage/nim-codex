@@ -112,7 +112,7 @@ proc createCodex(
       ,
     )
   except ConfigurationError as e:
-    return err("Failed to load configuration: " & e.msg)
+    return err("Failed to create codex: unable to load configuration: " & e.msg)
 
   conf.setupLogging()
   conf.setupMetrics()
@@ -121,30 +121,31 @@ proc createCodex(
     # We are unable to access/create data folder or data folder's
     # permissions are insecure.
     return err(
-      "Unable to access/create data folder or data folder's permissions are insecure."
+      "Failed to create codex: unable to access/create data folder or data folder's permissions are insecure."
     )
 
   if not (checkAndCreateDataDir((conf.dataDir / "repo"))):
     # We are unable to access/create data folder or data folder's
     # permissions are insecure.
     return err(
-      "Unable to access/create data folder or data folder's permissions are insecure."
+      "Failed to create codex: unable to access/create data folder or data folder's permissions are insecure."
     )
-
-  debug "Repo dir initialized", dir = conf.dataDir / "repo"
 
   let keyPath =
     if isAbsolute(conf.netPrivKeyFile):
       conf.netPrivKeyFile
     else:
       conf.dataDir / conf.netPrivKeyFile
-  let privateKey = setupKey(keyPath).expect("Should setup private key!")
+  let privateKey = setupKey(keyPath)
+  if privateKey.isErr:
+    return err("Failed to create codex: unable to get the private key.")
+  let pk = privateKey.get()
 
   let server =
     try:
-      CodexServer.new(conf, privateKey)
+      CodexServer.new(conf, pk)
     except Exception as exc:
-      return err("Failed to start Codex: " & exc.msg)
+      return err("Failed to create codex: " & exc.msg)
 
   return ok(server)
 
@@ -161,19 +162,19 @@ proc process*(
         self.configJson # , self.appCallbacks
       )
     ).valueOr:
-      error "CREATE_NODE failed", error = error
+      error "Failed to CREATE_NODE.", error = error
       return err($error)
   of START_NODE:
     try:
       await codex[].start()
     except Exception as e:
-      error "START_NODE failed", error = e.msg
+      error "Failed to START_NODE.", error = e.msg
       return err(e.msg)
   of STOP_NODE:
     try:
       await codex[].stop()
     except Exception as e:
-      error "STOP_NODE failed", error = e.msg
+      error "Failed to STOP_NODE.", error = e.msg
       return err(e.msg)
 
   return ok("")

@@ -40,7 +40,7 @@ proc getSpr(
 ): Future[Result[string, string]] {.async: (raises: []).} =
   let spr = codex[].node.discovery.dhtRecord
   if spr.isNone:
-    return err("No SPR record found")
+    return err("Failed to get SPR: no SPR record found.")
 
   return ok(spr.get.toURI)
 
@@ -59,19 +59,19 @@ proc process*(
   of REPO:
     let res = (await getRepo(codex))
     if res.isErr:
-      error "REPO failed", error = res.error
+      error "Failed to get REPO.", error = res.error
       return err($res.error)
     return res
   of SPR:
     let res = (await getSpr(codex))
     if res.isErr:
-      error "SPR failed", error = res.error
+      error "Failed to get SPR.", error = res.error
       return err($res.error)
     return res
   of PEERID:
     let res = (await getPeerId(codex))
     if res.isErr:
-      error "PEERID failed", error = res.error
+      error "Failed to get PEERID.", error = res.error
       return err($res.error)
     return res
 

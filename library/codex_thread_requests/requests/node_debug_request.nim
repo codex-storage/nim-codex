@@ -64,22 +64,22 @@ proc getPeer(
     let node = codex[].node
     let res = PeerId.init($peerId)
     if res.isErr:
-      return err("Invalid peer ID " & $peerId & ": " & $res.error())
+      return err("Failed to get peer: invalid peer ID " & $peerId & ": " & $res.error())
 
     let id = res.get()
 
     try:
       let peerRecord = await node.findPeer(id)
       if peerRecord.isNone:
-        return err("Peer not found")
+        return err("Failed to get peer: peer not found")
 
       return ok($ %RestPeerRecord.init(peerRecord.get()))
     except CancelledError:
-      return err("Operation cancelled")
+      return err("Failed to get peer: operation cancelled")
     except CatchableError as e:
-      return err("Error when finding peer: " & e.msg)
+      return err("Failed to get peer: " & e.msg)
   else:
-    return err("Peer debug API is disabled")
+    return err("Failed to get peer: peer debug API is disabled")
 
 proc process*(
     self: ptr NodeDebugRequest, codex: ptr CodexServer
@@ -91,13 +91,13 @@ proc process*(
   of NodeDebugMsgType.DEBUG:
     let res = (await getDebug(codex))
     if res.isErr:
-      error "DEBUG failed", error = res.error
+      error "Failed to get DEBUG.", error = res.error
       return err($res.error)
     return res
   of NodeDebugMsgType.PEER:
     let res = (await getPeer(codex, self.peerId))
     if res.isErr:
-      error "PEER failed", error = res.error
+      error "Failed to get PEER.", error = res.error
       return err($res.error)
     return res
 
