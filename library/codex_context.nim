@@ -95,23 +95,28 @@ proc sendRequestToCodexThread*(
   let sentOk = ctx.reqChannel.trySend(req)
   if not sentOk:
     deallocShared(req)
-    return err("Couldn't send a request to the codex thread: " & $req[])
+    return err("Failed to send request to the codex thread: " & $req[])
 
   # Notify the Codex thread that a request is available
   let fireSyncRes = ctx.reqSignal.fireSync()
   if fireSyncRes.isErr():
     deallocShared(req)
-    return err("failed fireSync: " & $fireSyncRes.error)
+    return err(
+      "Failed to send request to the codex thread: unable to fireSync: " &
+        $fireSyncRes.error
+    )
 
   if fireSyncRes.get() == false:
     deallocShared(req)
-    return err("Couldn't fireSync in time")
+    return err("Failed to send request to the codex thread: fireSync timed out.")
 
   # Wait until the Codex Thread properly received the request
   let res = ctx.reqReceivedSignal.waitSync(timeout)
   if res.isErr():
     deallocShared(req)
-    return err("Couldn't receive reqReceivedSignal signal")
+    return err(
+      "Failed to send request to the codex thread: unable to receive reqReceivedSignal signal."
+    )
 
   ## Notice that in case of "ok", the deallocShared(req) is performed by the Codex Thread in the
   ## process proc. See the 'codex_thread_request.nim' module for more details.
@@ -125,7 +130,7 @@ proc runCodex(ctx: ptr CodexContext) {.async: (raises: []).} =
       # Wait until a request is available
       await ctx.reqSignal.wait()
     except Exception as e:
-      error "codex thread error while waiting for reqSignal", error = e.msg
+      error "Failed to run codex thread while waiting for reqSignal.", error = e.msg
       continue
 
     # If codex_destroy was called, exit the loop
@@ -137,7 +142,7 @@ proc runCodex(ctx: ptr CodexContext) {.async: (raises: []).} =
     # Pop a request from the channel
     let recvOk = ctx.reqChannel.tryRecv(request)
     if not recvOk:
-      error "codex thread could not receive a request"
+      error "Failed to run codex: unable to receive request in codex thread."
       continue
 
     # yield immediately to the event loop
@@ -152,7 +157,8 @@ proc runCodex(ctx: ptr CodexContext) {.async: (raises: []).} =
     # Notify the main thread that we picked up the request
     let fireRes = ctx.reqReceivedSignal.fireSync()
     if fireRes.isErr():
-      error "could not fireSync back to requester thread", error = fireRes.error
+      error "Failed to run codex: unable to fire back to requester thread.",
+        error = fireRes.error
 
 proc run(ctx: ptr CodexContext) {.thread.} =
   waitFor runCodex(ctx)
@@ -167,12 +173,15 @@ proc createCodexContext*(): Result[ptr CodexContext, string] =
   # This signal is used by the main side to wake the Codex thread 
   # when a new request is enqueued.
   ctx.reqSignal = ThreadSignalPtr.new().valueOr:
-    return err("couldn't create reqSignal ThreadSignalPtr")
+    return
+      err("Failed to create a context: unable to create reqSignal ThreadSignalPtr.")
 
   # Used to let the caller know that the Codex thread has 
   # acknowledged / picked up a request (like a handshake).
   ctx.reqReceivedSignal = ThreadSignalPtr.new().valueOr:
-    return err("couldn't create reqReceivedSignal ThreadSignalPtr")
+    return err(
+      "Failed to create codex context: unable to create reqReceivedSignal ThreadSignalPtr."
+    )
 
   # Protects shared state inside CodexContext
   ctx.lock.initLock()
@@ -184,7 +193,10 @@ proc createCodexContext*(): Result[ptr CodexContext, string] =
     createThread(ctx.thread, run, ctx)
   except ValueError, ResourceExhaustedError:
     freeShared(ctx)
-    return err("failed to create the Codex thread: " & getCurrentExceptionMsg())
+    return err(
+      "Failed to create codex context: unable to create thread: " &
+        getCurrentExceptionMsg()
+    )
 
   return ok(ctx)
 
@@ -194,10 +206,12 @@ proc destroyCodexContext*(ctx: ptr CodexContext): Result[void, string] =
 
   # Wake the worker up if it's waiting
   let signaledOnTime = ctx.reqSignal.fireSync().valueOr:
-    return err("error in destroyCodexContext: " & $error)
+    return err("Failed to destroy codex context: " & $error)
 
   if not signaledOnTime:
-    return err("failed to signal reqSignal on time in destroyCodexContext")
+    return err(
+      "Failed to destroy codex context: unable to get signal reqSignal on time in destroyCodexContext."
+    )
 
   # Wait for the thread to finish
   joinThread(ctx.thread)

@@ -45,7 +45,7 @@ proc connect(
   let node = codex[].node
   let res = PeerId.init($peerId)
   if res.isErr:
-    return err("Invalid peer ID: " & $res.error())
+    return err("Failed to connect to peer: invalid peer ID: " & $res.error())
 
   let id = res.get()
 
@@ -57,26 +57,26 @@ proc connect(
         if res.isOk:
           addrs.add(res[])
         else:
-          return err("Invalid address: " & $addrStr)
+          return err("Failed to connect to peer: invalid address: " & $addrStr)
       addrs
     else:
       try:
         let peerRecord = await node.findPeer(id)
         if peerRecord.isNone:
-          return err("Peer not found")
+          return err("Failed to connect to peer: peer not found.")
 
         peerRecord.get().addresses.mapIt(it.address)
       except CancelledError as e:
-        return err("Operation cancelled")
+        return err("Failed to connect to peer: operation cancelled.")
       except CatchableError as e:
-        return err("Error finding peer: " & $e.msg)
+        return err("Failed to connect to peer: " & $e.msg)
 
   try:
     await node.connect(id, addresses)
   except CancelledError as e:
-    return err("Operation cancelled")
+    return err("Failed to connect to peer: operation cancelled.")
   except CatchableError as e:
-    return err("Connection failed: " & $e.msg)
+    return err("Failed to connect to peer: " & $e.msg)
 
   return ok("")
 
@@ -90,7 +90,7 @@ proc process*(
   of NodeP2PMsgType.CONNECT:
     let res = (await connect(codex, self.peerId))
     if res.isErr:
-      error "CONNECT failed", error = res.error
+      error "Failed to CONNECT.", error = res.error
       return err($res.error)
     return res
 
