@@ -12,6 +12,9 @@ import ../../../codex/node
 
 from ../../../codex/codex import CodexServer, node
 
+logScope:
+  topics = "codexlib codexlibp2p"
+
 type NodeP2PMsgType* = enum
   CONNECT
 

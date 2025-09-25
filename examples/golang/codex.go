@@ -124,6 +124,10 @@ package main
 		return codex_upload_file(codexCtx, sessionId, (CodexCallback) callback, resp);
 	}
 
+	static int cGoCodexUploadSubscribe(void* codexCtx, char* sessionId, void* resp) {
+		return codex_upload_subscribe(codexCtx, sessionId, (CodexCallback) callback, resp);
+	}
+
 	static int cGoCodexStart(void* codexCtx, void* resp) {
 		return codex_start(codexCtx, (CodexCallback) callback, resp);
 	}
@@ -255,10 +259,12 @@ type CodexNode struct {
 
 const defaultBlockSize = 1024 * 64
 
+type OnProgressFunc func(read, total int, percent float64)
+
 type CodexUploadOptions struct {
 	filepath   string
 	chunkSize  int
-	onProgress func(read, total int, percent float64)
+	onProgress OnProgressFunc
 }
 
 type bridgeCtx struct {
@@ -273,22 +279,25 @@ type bridgeCtx struct {
 }
 
 func newBridgeCtx() *bridgeCtx {
-	var wg sync.WaitGroup
-	wg.Add(1)
+	bridge := &bridgeCtx{}
+	bridge.wg = &sync.WaitGroup{}
+	bridge.wg.Add(1)
 
-	bridge := &bridgeCtx{wg: &wg}
 	bridge.h = cgo.NewHandle(bridge)
 	bridge.resp = C.allocResp(C.uintptr_t(uintptr(bridge.h)))
-
 	return bridge
 }
 
 func (b *bridgeCtx) free() {
-	b.h.Delete()
-	b.h = 0
+	if b.h > 0 {
+		b.h.Delete()
+		b.h = 0
+	}
 
-	C.freeResp(b.resp)
-	b.resp = nil
+	if b.resp != nil {
+		C.freeResp(b.resp)
+		b.resp = nil
+	}
 }
 
 func (b *bridgeCtx) CallError(name string) error {
@@ -298,7 +307,12 @@ func (b *bridgeCtx) CallError(name string) error {
 func (b *bridgeCtx) wait() (string, error) {
 	b.wg.Wait()
 
-	return b.result, b.err
+	result := b.result
+	err := b.err
+
+	b.free()
+
+	return result, err
 }
 
 func getReaderSize(r io.Reader) int64 {
@@ -327,16 +341,6 @@ func callback(ret C.int, msg *C.char, len C.size_t, resp unsafe.Pointer) {
 	m.msg = msg
 	m.len = len
 
-	if ret == C.RET_PROGRESS {
-		if m.h != 0 {
-			h := cgo.Handle(m.h)
-			if v, ok := h.Value().(*bridgeCtx); ok && v.onProgress != nil {
-				v.onProgress(int(len))
-			}
-		}
-		return
-	}
-
 	if m.h == 0 {
 		return
 	}
@@ -348,15 +352,22 @@ func callback(ret C.int, msg *C.char, len C.size_t, resp unsafe.Pointer) {
 	}
 
 	if v, ok := h.Value().(*bridgeCtx); ok {
-		if ret == C.RET_OK || ret == C.RET_ERR {
-			retMsg := C.GoStringN(msg, C.int(len))
-
-			if ret == C.RET_OK {
-				v.result = retMsg
-				v.err = nil
-			} else {
-				v.err = errors.New(retMsg)
+		switch ret {
+		case C.RET_PROGRESS:
+			if v.onProgress != nil {
+				v.onProgress(int(C.int(len)))
 			}
+		case C.RET_OK:
+			retMsg := C.GoStringN(msg, C.int(len))
+			v.result = retMsg
+			v.err = nil
+
+			if v.wg != nil {
+				v.wg.Done()
+			}
+		case C.RET_ERR:
+			retMsg := C.GoStringN(msg, C.int(len))
+			v.err = errors.New(retMsg)
 
 			if v.wg != nil {
 				v.wg.Done()
@@ -367,7 +378,6 @@ func callback(ret C.int, msg *C.char, len C.size_t, resp unsafe.Pointer) {
 
 func CodexNew(config CodexConfig) (*CodexNode, error) {
 	bridge := newBridgeCtx()
-	defer bridge.free()
 
 	jsonConfig, err := json.Marshal(config)
 	if err != nil {
@@ -386,9 +396,8 @@ func CodexNew(config CodexConfig) (*CodexNode, error) {
 	return &CodexNode{ctx: ctx}, bridge.err
 }
 
-func (self *CodexNode) CodexVersion() (string, error) {
+func (self CodexNode) CodexVersion() (string, error) {
 	bridge := newBridgeCtx()
-	defer bridge.free()
 
 	if C.cGoCodexVersion(self.ctx, bridge.resp) != C.RET_OK {
 		return "", bridge.CallError("cGoCodexVersion")
@@ -397,9 +406,8 @@ func (self *CodexNode) CodexVersion() (string, error) {
 	return bridge.wait()
 }
 
-func (self *CodexNode) CodexRevision() (string, error) {
+func (self CodexNode) CodexRevision() (string, error) {
 	bridge := newBridgeCtx()
-	defer bridge.free()
 
 	if C.cGoCodexRevision(self.ctx, bridge.resp) != C.RET_OK {
 		return "", bridge.CallError("cGoCodexRevision")
@@ -408,9 +416,8 @@ func (self *CodexNode) CodexRevision() (string, error) {
 	return bridge.wait()
 }
 
-func (self *CodexNode) CodexRepo() (string, error) {
+func (self CodexNode) CodexRepo() (string, error) {
 	bridge := newBridgeCtx()
-	defer bridge.free()
 
 	if C.cGoCodexRepo(self.ctx, bridge.resp) != C.RET_OK {
 		return "", bridge.CallError("cGoCodexRepo")
@@ -419,11 +426,10 @@ func (self *CodexNode) CodexRepo() (string, error) {
 	return bridge.wait()
 }
 
-func (self *CodexNode) CodexDebug() (CodexDebugInfo, error) {
+func (self CodexNode) CodexDebug() (CodexDebugInfo, error) {
 	var info CodexDebugInfo
 
 	bridge := newBridgeCtx()
-	defer bridge.free()
 
 	if C.cGoCodexDebug(self.ctx, bridge.resp) != C.RET_OK {
 		return info, bridge.CallError("cGoCodexDebug")
@@ -439,9 +445,8 @@ func (self *CodexNode) CodexDebug() (CodexDebugInfo, error) {
 	return info, err
 }
 
-func (self *CodexNode) CodexSpr() (string, error) {
+func (self CodexNode) CodexSpr() (string, error) {
 	bridge := newBridgeCtx()
-	defer bridge.free()
 
 	if C.cGoCodexSpr(self.ctx, bridge.resp) != C.RET_OK {
 		return "", bridge.CallError("cGoCodexSpr")
@@ -450,9 +455,8 @@ func (self *CodexNode) CodexSpr() (string, error) {
 	return bridge.wait()
 }
 
-func (self *CodexNode) CodexPeerId() (string, error) {
+func (self CodexNode) CodexPeerId() (string, error) {
 	bridge := newBridgeCtx()
-	defer bridge.free()
 
 	if C.cGoCodexPeerId(self.ctx, bridge.resp) != C.RET_OK {
 		return "", bridge.CallError("cGoCodexPeerId")
@@ -461,9 +465,8 @@ func (self *CodexNode) CodexPeerId() (string, error) {
 	return bridge.wait()
 }
 
-func (self *CodexNode) CodexLogLevel(logLevel LogLevel) error {
+func (self CodexNode) CodexLogLevel(logLevel LogLevel) error {
 	bridge := newBridgeCtx()
-	defer bridge.free()
 
 	var cLogLevel = C.CString(fmt.Sprintf("%s", logLevel))
 	defer C.free(unsafe.Pointer(cLogLevel))
@@ -476,9 +479,8 @@ func (self *CodexNode) CodexLogLevel(logLevel LogLevel) error {
 	return err
 }
 
-func (self *CodexNode) CodexConnect(peerId string, peerAddresses []string) error {
+func (self CodexNode) CodexConnect(peerId string, peerAddresses []string) error {
 	bridge := newBridgeCtx()
-	defer bridge.free()
 
 	var cPeerId = C.CString(peerId)
 	defer C.free(unsafe.Pointer(cPeerId))
@@ -503,11 +505,10 @@ func (self *CodexNode) CodexConnect(peerId string, peerAddresses []string) error
 	return err
 }
 
-func (self *CodexNode) CodexPeerDebug(peerId string) (RestPeerRecord, error) {
+func (self CodexNode) CodexPeerDebug(peerId string) (RestPeerRecord, error) {
 	var record RestPeerRecord
 
 	bridge := newBridgeCtx()
-	defer bridge.free()
 
 	var cPeerId = C.CString(peerId)
 	defer C.free(unsafe.Pointer(cPeerId))
@@ -526,21 +527,8 @@ func (self *CodexNode) CodexPeerDebug(peerId string) (RestPeerRecord, error) {
 	return record, err
 }
 
-func (self *CodexNode) CodexUploadInit(options *CodexUploadOptions) (string, error) {
+func (self CodexNode) CodexUploadInit(options *CodexUploadOptions) (string, error) {
 	bridge := newBridgeCtx()
-	totalRead := 0
-
-	bridge.onProgress = func(bytes int) {
-		if bytes == -1 {
-			bridge.free()
-		} else {
-			totalRead += bytes
-
-			if options.onProgress != nil {
-				options.onProgress(bytes, totalRead, 0)
-			}
-		}
-	}
 
 	var cFilename = C.CString(options.filepath)
 	defer C.free(unsafe.Pointer(cFilename))
@@ -558,9 +546,8 @@ func (self *CodexNode) CodexUploadInit(options *CodexUploadOptions) (string, err
 	return bridge.wait()
 }
 
-func (self *CodexNode) CodexUploadChunk(sessionId string, chunk []byte) error {
+func (self CodexNode) CodexUploadChunk(sessionId string, chunk []byte) error {
 	bridge := newBridgeCtx()
-	defer bridge.free()
 
 	var cSessionId = C.CString(sessionId)
 	defer C.free(unsafe.Pointer(cSessionId))
@@ -578,9 +565,8 @@ func (self *CodexNode) CodexUploadChunk(sessionId string, chunk []byte) error {
 	return err
 }
 
-func (self *CodexNode) CodexUploadFinalize(sessionId string) (string, error) {
+func (self CodexNode) CodexUploadFinalize(sessionId string) (string, error) {
 	bridge := newBridgeCtx()
-	defer bridge.free()
 
 	var cSessionId = C.CString(sessionId)
 	defer C.free(unsafe.Pointer(cSessionId))
@@ -592,9 +578,8 @@ func (self *CodexNode) CodexUploadFinalize(sessionId string) (string, error) {
 	return bridge.wait()
 }
 
-func (self *CodexNode) CodexUploadCancel(sessionId string) error {
+func (self CodexNode) CodexUploadCancel(sessionId string) error {
 	bridge := newBridgeCtx()
-	defer bridge.free()
 
 	var cSessionId = C.CString(sessionId)
 	defer C.free(unsafe.Pointer(cSessionId))
@@ -607,28 +592,46 @@ func (self *CodexNode) CodexUploadCancel(sessionId string) error {
 	return err
 }
 
-func (self *CodexNode) CodexUploadReader(options CodexUploadOptions, r io.Reader) (string, error) {
+func (self CodexNode) CodexUploadReader(options CodexUploadOptions, r io.Reader) (string, error) {
+	sessionId, err := self.CodexUploadInit(&options)
+	if err != nil {
+		return "", err
+	}
+
 	if options.onProgress != nil {
 		size := getReaderSize(r)
+		total := 0
 
 		if size > 0 {
-			fn := options.onProgress
+			onProgress := func(read int) {
+				if read == 0 {
+					return
+				}
 
-			options.onProgress = func(read, total int, _ float64) {
+				total += read
+
 				percent := float64(total) / float64(size) * 100.0
 				// The last block could be a bit over the size due to padding
 				// on the chunk size.
 				if percent > 100.0 {
 					percent = 100.0
 				}
-				fn(read, total, percent)
+
+				options.onProgress(read, int(size), percent)
+			}
+
+			if err := self.CodexUploadSubscribe(sessionId, onProgress); err != nil {
+				if err := self.CodexUploadCancel(sessionId); err != nil {
+					log.Println("Error cancelling upload after subscribe failure:", err)
+				}
+
+				return "", err
 			}
 		}
 	}
 
-	sessionId, err := self.CodexUploadInit(&options)
-	if err != nil {
-		return "", err
+	if options.chunkSize == 0 {
+		options.chunkSize = defaultBlockSize
 	}
 
 	buf := make([]byte, options.chunkSize)
@@ -649,19 +652,25 @@ func (self *CodexNode) CodexUploadReader(options CodexUploadOptions, r io.Reader
 
 			return "", err
 		}
+
+		if n == 0 {
+			break
+		}
 	}
 
 	return self.CodexUploadFinalize(sessionId)
 }
 
-func (self *CodexNode) CodexUploadReaderAsync(options CodexUploadOptions, r io.Reader, onDone func(cid string, err error)) {
+func (self CodexNode) CodexUploadReaderAsync(options CodexUploadOptions, r io.Reader, onDone func(cid string, err error)) {
 	go func() {
 		cid, err := self.CodexUploadReader(options, r)
 		onDone(cid, err)
 	}()
 }
 
-func (self *CodexNode) CodexUploadFile(options CodexUploadOptions) (string, error) {
+func (self CodexNode) CodexUploadFile(options CodexUploadOptions) (string, error) {
+	bridge := newBridgeCtx()
+
 	if options.onProgress != nil {
 		stat, err := os.Stat(options.filepath)
 		if err != nil {
@@ -669,23 +678,27 @@ func (self *CodexNode) CodexUploadFile(options CodexUploadOptions) (string, erro
 		}
 
 		size := stat.Size()
-		if size > 0 {
-			fn := options.onProgress
+		total := 0
 
-			options.onProgress = func(read, total int, _ float64) {
+		if size > 0 {
+			bridge.onProgress = func(read int) {
+				if read == 0 {
+					return
+				}
+
+				total += read
+
 				percent := float64(total) / float64(size) * 100.0
 				// The last block could be a bit over the size due to padding
 				// on the chunk size.
 				if percent > 100.0 {
 					percent = 100.0
 				}
-				fn(read, total, percent)
+
+				options.onProgress(read, int(size), percent)
 			}
 		}
 	}
-
-	bridge := newBridgeCtx()
-	defer bridge.free()
 
 	var cFilePath = C.CString(options.filepath)
 	defer C.free(unsafe.Pointer(cFilePath))
@@ -702,18 +715,40 @@ func (self *CodexNode) CodexUploadFile(options CodexUploadOptions) (string, erro
 		return "", bridge.CallError("cGoCodexUploadFile")
 	}
 
-	cid, err := bridge.wait()
-	return cid, err
+	return bridge.wait()
 }
 
-func (self *CodexNode) CodexUploadFileAsync(options CodexUploadOptions, onDone func(cid string, err error)) {
+func (self CodexNode) CodexUploadFileAsync(options CodexUploadOptions, onDone func(cid string, err error)) {
 	go func() {
 		cid, err := self.CodexUploadFile(options)
 		onDone(cid, err)
 	}()
 }
 
-func (self *CodexNode) CodexStart() error {
+func (self CodexNode) CodexUploadSubscribe(sessionId string, onProgress func(read int)) error {
+	bridge := newBridgeCtx()
+
+	bridge.onProgress = onProgress
+
+	var cSessionId = C.CString(sessionId)
+	defer C.free(unsafe.Pointer(cSessionId))
+
+	log.Println("Subscribing to upload progress...")
+
+	if C.cGoCodexUploadSubscribe(self.ctx, cSessionId, bridge.resp) != C.RET_OK {
+		return bridge.CallError("cGoCodexUploadSubscribe")
+	}
+
+	go func() {
+		if _, err := bridge.wait(); err != nil {
+			log.Println("Error in CodexUploadSubscribe:", err)
+		}
+	}()
+
+	return nil
+}
+
+func (self CodexNode) CodexStart() error {
 	bridge := newBridgeCtx()
 	defer bridge.free()
 
@@ -725,14 +760,14 @@ func (self *CodexNode) CodexStart() error {
 	return err
 }
 
-func (self *CodexNode) CodexStartAsync(onDone func(error)) {
+func (self CodexNode) CodexStartAsync(onDone func(error)) {
 	go func() {
 		err := self.CodexStart()
 		onDone(err)
 	}()
 }
 
-func (self *CodexNode) CodexStop() error {
+func (self CodexNode) CodexStop() error {
 	bridge := newBridgeCtx()
 	defer bridge.free()
 
@@ -744,7 +779,7 @@ func (self *CodexNode) CodexStop() error {
 	return err
 }
 
-func (self *CodexNode) CodexDestroy() error {
+func (self CodexNode) CodexDestroy() error {
 	bridge := newBridgeCtx()
 	defer bridge.free()
 
@@ -764,11 +799,11 @@ func globalEventCallback(callerRet C.int, msg *C.char, len C.size_t, userData un
 	self.MyEventCallback(callerRet, msg, len)
 }
 
-func (self *CodexNode) MyEventCallback(callerRet C.int, msg *C.char, len C.size_t) {
+func (self CodexNode) MyEventCallback(callerRet C.int, msg *C.char, len C.size_t) {
 	log.Println("Event received:", C.GoStringN(msg, C.int(len)))
 }
 
-func (self *CodexNode) CodexSetEventCallback() {
+func (self CodexNode) CodexSetEventCallback() {
 	// Notice that the events for self node are handled by the 'MyEventCallback' method
 	C.cGoCodexSetEventCallback(self.ctx)
 }
@@ -853,7 +888,6 @@ func main() {
 	if err != nil {
 		log.Fatal("Error happened:", err.Error())
 	}
-
 	log.Println("Codex Upload Init sessionId:", sessionId)
 
 	err = node.CodexUploadChunk(sessionId, []byte("Hello "))
@@ -874,7 +908,9 @@ func main() {
 	log.Println("Codex Upload Finalized, cid:", cid)
 
 	buf := bytes.NewBuffer([]byte("Hello World!"))
-	cid, err = node.CodexUploadReader(CodexUploadOptions{filepath: "hello.txt"}, buf)
+	cid, err = node.CodexUploadReader(CodexUploadOptions{filepath: "hello.txt", onProgress: func(read, total int, percent float64) {
+		log.Printf("Uploaded %d bytes, total %d bytes (%.2f%%)\n", read, total, percent)
+	}}, buf)
 	if err != nil {
 		log.Fatal("Error happened:", err.Error())
 	}
@@ -888,10 +924,12 @@ func main() {
 
 	// Choose a big file to see the progress logs
 	filepath := path.Join(current, "examples", "golang", "hello.txt")
-	// filepath := path.Join(current, "examples", "golang", "discord-0.0.109.deb")
+	//filepath := path.Join(current, "examples", "golang", "discord-0.0.109.deb")
+
 	options := CodexUploadOptions{filepath: filepath, onProgress: func(read, total int, percent float64) {
 		log.Printf("Uploaded %d bytes, total %d bytes (%.2f%%)\n", read, total, percent)
 	}}
+
 	cid, err = node.CodexUploadFile(options)
 
 	if err != nil {

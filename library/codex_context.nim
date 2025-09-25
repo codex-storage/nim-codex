@@ -18,6 +18,9 @@ import ./codex_thread_requests/[codex_thread_request]
 
 from ../codex/codex import CodexServer
 
+logScope:
+  topics = "codexlib"
+
 type CodexContext* = object
   thread: Thread[(ptr CodexContext)]
 
