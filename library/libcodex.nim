@@ -85,11 +85,11 @@ proc codex_new(
   initializeLibrary()
 
   if isNil(callback):
-    error "Missing callback in codex_new"
+    error "Failed to create codex instance: the callback is missing."
     return nil
 
   var ctx = codex_context.createCodexContext().valueOr:
-    let msg = "Error in createCodexContext: " & $error
+    let msg = $error
     callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
     return nil
 
@@ -101,7 +101,7 @@ proc codex_new(
   codex_context.sendRequestToCodexThread(
     ctx, RequestType.LIFECYCLE, reqContent, callback, userData
   ).isOkOr:
-    let msg = "libcodex error: " & $error
+    let msg = $error
     callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
     return nil
 

@@ -64,7 +64,7 @@ proc handleRes[T: string | void](
 
   if res.isErr():
     foreignThreadGc:
-      let msg = "libcodex error: handleRes fireSyncRes error: " & $res.error
+      let msg = $res.error
       request[].callback(
         RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), request[].userData
       )
