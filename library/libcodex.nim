@@ -38,6 +38,9 @@ import ./ffi_types
 
 from ../codex/conf import codexVersion, updateLogLevel
 
+logScope:
+  topics = "codexlib"
+
 template checkLibcodexParams*(
     ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
 ) =
@@ -76,10 +79,6 @@ proc initializeLibrary() {.exported.} =
     locals = addr(locals)
     nimGC_setStackBottom(locals)
 
-template init(ctx, callback, userData) =
-  initializeLibrary()
-  checkLibcodexParams(ctx, callback, userData)
-
 proc codex_new(
     configJson: cstring, callback: CodexCallback, userData: pointer
 ): pointer {.dynlib, exported.} =
@@ -111,7 +110,8 @@ proc codex_new(
 proc codex_version(
     ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
-  init(ctx, callback, userData)
+  initializeLibrary()
+  checkLibcodexParams(ctx, callback, userData)
 
   callback(
     RET_OK,
@@ -125,7 +125,8 @@ proc codex_version(
 proc codex_revision(
     ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
-  init(ctx, callback, userData)
+  initializeLibrary()
+  checkLibcodexParams(ctx, callback, userData)
 
   callback(
     RET_OK,
@@ -139,7 +140,8 @@ proc codex_revision(
 proc codex_repo(
     ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
-  init(ctx, callback, userData)
+  initializeLibrary()
+  checkLibcodexParams(ctx, callback, userData)
 
   let reqContent = NodeInfoRequest.createShared(NodeInfoMsgType.REPO)
   let res = codex_context.sendRequestToCodexThread(
@@ -151,7 +153,8 @@ proc codex_repo(
 proc codex_debug(
     ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
-  init(ctx, callback, userData)
+  initializeLibrary()
+  checkLibcodexParams(ctx, callback, userData)
 
   let reqContent = NodeDebugRequest.createShared(NodeDebugMsgType.DEBUG)
   let res = codex_context.sendRequestToCodexThread(
@@ -163,7 +166,8 @@ proc codex_debug(
 proc codex_spr(
     ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
-  init(ctx, callback, userData)
+  initializeLibrary()
+  checkLibcodexParams(ctx, callback, userData)
 
   let reqContent = NodeInfoRequest.createShared(NodeInfoMsgType.SPR)
   let res = codex_context.sendRequestToCodexThread(
@@ -175,7 +179,8 @@ proc codex_spr(
 proc codex_peer_id(
     ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
-  init(ctx, callback, userData)
+  initializeLibrary()
+  checkLibcodexParams(ctx, callback, userData)
 
   let reqContent = NodeInfoRequest.createShared(NodeInfoMsgType.PEERID)
   let res = codex_context.sendRequestToCodexThread(
@@ -190,7 +195,8 @@ proc codex_peer_id(
 proc codex_log_level(
     ctx: ptr CodexContext, logLevel: cstring, callback: CodexCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
-  init(ctx, callback, userData)
+  initializeLibrary()
+  checkLibcodexParams(ctx, callback, userData)
 
   try:
     updateLogLevel($logLevel)
@@ -207,7 +213,8 @@ proc codex_connect(
     callback: CodexCallback,
     userData: pointer,
 ): cint {.dynlib, exportc.} =
-  init(ctx, callback, userData)
+  initializeLibrary()
+  checkLibcodexParams(ctx, callback, userData)
 
   var peerAddresses = newSeq[cstring](peerAddressesLength)
   let peers = cast[ptr UncheckedArray[cstring]](peerAddressesPtr)
@@ -226,7 +233,8 @@ proc codex_connect(
 proc codex_peer_debug(
     ctx: ptr CodexContext, peerId: cstring, callback: CodexCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
-  init(ctx, callback, userData)
+  initializeLibrary()
+  checkLibcodexParams(ctx, callback, userData)
 
   let reqContent = NodeDebugRequest.createShared(NodeDebugMsgType.PEER, peerId = peerId)
   let res = codex_context.sendRequestToCodexThread(
@@ -238,7 +246,8 @@ proc codex_peer_debug(
 proc codex_destroy(
     ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
-  init(ctx, callback, userData)
+  initializeLibrary()
+  checkLibcodexParams(ctx, callback, userData)
 
   let res = codex_context.destroyCodexContext(ctx)
   if res.isErr:
@@ -253,19 +262,13 @@ proc codex_upload_init(
     callback: CodexCallback,
     userData: pointer,
 ): cint {.dynlib, exportc.} =
-  init(ctx, callback, userData)
-
-  let onProgress = proc(
-      bytes: int
-  ): Future[void] {.gcsafe, async: (raises: [CancelledError]).} =
-    callback(RET_PROGRESS, nil, bytes.csize_t, userData)
+  initializeLibrary()
+  checkLibcodexParams(ctx, callback, userData)
 
   let reqContent = NodeUploadRequest.createShared(
-    NodeUploadMsgType.INIT,
-    filepath = filepath,
-    chunkSize = chunkSize,
-    onProgress = onProgress,
+    NodeUploadMsgType.INIT, filepath = filepath, chunkSize = chunkSize
   )
+
   let res = codex_context.sendRequestToCodexThread(
     ctx, RequestType.UPLOAD, reqContent, callback, userData
   )
@@ -280,7 +283,8 @@ proc codex_upload_chunk(
     callback: CodexCallback,
     userData: pointer,
 ): cint {.dynlib, exportc.} =
-  init(ctx, callback, userData)
+  initializeLibrary()
+  checkLibcodexParams(ctx, callback, userData)
 
   let chunk = newSeq[byte](len)
   copyMem(addr chunk[0], data, len)
@@ -300,7 +304,8 @@ proc codex_upload_finalize(
     callback: CodexCallback,
     userData: pointer,
 ): cint {.dynlib, exportc.} =
-  init(ctx, callback, userData)
+  initializeLibrary()
+  checkLibcodexParams(ctx, callback, userData)
 
   let reqContent =
     NodeUploadRequest.createShared(NodeUploadMsgType.FINALIZE, sessionId = sessionId)
@@ -316,7 +321,8 @@ proc codex_upload_cancel(
     callback: CodexCallback,
     userData: pointer,
 ): cint {.dynlib, exportc.} =
-  init(ctx, callback, userData)
+  initializeLibrary()
+  checkLibcodexParams(ctx, callback, userData)
 
   let reqContent =
     NodeUploadRequest.createShared(NodeUploadMsgType.CANCEL, sessionId = sessionId)
@@ -333,10 +339,43 @@ proc codex_upload_file(
     callback: CodexCallback,
     userData: pointer,
 ): cint {.dynlib, exportc.} =
-  init(ctx, callback, userData)
+  initializeLibrary()
+  checkLibcodexParams(ctx, callback, userData)
 
-  let reqContent =
-    NodeUploadRequest.createShared(NodeUploadMsgType.FILE, sessionId = sessionId)
+  let onProgress = proc(
+      bytes: int
+  ): Future[void] {.async: (raises: [CancelledError]).} =
+    if userData != nil:
+      callback(RET_PROGRESS, nil, cast[csize_t](bytes), userData)
+
+  let reqContent = NodeUploadRequest.createShared(
+    NodeUploadMsgType.FILE, sessionId = sessionId, onProgress = onProgress
+  )
+
+  let res = codex_context.sendRequestToCodexThread(
+    ctx, RequestType.UPLOAD, reqContent, callback, userData
+  )
+
+  return callback.okOrError(res, userData)
+
+proc codex_upload_subscribe(
+    ctx: ptr CodexContext,
+    sessionId: cstring,
+    callback: CodexCallback,
+    userData: pointer,
+): cint {.dynlib, exportc.} =
+  initializeLibrary()
+  checkLibcodexParams(ctx, callback, userData)
+
+  let onProgress = proc(
+      bytes: int
+  ): Future[void] {.async: (raises: [CancelledError]).} =
+    if userData != nil:
+      callback(RET_PROGRESS, nil, cast[csize_t](bytes), userData)
+
+  let reqContent = NodeUploadRequest.createShared(
+    NodeUploadMsgType.SUBSCRIBE, sessionId = sessionId, onProgress = onProgress
+  )
 
   let res = codex_context.sendRequestToCodexThread(
     ctx, RequestType.UPLOAD, reqContent, callback, userData
@@ -347,7 +386,8 @@ proc codex_upload_file(
 proc codex_start(
     ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
-  init(ctx, callback, userData)
+  initializeLibrary()
+  checkLibcodexParams(ctx, callback, userData)
 
   let reqContent: ptr NodeLifecycleRequest =
     NodeLifecycleRequest.createShared(NodeLifecycleMsgType.START_NODE)
@@ -360,7 +400,8 @@ proc codex_start(
 proc codex_stop(
     ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
-  init(ctx, callback, userData)
+  initializeLibrary()
+  checkLibcodexParams(ctx, callback, userData)
 
   let reqContent: ptr NodeLifecycleRequest =
     NodeLifecycleRequest.createShared(NodeLifecycleMsgType.STOP_NODE)

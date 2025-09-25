@@ -24,6 +24,9 @@ import ../../../codex/units
 
 from ../../../codex/codex import CodexServer, new, start, stop
 
+logScope:
+  topics = "codexlib codexliblifecycle"
+
 type NodeLifecycleMsgType* = enum
   CREATE_NODE
   START_NODE

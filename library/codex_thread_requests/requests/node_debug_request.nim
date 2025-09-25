@@ -16,6 +16,9 @@ import ../../../codex/node
 
 from ../../../codex/codex import CodexServer, node
 
+logScope:
+  topics = "codexlib codexlibdebug"
+
 type NodeDebugMsgType* = enum
   DEBUG
   PEER

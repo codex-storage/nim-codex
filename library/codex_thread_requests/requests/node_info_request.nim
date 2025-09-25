@@ -11,6 +11,9 @@ import ../../../codex/node
 
 from ../../../codex/codex import CodexServer, config, node
 
+logScope:
+  topics = "codexlib codexlibinfo"
+
 type NodeInfoMsgType* = enum
   REPO
   SPR
