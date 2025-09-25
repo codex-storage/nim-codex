@@ -115,6 +115,12 @@ int codex_upload_file(
                 CodexCallback callback,
                 void* userData);
 
+int codex_upload_subscribe(
+                void* ctx,
+                const char* sessionId,
+                CodexCallback callback,
+                void* userData);
+
 int codex_start(void* ctx,
                CodexCallback callback,
                void* userData);
