@@ -10,6 +10,7 @@
 ##  - CHUNK: sends a chunk of data to the upload session.
 ##  - FINALIZE: finalizes the upload and returns the CID of the uploaded file.
 ##  - CANCEL: cancels the upload session.
+##  - SUBSCRIBE: subscribes to progress updates for the upload session.
 ##
 ## 2. Directly from a file path: the filepath has to be absolute.
 ##  - INIT: creates a new upload session and returns its ID
@@ -32,12 +33,16 @@ from ../../../codex/codex import CodexServer, node
 from ../../../codex/node import store
 from libp2p import Cid
 
+logScope:
+  topics = "codexlib codexlibupload"
+
 type NodeUploadMsgType* = enum
   INIT
   CHUNK
   FINALIZE
   CANCEL
   FILE
+  SUBSCRIBE
 
 type OnProgressHandler =
   proc(bytes: int): Future[void] {.gcsafe, async: (raises: [CancelledError]).}
@@ -57,6 +62,8 @@ type
     stream: BufferStream
     fut: Future[?!Cid]
     filepath: string
+    chunkSize: int
+    onProgress: OnProgressHandler
 
 var uploadSessions {.threadvar.}: Table[UploadSessionId, UploadSession]
 var nexUploadSessionCount {.threadvar.}: UploadSessionCount
@@ -85,10 +92,7 @@ proc destroyShared(self: ptr NodeUploadRequest) =
   deallocShared(self)
 
 proc init(
-    codex: ptr CodexServer,
-    filepath: cstring = "",
-    chunkSize: csize_t = 0,
-    onProgress: OnProgressHandler,
+    codex: ptr CodexServer, filepath: cstring = "", chunkSize: csize_t = 0
 ): Future[Result[string, string]] {.async: (raises: []).} =
   ## Init a new session upload and return its ID.
   ## The session contains the future corresponding to the
@@ -100,18 +104,19 @@ proc init(
   ##
   ## The chunkSize matches by default the block size used to store the file.
   ##
-  ## An onProgress handler can be provided to get upload progress.
-  ## The handler is called with the size of the block stored in the node
-  ## when a new block is put in the node.
-  ## After the `node.store` future is completed, whether successfully or not,
-  ## the onProgress handler is called with -1 to signal the end of the upload.
-  ## This allows to clean up the cGo states.
+  ## When a session contains an onProgress handler, it is called
+  ## with the number of bytes received each time a block is stored thanks to
+  ## `onBlockStore` callback.
+  ## After the `node.store` future is done, the onProgress handler
+  ## is called one last time with 0 bytes to signal the end of the upload.
 
   var filenameOpt, mimetypeOpt = string.none
 
   if isAbsolute($filepath):
     if not fileExists($filepath):
-      return err("File does not exist")
+      return err(
+        "Failed to create an upload session, the filepath does not exist: " & $filepath
+      )
 
   if filepath != "":
     let (_, name, ext) = splitFile($filepath)
@@ -139,20 +144,32 @@ proc init(
   let onBlockStore = proc(
       chunk: seq[byte]
   ): Future[void] {.gcsafe, async: (raises: [CancelledError]).} =
-    discard onProgress(chunk.len)
+    try:
+      let session = uploadSessions[$sessionId]
+      if session.onProgress != nil:
+        await session.onProgress(chunk.len)
+    except KeyError:
+      error "Failed to push progress update, session is not found: ",
+        sessionId = $sessionId
 
   let blockSize =
     if chunkSize.NBytes > 0.NBytes: chunkSize.NBytes else: DefaultBlockSize
   let fut = node.store(lpStream, filenameOpt, mimetypeOpt, blockSize, onBlockStore)
 
   proc cb(_: pointer) {.raises: [].} =
-    # Signal end of upload
-    discard onProgress(-1)
+    try:
+      let session = uploadSessions[$sessionId]
+      if session.onProgress != nil:
+        discard session.onProgress(0)
+    except KeyError:
+      error "Failed to push the progress final state, session is not found.",
+        sessionId = $sessionId
 
   fut.addCallback(cb)
 
-  uploadSessions[sessionId] =
-    UploadSession(stream: stream, fut: fut, filepath: $filepath)
+  uploadSessions[sessionId] = UploadSession(
+    stream: stream, fut: fut, filepath: $filepath, chunkSize: blockSize.int
+  )
 
   return ok(sessionId)
 
@@ -163,17 +180,17 @@ proc chunk(
   ## The chunk is pushed to the BufferStream of the session.
 
   if not uploadSessions.contains($sessionId):
-    return err("Invalid session ID")
+    return err("Failed to upload the chunk, the session is not found: " & $sessionId)
 
   try:
     let session = uploadSessions[$sessionId]
     await session.stream.pushData(chunk)
   except KeyError as e:
-    return err("Invalid session ID")
+    return err("Failed to upload the chunk, the session is not found: " & $sessionId)
   except LPError as e:
-    return err("Stream error: " & $e.msg)
+    return err("Failed to upload the chunk, stream error: " & $e.msg)
   except CancelledError as e:
-    return err("Operation cancelled")
+    return err("Failed to upload the chunk, operation cancelled.")
 
   return ok("")
 
@@ -189,7 +206,8 @@ proc finalize(
   ## case of errors).
 
   if not uploadSessions.contains($sessionId):
-    return err("Invalid session ID")
+    return
+      err("Failed to finalize the upload session, session not found: " & $sessionId)
 
   var session: UploadSession
   try:
@@ -198,17 +216,18 @@ proc finalize(
 
     let res = await session.fut
     if res.isErr:
-      return err("Upload failed: " & res.error().msg)
+      return err("Failed to finalize the upload session: " & res.error().msg)
 
     return ok($res.get())
   except KeyError as e:
-    return err("Invalid session ID")
+    return
+      err("Failed to finalize the upload session, invalid session ID: " & $sessionId)
   except LPStreamError as e:
-    return err("Stream error: " & $e.msg)
+    return err("Failed to finalize the upload session, stream error: " & $e.msg)
   except CancelledError as e:
-    return err("Operation cancelled")
+    return err("Failed to finalize the upload session, operation cancelled")
   except CatchableError as e:
-    return err("Upload failed: " & $e.msg)
+    return err("Failed to finalize the upload session: " & $e.msg)
   finally:
     if uploadSessions.contains($sessionId):
       uploadSessions.del($sessionId)
@@ -224,20 +243,20 @@ proc cancel(
   ## from the table.
 
   if not uploadSessions.contains($sessionId):
-    return err("Invalid session ID")
+    return err("Failed to cancel the upload session, session not found: " & $sessionId)
 
   try:
     let session = uploadSessions[$sessionId]
     session.fut.cancelSoon()
   except KeyError as e:
-    return err("Invalid session ID")
+    return err("Failed to cancel the upload session, invalid session ID: " & $sessionId)
 
   uploadSessions.del($sessionId)
 
   return ok("")
 
 proc streamFile(
-    filepath: string, stream: BufferStream
+    filepath: string, stream: BufferStream, chunkSize: int
 ): Future[Result[void, string]] {.async: (raises: [CancelledError]).} =
   ## Streams a file from the given filepath using faststream.
   ## fsMultiSync cannot be used with chronos because of this warning:
@@ -252,49 +271,100 @@ proc streamFile(
     let inputStreamHandle = filePath.fileInput()
     let inputStream = inputStreamHandle.implicitDeref
 
+    var buf = newSeq[byte](chunkSize)
     while inputStream.readable:
-      let byt = inputStream.read
-      await stream.pushData(@[byt])
+      let read = inputStream.readIntoEx(buf)
+      if read == 0:
+        break
+      await stream.pushData(buf[0 ..< read])
+      # let byt = inputStream.read
+      # await stream.pushData(@[byt])
     return ok()
   except IOError, OSError, LPStreamError:
     let e = getCurrentException()
-    return err("Stream error: " & $e.msg)
+    return err("Failed to stream the file: " & $e.msg)
 
 proc file(
-    codex: ptr CodexServer, sessionId: cstring
+    codex: ptr CodexServer, sessionId: cstring, onProgress: OnProgressHandler
 ): Future[Result[string, string]] {.raises: [], async: (raises: []).} =
   ## Starts the file upload for the session identified by sessionId.
   ## Will call finalize when done and return the CID of the uploaded file.
   ## In the finally block, the cleanup section removes the session
   ## from the table and cancels the future if it is not complete (in
   ## case of errors).
+  ##
+  ## If `onProgress` is provided, it is called with the number of bytes
+  ## received each time a block is stored thanks to `onBlockStore` callback.
+
   if not uploadSessions.contains($sessionId):
-    return err("Invalid session ID")
+    return err("Failed to upload the file, invalid session ID: " & $sessionId)
 
   var session: UploadSession
 
   try:
     session = uploadSessions[$sessionId]
-    let res = await streamFile(session.filepath, session.stream)
+    if onProgress != nil:
+      uploadSessions[$sessionId].onProgress = onProgress
+    let res = await streamFile(session.filepath, session.stream, session.chunkSize)
     if res.isErr:
-      return err("Failed to stream file: " & res.error)
+      return err("Failed to upload the file: " & res.error)
 
     return await codex.finalize(sessionId)
   except KeyError as e:
-    return err("Invalid session ID")
+    return err("Failed to upload the file, the session is not found: " & $sessionId)
   except LPStreamError, IOError:
     let e = getCurrentException()
-    return err("Stream error: " & $e.msg)
+    return err("Failed to upload the file: " & $e.msg)
   except CancelledError as e:
-    return err("Operation cancelled")
+    return err("Failed to upload the file, the operation is cancelled.")
   except CatchableError as e:
-    return err("Upload failed: " & $e.msg)
+    return err("Failed to upload the file: " & $e.msg)
   finally:
     if uploadSessions.contains($sessionId):
       uploadSessions.del($sessionId)
 
     if session.fut != nil and not session.fut.finished():
       session.fut.cancelSoon()
+
+proc subscribe(
+    codex: ptr CodexServer, sessionId: cstring, onProgress: OnProgressHandler
+): Future[Result[string, string]] {.raises: [], async: (raises: []).} =
+  ## Subscribes to progress updates for the upload session identified by sessionId.
+  ## The onProgress handler is called with the number of bytes received
+  ## each time a block is stored thanks to `onBlockStore` callback.
+
+  if not uploadSessions.contains($sessionId):
+    return err(
+      "Failed to subscribe to the upload session, invalid session ID: " & $sessionId
+    )
+
+  let fut = newFuture[void]()
+
+  proc onBlockReceived(bytes: int): Future[void] {.async: (raises: [CancelledError]).} =
+    try:
+      let session = uploadSessions[$sessionId]
+      await onProgress(bytes)
+
+      if bytes == 0:
+        fut.complete()
+    except KeyError:
+      fut.cancelSoon()
+      error "Failed to push progress update, session is not found: ",
+        sessionId = $sessionId
+
+  try:
+    uploadSessions[$sessionId].onProgress = onBlockReceived
+  except KeyError:
+    return err(
+      "Failed to subscribe to the upload session, session is not found: " & $sessionId
+    )
+
+  try:
+    await fut
+  except CatchableError as e:
+    return err("Failed to subscribe to the upload session: " & $e.msg)
+
+  return ok("")
 
 proc process*(
     self: ptr NodeUploadRequest, codex: ptr CodexServer
@@ -304,7 +374,7 @@ proc process*(
 
   case self.operation
   of NodeUploadMsgType.INIT:
-    let res = (await init(codex, self.filepath, self.chunkSize, self.onProgress))
+    let res = (await init(codex, self.filepath, self.chunkSize))
     if res.isErr:
       error "INIT failed", error = res.error
       return err($res.error)
@@ -328,9 +398,15 @@ proc process*(
       return err($res.error)
     return res
   of NodeUploadMsgType.FILE:
-    let res = (await file(codex, self.sessionId))
+    let res = (await file(codex, self.sessionId, self.onProgress))
     if res.isErr:
       error "FILE failed", error = res.error
+      return err($res.error)
+    return res
+  of NodeUploadMsgType.SUBSCRIBE:
+    let res = (await subscribe(codex, self.sessionId, self.onProgress))
+    if res.isErr:
+      error "SUBSCRIBE failed", error = res.error
       return err($res.error)
     return res
 
