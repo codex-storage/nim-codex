@@ -69,6 +69,18 @@ declareCounter(
   codex_block_exchange_spurious_blocks_received,
   "codex blockexchange unrequested/duplicate blocks received",
 )
+declareCounter(
+  codex_block_exchange_discovery_requests_total,
+  "Total number of peer discovery requests sent",
+)
+declareCounter(
+  codex_block_exchange_peer_timeouts_total, "Total number of peer activity timeouts"
+)
+declareCounter(
+  codex_block_exchange_requests_failed_total,
+  "Total number of block requests that failed after exhausting retries"
+)
+
 
 const
   DefaultMaxPeersPerRequest* = 10
@@ -211,6 +223,7 @@ proc refreshBlockKnowledge(self: BlockExcEngine) {.async: (raises: [CancelledErr
 proc searchForNewPeers(self: BlockExcEngine, cid: Cid) =
   if self.lastDiscRequest + DiscoveryRateLimit < Moment.now():
     trace "Searching for new peers for", cid = cid
+    codex_block_exchange_discovery_requests_total.inc()
     self.lastDiscRequest = Moment.now() # always refresh before calling await!
     self.discovery.queueFindBlocksReq(@[cid])
   else:
@@ -246,6 +259,7 @@ proc downloadInternal(
 
       if self.pendingBlocks.retriesExhausted(address):
         trace "Error retries exhausted"
+        codex_block_exchange_requests_failed_total.inc()
         handle.fail(newException(RetriesExhaustedError, "Error retries exhausted"))
         break
 
@@ -310,6 +324,7 @@ proc downloadInternal(
       else:
         # If the peer timed out, retries immediately.
         trace "Peer timed out during block request", peer = scheduledPeer.id
+        codex_block_exchange_peer_timeouts_total.inc()
         await self.network.dropPeer(scheduledPeer.id)
         # Evicts peer immediately or we may end up picking it again in the
         # next retry.
@@ -320,6 +335,7 @@ proc downloadInternal(
       await handle.cancelAndWait()
   except RetriesExhaustedError as exc:
     warn "Retries exhausted for block", address, exc = exc.msg
+    codex_block_exchange_requests_failed_total.inc()
     if not handle.finished:
       handle.fail(exc)
   finally:
