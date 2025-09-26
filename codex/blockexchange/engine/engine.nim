@@ -206,17 +206,15 @@ proc refreshBlockKnowledge(self: BlockExcEngine) {.async: (raises: [CancelledErr
     # want list in the coarsest way possible instead of over many
     # small updates.
     #
-    if peer.refreshInProgress:
-      trace "Peer refresh in progress", peer = peer.id
-      continue
 
     # In dynamic swarms, staleness will dominate latency.
-    if peer.lastRefresh < self.pendingBlocks.lastInclusion or peer.isKnowledgeStale:
-      peer.refreshRequested()
-      # TODO: optimize this by keeping track of what was sent and sending deltas.
-      #   This should allow us to run much more frequent refreshes, and be way more
-      #   efficient about it.
-      await self.refreshBlockKnowledge(peer)
+    if peer.isKnowledgeStale or peer.lastRefresh < self.pendingBlocks.lastInclusion:
+      if not peer.refreshInProgress:
+        peer.refreshRequested()
+        # TODO: optimize this by keeping track of what was sent and sending deltas.
+        #   This should allow us to run much more frequent refreshes, and be way more
+        #   efficient about it.
+        await self.refreshBlockKnowledge(peer)
     else:
       trace "Not refreshing: peer is up to date", peer = peer.id
 
