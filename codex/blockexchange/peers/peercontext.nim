@@ -27,7 +27,7 @@ export payments, nitro
 
 const
   MinRefreshInterval = 1.seconds
-  MaxRefreshBackoff = 36 # 3 minutes
+  MaxRefreshBackoff = 36 # 36 seconds
 
 type BlockExcPeerCtx* = ref object of RootObj
   id*: PeerId
@@ -45,7 +45,15 @@ type BlockExcPeerCtx* = ref object of RootObj
   activityTimeout*: Duration
 
 proc isKnowledgeStale*(self: BlockExcPeerCtx): bool =
-  self.lastRefresh + self.refreshBackoff * MinRefreshInterval < Moment.now()
+  let
+    staleness = self.lastRefresh + self.refreshBackoff * MinRefreshInterval < Moment.now()
+
+  if staleness and self.refreshInProgress:
+    trace "Cleaning up refresh state", peer = self.id
+    self.refreshInProgress = false
+    self.refreshBackoff = 1
+
+  staleness
 
 proc isBlockSent*(self: BlockExcPeerCtx, address: BlockAddress): bool =
   address in self.blocksSent
