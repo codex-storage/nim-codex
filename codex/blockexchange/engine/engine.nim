@@ -78,9 +78,8 @@ declareCounter(
 )
 declareCounter(
   codex_block_exchange_requests_failed_total,
-  "Total number of block requests that failed after exhausting retries"
+  "Total number of block requests that failed after exhausting retries",
 )
-
 
 const
   DefaultMaxPeersPerRequest* = 10
@@ -296,7 +295,7 @@ proc downloadInternal(
       let scheduledPeer =
         if not self.pendingBlocks.isRequested(address):
           let peer = self.selectPeer(peers.with)
-          self.pendingBlocks.markRequested(address, peer.id)
+          discard self.pendingBlocks.markRequested(address, peer.id)
           peer.blockRequestScheduled(address)
           trace "Request block from block retry loop"
           await self.sendWantBlock(@[address], peer)
@@ -429,12 +428,11 @@ proc blockPresenceHandler*(
 
   let ourWantCids = ourWantList.filterIt(
     it in peerHave and not self.pendingBlocks.retriesExhausted(it) and
-      not self.pendingBlocks.isRequested(it)
+      self.pendingBlocks.markRequested(it, peer)
   ).toSeq
 
   for address in ourWantCids:
     self.pendingBlocks.decRetries(address)
-    self.pendingBlocks.markRequested(address, peer)
     peerCtx.blockRequestScheduled(address)
 
   if ourWantCids.len > 0:
