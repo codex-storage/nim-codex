@@ -100,5 +100,3 @@ proc process*(
       error "Failed to get PEER.", error = res.error
       return err($res.error)
     return res
-
-  return ok("")
