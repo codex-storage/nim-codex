@@ -74,5 +74,3 @@ proc process*(
       error "Failed to get PEERID.", error = res.error
       return err($res.error)
     return res
-
-  return ok("")
