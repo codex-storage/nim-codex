@@ -66,14 +66,14 @@ proc connect(
           return err("Failed to connect to peer: peer not found.")
 
         peerRecord.get().addresses.mapIt(it.address)
-      except CancelledError as e:
+      except CancelledError:
         return err("Failed to connect to peer: operation cancelled.")
       except CatchableError as e:
         return err("Failed to connect to peer: " & $e.msg)
 
   try:
     await node.connect(id, addresses)
-  except CancelledError as e:
+  except CancelledError:
     return err("Failed to connect to peer: operation cancelled.")
   except CatchableError as e:
     return err("Failed to connect to peer: " & $e.msg)
@@ -93,5 +93,3 @@ proc process*(
       error "Failed to CONNECT.", error = res.error
       return err($res.error)
     return res
-
-  return ok("")
