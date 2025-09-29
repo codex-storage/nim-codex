@@ -155,15 +155,18 @@ func getRequestPeer*(self: PendingBlocksManager, address: BlockAddress): ?PeerId
   self.blocks.withValue(address, pending):
     result = pending[].requested
 
-proc markRequested*(self: PendingBlocksManager, address: BlockAddress, peer: PeerId) =
+proc markRequested*(
+    self: PendingBlocksManager, address: BlockAddress, peer: PeerId
+): bool =
   ## Marks this block as having been requested to a peer
   ##
 
   if self.isRequested(address):
-    error "Attempt to request block twice", address = address, peer = peer
+    return false
 
   self.blocks.withValue(address, pending):
     pending[].requested = peer.some
+  return true
 
 proc clearRequest*(
     self: PendingBlocksManager, address: BlockAddress, peer: ?PeerId = PeerId.none
