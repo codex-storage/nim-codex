@@ -115,9 +115,30 @@ int codex_upload_file(
                 CodexCallback callback,
                 void* userData);
 
-int codex_upload_subscribe(
+int codex_download_local(
                 void* ctx,
-                const char* sessionId,
+                const char* cid,
+                size_t chunkSize,
+                CodexCallback callback,
+                void* userData);
+
+int codex_download_init(
+                void* ctx,
+                const char* cid,
+                size_t chunkSize,
+                bool local,
+                CodexCallback callback,
+                void* userData);
+
+int codex_download_chunk(
+                void* ctx,
+                const char* cid,
+                CodexCallback callback,
+                void* userData);
+
+int codex_download_cancel(
+                void* ctx,
+                const char* cid,
                 CodexCallback callback,
                 void* userData);
 

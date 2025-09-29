@@ -54,7 +54,7 @@ proc createShared*(
 # We can improve this by dispatching the callbacks to a thread pool or
 # moving to a MP channel.
 # See: https://github.com/codex-storage/nim-codex/pull/1322#discussion_r2340708316
-proc handleRes[T: string | void](
+proc handleRes[T: string | void | seq[byte]](
     res: Result[T, string], request: ptr CodexThreadRequest
 ) =
   ## Handles the Result responses, which can either be Result[string, string] or
@@ -95,7 +95,10 @@ proc process*(
     of P2P:
       cast[ptr NodeP2PRequest](request[].reqContent).process(codex)
     of UPLOAD:
-      cast[ptr NodeUploadRequest](request[].reqContent).process(codex)
+      let onUploadProgress = proc(bytes: int) =
+        request[].callback(RET_PROGRESS, nil, cast[csize_t](bytes), request[].userData)
+
+      cast[ptr NodeUploadRequest](request[].reqContent).process(codex, onUploadProgress)
 
   handleRes(await retFut, request)
 
