@@ -916,6 +916,7 @@ proc new*(
     taskQueue: newAsyncHeapQueue[BlockExcPeerCtx](DefaultTaskQueueSize),
     discovery: discovery,
     advertiser: advertiser,
+    selectPeer: selectPeer,
   )
 
   proc blockWantListHandler(
