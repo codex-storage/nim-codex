@@ -34,6 +34,7 @@ import ./codex_thread_requests/requests/node_info_request
 import ./codex_thread_requests/requests/node_debug_request
 import ./codex_thread_requests/requests/node_p2p_request
 import ./codex_thread_requests/requests/node_upload_request
+import ./codex_thread_requests/requests/node_download_request
 import ./ffi_types
 
 from ../codex/conf import codexVersion, updateLogLevel
@@ -342,15 +343,8 @@ proc codex_upload_file(
   initializeLibrary()
   checkLibcodexParams(ctx, callback, userData)
 
-  let onProgress = proc(
-      bytes: int
-  ): Future[void] {.async: (raises: [CancelledError]).} =
-    if userData != nil:
-      callback(RET_PROGRESS, nil, cast[csize_t](bytes), userData)
-
-  let reqContent = NodeUploadRequest.createShared(
-    NodeUploadMsgType.FILE, sessionId = sessionId, onProgress = onProgress
-  )
+  let reqContent =
+    NodeUploadRequest.createShared(NodeUploadMsgType.FILE, sessionId = sessionId)
 
   let res = codex_context.sendRequestToCodexThread(
     ctx, RequestType.UPLOAD, reqContent, callback, userData
@@ -358,30 +352,74 @@ proc codex_upload_file(
 
   return callback.okOrError(res, userData)
 
-proc codex_upload_subscribe(
+proc codex_download_init(
     ctx: ptr CodexContext,
-    sessionId: cstring,
+    cid: cstring,
+    chunkSize: csize_t,
+    local: bool,
     callback: CodexCallback,
     userData: pointer,
 ): cint {.dynlib, exportc.} =
   initializeLibrary()
   checkLibcodexParams(ctx, callback, userData)
 
-  let onProgress = proc(
-      bytes: int
-  ): Future[void] {.async: (raises: [CancelledError]).} =
-    if userData != nil:
-      callback(RET_PROGRESS, nil, cast[csize_t](bytes), userData)
-
-  let reqContent = NodeUploadRequest.createShared(
-    NodeUploadMsgType.SUBSCRIBE, sessionId = sessionId, onProgress = onProgress
+  let req = NodeDownloadRequest.createShared(
+    NodeDownloadMsgType.INIT, cid = cid, chunkSize = chunkSize, local = local
   )
 
   let res = codex_context.sendRequestToCodexThread(
-    ctx, RequestType.UPLOAD, reqContent, callback, userData
+    ctx, RequestType.DOWNLOAD, req, callback, userData
   )
 
-  return callback.okOrError(res, userData)
+  result = callback.okOrError(res, userData)
+
+proc codex_download_chunk(
+    ctx: ptr CodexContext, cid: cstring, callback: CodexCallback, userData: pointer
+): cint {.dynlib, exportc.} =
+  initializeLibrary()
+  checkLibcodexParams(ctx, callback, userData)
+
+  let req = NodeDownloadRequest.createShared(NodeDownloadMsgType.CHUNK, cid = cid)
+
+  let res = codex_context.sendRequestToCodexThread(
+    ctx, RequestType.DOWNLOAD, req, callback, userData
+  )
+
+  result = callback.okOrError(res, userData)
+
+proc codex_download_local(
+    ctx: ptr CodexContext,
+    cid: cstring,
+    chunkSize: csize_t,
+    callback: CodexCallback,
+    userData: pointer,
+): cint {.dynlib, exportc.} =
+  initializeLibrary()
+  checkLibcodexParams(ctx, callback, userData)
+
+  let req = NodeDownloadRequest.createShared(
+    NodeDownloadMsgType.LOCAL, cid = cid, chunkSize = chunkSize
+  )
+
+  let res = codex_context.sendRequestToCodexThread(
+    ctx, RequestType.DOWNLOAD, req, callback, userData
+  )
+
+  result = callback.okOrError(res, userData)
+
+proc codex_download_cancel(
+    ctx: ptr CodexContext, cid: cstring, callback: CodexCallback, userData: pointer
+): cint {.dynlib, exportc.} =
+  initializeLibrary()
+  checkLibcodexParams(ctx, callback, userData)
+
+  let req = NodeDownloadRequest.createShared(NodeDownloadMsgType.CANCEL, cid = cid)
+
+  let res = codex_context.sendRequestToCodexThread(
+    ctx, RequestType.DOWNLOAD, req, callback, userData
+  )
+
+  result = callback.okOrError(res, userData)
 
 proc codex_start(
     ctx: ptr CodexContext, callback: CodexCallback, userData: pointer

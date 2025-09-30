@@ -11,6 +11,7 @@ import ./requests/node_info_request
 import ./requests/node_debug_request
 import ./requests/node_p2p_request
 import ./requests/node_upload_request
+import ./requests/node_download_request
 
 from ../../codex/codex import CodexServer
 
@@ -20,6 +21,7 @@ type RequestType* {.pure.} = enum
   DEBUG
   P2P
   UPLOAD
+  DOWNLOAD
 
 type CodexThreadRequest* = object
   reqType: RequestType
@@ -94,11 +96,22 @@ proc process*(
       cast[ptr NodeDebugRequest](request[].reqContent).process(codex)
     of P2P:
       cast[ptr NodeP2PRequest](request[].reqContent).process(codex)
+    of DOWNLOAD:
+      let onChunk = proc(bytes: seq[byte]) =
+        if bytes.len > 0:
+          request[].callback(
+            RET_PROGRESS,
+            cast[ptr cchar](unsafeAddr bytes[0]),
+            cast[csize_t](bytes.len),
+            request[].userData,
+          )
+
+      cast[ptr NodeDownloadRequest](request[].reqContent).process(codex, onChunk)
     of UPLOAD:
-      let onUploadProgress = proc(bytes: int) =
+      let onBlockReceived = proc(bytes: int) =
         request[].callback(RET_PROGRESS, nil, cast[csize_t](bytes), request[].userData)
 
-      cast[ptr NodeUploadRequest](request[].reqContent).process(codex, onUploadProgress)
+      cast[ptr NodeUploadRequest](request[].reqContent).process(codex, onBlockReceived)
 
   handleRes(await retFut, request)
 
