@@ -387,10 +387,12 @@ proc codex_download_chunk(
 
   result = callback.okOrError(res, userData)
 
-proc codex_download_local(
+proc codex_download_stream(
     ctx: ptr CodexContext,
     cid: cstring,
     chunkSize: csize_t,
+    local: bool,
+    filepath: cstring,
     callback: CodexCallback,
     userData: pointer,
 ): cint {.dynlib, exportc.} =
@@ -398,7 +400,11 @@ proc codex_download_local(
   checkLibcodexParams(ctx, callback, userData)
 
   let req = NodeDownloadRequest.createShared(
-    NodeDownloadMsgType.LOCAL, cid = cid, chunkSize = chunkSize
+    NodeDownloadMsgType.STREAM,
+    cid = cid,
+    chunkSize = chunkSize,
+    local = local,
+    filepath = filepath,
   )
 
   let res = codex_context.sendRequestToCodexThread(

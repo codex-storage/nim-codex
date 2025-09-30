@@ -132,8 +132,8 @@ package main
 		return codex_download_chunk(codexCtx, cid, (CodexCallback) callback, resp);
 	}
 
-	static int cGoCodexDownloadLocal(void* codexCtx, char* cid, size_t chunkSize, void* resp) {
-		return codex_download_local(codexCtx, cid, chunkSize, (CodexCallback) callback, resp);
+	static int cGoCodexDownloadStream(void* codexCtx, char* cid, size_t chunkSize, bool local, const char* filepath, void* resp) {
+		return codex_download_stream(codexCtx, cid, chunkSize, local, filepath, (CodexCallback) callback, resp);
 	}
 
 	static int cGoCodexDownloadCancel(void* codexCtx, char* cid, void* resp) {
@@ -270,12 +270,39 @@ type CodexNode struct {
 
 const defaultBlockSize = 1024 * 64
 
-type OnProgressFunc func(read, total int, percent float64, err error)
+type OnUploadProgressFunc func(read, total int, percent float64, err error)
+
+type ChunckSize int
 
 type CodexUploadOptions struct {
 	filepath   string
-	chunkSize  int
-	onProgress OnProgressFunc
+	chunkSize  ChunckSize
+	onProgress OnUploadProgressFunc
+}
+
+func (c ChunckSize) valOrDefault() int {
+	if c == 0 {
+		return defaultBlockSize
+	}
+
+	return int(c)
+}
+
+func (c ChunckSize) toSizeT() C.size_t {
+	return C.size_t(c.valOrDefault())
+}
+
+type CodexDownloadStreamOptions = struct {
+	filepath   string
+	chunkSize  ChunckSize
+	onProgress OnUploadProgressFunc
+	writer     io.Writer
+	local      bool
+}
+
+type CodexDownloadInitOptions = struct {
+	local     bool
+	chunkSize ChunckSize
 }
 
 type bridgeCtx struct {
@@ -285,8 +312,16 @@ type bridgeCtx struct {
 	result string
 	err    error
 
-	// Callback used for upload and download
-	onProgress func(read int, chunk []byte)
+	// Callback used for receiving progress updates during upload/download.
+	//
+	// For the upload, the bytes parameter indicates the number of bytes uploaded.
+	// If the chunk size is superior or equal to the blocksize (passed in init function),
+	// the callback will be called when a block is put in the store.
+	// Otherwise, it will be called when a chunk is pushed into the stream.
+	//
+	// For the download, the bytes is the size of the chunk received, and the chunk
+	// is the actual chunk of data received.
+	onProgress func(bytes int, chunk []byte)
 }
 
 func newBridgeCtx() *bridgeCtx {
@@ -559,12 +594,7 @@ func (self CodexNode) CodexUploadInit(options *CodexUploadOptions) (string, erro
 	var cFilename = C.CString(options.filepath)
 	defer C.free(unsafe.Pointer(cFilename))
 
-	if options.chunkSize == 0 {
-		options.chunkSize = defaultBlockSize
-	}
-	var cChunkSize = C.size_t(options.chunkSize)
-
-	if C.cGoCodexUploadInit(self.ctx, cFilename, cChunkSize, bridge.resp) != C.RET_OK {
+	if C.cGoCodexUploadInit(self.ctx, cFilename, options.chunkSize.toSizeT(), bridge.resp) != C.RET_OK {
 		return "", bridge.CallError("cGoCodexUploadInit")
 	}
 
@@ -629,11 +659,7 @@ func (self CodexNode) CodexUploadReader(options CodexUploadOptions, r io.Reader)
 		return "", err
 	}
 
-	if options.chunkSize == 0 {
-		options.chunkSize = defaultBlockSize
-	}
-
-	buf := make([]byte, options.chunkSize)
+	buf := make([]byte, options.chunkSize.valOrDefault())
 	total := 0
 	var size int64
 
@@ -746,29 +772,44 @@ func (self CodexNode) CodexUploadFileAsync(options CodexUploadOptions, onDone fu
 	}()
 }
 
-func (self CodexNode) CodexDownloadLocal(cid string, chunkSize int, w io.Writer) error {
+func (self CodexNode) CodexDownloadStream(cid string, options CodexDownloadStreamOptions) error {
 	bridge := newBridgeCtx()
 	defer bridge.free()
 
+	total := 0
 	bridge.onProgress = func(read int, chunk []byte) {
 		if read == 0 {
 			return
 		}
 
-		if _, err := w.Write(chunk); err != nil {
-			log.Println(err)
+		if options.writer != nil {
+			w := options.writer
+			if _, err := w.Write(chunk); err != nil {
+				if options.onProgress != nil {
+					options.onProgress(0, 0, 0.0, err)
+				}
+			}
+		}
+
+		total += read
+
+		if options.onProgress != nil {
+			// TODO: retrieve the total size from the manifest of from the options struct
+			percent := 0.0
+
+			options.onProgress(read, total, percent, nil)
 		}
 	}
 
 	var cCid = C.CString(cid)
 	defer C.free(unsafe.Pointer(cCid))
 
-	if chunkSize == 0 {
-		chunkSize = defaultBlockSize
-	}
-	var cChunkSize = C.size_t(chunkSize)
+	var cFilepath = C.CString(options.filepath)
+	defer C.free(unsafe.Pointer(cFilepath))
 
-	if C.cGoCodexDownloadLocal(self.ctx, cCid, cChunkSize, bridge.resp) != C.RET_OK {
+	var cLocal = C.bool(options.local)
+
+	if C.cGoCodexDownloadStream(self.ctx, cCid, options.chunkSize.toSizeT(), cLocal, cFilepath, bridge.resp) != C.RET_OK {
 		return bridge.CallError("cGoCodexDownloadLocal")
 	}
 
@@ -777,27 +818,16 @@ func (self CodexNode) CodexDownloadLocal(cid string, chunkSize int, w io.Writer)
 	return err
 }
 
-func (self CodexNode) CodexDownloadLocalAsync(cid string, chunkSize int, w io.Writer, onDone func(error)) {
-	go func() {
-		err := self.CodexDownloadLocal(cid, chunkSize, w)
-		onDone(err)
-	}()
-}
-
-func (self CodexNode) CodexDownloadInit(cid string, chunkSize int, local bool) error {
+func (self CodexNode) CodexDownloadInit(cid string, options CodexDownloadInitOptions) error {
 	bridge := newBridgeCtx()
 	defer bridge.free()
 
 	var cCid = C.CString(cid)
 	defer C.free(unsafe.Pointer(cCid))
 
-	if chunkSize == 0 {
-		chunkSize = defaultBlockSize
-	}
-	var cChunkSize = C.size_t(chunkSize)
-	var cLocal = C.bool(local)
+	var cLocal = C.bool(options.local)
 
-	if C.cGoCodexDownloadInit(self.ctx, cCid, cChunkSize, cLocal, bridge.resp) != C.RET_OK {
+	if C.cGoCodexDownloadInit(self.ctx, cCid, options.chunkSize.toSizeT(), cLocal, bridge.resp) != C.RET_OK {
 		return bridge.CallError("cGoCodexDownloadInit")
 	}
 
@@ -1009,7 +1039,7 @@ func main() {
 	buf := bytes.NewBuffer([]byte("Hello World!"))
 	cid, err = node.CodexUploadReader(CodexUploadOptions{filepath: "hello.txt", onProgress: func(read, total int, percent float64, err error) {
 		if err != nil {
-			log.Fatal("Error happened during upload: %v\n", err)
+			log.Fatalf("Error happened during upload: %v\n", err)
 		}
 
 		log.Printf("Uploaded %d bytes, total %d bytes (%.2f%%)\n", read, total, percent)
@@ -1030,7 +1060,7 @@ func main() {
 
 	options := CodexUploadOptions{filepath: filepath, onProgress: func(read, total int, percent float64, err error) {
 		if err != nil {
-			log.Fatal("Error happened during upload: %v\n", err)
+			log.Fatalf("Error happened during upload: %v\n", err)
 		}
 
 		log.Printf("Uploaded %d bytes, total %d bytes (%.2f%%)\n", read, total, percent)
@@ -1050,17 +1080,20 @@ func main() {
 	}
 	defer f.Close()
 
-	// log.Println("Codex Download Local starting... attempt", i+1)
-
-	if err := node.CodexDownloadLocal(cid, 0, f); err != nil {
+	if err := node.CodexDownloadStream(cid,
+		CodexDownloadStreamOptions{writer: f, filepath: "hello.reloaded.txt",
+			onProgress: func(read, total int, percent float64, err error) {
+				log.Println("Downloaded", read, "bytes. Total:", total, "bytes (", percent, "%)")
+			},
+		}); err != nil {
 		log.Fatal("Error happened:", err.Error())
 	}
 
-	log.Println("Codex Download Local finished.")
+	log.Println("Codex Download finished.")
 
 	// log.Println("Codex Download Init starting... attempt", i+1)
 
-	if err := node.CodexDownloadInit(cid, 0, true); err != nil {
+	if err := node.CodexDownloadInit(cid, CodexDownloadInitOptions{local: true}); err != nil {
 		log.Fatal("Error happened:", err.Error())
 	}
 
