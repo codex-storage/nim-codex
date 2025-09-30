@@ -77,6 +77,13 @@ proc destroyShared(self: ptr NodeDownloadRequest) =
 proc init(
     codex: ptr CodexServer, cCid: cstring = "", chunkSize: csize_t = 0, local: bool
 ): Future[Result[string, string]] {.async: (raises: []).} =
+  ## Init a new session to download the file identified by cid.
+  ##
+  ## If the session already exists, do nothing and return ok.
+  ## Meaning that a cid can only have one active download session.
+  ## If the chunckSize is 0, the default block size will be used.
+  ## If local is true, the file will be retrived from the local store.
+
   if downloadSessions.contains($cCid):
     return ok("Download session already exists.")
 
@@ -104,6 +111,14 @@ proc init(
 proc chunk(
     codex: ptr CodexServer, cid: cstring = "", onChunk: OnChunkHandler
 ): Future[Result[string, string]] {.async: (raises: []).} =
+  ## Download the next chunk of the file identified by cid.
+  ## The chunk is passed to the onChunk handler.
+  ##
+  ## If the stream is at EOF, return ok with empty string.
+  ##
+  ## If an error is raised while reading the stream, the session is deleted
+  ## and an error is returned.
+
   if not downloadSessions.contains($cid):
     return err("Failed to download chunk: no session for cid " & $cid)
 
@@ -114,11 +129,10 @@ proc chunk(
     return err("Failed to download chunk: no session for cid " & $cid)
 
   let stream = session.stream
-  let chunkSize = session.chunkSize
-
   if stream.atEof:
     return ok("")
 
+  let chunkSize = session.chunkSize
   var buf = newSeq[byte](chunkSize)
 
   try:
@@ -201,6 +215,11 @@ proc stream(
     filepath: cstring,
     onChunk: OnChunkHandler,
 ): Future[Result[string, string]] {.raises: [], async: (raises: []).} =
+  ## Stream the file identified by cid, calling the onChunk handler for each chunk
+  ## and / or writing to a file if filepath is set.
+  ##
+  ## If local is true, the file will be retrived from the local store.
+
   let node = codex[].node
 
   let cid = Cid.init($cCid)
@@ -219,6 +238,10 @@ proc stream(
 proc cancel(
     codex: ptr CodexServer, cCid: cstring
 ): Future[Result[string, string]] {.raises: [], async: (raises: []).} =
+  ## Cancel the download session identified by cid.
+  ## This operation is not supported when using the stream mode,
+  ## because the worker will be busy downloading the file.
+
   if not downloadSessions.contains($cCid):
     return err("Failed to download chunk: no session for cid " & $cCid)
 
