@@ -1,6 +1,19 @@
 {.push raises: [].}
 
 ## This file contains the download request.
+## A session is created for each download identified by the CID,
+## allowing to resume, pause and cancel the download (using chunks).
+##
+## There are two ways to download a file:
+## 1. Via chunks: the cid parameter is the CID of the file to download. Steps are:
+##    - INIT: initializes the download session
+##    - CHUNK: downloads the next chunk of the file
+##    - CANCEL: cancels the download session
+## 2. Via stream.
+##    - STREAM: downloads the file in a streaming manner, calling
+## the onChunk handler for each chunk and / or writing to a file if filepath is set.
+## Cancel is supported in this mode because the worker will be busy
+## downloading the file so it cannot pickup another request to cancel the download.
 
 import std/[options, streams]
 import chronos
@@ -19,9 +32,8 @@ logScope:
 
 type NodeDownloadMsgType* = enum
   INIT
-  LOCAL
-  NETWORK
   CHUNK
+  STREAM
   CANCEL
 
 type OnChunkHandler = proc(bytes: seq[byte]): void {.gcsafe, raises: [].}
@@ -31,6 +43,7 @@ type NodeDownloadRequest* = object
   cid: cstring
   chunkSize: csize_t
   local: bool
+  filepath: cstring
 
 type
   DownloadSessionId* = string
@@ -47,12 +60,14 @@ proc createShared*(
     cid: cstring = "",
     chunkSize: csize_t = 0,
     local: bool = false,
+    filepath: cstring = "",
 ): ptr type T =
   var ret = createShared(T)
   ret[].operation = op
   ret[].cid = cid.alloc()
   ret[].chunkSize = chunkSize
   ret[].local = local
+  ret[].filepath = filepath.alloc()
 
   return ret
 
@@ -60,10 +75,7 @@ proc destroyShared(self: ptr NodeDownloadRequest) =
   deallocShared(self)
 
 proc init(
-    codex: ptr CodexServer,
-    cCid: cstring = "",
-    chunkSize: csize_t = 0,
-    local: bool = true,
+    codex: ptr CodexServer, cCid: cstring = "", chunkSize: csize_t = 0, local: bool
 ): Future[Result[string, string]] {.async: (raises: []).} =
   if downloadSessions.contains($cCid):
     return ok("Download session already exists.")
@@ -128,12 +140,13 @@ proc chunk(
 
   return ok("")
 
-proc streamFile(
+proc streamData(
     codex: ptr CodexServer,
     cid: Cid,
-    local: bool = true,
+    local: bool,
     onChunk: OnChunkHandler,
     chunkSize: csize_t,
+    filepath: cstring,
 ): Future[Result[string, string]] {.async: (raises: [CancelledError]).} =
   let node = codex[].node
 
@@ -148,9 +161,14 @@ proc streamFile(
 
   let blockSize = if chunkSize.int > 0: chunkSize.int else: DefaultBlockSize.int
   var buf = newSeq[byte](blockSize)
-
   var read = 0
+  var outputStream: OutputStreamHandle
+  var filedest: string = $filepath
+
   try:
+    if filepath != "":
+      outputStream = filedest.fileOutput()
+
     while not stream.atEof:
       let read = await stream.readOnce(addr buf[0], buf.len)
       buf.setLen(read)
@@ -158,18 +176,30 @@ proc streamFile(
       if buf.len <= 0:
         break
 
-      if onChunk != nil:
-        onChunk(buf)
+      onChunk(buf)
+
+      if outputStream != nil:
+        outputStream.write(buf)
+
+    if outputStream != nil:
+      outputStream.close()
   except LPStreamError as e:
     return err("Failed to stream file: " & $e.msg)
+  except IOError as e:
+    return err("Failed to write to file: " & $e.msg)
   finally:
     await stream.close()
     downloadSessions.del($cid)
 
   return ok("")
 
-proc local(
-    codex: ptr CodexServer, cCid: cstring, chunkSize: csize_t, onChunk: OnChunkHandler
+proc stream(
+    codex: ptr CodexServer,
+    cCid: cstring,
+    chunkSize: csize_t,
+    local: bool,
+    filepath: cstring,
+    onChunk: OnChunkHandler,
 ): Future[Result[string, string]] {.raises: [], async: (raises: []).} =
   let node = codex[].node
 
@@ -178,8 +208,7 @@ proc local(
     return err("Failed to download locally: cannot parse cid: " & $cCid)
 
   try:
-    let local = true
-    let res = await codex.streamFile(cid.get(), true, onChunk, chunkSize)
+    let res = await codex.streamData(cid.get(), local, onChunk, chunkSize, filepath)
     if res.isErr:
       return err($res.error)
   except CancelledError:
@@ -218,23 +247,18 @@ proc process*(
       error "Failed to INIT.", error = res.error
       return err($res.error)
     return res
-  of NodeDownloadMsgType.LOCAL:
-    let res = (await local(codex, self.cid, self.chunkSize, onChunk))
-    if res.isErr:
-      error "Failed to LOCAL.", error = res.error
-      return err($res.error)
-    return res
-  of NodeDownloadMsgType.NETWORK:
-    return err("NETWORK download not implemented yet.")
-    # let res = (await local(codex, self.cid, self.onChunk2, self.chunkSize, onChunk))
-    # if res.isErr:
-    #   error "Failed to NETWORK.", error = res.error
-    #   return err($res.error)
-    # return res
   of NodeDownloadMsgType.CHUNK:
     let res = (await chunk(codex, self.cid, onChunk))
     if res.isErr:
       error "Failed to CHUNK.", error = res.error
+      return err($res.error)
+    return res
+  of NodeDownloadMsgType.STREAM:
+    let res = (
+      await stream(codex, self.cid, self.chunkSize, self.local, self.filepath, onChunk)
+    )
+    if res.isErr:
+      error "Failed to STREAM.", error = res.error
       return err($res.error)
     return res
   of NodeDownloadMsgType.CANCEL:

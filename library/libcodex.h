@@ -115,10 +115,12 @@ int codex_upload_file(
                 CodexCallback callback,
                 void* userData);
 
-int codex_download_local(
+int codex_download_stream(
                 void* ctx,
                 const char* cid,
                 size_t chunkSize,
+                bool local,
+                const char* filepath,
                 CodexCallback callback,
                 void* userData);
 
