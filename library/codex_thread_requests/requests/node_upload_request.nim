@@ -2,7 +2,7 @@
 
 ## This file contains the upload request.
 ## A session is created for each upload allowing to resume,
-## pause (using chunks) and cancels uploads.
+## pause and cancel uploads (using chunks).
 ##
 ## There are two ways to upload a file:
 ## 1. Via chunks: the filepath parameter is the data filename. Steps are:
