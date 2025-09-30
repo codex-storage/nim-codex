@@ -182,7 +182,7 @@ proc generateNodes*(
           store =
             RepoStore.new(repoStore.newDb(), mdStore.newDb(), clock = SystemClock.new())
           blockDiscoveryStore = bdStore.newDb()
-          discovery = 
+          discovery =
             if config.enableDiscovery:
               Discovery.new(
                 switch.peerInfo.privateKey,

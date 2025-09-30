@@ -45,8 +45,8 @@ type BlockExcPeerCtx* = ref object of RootObj
   activityTimeout*: Duration
 
 proc isKnowledgeStale*(self: BlockExcPeerCtx): bool =
-  let
-    staleness = self.lastRefresh + self.refreshBackoff * MinRefreshInterval < Moment.now()
+  let staleness =
+    self.lastRefresh + self.refreshBackoff * MinRefreshInterval < Moment.now()
 
   if staleness and self.refreshInProgress:
     trace "Cleaning up refresh state", peer = self.id
