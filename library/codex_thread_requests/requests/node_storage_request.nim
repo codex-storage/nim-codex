@@ -1,6 +1,11 @@
 {.push raises: [].}
 
 ## This file contains the node storage request.
+## 4 operations are available:
+## - LIST: list all manifests stored in the node.
+## - DELETE: Deletes either a single block or an entire dataset from the local node.
+## - FETCH: download a file from the network to the local node.
+## - SPACE: get the amount of space used by the local node.
 
 import std/[options]
 import chronos
@@ -11,7 +16,7 @@ import ../../alloc
 import ../../../codex/manifest
 
 from ../../../codex/codex import CodexServer, node
-from ../../../codex/node import iterateManifests
+from ../../../codex/node import iterateManifests, fetchManifest, fetchDatasetAsyncTask
 from libp2p import Cid, init, `$`
 
 logScope:
@@ -67,9 +72,23 @@ proc delete(
   return err("DELETE operation not implemented yet.")
 
 proc fetch(
-    codex: ptr CodexServer, cid: cstring
+    codex: ptr CodexServer, cCid: cstring
 ): Future[Result[string, string]] {.async: (raises: []).} =
-  return err("FETCH operation not implemented yet.")
+  let cid = Cid.init($cCid)
+  if cid.isErr:
+    return err("Failed to fetch the data: cannot parse cid: " & $cCid)
+
+  try:
+    let node = codex[].node
+    let manifest = await node.fetchManifest(cid.get())
+    if manifest.isErr:
+      return err("Failed to fetch the data: " & manifest.error.msg)
+
+    node.fetchDatasetAsyncTask(manifest.get())
+
+    return ok(serde.toJson(manifest.get()))
+  except CancelledError:
+    return err("Failed to fetch the data: download cancelled.")
 
 proc space(
     codex: ptr CodexServer
