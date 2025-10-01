@@ -144,6 +144,10 @@ package main
 		return codex_download_manifest(codexCtx, cid, (CodexCallback) callback, resp);
 	}
 
+	static int cGoCodexStorageList(void* codexCtx, void* resp) {
+		return codex_storage_list(codexCtx, (CodexCallback) callback, resp);
+	}
+
 	static int cGoCodexStart(void* codexCtx, void* resp) {
 		return codex_start(codexCtx, (CodexCallback) callback, resp);
 	}
@@ -331,12 +335,18 @@ type bridgeCtx struct {
 }
 
 type CodexManifest struct {
+	Cid         string
 	TreeCid     string `json:"treeCid"`
 	DatasetSize int    `json:"datasetSize"`
 	BlockSize   int    `json:"blockSize"`
 	Filename    string `json:"filename"`
 	Mimetype    string `json:"mimetype"`
 	Protected   bool   `json:"protected"`
+}
+
+type CodexManifestWithCid struct {
+	Cid      string        `json:"cid"`
+	Manifest CodexManifest `json:"manifest"`
 }
 
 func newBridgeCtx() *bridgeCtx {
@@ -803,7 +813,7 @@ func (self CodexNode) CodexDownloadManifest(cid string) (CodexManifest, error) {
 		return CodexManifest{}, err
 	}
 
-	var manifest CodexManifest
+	manifest := CodexManifest{Cid: cid}
 	err = json.Unmarshal([]byte(val), &manifest)
 	if err != nil {
 		return CodexManifest{}, err
@@ -926,6 +936,33 @@ func (self CodexNode) CodexDownloadCancel(cid string) error {
 	_, err := bridge.wait()
 
 	return err
+}
+
+func (self CodexNode) CodexStorageList() ([]CodexManifest, error) {
+	bridge := newBridgeCtx()
+	defer bridge.free()
+
+	if C.cGoCodexStorageList(self.ctx, bridge.resp) != C.RET_OK {
+		return nil, bridge.CallError("cGoCodexStorageList")
+	}
+	value, err := bridge.wait()
+	if err != nil {
+		return nil, err
+	}
+
+	var items []CodexManifestWithCid
+	err = json.Unmarshal([]byte(value), &items)
+	if err != nil {
+		return nil, err
+	}
+
+	var list []CodexManifest
+	for _, item := range items {
+		item.Manifest.Cid = item.Cid
+		list = append(list, item.Manifest)
+	}
+
+	return list, err
 }
 
 func (self CodexNode) CodexStart() error {
@@ -1166,6 +1203,13 @@ func main() {
 	}
 
 	log.Println("Manifest content:", manifest)
+
+	manifests, err := node.CodexStorageList()
+	if err != nil {
+		log.Fatal("Error happened:", err.Error())
+	}
+
+	log.Println("Storage List content:", manifests)
 	// }
 
 	// err = node.CodexConnect(peerId, []string{})

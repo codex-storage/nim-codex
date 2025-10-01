@@ -12,6 +12,7 @@ import ./requests/node_debug_request
 import ./requests/node_p2p_request
 import ./requests/node_upload_request
 import ./requests/node_download_request
+import ./requests/node_storage_request
 
 from ../../codex/codex import CodexServer
 
@@ -22,6 +23,7 @@ type RequestType* {.pure.} = enum
   P2P
   UPLOAD
   DOWNLOAD
+  STORAGE
 
 type CodexThreadRequest* = object
   reqType: RequestType
@@ -96,6 +98,8 @@ proc process*(
       cast[ptr NodeDebugRequest](request[].reqContent).process(codex)
     of P2P:
       cast[ptr NodeP2PRequest](request[].reqContent).process(codex)
+    of STORAGE:
+      cast[ptr NodeStorageRequest](request[].reqContent).process(codex)
     of DOWNLOAD:
       let onChunk = proc(bytes: seq[byte]) =
         if bytes.len > 0:
