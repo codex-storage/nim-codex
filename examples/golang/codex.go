@@ -148,6 +148,10 @@ package main
 		return codex_storage_list(codexCtx, (CodexCallback) callback, resp);
 	}
 
+	static int cGoCodexStorageFetch(void* codexCtx, char* cid, void* resp) {
+		return codex_storage_fetch(codexCtx, cid, (CodexCallback) callback, resp);
+	}
+
 	static int cGoCodexStart(void* codexCtx, void* resp) {
 		return codex_start(codexCtx, (CodexCallback) callback, resp);
 	}
@@ -965,6 +969,33 @@ func (self CodexNode) CodexStorageList() ([]CodexManifest, error) {
 	return list, err
 }
 
+func (self CodexNode) CodexStorageFetch(cid string) (CodexManifest, error) {
+	bridge := newBridgeCtx()
+	defer bridge.free()
+
+	var cCid = C.CString(cid)
+	defer C.free(unsafe.Pointer(cCid))
+
+	if C.cGoCodexStorageFetch(self.ctx, cCid, bridge.resp) != C.RET_OK {
+		return CodexManifest{}, bridge.CallError("cGoCodexStorageFetch")
+	}
+
+	value, err := bridge.wait()
+	if err != nil {
+		return CodexManifest{}, err
+	}
+
+	var manifest CodexManifest
+	err = json.Unmarshal([]byte(value), &manifest)
+	if err != nil {
+		return CodexManifest{}, err
+	}
+
+	manifest.Cid = cid
+
+	return manifest, nil
+}
+
 func (self CodexNode) CodexStart() error {
 	bridge := newBridgeCtx()
 	defer bridge.free()
@@ -1210,6 +1241,13 @@ func main() {
 	}
 
 	log.Println("Storage List content:", manifests)
+
+	manifest, err = node.CodexStorageFetch(cid)
+	if err != nil {
+		log.Fatal("Error happened:", err.Error())
+	}
+
+	log.Println("Storage Fetch content:", manifest)
 	// }
 
 	// err = node.CodexConnect(peerId, []string{})
