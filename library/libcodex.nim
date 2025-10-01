@@ -35,6 +35,7 @@ import ./codex_thread_requests/requests/node_debug_request
 import ./codex_thread_requests/requests/node_p2p_request
 import ./codex_thread_requests/requests/node_upload_request
 import ./codex_thread_requests/requests/node_download_request
+import ./codex_thread_requests/requests/node_storage_request
 import ./ffi_types
 
 from ../codex/conf import codexVersion, updateLogLevel
@@ -437,6 +438,62 @@ proc codex_download_manifest(
 
   let res = codex_context.sendRequestToCodexThread(
     ctx, RequestType.DOWNLOAD, req, callback, userData
+  )
+
+  result = callback.okOrError(res, userData)
+
+proc codex_storage_list(
+    ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
+): cint {.dynlib, exportc.} =
+  initializeLibrary()
+  checkLibcodexParams(ctx, callback, userData)
+
+  let req = NodeStorageRequest.createShared(NodeStorageMsgType.LIST)
+
+  let res = codex_context.sendRequestToCodexThread(
+    ctx, RequestType.STORAGE, req, callback, userData
+  )
+
+  result = callback.okOrError(res, userData)
+
+proc codex_storage_space(
+    ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
+): cint {.dynlib, exportc.} =
+  initializeLibrary()
+  checkLibcodexParams(ctx, callback, userData)
+
+  let req = NodeStorageRequest.createShared(NodeStorageMsgType.SPACE)
+
+  let res = codex_context.sendRequestToCodexThread(
+    ctx, RequestType.STORAGE, req, callback, userData
+  )
+
+  result = callback.okOrError(res, userData)
+
+proc codex_storage_delete(
+    ctx: ptr CodexContext, cid: cstring, callback: CodexCallback, userData: pointer
+): cint {.dynlib, exportc.} =
+  initializeLibrary()
+  checkLibcodexParams(ctx, callback, userData)
+
+  let req = NodeStorageRequest.createShared(NodeStorageMsgType.DELETE, cid = cid)
+
+  let res = codex_context.sendRequestToCodexThread(
+    ctx, RequestType.STORAGE, req, callback, userData
+  )
+
+  result = callback.okOrError(res, userData)
+
+proc codex_storage_fetch(
+    ctx: ptr CodexContext, cid: cstring, callback: CodexCallback, userData: pointer
+): cint {.dynlib, exportc.} =
+  initializeLibrary()
+  checkLibcodexParams(ctx, callback, userData)
+
+  let req = NodeStorageRequest.createShared(NodeStorageMsgType.FETCH, cid = cid)
+
+  let res = codex_context.sendRequestToCodexThread(
+    ctx, RequestType.STORAGE, req, callback, userData
   )
 
   result = callback.okOrError(res, userData)

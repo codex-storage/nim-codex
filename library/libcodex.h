@@ -150,6 +150,28 @@ int codex_download_manifest(
                 CodexCallback callback,
                 void* userData);
 
+int codex_storage_list(
+                void* ctx,
+                CodexCallback callback,
+                void* userData);
+
+int codex_storage_space(
+                void* ctx,
+                CodexCallback callback,
+                void* userData);
+
+int codex_storage_delete(
+                void* ctx,
+                const char* cid,
+                CodexCallback callback,
+                void* userData);
+
+int codex_storage_fetch(
+                void* ctx,
+                const char* cid,
+                CodexCallback callback,
+                void* userData);
+
 int codex_start(void* ctx,
                CodexCallback callback,
                void* userData);
