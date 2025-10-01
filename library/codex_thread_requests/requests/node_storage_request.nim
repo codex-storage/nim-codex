@@ -13,9 +13,11 @@ import chronicles
 import libp2p/stream/[lpstream]
 import serde/json as serde
 import ../../alloc
+import ../../../codex/units
 import ../../../codex/manifest
+import ../../../codex/stores/repostore
 
-from ../../../codex/codex import CodexServer, node
+from ../../../codex/codex import CodexServer, node, repoStore
 from ../../../codex/node import iterateManifests, fetchManifest, fetchDatasetAsyncTask
 from libp2p import Cid, init, `$`
 
@@ -31,6 +33,12 @@ type NodeStorageMsgType* = enum
 type NodeStorageRequest* = object
   operation: NodeStorageMsgType
   cid: cstring
+
+type StorageSpace = object
+  totalBlocks* {.serialize.}: Natural
+  quotaMaxBytes* {.serialize.}: NBytes
+  quotaUsedBytes* {.serialize.}: NBytes
+  quotaReservedBytes* {.serialize.}: NBytes
 
 proc createShared*(
     T: type NodeStorageRequest, op: NodeStorageMsgType, cid: cstring = ""
@@ -93,7 +101,14 @@ proc fetch(
 proc space(
     codex: ptr CodexServer
 ): Future[Result[string, string]] {.async: (raises: []).} =
-  return err("SPACE operation not implemented yet.")
+  let repoStore = codex[].repoStore
+  let space = StorageSpace(
+    totalBlocks: repoStore.totalBlocks,
+    quotaMaxBytes: repoStore.quotaMaxBytes,
+    quotaUsedBytes: repoStore.quotaUsedBytes,
+    quotaReservedBytes: repoStore.quotaReservedBytes,
+  )
+  return ok(serde.toJson(space))
 
 proc process*(
     self: ptr NodeStorageRequest, codex: ptr CodexServer
