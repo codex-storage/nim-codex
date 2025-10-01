@@ -140,6 +140,10 @@ package main
 		return codex_download_cancel(codexCtx, cid, (CodexCallback) callback, resp);
 	}
 
+	static int cGoCodexDownloadManifest(void* codexCtx, char* cid, void* resp) {
+		return codex_download_manifest(codexCtx, cid, (CodexCallback) callback, resp);
+	}
+
 	static int cGoCodexStart(void* codexCtx, void* resp) {
 		return codex_start(codexCtx, (CodexCallback) callback, resp);
 	}
@@ -293,11 +297,13 @@ func (c ChunckSize) toSizeT() C.size_t {
 }
 
 type CodexDownloadStreamOptions = struct {
-	filepath   string
-	chunkSize  ChunckSize
-	onProgress OnUploadProgressFunc
-	writer     io.Writer
-	local      bool
+	filepath        string
+	chunkSize       ChunckSize
+	onProgress      OnUploadProgressFunc
+	writer          io.Writer
+	local           bool
+	datasetSize     int
+	datasetSizeAuto bool
 }
 
 type CodexDownloadInitOptions = struct {
@@ -322,6 +328,15 @@ type bridgeCtx struct {
 	// For the download, the bytes is the size of the chunk received, and the chunk
 	// is the actual chunk of data received.
 	onProgress func(bytes int, chunk []byte)
+}
+
+type CodexManifest struct {
+	TreeCid     string `json:"treeCid"`
+	DatasetSize int    `json:"datasetSize"`
+	BlockSize   int    `json:"blockSize"`
+	Filename    string `json:"filename"`
+	Mimetype    string `json:"mimetype"`
+	Protected   bool   `json:"protected"`
 }
 
 func newBridgeCtx() *bridgeCtx {
@@ -772,9 +787,44 @@ func (self CodexNode) CodexUploadFileAsync(options CodexUploadOptions, onDone fu
 	}()
 }
 
+func (self CodexNode) CodexDownloadManifest(cid string) (CodexManifest, error) {
+	bridge := newBridgeCtx()
+	defer bridge.free()
+
+	var cCid = C.CString(cid)
+	defer C.free(unsafe.Pointer(cCid))
+
+	if C.cGoCodexDownloadManifest(self.ctx, cCid, bridge.resp) != C.RET_OK {
+		return CodexManifest{}, bridge.CallError("cGoCodexDownloadManifest")
+	}
+
+	val, err := bridge.wait()
+	if err != nil {
+		return CodexManifest{}, err
+	}
+
+	var manifest CodexManifest
+	err = json.Unmarshal([]byte(val), &manifest)
+	if err != nil {
+		return CodexManifest{}, err
+	}
+
+	return manifest, nil
+}
+
 func (self CodexNode) CodexDownloadStream(cid string, options CodexDownloadStreamOptions) error {
 	bridge := newBridgeCtx()
 	defer bridge.free()
+
+	if options.datasetSizeAuto {
+		manifest, err := self.CodexDownloadManifest(cid)
+
+		if err != nil {
+			return err
+		}
+
+		options.datasetSize = manifest.DatasetSize
+	}
 
 	total := 0
 	bridge.onProgress = func(read int, chunk []byte) {
@@ -794,8 +844,10 @@ func (self CodexNode) CodexDownloadStream(cid string, options CodexDownloadStrea
 		total += read
 
 		if options.onProgress != nil {
-			// TODO: retrieve the total size from the manifest of from the options struct
-			percent := 0.0
+			var percent = 0.0
+			if options.datasetSize > 0 {
+				percent = float64(total) / float64(options.datasetSize) * 100.0
+			}
 
 			options.onProgress(read, total, percent, nil)
 		}
@@ -1107,6 +1159,13 @@ func main() {
 	}
 
 	log.Println("Codex Download Chunk finished. Size:", len(chunk))
+
+	manifest, err := node.CodexDownloadManifest(cid)
+	if err != nil {
+		log.Fatal("Error happened:", err.Error())
+	}
+
+	log.Println("Manifest content:", manifest)
 	// }
 
 	// err = node.CodexConnect(peerId, []string{})

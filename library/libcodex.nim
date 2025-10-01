@@ -427,6 +427,20 @@ proc codex_download_cancel(
 
   result = callback.okOrError(res, userData)
 
+proc codex_download_manifest(
+    ctx: ptr CodexContext, cid: cstring, callback: CodexCallback, userData: pointer
+): cint {.dynlib, exportc.} =
+  initializeLibrary()
+  checkLibcodexParams(ctx, callback, userData)
+
+  let req = NodeDownloadRequest.createShared(NodeDownloadMsgType.MANIFEST, cid = cid)
+
+  let res = codex_context.sendRequestToCodexThread(
+    ctx, RequestType.DOWNLOAD, req, callback, userData
+  )
+
+  result = callback.okOrError(res, userData)
+
 proc codex_start(
     ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
