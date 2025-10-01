@@ -18,7 +18,8 @@ import ../../../codex/manifest
 import ../../../codex/stores/repostore
 
 from ../../../codex/codex import CodexServer, node, repoStore
-from ../../../codex/node import iterateManifests, fetchManifest, fetchDatasetAsyncTask
+from ../../../codex/node import
+  iterateManifests, fetchManifest, fetchDatasetAsyncTask, delete
 from libp2p import Cid, init, `$`
 
 logScope:
@@ -75,9 +76,23 @@ proc list(
   return ok(serde.toJson(manifests))
 
 proc delete(
-    codex: ptr CodexServer, cid: cstring
+    codex: ptr CodexServer, cCid: cstring
 ): Future[Result[string, string]] {.async: (raises: []).} =
-  return err("DELETE operation not implemented yet.")
+  let cid = Cid.init($cCid)
+  if cid.isErr:
+    return err("Failed to delete the data: cannot parse cid: " & $cCid)
+
+  let node = codex[].node
+  try:
+    let res = await node.delete(cid.get())
+    if res.isErr:
+      return err("Failed to delete the data: " & res.error.msg)
+  except CancelledError:
+    return err("Failed to delete the data: cancelled operation.")
+  except CatchableError as err:
+    return err("Failed to delete the data: " & err.msg)
+
+  return ok("")
 
 proc fetch(
     codex: ptr CodexServer, cCid: cstring
