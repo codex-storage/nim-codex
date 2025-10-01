@@ -19,12 +19,14 @@ import std/[options, streams]
 import chronos
 import chronicles
 import libp2p/stream/[lpstream]
+import serde/json as serde
 import ../../alloc
 import ../../../codex/units
 import ../../../codex/codextypes
 
 from ../../../codex/codex import CodexServer, node
-from ../../../codex/node import retrieve
+from ../../../codex/node import retrieve, fetchManifest
+from ../../../codex/rest/json import `%`, RestContent
 from libp2p import Cid, init, `$`
 
 logScope:
@@ -35,6 +37,7 @@ type NodeDownloadMsgType* = enum
   CHUNK
   STREAM
   CANCEL
+  MANIFEST
 
 type OnChunkHandler = proc(bytes: seq[byte]): void {.gcsafe, raises: [].}
 
@@ -72,6 +75,8 @@ proc createShared*(
   return ret
 
 proc destroyShared(self: ptr NodeDownloadRequest) =
+  deallocShared(self[].cid)
+  deallocShared(self[].filepath)
   deallocShared(self)
 
 proc init(
@@ -257,6 +262,23 @@ proc cancel(
 
   return ok("")
 
+proc manifest(
+    codex: ptr CodexServer, cCid: cstring
+): Future[Result[string, string]] {.raises: [], async: (raises: []).} =
+  let cid = Cid.init($cCid)
+  if cid.isErr:
+    return err("Failed to fetch manifest: cannot parse cid: " & $cCid)
+
+  try:
+    let node = codex[].node
+    let manifest = await node.fetchManifest(cid.get())
+    if manifest.isErr:
+      return err("Failed to fetch manifest: " & manifest.error.msg)
+
+    return ok(serde.toJson(manifest.get()))
+  except CancelledError:
+    return err("Failed to fetch manifest: download cancelled.")
+
 proc process*(
     self: ptr NodeDownloadRequest, codex: ptr CodexServer, onChunk: OnChunkHandler
 ): Future[Result[string, string]] {.async: (raises: []).} =
@@ -288,5 +310,11 @@ proc process*(
     let res = (await cancel(codex, self.cid))
     if res.isErr:
       error "Failed to CANCEL.", error = res.error
+      return err($res.error)
+    return res
+  of NodeDownloadMsgType.MANIFEST:
+    let res = (await manifest(codex, self.cid))
+    if res.isErr:
+      error "Failed to MANIFEST.", error = res.error
       return err($res.error)
     return res
