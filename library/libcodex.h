@@ -144,6 +144,12 @@ int codex_download_cancel(
                 CodexCallback callback,
                 void* userData);
 
+int codex_download_manifest(
+                void* ctx,
+                const char* cid,
+                CodexCallback callback,
+                void* userData);
+
 int codex_start(void* ctx,
                CodexCallback callback,
                void* userData);
