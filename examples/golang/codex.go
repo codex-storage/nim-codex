@@ -156,6 +156,10 @@ package main
 		return codex_storage_space(codexCtx, (CodexCallback) callback, resp);
 	}
 
+	static int cGoCodexStorageDelete(void* codexCtx, char* cid, void* resp) {
+		return codex_storage_delete(codexCtx, cid, (CodexCallback) callback, resp);
+	}
+
 	static int cGoCodexStart(void* codexCtx, void* resp) {
 		return codex_start(codexCtx, (CodexCallback) callback, resp);
 	}
@@ -1027,6 +1031,21 @@ func (self CodexNode) CodexStorageSpace() (CodexSpace, error) {
 	return space, err
 }
 
+func (self CodexNode) CodexStorageDelete(cid string) error {
+	bridge := newBridgeCtx()
+	defer bridge.free()
+
+	var cCid = C.CString(cid)
+	defer C.free(unsafe.Pointer(cCid))
+
+	if C.cGoCodexStorageDelete(self.ctx, cCid, bridge.resp) != C.RET_OK {
+		return bridge.CallError("cGoCodexStorageDelete")
+	}
+
+	_, err := bridge.wait()
+	return err
+}
+
 func (self CodexNode) CodexStart() error {
 	bridge := newBridgeCtx()
 	defer bridge.free()
@@ -1286,6 +1305,12 @@ func main() {
 	}
 
 	log.Println("Storage Space content:", space)
+
+	if err := node.CodexStorageDelete(cid); err != nil {
+		log.Fatal("Error happened:", err.Error())
+	}
+
+	log.Println("Storage Delete finished.")
 	// }
 
 	// err = node.CodexConnect(peerId, []string{})
