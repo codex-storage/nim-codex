@@ -67,6 +67,9 @@ func config*(self: CodexServer): CodexConf =
 func node*(self: CodexServer): CodexNodeRef =
   return self.codexNode
 
+func repoStore*(self: CodexServer): RepoStore =
+  return self.repoStore
+
 proc waitForSync(provider: Provider): Future[void] {.async.} =
   var sleepTime = 1
   trace "Checking sync state of Ethereum provider..."

@@ -152,6 +152,10 @@ package main
 		return codex_storage_fetch(codexCtx, cid, (CodexCallback) callback, resp);
 	}
 
+	static int cGoCodexStorageSpace(void* codexCtx, void* resp) {
+		return codex_storage_space(codexCtx, (CodexCallback) callback, resp);
+	}
+
 	static int cGoCodexStart(void* codexCtx, void* resp) {
 		return codex_start(codexCtx, (CodexCallback) callback, resp);
 	}
@@ -351,6 +355,13 @@ type CodexManifest struct {
 type CodexManifestWithCid struct {
 	Cid      string        `json:"cid"`
 	Manifest CodexManifest `json:"manifest"`
+}
+
+type CodexSpace struct {
+	TotalBlocks        int   `json:"totalBlocks"`
+	QuotaMaxBytes      int64 `json:"quotaMaxBytes"`
+	QuotaUsedBytes     int64 `json:"quotaUsedBytes"`
+	QuotaReservedBytes int64 `json:"quotaReservedBytes"`
 }
 
 func newBridgeCtx() *bridgeCtx {
@@ -996,6 +1007,26 @@ func (self CodexNode) CodexStorageFetch(cid string) (CodexManifest, error) {
 	return manifest, nil
 }
 
+func (self CodexNode) CodexStorageSpace() (CodexSpace, error) {
+	var space CodexSpace
+
+	bridge := newBridgeCtx()
+	defer bridge.free()
+
+	if C.cGoCodexStorageSpace(self.ctx, bridge.resp) != C.RET_OK {
+		return space, bridge.CallError("cGoCodexStorageSpace")
+	}
+
+	value, err := bridge.wait()
+	if err != nil {
+		return space, err
+	}
+
+	err = json.Unmarshal([]byte(value), &space)
+
+	return space, err
+}
+
 func (self CodexNode) CodexStart() error {
 	bridge := newBridgeCtx()
 	defer bridge.free()
@@ -1248,6 +1279,13 @@ func main() {
 	}
 
 	log.Println("Storage Fetch content:", manifest)
+
+	space, err := node.CodexStorageSpace()
+	if err != nil {
+		log.Fatal("Error happened:", err.Error())
+	}
+
+	log.Println("Storage Space content:", space)
 	// }
 
 	// err = node.CodexConnect(peerId, []string{})
