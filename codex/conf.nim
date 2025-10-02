@@ -203,8 +203,10 @@ type
     .}: string
 
     apiBindAddress* {.
-      desc: "The REST API bind address", defaultValue: "127.0.0.1", name: "api-bindaddr"
-    .}: string
+      desc: "The REST API bind address",
+      defaultValue: "127.0.0.1".some,
+      name: "api-bindaddr"
+    .}: Option[string]
 
     apiPort* {.
       desc: "The REST Api port",
