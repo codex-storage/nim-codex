@@ -1278,6 +1278,12 @@ func main() {
 
 	log.Println("Codex Download Chunk finished. Size:", len(chunk))
 
+	if err := node.CodexDownloadCancel(cid); err != nil {
+		log.Fatal("Error happened:", err.Error())
+	}
+
+	log.Println("Codex Download Cancel finished.")
+
 	manifest, err := node.CodexDownloadManifest(cid)
 	if err != nil {
 		log.Fatal("Error happened:", err.Error())
