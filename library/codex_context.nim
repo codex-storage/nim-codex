@@ -130,7 +130,7 @@ proc runCodex(ctx: ptr CodexContext) {.async: (raises: []).} =
       # Wait until a request is available
       await ctx.reqSignal.wait()
     except Exception as e:
-      error "Failed to run codex thread while waiting for reqSignal.", error = e.msg
+      error "Failure in run codex thread while waiting for reqSignal.", error = e.msg
       continue
 
     # If codex_destroy was called, exit the loop
@@ -142,7 +142,7 @@ proc runCodex(ctx: ptr CodexContext) {.async: (raises: []).} =
     # Pop a request from the channel
     let recvOk = ctx.reqChannel.tryRecv(request)
     if not recvOk:
-      error "Failed to run codex: unable to receive request in codex thread."
+      error "Failure in run codex: unable to receive request in codex thread."
       continue
 
     # yield immediately to the event loop
@@ -157,7 +157,7 @@ proc runCodex(ctx: ptr CodexContext) {.async: (raises: []).} =
     # Notify the main thread that we picked up the request
     let fireRes = ctx.reqReceivedSignal.fireSync()
     if fireRes.isErr():
-      error "Failed to run codex: unable to fire back to requester thread.",
+      error "Failure in run codex: unable to fire back to requester thread.",
         error = fireRes.error
 
 proc run(ctx: ptr CodexContext) {.thread.} =
