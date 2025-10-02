@@ -141,6 +141,8 @@ proc createCodex(
     return err("Failed to create codex: unable to get the private key.")
   let pk = privateKey.get()
 
+  conf.apiBindAddress = string.none
+
   let server =
     try:
       CodexServer.new(conf, pk)
