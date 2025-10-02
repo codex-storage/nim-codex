@@ -40,7 +40,7 @@ asyncchecksuite "Network - Handlers":
     done = newFuture[void]()
     buffer = BufferStream.new()
     network = BlockExcNetwork.new(switch = newStandardSwitch(), connProvider = getConn)
-    network.setupPeer(peerId)
+    await network.handlePeerJoined(peerId)
     networkPeer = network.peers[peerId]
     discard await networkPeer.connect()
 

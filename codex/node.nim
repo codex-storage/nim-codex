@@ -44,7 +44,7 @@ import ./indexingstrategy
 import ./utils
 import ./errors
 import ./logutils
-import ./utils/asynciter
+import ./utils/safeasynciter
 import ./utils/trackedfutures
 
 export logutils
@@ -52,7 +52,9 @@ export logutils
 logScope:
   topics = "codex node"
 
-const DefaultFetchBatch = 10
+const
+  DefaultFetchBatch = 8192
+  MaxOnBatchBlocks = 128
 
 type
   Contracts* =
@@ -186,33 +188,48 @@ proc fetchBatched*(
   #     (i: int) => self.networkStore.getBlock(BlockAddress.init(cid, i))
   #   )
 
+  var addresses = newSeqOfCap[BlockAddress](batchSize)
   while not iter.finished:
-    let blockFutures = collect:
-      for i in 0 ..< batchSize:
-        if not iter.finished:
-          let address = BlockAddress.init(cid, iter.next())
-          if not (await address in self.networkStore) or fetchLocal:
-            self.networkStore.getBlock(address)
+    addresses.setLen(0)
+    for i in 0 ..< batchSize:
+      if not iter.finished:
+        let address = BlockAddress.init(cid, iter.next())
+        if fetchLocal or not (await address in self.networkStore):
+          addresses.add(address)
 
-    if blockFutures.len == 0:
-      continue
+    let blockResults = await self.networkStore.getBlocks(addresses)
 
-    without blockResults =? await allFinishedValues[?!bt.Block](blockFutures), err:
-      trace "Some blocks failed to fetch", err = err.msg
-      return failure(err)
+    var
+      successfulBlocks = 0
+      failedBlocks = 0
+      blockData: seq[bt.Block]
 
-    let blocks = blockResults.filterIt(it.isSuccess()).mapIt(it.value)
+    for res in blockResults:
+      without blk =? await res:
+        inc(failedBlocks)
+        continue
 
-    let numOfFailedBlocks = blockResults.len - blocks.len
-    if numOfFailedBlocks > 0:
-      return
-        failure("Some blocks failed (Result) to fetch (" & $numOfFailedBlocks & ")")
+      inc(successfulBlocks)
 
-    if not onBatch.isNil and batchErr =? (await onBatch(blocks)).errorOption:
-      return failure(batchErr)
+      # Only retains block data in memory if there's
+      # a callback.
+      if not onBatch.isNil:
+        blockData.add(blk)
+
+        if blockData.len >= MaxOnBatchBlocks:
+          if batchErr =? (await onBatch(blockData)).errorOption:
+            return failure(batchErr)
+          blockData = @[]
+
+    if failedBlocks > 0:
+      return failure("Some blocks failed (Result) to fetch (" & $failedBlocks & ")")
+
+    if not onBatch.isNil and blockData.len > 0:
+      if batchErr =? (await onBatch(blockData)).errorOption:
+        return failure(batchErr)
 
     if not iter.finished:
-      await sleepAsync(1.millis)
+      await idleAsync()
 
   success()
 
