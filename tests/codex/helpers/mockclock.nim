@@ -33,11 +33,16 @@ proc advance*(clock: MockClock, seconds: int64) =
 method now*(clock: MockClock): SecondsSince1970 =
   clock.time
 
-method waitUntil*(clock: MockClock, time: SecondsSince1970) {.async.} =
-  if time > clock.now():
-    let future = newFuture[void]()
-    clock.waiting.add(Waiting(until: time, future: future))
-    await future
+method waitUntil*(
+    clock: MockClock, time: SecondsSince1970
+) {.async: (raises: [CancelledError]).} =
+  try:
+    if time > clock.now():
+      let future = newFuture[void]()
+      clock.waiting.add(Waiting(until: time, future: future))
+      await future
+  except Exception as e:
+    discard
 
 proc isWaiting*(clock: MockClock): bool =
   clock.waiting.len > 0
