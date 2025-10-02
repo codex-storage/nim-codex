@@ -198,7 +198,7 @@ asyncchecksuite "NetworkStore - dissemination":
       await nodes.stop()
 
   test "Should disseminate blocks across large diameter swarm":
-    let dataset = (await makeRandomDataset(nBlocks = 60, blockSize = 256'nb)).tryGet()
+    let dataset = makeDataset(await makeRandomBlocks(60 * 256, 256'nb)).tryGet()
 
     nodes = generateNodes(
       6,

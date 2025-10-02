@@ -14,10 +14,6 @@ proc makeRandomBlock*(size: NBytes): Block =
   let bytes = newSeqWith(size.int, rand(uint8))
   Block.new(bytes).tryGet()
 
-#proc makeRandomBlocks*(nBlocks: int, blockSize: NBytes): seq[Block] =
-#for i in 0 ..< nBlocks:
-#result.add(makeRandomBlock(blockSize))
-
 proc makeRandomBlocks*(
     datasetSize: int, blockSize: NBytes
 ): Future[seq[Block]] {.async.} =
@@ -47,9 +43,3 @@ proc makeDataset*(blocks: seq[Block]): ?!TestDataset =
     )
 
   return success((blocks, tree, manifest))
-
-proc makeRandomDataset*(
-    nBlocks: int, blockSize: NBytes
-): Future[?!TestDataset] {.async.} =
-  let blocks = await makeRandomBlocks(nBlocks * blockSize.int, blockSize)
-  makeDataset(blocks)
