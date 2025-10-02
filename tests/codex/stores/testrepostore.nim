@@ -364,8 +364,10 @@ asyncchecksuite "RepoStore":
     let
       repo = RepoStore.new(repoDs, metaDs, clock = mockClock, quotaMaxBytes =
           1000'nb)
-      (blocks, tree, manifest) =
-        (await makeRandomDataset(nBlocks = 2, blockSize = 256'nb)).tryGet()
+      (blocks, tree, manifest) = makeDataset(
+          await makeRandomBlocks(datasetSize = 2 * 256, blockSize = 256'nb)
+        )
+        .tryGet()
       blk = blocks[0]
       treeCid = tree.rootCid.tryGet()
       proof = tree.getProof(0).tryGet()
@@ -381,8 +383,10 @@ asyncchecksuite "RepoStore":
     let
       repo = RepoStore.new(repoDs, metaDs, clock = mockClock, quotaMaxBytes =
           1000'nb)
-      (blocks, tree, manifest) =
-        (await makeRandomDataset(nBlocks = 2, blockSize = 256'nb)).tryGet()
+      (blocks, tree, manifest) = makeDataset(
+          await makeRandomBlocks(datasetSize = 2 * 256, blockSize = 256'nb)
+        )
+        .tryGet()
       blk = blocks[0]
       treeCid = tree.rootCid.tryGet()
       proof = tree.getProof(0).tryGet()
