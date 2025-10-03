@@ -41,6 +41,8 @@ method waitUntil*(
       let future = newFuture[void]()
       clock.waiting.add(Waiting(until: time, future: future))
       await future
+  except CancelledError as e:
+    raise e
   except Exception as e:
     discard
 
