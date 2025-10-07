@@ -88,7 +88,7 @@ proc process*(
 
   case self.operation
   of NodeP2PMsgType.CONNECT:
-    let res = (await connect(codex, self.peerId))
+    let res = (await connect(codex, self.peerId, self.peerAddresses))
     if res.isErr:
       error "Failed to CONNECT.", error = res.error
       return err($res.error)
