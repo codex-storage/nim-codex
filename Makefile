@@ -250,7 +250,12 @@ clean: | clean-nph
 
 STATIC ?= 0
 
-libcodex: deps
+ifneq ($(strip $(CODEX_LIB_PARAMS)),)
+NIM_PARAMS := $(NIM_PARAMS) $(CODEX_LIB_PARAMS)
+endif
+
+libcodex:
+	$(MAKE) deps
 	rm -f build/libcodex*
 
 ifeq ($(STATIC), 1)
