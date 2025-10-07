@@ -28,16 +28,15 @@ proc buildBinary(name: string, srcDir = "./", params = "", lang = "c") =
 proc buildLibrary(name: string, srcDir = "./", params = "", `type` = "dynamic") =
   if not dirExists "build":
     mkDir "build"
-  # allow something like "nim nimbus --verbosity:0 --hints:off nimbus.nims"
-  var extra_params = params
+
   if `type` == "dynamic":
     exec "nim c" & " --out:build/" & name &
       ".so --threads:on --app:lib --opt:size --noMain --mm:refc --header --d:metrics --nimMainPrefix:libcodex --skipParentCfg:on -d:noSignalHandler -d:LeopardCmakeFlags=\"-DCMAKE_POSITION_INDEPENDENT_CODE=ON\" -d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE -d:chronicles_sinks=textlines[dynamic],json[dynamic],textlines[dynamic]" &
-      extra_params & " " & srcDir & name & ".nim"
+      params & " " & srcDir & name & ".nim"
   else:
     exec "nim c" & " --out:build/" & name &
       ".a --threads:on --app:staticlib --opt:size --noMain --mm:refc --header --d:metrics --nimMainPrefix:libcodex --skipParentCfg:on -d:noSignalHandler -d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE -d:chronicles_sinks=textlines[dynamic],json[dynamic],textlines[dynamic]" &
-      extra_params & " " & srcDir & name & ".nim"
+      params & " " & srcDir & name & ".nim"
 
 proc test(name: string, srcDir = "tests/", params = "", lang = "c") =
   buildBinary name, srcDir, params
@@ -137,9 +136,21 @@ task showCoverage, "open coverage html":
     exec("open coverage/report/index.html")
 
 task libcodexDynamic, "Generate bindings":
+  var params = ""
+  when compiles(commandLineParams):
+    for param in commandLineParams():
+      if param.len > 0 and param.startsWith("-"):
+        params.add " " & param
+
   let name = "libcodex"
-  buildLibrary name, "library/", "", "dynamic"
+  buildLibrary name, "library/", params, "dynamic"
 
 task libcodextatic, "Generate bindings":
+  var params = ""
+  when compiles(commandLineParams):
+    for param in commandLineParams():
+      if param.len > 0 and param.startsWith("-"):
+        params.add " " & param
+
   let name = "libcodex"
-  buildLibrary name, "library/", "", "static"
+  buildLibrary name, "library/", params, "static"
