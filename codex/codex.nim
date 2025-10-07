@@ -224,7 +224,7 @@ proc close*(s: CodexServer) {.async.} =
     error "Failed to close codex node", failures = res.failure.len
     raiseAssert "Failed to close codex node"
 
-proc shutdown(server: CodexServer) {.async.} =
+proc shutdown*(server: CodexServer) {.async.} =
   await server.stop()
   await server.close()
 
