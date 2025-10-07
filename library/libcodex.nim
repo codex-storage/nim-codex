@@ -27,6 +27,7 @@ when defined(linux):
 import std/[atomics]
 import chronicles
 import chronos
+import chronos/threadsync
 import ./codex_context
 import ./codex_thread_requests/codex_thread_request
 import ./codex_thread_requests/requests/node_lifecycle_request
@@ -251,11 +252,28 @@ proc codex_destroy(
   initializeLibrary()
   checkLibcodexParams(ctx, callback, userData)
 
-  let res = codex_context.destroyCodexContext(ctx)
+  let destroySignal = ThreadSignalPtr.new().valueOr:
+    return callback.error("failed to create destroy signal", userData)
+
+  proc onDestroy() {.gcsafe.} =
+    discard destroySignal.fireSync()
+
+  let reqContent = NodeLifecycleRequest.createShared(
+    NodeLifecycleMsgType.DESTROY_NODE, onDestroy = onDestroy
+  )
+  var res = codex_context.sendRequestToCodexThread(
+    ctx, RequestType.LIFECYCLE, reqContent, callback, userData
+  )
   if res.isErr:
     return callback.error(res.error, userData)
 
-  return callback.success("", userData)
+  discard destroySignal.waitSync()
+
+  res = codex_context.destroyCodexContext(ctx)
+  if res.isErr:
+    return callback.error(res.error, userData)
+
+  return RET_OK
 
 proc codex_upload_init(
     ctx: ptr CodexContext,
