@@ -876,6 +876,7 @@ proc stop*(self: CodexNodeRef) {.async.} =
   if not self.clock.isNil:
     await self.clock.stop()
 
+proc close*(self: CodexNodeRef) {.async.} =
   if not self.networkStore.isNil:
     await self.networkStore.close
 

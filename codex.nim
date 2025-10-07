@@ -104,7 +104,7 @@ when isMainModule:
 
   ## Ctrl+C handling
   proc doShutdown() =
-    shutdown = server.stop()
+    shutdown = server.shutdown()
     state = CodexStatus.Stopping
 
     notice "Stopping Codex"
