@@ -326,7 +326,7 @@ proc new*(
     )
 
     peerStore = PeerCtxStore.new()
-    pendingBlocks = PendingBlocksManager.new()
+    pendingBlocks = PendingBlocksManager.new(retries = config.blockRetries)
     advertiser = Advertiser.new(repoStore, discovery)
     blockDiscovery =
       DiscoveryEngine.new(repoStore, peerStore, network, discovery, pendingBlocks)
