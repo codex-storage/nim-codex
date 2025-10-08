@@ -47,13 +47,14 @@ import ./utils/natutils
 
 from ./contracts/config import DefaultRequestCacheSize, DefaultMaxPriorityFeePerGas
 from ./validationconfig import MaxSlots, ValidationGroups
+from ./blockexchange/engine/pendingblocks import DefaultBlockRetries
 
 export units, net, codextypes, logutils, completeCmdArg, parseCmdArg, NatConfig
 export ValidationGroups, MaxSlots
 
 export
   DefaultQuotaBytes, DefaultBlockTtl, DefaultBlockInterval, DefaultNumBlocksPerInterval,
-  DefaultRequestCacheSize, DefaultMaxPriorityFeePerGas
+  DefaultRequestCacheSize, DefaultMaxPriorityFeePerGas, DefaultBlockRetries
 
 type ThreadCount* = distinct Natural
 
@@ -262,6 +263,13 @@ type
       defaultValue: DefaultNumBlocksPerInterval,
       defaultValueDesc: $DefaultNumBlocksPerInterval,
       name: "block-mn"
+    .}: int
+
+    blockRetries* {.
+      desc: "Number of times to retry fetching a block before giving up",
+      defaultValue: DefaultBlockRetries,
+      defaultValueDesc: $DefaultBlockRetries,
+      name: "block-retries"
     .}: int
 
     cacheSize* {.
