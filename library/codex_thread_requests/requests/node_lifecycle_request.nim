@@ -31,7 +31,7 @@ type NodeLifecycleMsgType* = enum
   CREATE_NODE
   START_NODE
   STOP_NODE
-  DESTROY_NODE
+  CLOSE_NODE
 
 proc readValue*[T: InputFile | InputDir | OutPath | OutDir | OutFile](
     r: var JsonReader, val: var T
@@ -82,18 +82,13 @@ proc readValue*(r: var JsonReader, val: var EthAddress) =
 type NodeLifecycleRequest* = object
   operation: NodeLifecycleMsgType
   configJson: cstring
-  onDestroy: proc() {.gcsafe.}
 
 proc createShared*(
-    T: type NodeLifecycleRequest,
-    op: NodeLifecycleMsgType,
-    configJson: cstring = "",
-    onDestroy: proc() {.gcsafe.} = nil,
+    T: type NodeLifecycleRequest, op: NodeLifecycleMsgType, configJson: cstring = ""
 ): ptr type T =
   var ret = createShared(T)
   ret[].operation = op
   ret[].configJson = configJson.alloc()
-  ret[].onDestroy = onDestroy
   return ret
 
 proc destroyShared(self: ptr NodeLifecycleRequest) =
@@ -184,10 +179,9 @@ proc process*(
     except Exception as e:
       error "Failed to STOP_NODE.", error = e.msg
       return err(e.msg)
-  of DESTROY_NODE:
+  of CLOSE_NODE:
     try:
       await codex[].close()
-      self.onDestroy()
     except Exception as e:
       error "Failed to STOP_NODE.", error = e.msg
       return err(e.msg)
