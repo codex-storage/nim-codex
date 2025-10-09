@@ -246,30 +246,28 @@ proc codex_peer_debug(
 
   return callback.okOrError(res, userData)
 
-proc codex_destroy(
+proc codex_close(
     ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
   initializeLibrary()
   checkLibcodexParams(ctx, callback, userData)
 
-  let destroySignal = ThreadSignalPtr.new().valueOr:
-    return callback.error("failed to create destroy signal", userData)
-
-  proc onDestroy() {.gcsafe.} =
-    discard destroySignal.fireSync()
-
-  let reqContent = NodeLifecycleRequest.createShared(
-    NodeLifecycleMsgType.DESTROY_NODE, onDestroy = onDestroy
-  )
+  let reqContent = NodeLifecycleRequest.createShared(NodeLifecycleMsgType.CLOSE_NODE)
   var res = codex_context.sendRequestToCodexThread(
     ctx, RequestType.LIFECYCLE, reqContent, callback, userData
   )
   if res.isErr:
     return callback.error(res.error, userData)
 
-  discard destroySignal.waitSync()
+  return callback.okOrError(res, userData)
 
-  res = codex_context.destroyCodexContext(ctx)
+proc codex_destroy(
+    ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
+): cint {.dynlib, exportc.} =
+  initializeLibrary()
+  checkLibcodexParams(ctx, callback, userData)
+
+  let res = codex_context.destroyCodexContext(ctx)
   if res.isErr:
     return callback.error(res.error, userData)
 
