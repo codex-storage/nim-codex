@@ -180,6 +180,10 @@ int codex_stop(void* ctx,
               CodexCallback callback,
               void* userData);
 
+int codex_close(void* ctx,
+              CodexCallback callback,
+              void* userData);
+
 // Destroys an instance of a codex node created with codex_new
 int codex_destroy(void* ctx,
                   CodexCallback callback,
