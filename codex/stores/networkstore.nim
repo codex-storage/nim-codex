@@ -38,11 +38,18 @@ method getBlocks*(
     localAddresses: seq[BlockAddress]
     remoteAddresses: seq[BlockAddress]
 
+  let runtimeQuota = 10.milliseconds
+  var lastIdle = Moment.now()
+
   for address in addresses:
     if not (await address in self.localStore):
       remoteAddresses.add(address)
     else:
       localAddresses.add(address)
+
+    if (Moment.now() - lastIdle) >= runtimeQuota:
+      await idleAsync()
+      lastIdle = Moment.now()
 
   return chain(
     await self.localStore.getBlocks(localAddresses),
