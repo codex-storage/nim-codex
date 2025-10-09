@@ -196,6 +196,9 @@ proc refreshBlockKnowledge(
       await self.network.request.sendWantList(peer.id, toAsk, full = true)
 
 proc refreshBlockKnowledge(self: BlockExcEngine) {.async: (raises: [CancelledError]).} =
+  let runtimeQuota = 10.milliseconds
+  var lastIdle = Moment.now()
+
   for peer in self.peers.peers.values.toSeq:
     # We refresh block knowledge if:
     # 1. the peer hasn't been refreshed in a while;
@@ -216,6 +219,13 @@ proc refreshBlockKnowledge(self: BlockExcEngine) {.async: (raises: [CancelledErr
         await self.refreshBlockKnowledge(peer)
     else:
       trace "Not refreshing: peer is up to date", peer = peer.id
+
+    if (Moment.now() - lastIdle) >= runtimeQuota:
+      try:
+        await idleAsync()
+      except CancelledError:
+        discard
+      lastIdle = Moment.now()
 
 proc searchForNewPeers(self: BlockExcEngine, cid: Cid) =
   if self.lastDiscRequest + DiscoveryRateLimit < Moment.now():
@@ -595,6 +605,9 @@ proc blocksDeliveryHandler*(
   var validatedBlocksDelivery: seq[BlockDelivery]
   let peerCtx = self.peers.get(peer)
 
+  let runtimeQuota = 10.milliseconds
+  var lastIdle = Moment.now()
+
   for bd in blocksDelivery:
     logScope:
       peer = peer
@@ -632,6 +645,15 @@ proc blocksDeliveryHandler*(
 
     validatedBlocksDelivery.add(bd)
 
+    if (Moment.now() - lastIdle) >= runtimeQuota:
+      try:
+        await idleAsync()
+      except CancelledError:
+        discard
+      except CatchableError:
+        discard
+      lastIdle = Moment.now()
+
   codex_block_exchange_blocks_received.inc(validatedBlocksDelivery.len.int64)
 
   if peerCtx != nil:
@@ -656,6 +678,10 @@ proc wantListHandler*(
   var
     presence: seq[BlockPresence]
     schedulePeer = false
+
+  const PresenceBatchSize = 500
+  let runtimeQuota = 10.milliseconds
+  var lastIdle = Moment.now()
 
   try:
     for e in wantList.entries:
@@ -717,8 +743,20 @@ proc wantListHandler*(
           if e.wantType == WantType.WantBlock:
             schedulePeer = true
 
+      if presence.len >= PresenceBatchSize or (Moment.now() - lastIdle) >= runtimeQuota:
+        if presence.len > 0:
+          trace "Sending presence batch to remote", items = presence.len
+          await self.network.request.sendPresence(peer, presence)
+          presence = @[]
+        try:
+          await idleAsync()
+        except CancelledError:
+          discard
+        lastIdle = Moment.now()
+
+    # Send any remaining presence messages
     if presence.len > 0:
-      trace "Sending presence to remote", items = presence.mapIt($it).join(",")
+      trace "Sending final presence to remote", items = presence.len
       await self.network.request.sendPresence(peer, presence)
 
     if schedulePeer:
