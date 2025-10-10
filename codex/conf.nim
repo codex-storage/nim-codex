@@ -34,6 +34,7 @@ import pkg/libp2p
 import pkg/ethers
 import pkg/questionable
 import pkg/questionable/results
+import pkg/stew/base64
 
 import ./codextypes
 import ./discovery
@@ -46,13 +47,14 @@ import ./utils/natutils
 
 from ./contracts/config import DefaultRequestCacheSize, DefaultMaxPriorityFeePerGas
 from ./validationconfig import MaxSlots, ValidationGroups
+from ./blockexchange/engine/pendingblocks import DefaultBlockRetries
 
 export units, net, codextypes, logutils, completeCmdArg, parseCmdArg, NatConfig
 export ValidationGroups, MaxSlots
 
 export
   DefaultQuotaBytes, DefaultBlockTtl, DefaultBlockInterval, DefaultNumBlocksPerInterval,
-  DefaultRequestCacheSize, DefaultMaxPriorityFeePerGas
+  DefaultRequestCacheSize, DefaultMaxPriorityFeePerGas, DefaultBlockRetries
 
 type ThreadCount* = distinct Natural
 
@@ -202,8 +204,10 @@ type
     .}: string
 
     apiBindAddress* {.
-      desc: "The REST API bind address", defaultValue: "127.0.0.1", name: "api-bindaddr"
-    .}: string
+      desc: "The REST API bind address",
+      defaultValue: "127.0.0.1".some,
+      name: "api-bindaddr"
+    .}: Option[string]
 
     apiPort* {.
       desc: "The REST Api port",
@@ -259,6 +263,13 @@ type
       defaultValue: DefaultNumBlocksPerInterval,
       defaultValueDesc: $DefaultNumBlocksPerInterval,
       name: "block-mn"
+    .}: int
+
+    blockRetries* {.
+      desc: "Number of times to retry fetching a block before giving up",
+      defaultValue: DefaultBlockRetries,
+      defaultValueDesc: $DefaultBlockRetries,
+      name: "block-retries"
     .}: int
 
     cacheSize* {.
@@ -474,7 +485,7 @@ func prover*(self: CodexConf): bool =
   self.persistence and self.persistenceCmd == PersistenceCmd.prover
 
 proc getCodexVersion(): string =
-  let tag = strip(staticExec("git tag"))
+  let tag = strip(staticExec("git describe --tags --abbrev=0"))
   if tag.isEmptyOrWhitespace:
     return "untagged build"
   return tag
@@ -510,55 +521,73 @@ proc parseCmdArg*(
     if res.isOk:
       ma = res.get()
     else:
-      warn "Invalid MultiAddress", input = input, error = res.error()
+      fatal "Invalid MultiAddress", input = input, error = res.error()
       quit QuitFailure
   except LPError as exc:
-    warn "Invalid MultiAddress uri", uri = input, error = exc.msg
+    fatal "Invalid MultiAddress uri", uri = input, error = exc.msg
     quit QuitFailure
   ma
 
-proc parseCmdArg*(T: type ThreadCount, input: string): T {.upraises: [ValueError].} =
-  let count = parseInt(input)
-  if count != 0 and count < 2:
-    warn "Invalid number of threads", input = input
-    quit QuitFailure
-  ThreadCount(count)
+proc parse*(T: type ThreadCount, p: string): Result[ThreadCount, string] =
+  try:
+    let count = parseInt(p)
+    if count != 0 and count < 2:
+      return err("Invalid number of threads: " & p)
+    return ok(ThreadCount(count))
+  except ValueError as e:
+    return err("Invalid number of threads: " & p & ", error=" & e.msg)
 
-proc parseCmdArg*(T: type SignedPeerRecord, uri: string): T =
+proc parseCmdArg*(T: type ThreadCount, input: string): T =
+  let val = ThreadCount.parse(input)
+  if val.isErr:
+    fatal "Cannot parse the thread count.", input = input, error = val.error()
+    quit QuitFailure
+  return val.get()
+
+proc parse*(T: type SignedPeerRecord, p: string): Result[SignedPeerRecord, string] =
   var res: SignedPeerRecord
   try:
-    if not res.fromURI(uri):
-      warn "Invalid SignedPeerRecord uri", uri = uri
-      quit QuitFailure
-  except LPError as exc:
-    warn "Invalid SignedPeerRecord uri", uri = uri, error = exc.msg
-    quit QuitFailure
-  except CatchableError as exc:
-    warn "Invalid SignedPeerRecord uri", uri = uri, error = exc.msg
-    quit QuitFailure
-  res
+    if not res.fromURI(p):
+      return err("The uri is not a valid SignedPeerRecord: " & p)
+    return ok(res)
+  except LPError, Base64Error:
+    let e = getCurrentException()
+    return err(e.msg)
 
-func parseCmdArg*(T: type NatConfig, p: string): T {.raises: [ValueError].} =
+proc parseCmdArg*(T: type SignedPeerRecord, uri: string): T =
+  let res = SignedPeerRecord.parse(uri)
+  if res.isErr:
+    fatal "Cannot parse the signed peer.", error = res.error(), input = uri
+    quit QuitFailure
+  return res.get()
+
+func parse*(T: type NatConfig, p: string): Result[NatConfig, string] =
   case p.toLowerAscii
   of "any":
-    NatConfig(hasExtIp: false, nat: NatStrategy.NatAny)
+    return ok(NatConfig(hasExtIp: false, nat: NatStrategy.NatAny))
   of "none":
-    NatConfig(hasExtIp: false, nat: NatStrategy.NatNone)
+    return ok(NatConfig(hasExtIp: false, nat: NatStrategy.NatNone))
   of "upnp":
-    NatConfig(hasExtIp: false, nat: NatStrategy.NatUpnp)
+    return ok(NatConfig(hasExtIp: false, nat: NatStrategy.NatUpnp))
   of "pmp":
-    NatConfig(hasExtIp: false, nat: NatStrategy.NatPmp)
+    return ok(NatConfig(hasExtIp: false, nat: NatStrategy.NatPmp))
   else:
     if p.startsWith("extip:"):
       try:
         let ip = parseIpAddress(p[6 ..^ 1])
-        NatConfig(hasExtIp: true, extIp: ip)
+        return ok(NatConfig(hasExtIp: true, extIp: ip))
       except ValueError:
         let error = "Not a valid IP address: " & p[6 ..^ 1]
-        raise newException(ValueError, error)
+        return err(error)
     else:
-      let error = "Not a valid NAT option: " & p
-      raise newException(ValueError, error)
+      return err("Not a valid NAT option: " & p)
+
+proc parseCmdArg*(T: type NatConfig, p: string): T =
+  let res = NatConfig.parse(p)
+  if res.isErr:
+    fatal "Cannot parse the NAT config.", error = res.error(), input = p
+    quit QuitFailure
+  return res.get()
 
 proc completeCmdArg*(T: type NatConfig, val: string): seq[string] =
   return @[]
@@ -566,19 +595,25 @@ proc completeCmdArg*(T: type NatConfig, val: string): seq[string] =
 proc parseCmdArg*(T: type EthAddress, address: string): T =
   EthAddress.init($address).get()
 
-proc parseCmdArg*(T: type NBytes, val: string): T =
+func parse*(T: type NBytes, p: string): Result[NBytes, string] =
   var num = 0'i64
-  let count = parseSize(val, num, alwaysBin = true)
+  let count = parseSize(p, num, alwaysBin = true)
   if count == 0:
-    warn "Invalid number of bytes", nbytes = val
+    return err("Invalid number of bytes: " & p)
+  return ok(NBytes(num))
+
+proc parseCmdArg*(T: type NBytes, val: string): T =
+  let res = NBytes.parse(val)
+  if res.isErr:
+    fatal "Cannot parse NBytes.", error = res.error(), input = val
     quit QuitFailure
-  NBytes(num)
+  return res.get()
 
 proc parseCmdArg*(T: type Duration, val: string): T =
   var dur: Duration
   let count = parseDuration(val, dur)
   if count == 0:
-    warn "Cannot parse duration", dur = dur
+    fatal "Cannot parse duration", dur = dur
     quit QuitFailure
   dur
 
@@ -595,7 +630,7 @@ proc readValue*(r: var TomlReader, val: var SignedPeerRecord) =
   try:
     val = SignedPeerRecord.parseCmdArg(uri)
   except LPError as err:
-    warn "Invalid SignedPeerRecord uri", uri = uri, error = err.msg
+    fatal "Invalid SignedPeerRecord uri", uri = uri, error = err.msg
     quit QuitFailure
 
 proc readValue*(r: var TomlReader, val: var MultiAddress) =
@@ -607,7 +642,7 @@ proc readValue*(r: var TomlReader, val: var MultiAddress) =
   if res.isOk:
     val = res.get()
   else:
-    warn "Invalid MultiAddress", input = input, error = res.error()
+    fatal "Invalid MultiAddress", input = input, error = res.error()
     quit QuitFailure
 
 proc readValue*(
@@ -778,15 +813,6 @@ proc setupLogging*(conf: CodexConf) =
       defaultChroniclesStream.outputs[0].writer = numberedWriter
     else:
       defaultChroniclesStream.outputs[0].writer = writer
-
-  try:
-    updateLogLevel(conf.logLevel)
-  except ValueError as err:
-    try:
-      stderr.write "Invalid value for --log-level. " & err.msg & "\n"
-    except IOError:
-      echo "Invalid value for --log-level. " & err.msg
-    quit QuitFailure
 
 proc setupMetrics*(config: CodexConf) =
   if config.metricsEnabled:

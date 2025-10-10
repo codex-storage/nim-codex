@@ -428,7 +428,6 @@ proc start*(
 ): Future[void] {.async: (raises: [CancelledError, CodexError]).} =
   ## Start repo
   ##
-
   if self.started:
     trace "Repo already started"
     return
@@ -450,6 +449,5 @@ proc stop*(self: RepoStore): Future[void] {.async: (raises: []).} =
     return
 
   trace "Stopping repo"
-  await self.close()
 
   self.started = false
