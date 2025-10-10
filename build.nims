@@ -31,11 +31,20 @@ proc buildLibrary(name: string, srcDir = "./", params = "", `type` = "dynamic") 
 
   if `type` == "dynamic":
     exec "nim c" & " --out:build/" & name &
-      ".so --threads:on --app:lib --opt:size --noMain --mm:refc --header --d:metrics --nimMainPrefix:libcodex --skipParentCfg:on -d:noSignalHandler -d:LeopardCmakeFlags=\"-DCMAKE_POSITION_INDEPENDENT_CODE=ON\" -d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE -d:chronicles_sinks=textlines[dynamic],json[dynamic],textlines[dynamic] -d:libp2p_pki_schemes=secp256k1 " &
+      ".so --threads:on --app:lib --opt:size --noMain --mm:refc --header --d:metrics " &
+       "--nimMainPrefix:libcodex --skipParentCfg:on -d:noSignalHandler " &
+       "-d:LeopardCmakeFlags=\"-DCMAKE_POSITION_INDEPENDENT_CODE=ON\" " &
+       "-d:chronicles_runtime_filtering " &
+       "-d:chronicles_log_level=TRACE " &
+       "-d:libp2p_pki_schemes=secp256k1 "
       params & " " & srcDir & name & ".nim"
   else:
     exec "nim c" & " --out:build/" & name &
-      ".a --threads:on --app:staticlib --opt:size --noMain --mm:refc --header --d:metrics --nimMainPrefix:libcodex --skipParentCfg:on -d:noSignalHandler -d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE -d:chronicles_sinks=textlines[dynamic],json[dynamic],textlines[dynamic] -d:libp2p_pki_schemes=secp256k1 " &
+      ".a --threads:on --app:staticlib --opt:size --noMain --mm:refc --header --d:metrics " &
+      "--nimMainPrefix:libcodex --skipParentCfg:on -d:noSignalHandler " &
+      "-d:chronicles_runtime_filtering " &
+      "-d:chronicles_log_level=TRACE " &
+      "-d:libp2p_pki_schemes=secp256k1 " &
       params & " " & srcDir & name & ".nim"
 
 proc test(name: string, srcDir = "tests/", params = "", lang = "c") =
