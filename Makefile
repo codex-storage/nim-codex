@@ -260,12 +260,12 @@ libcodex:
 
 ifeq ($(STATIC), 1)
 		echo -e $(BUILD_MSG) "build/$@.a" && \
-		$(ENV_SCRIPT) nim libcodexStatic $(NIM_PARAMS) -d:chronicles_sinks=textlines[dynamic],json[dynamic],textlines[dynamic] codex.nims
+		$(ENV_SCRIPT) nim libcodexStatic $(NIM_PARAMS) codex.nims
 else ifeq ($(detected_OS),Windows)
 		echo -e $(BUILD_MSG) "build/$@.dll" && \
-		$(ENV_SCRIPT) nim libcodexDynamic $(NIM_PARAMS) -d:chronicles_sinks=textlines,json[file],textlines[file] codex.nims
+		$(ENV_SCRIPT) nim libcodexDynamic $(NIM_PARAMS) codex.nims
 else
 		echo -e $(BUILD_MSG) "build/$@.so" && \
-		$(ENV_SCRIPT) nim libcodexDynamic $(NIM_PARAMS) -d:chronicles_sinks=textlines[dynamic],json[dynamic],textlines[dynamic] codex.nims
+		$(ENV_SCRIPT) nim libcodexDynamic $(NIM_PARAMS) codex.nims
 endif
 endif # "variables.mk" was not included
