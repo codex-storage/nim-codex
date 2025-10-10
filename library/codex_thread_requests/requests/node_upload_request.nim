@@ -278,7 +278,7 @@ proc streamFile(
   ## file I/O with chronos, see  https://github.com/status-im/nim-chronos/issues/501.
 
   try:
-    let inputStreamHandle = filePath.fileInput()
+    let inputStreamHandle = filepath.fileInput()
     let inputStream = inputStreamHandle.implicitDeref
 
     var buf = newSeq[byte](chunkSize)
