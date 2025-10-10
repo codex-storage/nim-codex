@@ -30,16 +30,15 @@ proc buildLibrary(name: string, srcDir = "./", params = "", `type` = "dynamic") 
     mkDir "build"
 
   if `type` == "dynamic":
-    exec "nim c" & " --out:build/" & name &
-      ".so --threads:on --app:lib --opt:size --noMain --mm:refc --header --d:metrics " &
+    let lib_name = (when defined(windows): name & ".dll" else: name & ".so")
+    exec "nim c" & " --out:build/" & lib_name & " --threads:on --app:lib --opt:size --noMain --mm:refc --header --d:metrics " &
        "--nimMainPrefix:libcodex -d:noSignalHandler " &
        "-d:LeopardExtraCompilerFlags=-fPIC " &
        "-d:chronicles_runtime_filtering " &
        "-d:chronicles_log_level=TRACE " &
       params & " " & srcDir & name & ".nim"
   else:
-    let lib_name = (when defined(windows): name & ".dll" else: name & ".so")
-    exec "nim c" & " --out:build/" & lib_name &
+    exec "nim c" & " --out:build/" & name &
       ".a --threads:on --app:staticlib --opt:size --noMain --mm:refc --header --d:metrics " &
       "--nimMainPrefix:libcodex -d:noSignalHandler " &
       "-d:LeopardExtraCompilerFlags=-fPIC " &
