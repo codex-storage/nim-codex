@@ -261,6 +261,9 @@ libcodex:
 ifeq ($(STATIC), 1)
 		echo -e $(BUILD_MSG) "build/$@.a" && \
 		$(ENV_SCRIPT) nim libcodexStatic $(NIM_PARAMS) codex.nims
+else ifeq ($(detected_OS),Windows)
+		echo -e $(BUILD_MSG) "build/$@.dll" && \
+		$(ENV_SCRIPT) nim libcodexDynamic $(NIM_PARAMS) codex.nims
 else
 		echo -e $(BUILD_MSG) "build/$@.so" && \
 		$(ENV_SCRIPT) nim libcodexDynamic $(NIM_PARAMS) codex.nims
