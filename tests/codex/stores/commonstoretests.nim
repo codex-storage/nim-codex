@@ -38,8 +38,8 @@ proc commonBlockStoreTests*(
       newBlock2 = Block.new("2".repeat(100).toBytes()).tryGet()
       newBlock3 = Block.new("3".repeat(100).toBytes()).tryGet()
 
-      (manifest, tree) =
-        makeManifestAndTree(@[newBlock, newBlock1, newBlock2, newBlock3]).tryGet()
+      (_, tree, manifest) =
+        makeDataset(@[newBlock, newBlock1, newBlock2, newBlock3]).tryGet()
 
       if not isNil(before):
         await before()
