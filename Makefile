@@ -263,7 +263,7 @@ ifeq ($(STATIC), 1)
 		$(ENV_SCRIPT) nim libcodexStatic $(NIM_PARAMS) codex.nims
 else ifeq ($(detected_OS),Windows)
 		echo -e $(BUILD_MSG) "build/$@.dll" && \
-		$(ENV_SCRIPT) nim libcodexDynamic $(NIM_PARAMS) codex.nims
+		$(ENV_SCRIPT) nim libcodexDynamic $(NIM_PARAMS) -d:LeopardCmakeFlags="-G \"MSYS Makefiles\" -DCMAKE_BUILD_TYPE=Release" codex.nims
 else
 		echo -e $(BUILD_MSG) "build/$@.so" && \
 		$(ENV_SCRIPT) nim libcodexDynamic $(NIM_PARAMS) codex.nims
