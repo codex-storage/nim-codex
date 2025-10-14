@@ -86,7 +86,7 @@ proc init(
   ##
   ## If the session already exists, do nothing and return ok.
   ## Meaning that a cid can only have one active download session.
-  ## If the chunckSize is 0, the default block size will be used.
+  ## If the chunkSize is 0, the default block size will be used.
   ## If local is true, the file will be retrived from the local store.
 
   if downloadSessions.contains($cCid):
