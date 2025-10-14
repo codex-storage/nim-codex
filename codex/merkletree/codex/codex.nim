@@ -47,28 +47,6 @@ type
   CodexProof* = ref object of ByteProof
     mcodec*: MultiCodec
 
-# CodeHashes is not exported from libp2p
-# So we need to recreate it instead of 
-proc initMultiHashCodeTable(): Table[MultiCodec, MHash] {.compileTime.} =
-  for item in HashesList:
-    result[item.mcodec] = item
-
-const CodeHashes = initMultiHashCodeTable()
-
-func mhash*(mcodec: MultiCodec): ?!MHash =
-  let mhash = CodeHashes.getOrDefault(mcodec)
-
-  if isNil(mhash.coder):
-    return failure "Invalid multihash codec"
-
-  success mhash
-
-func digestSize*(self: (CodexTree or CodexProof)): int =
-  ## Number of leaves
-  ##
-
-  self.mhash.size
-
 func getProof*(self: CodexTree, index: int): ?!CodexProof =
   var proof = CodexProof(mcodec: self.mcodec)
 
@@ -128,17 +106,12 @@ proc `$`*(self: CodexProof): string =
   "CodexProof(" & " nleaves: " & $self.nleaves & ", index: " & $self.index & ", path: " &
     $self.path.mapIt(byteutils.toHex(it)) & ", mcodec: " & $self.mcodec & " )"
 
-func compress*(x, y: openArray[byte], key: ByteTreeKey, mhash: MHash): ?!ByteHash =
+func compress*(x, y: openArray[byte], key: ByteTreeKey, codec: MultiCodec): ?!ByteHash =
   ## Compress two hashes
   ##
-
-  # Using Constantine's SHA256 instead of mhash for optimal performance on 32-byte merkle node hashing
-  # See: https://github.com/codex-storage/nim-codex/issues/1162
-
   let input = @x & @y & @[key.byte]
-  var digest = hashes.sha256.hash(input)
-
-  success @digest
+  let digest = ?MultiHash.digest(codec, input).mapFailure
+  success digest.digestBytes
 
 func init*(
     _: type CodexTree, mcodec: MultiCodec = Sha256HashCodec, leaves: openArray[ByteHash]
@@ -147,12 +120,12 @@ func init*(
     return failure "Empty leaves"
 
   let
-    mhash = ?mcodec.mhash()
     compressor = proc(x, y: seq[byte], key: ByteTreeKey): ?!ByteHash {.noSideEffect.} =
-      compress(x, y, key, mhash)
-    Zero: ByteHash = newSeq[byte](mhash.size)
+      compress(x, y, key, mcodec)
+    digestSize = ?mcodec.digestSize.mapFailure
+    Zero: ByteHash = newSeq[byte](digestSize)
 
-  if mhash.size != leaves[0].len:
+  if digestSize != leaves[0].len:
     return failure "Invalid hash length"
 
   var self = CodexTree(mcodec: mcodec, compress: compressor, zero: Zero)
@@ -190,12 +163,12 @@ proc fromNodes*(
     return failure "Empty nodes"
 
   let
-    mhash = ?mcodec.mhash()
-    Zero = newSeq[byte](mhash.size)
+    digestSize = ?mcodec.digestSize.mapFailure
+    Zero = newSeq[byte](digestSize)
     compressor = proc(x, y: seq[byte], key: ByteTreeKey): ?!ByteHash {.noSideEffect.} =
-      compress(x, y, key, mhash)
+      compress(x, y, key, mcodec)
 
-  if mhash.size != nodes[0].len:
+  if digestSize != nodes[0].len:
     return failure "Invalid hash length"
 
   var
@@ -228,10 +201,10 @@ func init*(
     return failure "Empty nodes"
 
   let
-    mhash = ?mcodec.mhash()
-    Zero = newSeq[byte](mhash.size)
+    digestSize = ?mcodec.digestSize.mapFailure
+    Zero = newSeq[byte](digestSize)
     compressor = proc(x, y: seq[byte], key: ByteTreeKey): ?!seq[byte] {.noSideEffect.} =
-      compress(x, y, key, mhash)
+      compress(x, y, key, mcodec)
 
   success CodexProof(
     compress: compressor,
