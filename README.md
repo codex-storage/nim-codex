@@ -91,16 +91,31 @@ Run the example:
 By default, Codex builds a dynamic library (`libcodex.so`), which you can load at runtime.
 If you prefer a static library (`libcodex.a`), set the `STATIC` flag:
 
-### Limitation
-
-Callbacks must be fast and non-blocking; otherwise, the working thread will hang and prevent other requests from being processed.
-
 ```bash
 # Build dynamic (default)
 make libcodex
 
 # Build static
 make STATIC=1 libcodex
+```
+
+### Limitation
+
+Callbacks must be fast and non-blocking; otherwise, the working thread will hang and prevent other requests from being processed.
+
+### Platform specific
+
+On macOS, the library is built with `-install_name @rpath/libs/libcodex.dylib` to have the `libs` folder as default
+path for the artifacts. This can be updates by the application consuming the library using:
+
+```sh
+install_name_tool -id @rpath/libcodex.dylib $(CUSTOM_FOLDER)/libcodex.dylib
+```
+
+Or when running the executable:
+
+```sh
+DYLD_LIBRARY_PATH=$(CUSTOM_FOLDER) ./app
 ```
 
 ## Contributing and development
