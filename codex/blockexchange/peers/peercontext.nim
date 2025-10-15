@@ -15,6 +15,7 @@ import pkg/libp2p
 import pkg/chronos
 import pkg/nitro
 import pkg/questionable
+import pkg/lrucache
 
 import ../protobuf/blockexc
 import ../protobuf/payments
@@ -31,7 +32,7 @@ const
 
 type BlockExcPeerCtx* = ref object of RootObj
   id*: PeerId
-  blocks*: Table[BlockAddress, Presence] # remote peer have list including price
+  blocks*: LruCache[BlockAddress, Presence] # remote peer have list including price
   wantedBlocks*: HashSet[BlockAddress] # blocks that the peer wants
   exchanged*: int # times peer has exchanged with us
   refreshInProgress*: bool # indicates if a refresh is in progress
@@ -94,7 +95,7 @@ func setPresence*(self: BlockExcPeerCtx, presence: Presence) =
 
 func cleanPresence*(self: BlockExcPeerCtx, addresses: seq[BlockAddress]) =
   for a in addresses:
-    self.blocks.del(a)
+    discard self.blocks.del(a)
 
 func cleanPresence*(self: BlockExcPeerCtx, address: BlockAddress) =
   self.cleanPresence(@[address])
@@ -102,8 +103,8 @@ func cleanPresence*(self: BlockExcPeerCtx, address: BlockAddress) =
 func price*(self: BlockExcPeerCtx, addresses: seq[BlockAddress]): UInt256 =
   var price = 0.u256
   for a in addresses:
-    self.blocks.withValue(a, precense):
-      price += precense[].price
+    if p =? self.blocks.getOption(a):
+      price += p.price
 
   price
 

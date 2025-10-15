@@ -20,6 +20,7 @@ import pkg/metrics
 import pkg/stint
 import pkg/questionable
 import pkg/stew/shims/sets
+import pkg/lrucache
 
 import ../../rng
 import ../../stores/blockstore
@@ -92,6 +93,7 @@ const
   # Don't do more than one discovery request per `DiscoveryRateLimit` seconds.
   DiscoveryRateLimit = 1.seconds
   DefaultPeerActivityTimeout = 1.minutes
+  DefaultPeerBlocksCacheSize = 8192 # Max blocks tracked per peer
 
 type
   TaskHandler* = proc(task: BlockExcPeerCtx): Future[void] {.gcsafe.}
@@ -798,7 +800,11 @@ proc peerAddedHandler*(
   trace "Setting up peer", peer
 
   if peer notin self.peers:
-    let peerCtx = BlockExcPeerCtx(id: peer, activityTimeout: DefaultPeerActivityTimeout)
+    let peerCtx = BlockExcPeerCtx(
+      id: peer,
+      activityTimeout: DefaultPeerActivityTimeout,
+      blocks: newLruCache[BlockAddress, Presence](DefaultPeerBlocksCacheSize),
+    )
     trace "Setting up new peer", peer
     self.peers.add(peerCtx)
     trace "Added peer", peers = self.peers.len

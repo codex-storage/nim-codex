@@ -3,6 +3,7 @@ import std/sugar
 import std/tables
 
 import pkg/chronos
+import pkg/lrucache
 
 import pkg/libp2p/errors
 
@@ -130,9 +131,11 @@ asyncchecksuite "Block Advertising and Discovery":
     let
       pendingBlocks = blocks.mapIt(engine.pendingBlocks.getWantHandle(it.cid))
       peerId = PeerId.example
-      haves = collect(initTable()):
+      haves = block:
+        var cache = newLruCache[BlockAddress, Presence](blocks.len)
         for blk in blocks:
-          {blk.address: Presence(address: blk.address, price: 0.u256)}
+          cache[blk.address] = Presence(address: blk.address, price: 0.u256, have: true)
+        cache
 
     engine.peers.add(BlockExcPeerCtx(id: peerId, blocks: haves))
 

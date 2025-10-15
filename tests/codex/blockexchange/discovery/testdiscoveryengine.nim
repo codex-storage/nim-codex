@@ -2,6 +2,7 @@ import std/sequtils
 import std/tables
 
 import pkg/chronos
+import pkg/lrucache
 
 import pkg/codex/rng
 import pkg/codex/stores
@@ -126,7 +127,9 @@ asyncchecksuite "Test Discovery Engine":
       check cid in pendingCids
       pendingCids.keepItIf(it != cid)
       check peerStore.len < minPeers
-      var peerCtx = BlockExcPeerCtx(id: PeerId.example)
+      var peerCtx = BlockExcPeerCtx(
+        id: PeerId.example, blocks: newLruCache[BlockAddress, Presence](4)
+      )
 
       let address = BlockAddress(leaf: false, cid: cid)
 

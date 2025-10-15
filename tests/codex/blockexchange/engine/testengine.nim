@@ -4,6 +4,7 @@ import std/algorithm
 
 import pkg/stew/byteutils
 import pkg/chronos
+import pkg/lrucache
 import pkg/libp2p/errors
 import pkg/libp2p/routing_record
 import pkg/codexdht/discv5/protocol as discv5
@@ -155,7 +156,9 @@ asyncchecksuite "NetworkStore engine handlers":
       localStore, wallet, network, discovery, advertiser, peerStore, pendingBlocks
     )
 
-    peerCtx = BlockExcPeerCtx(id: peerId)
+    peerCtx = BlockExcPeerCtx(
+      id: peerId, blocks: newLruCache[BlockAddress, Presence](blocks.len)
+    )
     engine.peers.add(peerCtx)
 
   test "Should schedule block requests":
@@ -265,9 +268,9 @@ asyncchecksuite "NetworkStore engine handlers":
       peerContext = peerStore.get(peerId)
 
     peerContext.account = account.some
-    peerContext.blocks = blocks.mapIt(
-      (it.address, Presence(address: it.address, price: rand(uint16).u256, have: true))
-    ).toTable
+    for b in blocks:
+      peerContext.blocks[b.address] =
+        Presence(address: b.address, price: rand(uint16).u256, have: true)
 
     for blk in blocks:
       peerContext.blockRequestScheduled(blk.address)
@@ -340,7 +343,9 @@ asyncchecksuite "NetworkStore engine handlers":
       pendingPeer = peerId # peer towards which we have pending block requests
       pendingPeerCtx = peerCtx
       senderPeer = PeerId.example # peer that will actually send the blocks
-      senderPeerCtx = BlockExcPeerCtx(id: senderPeer)
+      senderPeerCtx = BlockExcPeerCtx(
+        id: senderPeer, blocks: newLruCache[BlockAddress, Presence](blocks.len)
+      )
       reqBlocks = @[blocks[0], blocks[4]] # blocks that we requested to pendingPeer
       reqBlockAddrs = reqBlocks.mapIt(it.address)
       blockHandles = blocks.mapIt(engine.pendingBlocks.getWantHandle(it.cid))
@@ -416,7 +421,11 @@ asyncchecksuite "Block Download":
       localStore, wallet, network, discovery, advertiser, peerStore, pendingBlocks
     )
 
-    peerCtx = BlockExcPeerCtx(id: peerId, activityTimeout: 100.milliseconds)
+    peerCtx = BlockExcPeerCtx(
+      id: peerId,
+      activityTimeout: 100.milliseconds,
+      blocks: newLruCache[BlockAddress, Presence](blocks.len),
+    )
     engine.peers.add(peerCtx)
 
   test "Should reschedule blocks on peer timeout":
@@ -426,7 +435,11 @@ asyncchecksuite "Block Download":
       slowPeerCtx = peerCtx
       # "Fast" peer has in fact a generous timeout. This should avoid timing issues
       # in the test.
-      fastPeerCtx = BlockExcPeerCtx(id: fastPeer, activityTimeout: 60.seconds)
+      fastPeerCtx = BlockExcPeerCtx(
+        id: fastPeer,
+        activityTimeout: 60.seconds,
+        blocks: newLruCache[BlockAddress, Presence](blocks.len),
+      )
       requestedBlock = blocks[0]
 
     var
@@ -584,7 +597,11 @@ asyncchecksuite "Task Handler":
 
     for i in 0 .. 3:
       peers.add(PeerId.example)
-      peersCtx.add(BlockExcPeerCtx(id: peers[i]))
+      peersCtx.add(
+        BlockExcPeerCtx(
+          id: peers[i], blocks: newLruCache[BlockAddress, Presence](blocks.len)
+        )
+      )
       peerStore.add(peersCtx[i])
 
     engine.pricing = Pricing.example.some
