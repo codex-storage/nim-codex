@@ -1,193 +1,110 @@
 package main
 
 /*
-	#cgo LDFLAGS: -L../../build/ -lcodex
+   	#cgo LDFLAGS: -L../../build/ -lcodex
 	#cgo LDFLAGS: -L../../ -Wl,-rpath,../../
 
-	#include "../../library/libcodex.h"
-	#include <stdio.h>
-	#include <stdlib.h>
-	#include <stdint.h>
+	#include <stdbool.h>
+   	#include <stdlib.h>
+   	#include "../../library/libcodex.h"
 
-	void libcodexNimMain(void);
-	static void codex_host_init_once(void){
-		static int done;
-		if (!__atomic_exchange_n(&done, 1, __ATOMIC_SEQ_CST)) libcodexNimMain();
+   	typedef struct {
+       int ret;
+       char* msg;
+       size_t len;
+       uintptr_t h;
+   	} Resp;
+
+   	static void* allocResp(uintptr_t h) {
+       Resp* r = (Resp*)calloc(1, sizeof(Resp));
+       r->h = h;
+       return r;
+   	}
+
+   	static void freeResp(void* resp) {
+       if (resp != NULL) {
+           free(resp);
+       }
+   	}
+
+   	static int getRet(void* resp) {
+       if (resp == NULL) {
+           return 0;
+       }
+       Resp* m = (Resp*) resp;
+       return m->ret;
+   	}
+
+   void libcodexNimMain(void);
+
+   static void codex_host_init_once(void){
+       static int done;
+       if (!__atomic_exchange_n(&done, 1, __ATOMIC_SEQ_CST)) libcodexNimMain();
+   }
+
+   // resp must be set != NULL in case interest on retrieving data from the callback
+   void callback(int ret, char* msg, size_t len, void* resp);
+
+   static void* cGoCodexNew(const char* configJson, void* resp) {
+       void* ret = codex_new(configJson, (CodexCallback) callback, resp);
+       return ret;
+   }
+
+   static int cGoCodexStart(void* codexCtx, void* resp) {
+       return codex_start(codexCtx, (CodexCallback) callback, resp);
+   }
+
+   static int cGoCodexStop(void* codexCtx, void* resp) {
+       return codex_stop(codexCtx, (CodexCallback) callback, resp);
+   }
+
+	static int cGoCodexClose(void* codexCtx, void* resp) {
+		return codex_close(codexCtx, (CodexCallback) callback, resp);
 	}
 
-	extern void globalEventCallback(int ret, char* msg, size_t len, void* userData);
+   static int cGoCodexDestroy(void* codexCtx, void* resp) {
+       return codex_destroy(codexCtx, (CodexCallback) callback, resp);
+   }
 
-	typedef struct {
-		int ret;
-		char* msg;
-		size_t len;
-		uintptr_t h;
-	} Resp;
+    static int cGoCodexVersion(void* codexCtx, void* resp) {
+       return codex_version(codexCtx, (CodexCallback) callback, resp);
+   }
 
-	static void* allocResp(uintptr_t h) {
-		Resp* r = (Resp*)calloc(1, sizeof(Resp));
-		r->h = h;
-		return r;
-	}
+   static int cGoCodexRevision(void* codexCtx, void* resp) {
+       return codex_revision(codexCtx, (CodexCallback) callback, resp);
+   }
 
-	static void freeResp(void* resp) {
-		if (resp != NULL) {
-			free(resp);
-		}
-	}
+   static int cGoCodexRepo(void* codexCtx, void* resp) {
+       return codex_repo(codexCtx, (CodexCallback) callback, resp);
+   }
 
-	static int getRet(void* resp) {
-		if (resp == NULL) {
-			return 0;
-		}
-		Resp* m = (Resp*) resp;
-		return m->ret;
-	}
+   static int cGoCodexSpr(void* codexCtx, void* resp) {
+       return codex_spr(codexCtx, (CodexCallback) callback, resp);
+   }
 
-	static char* getMyCharPtr(void* resp) {
-		if (resp == NULL) {
-			return NULL;
-		}
-		Resp* m = (Resp*) resp;
-		return m->msg;
-	}
+   static int cGoCodexPeerId(void* codexCtx, void* resp) {
+       return codex_peer_id(codexCtx, (CodexCallback) callback, resp);
+   }
 
-	static size_t getMyCharLen(void* resp) {
-		if (resp == NULL) {
-			return 0;
-		}
-		Resp* m = (Resp*) resp;
-		return m->len;
-	}
+   static int cGoCodexUploadInit(void* codexCtx, char* filepath, size_t chunkSize, void* resp) {
+      return codex_upload_init(codexCtx, filepath, chunkSize, (CodexCallback) callback, resp);
+   }
 
-	// resp must be set != NULL in case interest on retrieving data from the callback
-	void callback(int ret, char* msg, size_t len, void* resp);
+   static int cGoCodexUploadChunk(void* codexCtx, char* sessionId, const uint8_t* chunk, size_t len, void* resp) {
+      return codex_upload_chunk(codexCtx, sessionId, chunk, len, (CodexCallback) callback, resp);
+   }
 
-	static void* cGoCodexNew(const char* configJson, void* resp) {
-		void* ret = codex_new(configJson, (CodexCallback) callback, resp);
-		return ret;
-	}
+   static int cGoCodexUploadFinalize(void* codexCtx, char* sessionId, void* resp) {
+      return codex_upload_finalize(codexCtx, sessionId, (CodexCallback) callback, resp);
+   }
 
-	static int cGoCodexVersion(void* codexCtx, void* resp) {
-		return codex_version(codexCtx, (CodexCallback) callback, resp);
-	}
+   static int cGoCodexUploadCancel(void* codexCtx, char* sessionId, void* resp) {
+      return codex_upload_cancel(codexCtx, sessionId, (CodexCallback) callback, resp);
+   }
 
-	static int cGoCodexRevision(void* codexCtx, void* resp) {
-		return codex_revision(codexCtx, (CodexCallback) callback, resp);
-	}
-
-	static int cGoCodexRepo(void* codexCtx, void* resp) {
-		return codex_repo(codexCtx, (CodexCallback) callback, resp);
-	}
-
-	static int cGoCodexDebug(void* codexCtx, void* resp) {
-		return codex_debug(codexCtx, (CodexCallback) callback, resp);
-	}
-
-	static int cGoCodexSpr(void* codexCtx, void* resp) {
-		return codex_spr(codexCtx, (CodexCallback) callback, resp);
-	}
-
-	static int cGoCodexPeerId(void* codexCtx, void* resp) {
-		return codex_peer_id(codexCtx, (CodexCallback) callback, resp);
-	}
-
-	static int cGoCodexLogLevel(void* codexCtx, char* logLevel, void* resp) {
-		return codex_log_level(codexCtx, logLevel, (CodexCallback) callback, resp);
-	}
-
-	static int cGoCodexConnect(void* codexCtx, char* peerId, const char** peerAddresses, uintptr_t peerAddressesSize,  void* resp) {
-		return codex_connect(codexCtx, peerId, peerAddresses, peerAddressesSize, (CodexCallback) callback, resp);
-	}
-
-	static int cGoCodexPeerDebug(void* codexCtx, char* peerId, void* resp) {
-		return codex_peer_debug(codexCtx, peerId, (CodexCallback) callback, resp);
-	}
-
-	static int cGoCodexUploadInit(void* codexCtx, char* filepath, size_t chunkSize, void* resp) {
-		return codex_upload_init(codexCtx, filepath, chunkSize, (CodexCallback) callback, resp);
-	}
-
-	static int cGoCodexUploadChunk(void* codexCtx, char* sessionId, const uint8_t* chunk, size_t len, void* resp) {
-		return codex_upload_chunk(codexCtx, sessionId, chunk, len, (CodexCallback) callback, resp);
-	}
-
-	static int cGoCodexUploadFinalize(void* codexCtx, char* sessionId, void* resp) {
-		return codex_upload_finalize(codexCtx, sessionId, (CodexCallback) callback, resp);
-	}
-
-	static int cGoCodexUploadCancel(void* codexCtx, char* sessionId, void* resp) {
-		return codex_upload_cancel(codexCtx, sessionId, (CodexCallback) callback, resp);
-	}
-
-	static int cGoCodexUploadFile(void* codexCtx, char* sessionId, void* resp) {
-		return codex_upload_file(codexCtx, sessionId, (CodexCallback) callback, resp);
-	}
-
-	static int cGoCodexDownloadInit(void* codexCtx, char* cid, size_t chunkSize, bool local, void* resp) {
-		return codex_download_init(codexCtx, cid, chunkSize, local, (CodexCallback) callback, resp);
-	}
-
-	static int cGoCodexDownloadChunk(void* codexCtx, char* cid, void* resp) {
-		return codex_download_chunk(codexCtx, cid, (CodexCallback) callback, resp);
-	}
-
-	static int cGoCodexDownloadStream(void* codexCtx, char* cid, size_t chunkSize, bool local, const char* filepath, void* resp) {
-		return codex_download_stream(codexCtx, cid, chunkSize, local, filepath, (CodexCallback) callback, resp);
-	}
-
-	static int cGoCodexDownloadCancel(void* codexCtx, char* cid, void* resp) {
-		return codex_download_cancel(codexCtx, cid, (CodexCallback) callback, resp);
-	}
-
-	static int cGoCodexDownloadManifest(void* codexCtx, char* cid, void* resp) {
-		return codex_download_manifest(codexCtx, cid, (CodexCallback) callback, resp);
-	}
-
-	static int cGoCodexStorageList(void* codexCtx, void* resp) {
-		return codex_storage_list(codexCtx, (CodexCallback) callback, resp);
-	}
-
-	static int cGoCodexStorageFetch(void* codexCtx, char* cid, void* resp) {
-		return codex_storage_fetch(codexCtx, cid, (CodexCallback) callback, resp);
-	}
-
-	static int cGoCodexStorageSpace(void* codexCtx, void* resp) {
-		return codex_storage_space(codexCtx, (CodexCallback) callback, resp);
-	}
-
-	static int cGoCodexStorageDelete(void* codexCtx, char* cid, void* resp) {
-		return codex_storage_delete(codexCtx, cid, (CodexCallback) callback, resp);
-	}
-
-	static int cGoCodexStart(void* codexCtx, void* resp) {
-		return codex_start(codexCtx, (CodexCallback) callback, resp);
-	}
-
-	static int cGoCodexStop(void* codexCtx, void* resp) {
-		return codex_stop(codexCtx, (CodexCallback) callback, resp);
-	}
-
-	static int cGoCodexDestroy(void* codexCtx, void* resp) {
-		return codex_destroy(codexCtx, (CodexCallback) callback, resp);
-	}
-
-	static void cGoCodexSetEventCallback(void* codexCtx) {
-		// The 'globalEventCallback' Go function is shared amongst all possible Codex instances.
-
-		// Given that the 'globalEventCallback' is shared, we pass again the
-		// codexCtx instance but in this case is needed to pick up the correct method
-		// that will handle the event.
-
-		// In other words, for every call the libcodex makes to globalEventCallback,
-		// the 'userData' parameter will bring the context of the node that registered
-		// that globalEventCallback.
-
-		// This technique is needed because cgo only allows to export Go functions and not methods.
-
-		codex_set_event_callback(codexCtx, (CodexCallback) globalEventCallback, codexCtx);
-	}
-
+   static int cGoCodexUploadFile(void* codexCtx, char* sessionId, void* resp) {
+      return codex_upload_file(codexCtx, sessionId, (CodexCallback) callback, resp);
+   }
 */
 import "C"
 import (
@@ -199,7 +116,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"path"
 	"runtime/cgo"
 	"sync"
 	"syscall"
@@ -209,13 +125,13 @@ import (
 type LogLevel string
 
 const (
-	Trace  LogLevel = "TRACE"
-	Debug  LogLevel = "DEBUG"
-	Info   LogLevel = "INFO"
-	Notice LogLevel = "NOTICE"
-	Warn   LogLevel = "WARN"
-	Error  LogLevel = "ERROR"
-	Fatal  LogLevel = "FATAL"
+	TRACE  LogLevel = "trace"
+	DEBUG  LogLevel = "debug"
+	INFO   LogLevel = "info"
+	NOTICE LogLevel = "notice"
+	WARN   LogLevel = "warn"
+	ERROR  LogLevel = "error"
+	FATAL  LogLevel = "fatal"
 )
 
 type LogFormat string
@@ -235,72 +151,108 @@ const (
 	LevelDb RepoKind = "leveldb"
 )
 
-type CodexConfig struct {
-	LogFormat                      LogFormat `json:"log-format,omitempty"`
-	MetricsEnabled                 bool      `json:"metrics,omitempty"`
-	MetricsAddress                 string    `json:"metrics-address,omitempty"`
-	DataDir                        string    `json:"data-dir,omitempty"`
-	ListenAddrs                    []string  `json:"listen-addrs,omitempty"`
-	Nat                            string    `json:"nat,omitempty"`
-	DiscoveryPort                  int       `json:"disc-port,omitempty"`
-	NetPrivKeyFile                 string    `json:"net-privkey,omitempty"`
-	BootstrapNodes                 []byte    `json:"bootstrap-node,omitempty"`
-	MaxPeers                       int       `json:"max-peers,omitempty"`
-	NumThreads                     int       `json:"num-threads,omitempty"`
-	AgentString                    string    `json:"agent-string,omitempty"`
-	RepoKind                       RepoKind  `json:"repo-kind,omitempty"`
-	StorageQuota                   int       `json:"storage-quota,omitempty"`
-	BlockTtl                       int       `json:"block-ttl,omitempty"`
-	BlockMaintenanceInterval       int       `json:"block-mi,omitempty"`
-	BlockMaintenanceNumberOfBlocks int       `json:"block-mn,omitempty"`
-	CacheSize                      int       `json:"cache-size,omitempty"`
-	LogFile                        string    `json:"log-file,omitempty"`
-}
+const defaultBlockSize = 1024 * 64
 
-type RestPeerRecord struct {
-	PeerId    string   `json:"peerId"`
-	SeqNo     int      `json:"seqNo"`
-	Addresses []string `json:"addresses,omitempty"`
-}
+type Config struct {
+	// Default: INFO
+	LogLevel LogLevel `json:"log-level,omitempty"`
 
-type RestNode struct {
-	NodeId  string  `json:"nodeId"`
-	PeerId  string  `json:"peerId"`
-	Record  string  `json:"record"`
-	Address *string `json:"address"`
-	Seen    bool    `json:"seen"`
-}
+	// Specifies what kind of logs should be written to stdout
+	// Default: auto
+	LogFormat LogFormat `json:"log-format,omitempty"`
 
-type RestRoutingTable struct {
-	LocalNode RestNode   `json:"localNode"`
-	Nodes     []RestNode `json:"nodes"`
-}
+	// Enable the metrics server
+	// Default: false
+	MetricsEnabled bool `json:"metrics,omitempty"`
 
-type CodexDebugInfo struct {
-	ID                string           `json:"id"`
-	Addrs             []string         `json:"addrs"`
-	Spr               string           `json:"spr"`
-	AnnounceAddresses []string         `json:"announceAddresses"`
-	Table             RestRoutingTable `json:"table"`
+	// Listening address of the metrics server
+	// Default: 127.0.0.1
+	MetricsAddress string `json:"metrics-address,omitempty"`
+
+	// Listening HTTP port of the metrics server
+	// Default: 8008
+	MetricsPort int `json:"metrics-port,omitempty"`
+
+	// The directory where codex will store configuration and data
+	// Default:
+	// $HOME\AppData\Roaming\Codex on Windows
+	// $HOME/Library/Application Support/Codex on macOS
+	// $HOME/.cache/codex on Linux
+	DataDir string `json:"data-dir,omitempty"`
+
+	// Multi Addresses to listen on
+	// Default: ["/ip4/0.0.0.0/tcp/0"]
+	ListenAddrs []string `json:"listen-addrs,omitempty"`
+
+	// Specify method to use for determining public address.
+	// Must be one of: any, none, upnp, pmp, extip:<IP>
+	// Default: any
+	Nat string `json:"nat,omitempty"`
+
+	// Discovery (UDP) port
+	// Default: 8090
+	DiscoveryPort int `json:"disc-port,omitempty"`
+
+	// Source of network (secp256k1) private key file path or name
+	// Default: "key"
+	NetPrivKeyFile string `json:"net-privkey,omitempty"`
+
+	// Specifies one or more bootstrap nodes to use when connecting to the network.
+	BootstrapNodes []string `json:"bootstrap-node,omitempty"`
+
+	// The maximum number of peers to connect to.
+	// Default: 160
+	MaxPeers int `json:"max-peers,omitempty"`
+
+	// Number of worker threads (\"0\" = use as many threads as there are CPU cores available)
+	// Default: 0
+	NumThreads int `json:"num-threads,omitempty"`
+
+	// Node agent string which is used as identifier in network
+	// Default: "Codex"
+	AgentString string `json:"agent-string,omitempty"`
+
+	// Backend for main repo store (fs, sqlite, leveldb)
+	// Default: fs
+	RepoKind RepoKind `json:"repo-kind,omitempty"`
+
+	// The size of the total storage quota dedicated to the node
+	// Default: 20 GiBs
+	StorageQuota int `json:"storage-quota,omitempty"`
+
+	// Default block timeout in seconds - 0 disables the ttl
+	// Default: 30 days
+	BlockTtl int `json:"block-ttl,omitempty"`
+
+	// Time interval in seconds - determines frequency of block
+	// maintenance cycle: how often blocks are checked for expiration and cleanup
+	// Default: 10 minutes
+	BlockMaintenanceInterval int `json:"block-mi,omitempty"`
+
+	// Number of blocks to check every maintenance cycle
+	// Default: 1000
+	BlockMaintenanceNumberOfBlocks int `json:"block-mn,omitempty"`
+
+	// Number of times to retry fetching a block before giving up
+	// Default: 3000
+	BlockRetries int `json:"block-retries,omitempty"`
+
+	// The size of the block cache, 0 disables the cache -
+	// might help on slow hardrives
+	// Default: 0
+	CacheSize int `json:"cache-size,omitempty"`
+
+	// Default: "" (no log file)
+	LogFile string `json:"log-file,omitempty"`
 }
 
 type CodexNode struct {
 	ctx unsafe.Pointer
 }
 
-const defaultBlockSize = 1024 * 64
+type ChunkSize int
 
-type OnUploadProgressFunc func(read, total int, percent float64, err error)
-
-type ChunckSize int
-
-type CodexUploadOptions struct {
-	filepath   string
-	chunkSize  ChunckSize
-	onProgress OnUploadProgressFunc
-}
-
-func (c ChunckSize) valOrDefault() int {
+func (c ChunkSize) valOrDefault() int {
 	if c == 0 {
 		return defaultBlockSize
 	}
@@ -308,25 +260,15 @@ func (c ChunckSize) valOrDefault() int {
 	return int(c)
 }
 
-func (c ChunckSize) toSizeT() C.size_t {
+func (c ChunkSize) toSizeT() C.size_t {
 	return C.size_t(c.valOrDefault())
 }
 
-type CodexDownloadStreamOptions = struct {
-	filepath        string
-	chunkSize       ChunckSize
-	onProgress      OnUploadProgressFunc
-	writer          io.Writer
-	local           bool
-	datasetSize     int
-	datasetSizeAuto bool
-}
-
-type CodexDownloadInitOptions = struct {
-	local     bool
-	chunkSize ChunckSize
-}
-
+// bridgeCtx is used for managing the C-Go bridge calls.
+// It contains a wait group for synchronizing the calls,
+// a cgo.Handle for passing context to the C code,
+// a response pointer for receiving data from the C code,
+// and fields for storing the result and error of the call.
 type bridgeCtx struct {
 	wg     *sync.WaitGroup
 	h      cgo.Handle
@@ -346,38 +288,24 @@ type bridgeCtx struct {
 	onProgress func(bytes int, chunk []byte)
 }
 
-type CodexManifest struct {
-	Cid         string
-	TreeCid     string `json:"treeCid"`
-	DatasetSize int    `json:"datasetSize"`
-	BlockSize   int    `json:"blockSize"`
-	Filename    string `json:"filename"`
-	Mimetype    string `json:"mimetype"`
-	Protected   bool   `json:"protected"`
-}
-
-type CodexManifestWithCid struct {
-	Cid      string        `json:"cid"`
-	Manifest CodexManifest `json:"manifest"`
-}
-
-type CodexSpace struct {
-	TotalBlocks        int   `json:"totalBlocks"`
-	QuotaMaxBytes      int64 `json:"quotaMaxBytes"`
-	QuotaUsedBytes     int64 `json:"quotaUsedBytes"`
-	QuotaReservedBytes int64 `json:"quotaReservedBytes"`
-}
-
+// newBridgeCtx creates a new bridge context for managing C-Go calls.
+// The bridge context is initialized with a wait group and a cgo.Handle.
 func newBridgeCtx() *bridgeCtx {
 	bridge := &bridgeCtx{}
 	bridge.wg = &sync.WaitGroup{}
 	bridge.wg.Add(1)
 	bridge.h = cgo.NewHandle(bridge)
 	bridge.resp = C.allocResp(C.uintptr_t(uintptr(bridge.h)))
-
 	return bridge
 }
 
+// callError creates an error message for a failed C-Go call.
+func (b *bridgeCtx) callError(name string) error {
+	return fmt.Errorf("failed the call to %s returned code %d", name, C.getRet(b.resp))
+}
+
+// free releases the resources associated with the bridge context,
+// including the cgo.Handle and the response pointer.
 func (b *bridgeCtx) free() {
 	if b.h > 0 {
 		b.h.Delete()
@@ -390,14 +318,91 @@ func (b *bridgeCtx) free() {
 	}
 }
 
-func (b *bridgeCtx) CallError(name string) error {
-	return fmt.Errorf("Failed the call to %s. Returned code: %d.", name, C.getRet(b.resp))
+// callback is the function called by the C code to communicate back to Go.
+// It handles progress updates, successful completions, and errors.
+// The function uses the response pointer to retrieve the bridge context
+// and update its state accordingly.
+//
+//export callback
+func callback(ret C.int, msg *C.char, len C.size_t, resp unsafe.Pointer) {
+	if resp == nil {
+		return
+	}
+
+	m := (*C.Resp)(resp)
+	m.ret = ret
+	m.msg = msg
+	m.len = len
+
+	if m.h == 0 {
+		return
+	}
+
+	h := cgo.Handle(m.h)
+	if h == 0 {
+		return
+	}
+
+	if v, ok := h.Value().(*bridgeCtx); ok {
+		switch ret {
+		case C.RET_PROGRESS:
+			if v.onProgress == nil {
+				return
+			}
+			if msg != nil {
+				chunk := C.GoBytes(unsafe.Pointer(msg), C.int(len))
+				v.onProgress(int(C.int(len)), chunk)
+			} else {
+				v.onProgress(int(C.int(len)), nil)
+			}
+		case C.RET_OK:
+			retMsg := C.GoStringN(msg, C.int(len))
+			v.result = retMsg
+			v.err = nil
+			if v.wg != nil {
+				v.wg.Done()
+			}
+		case C.RET_ERR:
+			retMsg := C.GoStringN(msg, C.int(len))
+			v.err = errors.New(retMsg)
+			if v.wg != nil {
+				v.wg.Done()
+			}
+		}
+	}
 }
 
+// wait waits for the bridge context to complete its operation.
+// It returns the result and error of the operation.
 func (b *bridgeCtx) wait() (string, error) {
 	b.wg.Wait()
-
 	return b.result, b.err
+}
+
+type OnUploadProgressFunc func(read, total int, percent float64, err error)
+
+type UploadOptions struct {
+	// Filepath can be the full path when using UploadFile
+	// otherwise the file name.
+	// It is used to detect the mimetype.
+	Filepath string
+
+	// ChunkSize is the size of each upload chunk, passed as `blockSize` to the Codex node
+	// store. Default is to 64 KB.
+	ChunkSize ChunkSize
+
+	// OnProgress is a callback function that is called after each chunk is uploaded with:
+	//   - read: the number of bytes read in the last chunk.
+	//   - total: the total number of bytes read so far.
+	//   - percent: the percentage of the total file size that has been uploaded. It is
+	//     determined from a `stat` call if it is a file and from the length of the buffer
+	// 	   if it is a buffer. Otherwise, it is 0.
+	//   - err: an error, if one occurred.
+	//
+	// If the chunk size is more than the `chunkSize` parameter, the callback is called
+	// after the block is actually stored in the block store. Otherwise, it is called
+	// after the chunk is sent to the stream.
+	OnProgress OnUploadProgressFunc
 }
 
 func getReaderSize(r io.Reader) int64 {
@@ -415,65 +420,16 @@ func getReaderSize(r io.Reader) int64 {
 	}
 }
 
-//export callback
-func callback(ret C.int, msg *C.char, len C.size_t, resp unsafe.Pointer) {
-	if resp == nil {
-		return
-	}
-
-	m := (*C.Resp)(resp)
-	m.ret = ret
-	m.msg = msg
-	m.len = len
-
-	if m.h == 0 {
-		return
-	}
-
-	h := cgo.Handle(m.h)
-
-	if h == 0 {
-		return
-	}
-
-	if v, ok := h.Value().(*bridgeCtx); ok {
-		switch ret {
-		case C.RET_PROGRESS:
-			if v.onProgress == nil {
-				return
-			}
-
-			if msg != nil {
-				chunk := C.GoBytes(unsafe.Pointer(msg), C.int(len))
-				v.onProgress(int(C.int(len)), chunk)
-			} else {
-				v.onProgress(int(C.int(len)), nil)
-			}
-		case C.RET_OK:
-			retMsg := C.GoStringN(msg, C.int(len))
-			v.result = retMsg
-			v.err = nil
-
-			if v.wg != nil {
-				v.wg.Done()
-			}
-		case C.RET_ERR:
-			retMsg := C.GoStringN(msg, C.int(len))
-			v.err = errors.New(retMsg)
-
-			if v.wg != nil {
-				v.wg.Done()
-			}
-		}
-	}
-}
-
-func CodexNew(config CodexConfig) (*CodexNode, error) {
+// New creates a new Codex node with the provided configuration.
+// The node is not started automatically; you need to call CodexStart
+// to start it.
+// It returns a Codex node that can be used to interact
+// with the Codex network.
+func New(config Config) (*CodexNode, error) {
 	bridge := newBridgeCtx()
 	defer bridge.free()
 
 	jsonConfig, err := json.Marshal(config)
-
 	if err != nil {
 		return nil, err
 	}
@@ -490,162 +446,144 @@ func CodexNew(config CodexConfig) (*CodexNode, error) {
 	return &CodexNode{ctx: ctx}, bridge.err
 }
 
-func (self CodexNode) CodexVersion() (string, error) {
+// Start starts the Codex node.
+func (node CodexNode) Start() error {
 	bridge := newBridgeCtx()
 	defer bridge.free()
 
-	if C.cGoCodexVersion(self.ctx, bridge.resp) != C.RET_OK {
-		return "", bridge.CallError("cGoCodexVersion")
-	}
-
-	return bridge.wait()
-}
-
-func (self CodexNode) CodexRevision() (string, error) {
-	bridge := newBridgeCtx()
-	defer bridge.free()
-
-	if C.cGoCodexRevision(self.ctx, bridge.resp) != C.RET_OK {
-		return "", bridge.CallError("cGoCodexRevision")
-	}
-
-	return bridge.wait()
-}
-
-func (self CodexNode) CodexRepo() (string, error) {
-	bridge := newBridgeCtx()
-	defer bridge.free()
-
-	if C.cGoCodexRepo(self.ctx, bridge.resp) != C.RET_OK {
-		return "", bridge.CallError("cGoCodexRepo")
-	}
-
-	return bridge.wait()
-}
-
-func (self CodexNode) CodexDebug() (CodexDebugInfo, error) {
-	var info CodexDebugInfo
-
-	bridge := newBridgeCtx()
-	defer bridge.free()
-
-	if C.cGoCodexDebug(self.ctx, bridge.resp) != C.RET_OK {
-		return info, bridge.CallError("cGoCodexDebug")
-	}
-
-	value, err := bridge.wait()
-	if err != nil {
-		return info, err
-	}
-
-	err = json.Unmarshal([]byte(value), &info)
-
-	return info, err
-}
-
-func (self CodexNode) CodexSpr() (string, error) {
-	bridge := newBridgeCtx()
-	defer bridge.free()
-
-	if C.cGoCodexSpr(self.ctx, bridge.resp) != C.RET_OK {
-		return "", bridge.CallError("cGoCodexSpr")
-	}
-
-	return bridge.wait()
-}
-
-func (self CodexNode) CodexPeerId() (string, error) {
-	bridge := newBridgeCtx()
-	defer bridge.free()
-
-	if C.cGoCodexPeerId(self.ctx, bridge.resp) != C.RET_OK {
-		return "", bridge.CallError("cGoCodexPeerId")
-	}
-
-	return bridge.wait()
-}
-
-func (self CodexNode) CodexLogLevel(logLevel LogLevel) error {
-	bridge := newBridgeCtx()
-	defer bridge.free()
-
-	var cLogLevel = C.CString(fmt.Sprintf("%s", logLevel))
-	defer C.free(unsafe.Pointer(cLogLevel))
-
-	if C.cGoCodexLogLevel(self.ctx, cLogLevel, bridge.resp) != C.RET_OK {
-		return bridge.CallError("cGoCodexLogLevel")
-	}
-
-	_, err := bridge.wait()
-
-	return err
-}
-
-func (self CodexNode) CodexConnect(peerId string, peerAddresses []string) error {
-	bridge := newBridgeCtx()
-	defer bridge.free()
-
-	var cPeerId = C.CString(peerId)
-	defer C.free(unsafe.Pointer(cPeerId))
-
-	if len(peerAddresses) > 0 {
-		var cAddresses = make([]*C.char, len(peerAddresses))
-		for i, addr := range peerAddresses {
-			cAddresses[i] = C.CString(addr)
-			defer C.free(unsafe.Pointer(cAddresses[i]))
-		}
-
-		if C.cGoCodexConnect(self.ctx, cPeerId, &cAddresses[0], C.uintptr_t(len(peerAddresses)), bridge.resp) != C.RET_OK {
-			return bridge.CallError("cGoCodexConnect")
-		}
-	} else {
-		if C.cGoCodexConnect(self.ctx, cPeerId, nil, 0, bridge.resp) != C.RET_OK {
-			return bridge.CallError("cGoCodexConnect")
-		}
+	if C.cGoCodexStart(node.ctx, bridge.resp) != C.RET_OK {
+		return bridge.callError("cGoCodexStart")
 	}
 
 	_, err := bridge.wait()
 	return err
 }
 
-func (self CodexNode) CodexPeerDebug(peerId string) (RestPeerRecord, error) {
-	var record RestPeerRecord
-
-	bridge := newBridgeCtx()
-	defer bridge.free()
-
-	var cPeerId = C.CString(peerId)
-	defer C.free(unsafe.Pointer(cPeerId))
-
-	if C.cGoCodexPeerDebug(self.ctx, cPeerId, bridge.resp) != C.RET_OK {
-		return record, bridge.CallError("cGoCodexPeerDebug")
-	}
-
-	value, err := bridge.wait()
-	if err != nil {
-		return record, err
-	}
-
-	err = json.Unmarshal([]byte(value), &record)
-
-	return record, err
+// StartAsync is the asynchronous version of Start.
+func (node CodexNode) StartAsync(onDone func(error)) {
+	go func() {
+		err := node.Start()
+		onDone(err)
+	}()
 }
 
-func (self CodexNode) CodexUploadInit(options *CodexUploadOptions) (string, error) {
+// Stop stops the Codex node.
+func (node CodexNode) Stop() error {
 	bridge := newBridgeCtx()
 	defer bridge.free()
 
-	var cFilename = C.CString(options.filepath)
+	if C.cGoCodexStop(node.ctx, bridge.resp) != C.RET_OK {
+		return bridge.callError("cGoCodexStop")
+	}
+
+	_, err := bridge.wait()
+	return err
+}
+
+// Destroy destroys the Codex node, freeing all resources.
+// The node must be stopped before calling this method.
+func (node CodexNode) Destroy() error {
+	bridge := newBridgeCtx()
+	defer bridge.free()
+
+	if C.cGoCodexClose(node.ctx, bridge.resp) != C.RET_OK {
+		return bridge.callError("cGoCodexClose")
+	}
+
+	_, err := bridge.wait()
+	if err != nil {
+		return err
+	}
+
+	if C.cGoCodexDestroy(node.ctx, bridge.resp) != C.RET_OK {
+		return bridge.callError("cGoCodexDestroy")
+	}
+
+	_, err = bridge.wait()
+	return err
+}
+
+// Version returns the version of the Codex node.
+func (node CodexNode) Version() (string, error) {
+	bridge := newBridgeCtx()
+	defer bridge.free()
+
+	if C.cGoCodexVersion(node.ctx, bridge.resp) != C.RET_OK {
+		return "", bridge.callError("cGoCodexVersion")
+	}
+
+	return bridge.wait()
+}
+
+func (node CodexNode) Revision() (string, error) {
+	bridge := newBridgeCtx()
+	defer bridge.free()
+
+	if C.cGoCodexRevision(node.ctx, bridge.resp) != C.RET_OK {
+		return "", bridge.callError("cGoCodexRevision")
+	}
+
+	return bridge.wait()
+}
+
+// Repo returns the path of the data dir folder.
+func (node CodexNode) Repo() (string, error) {
+	bridge := newBridgeCtx()
+	defer bridge.free()
+
+	if C.cGoCodexRepo(node.ctx, bridge.resp) != C.RET_OK {
+		return "", bridge.callError("cGoCodexRepo")
+	}
+
+	return bridge.wait()
+}
+
+func (node CodexNode) Spr() (string, error) {
+	bridge := newBridgeCtx()
+	defer bridge.free()
+
+	if C.cGoCodexSpr(node.ctx, bridge.resp) != C.RET_OK {
+		return "", bridge.callError("cGoCodexSpr")
+	}
+
+	return bridge.wait()
+}
+
+func (node CodexNode) PeerId() (string, error) {
+	bridge := newBridgeCtx()
+	defer bridge.free()
+
+	if C.cGoCodexPeerId(node.ctx, bridge.resp) != C.RET_OK {
+		return "", bridge.callError("cGoCodexPeerId")
+	}
+
+	return bridge.wait()
+}
+
+// UploadInit initializes a new upload session.
+// It returns a session ID that can be used for subsequent upload operations.
+// This function is called by UploadReader and UploadFile internally.
+// You should use this function only if you need to manage the upload session manually.
+func (node CodexNode) UploadInit(options *UploadOptions) (string, error) {
+	bridge := newBridgeCtx()
+	defer bridge.free()
+
+	var cFilename = C.CString(options.Filepath)
 	defer C.free(unsafe.Pointer(cFilename))
 
-	if C.cGoCodexUploadInit(self.ctx, cFilename, options.chunkSize.toSizeT(), bridge.resp) != C.RET_OK {
-		return "", bridge.CallError("cGoCodexUploadInit")
+	if C.cGoCodexUploadInit(node.ctx, cFilename, options.ChunkSize.toSizeT(), bridge.resp) != C.RET_OK {
+		return "", bridge.callError("cGoCodexUploadInit")
 	}
 
 	return bridge.wait()
 }
 
-func (self CodexNode) CodexUploadChunk(sessionId string, chunk []byte) error {
+// UploadChunk uploads a chunk of data to the Codex node.
+// It takes the session ID returned by UploadInit
+// and a byte slice containing the chunk data.
+// This function is called by UploadReader internally.
+// You should use this function only if you need to manage the upload session manually.
+func (node CodexNode) UploadChunk(sessionId string, chunk []byte) error {
 	bridge := newBridgeCtx()
 	defer bridge.free()
 
@@ -657,69 +595,81 @@ func (self CodexNode) CodexUploadChunk(sessionId string, chunk []byte) error {
 		cChunkPtr = (*C.uint8_t)(unsafe.Pointer(&chunk[0]))
 	}
 
-	if C.cGoCodexUploadChunk(self.ctx, cSessionId, cChunkPtr, C.size_t(len(chunk)), bridge.resp) != C.RET_OK {
-		return bridge.CallError("cGoCodexUploadChunk")
+	if C.cGoCodexUploadChunk(node.ctx, cSessionId, cChunkPtr, C.size_t(len(chunk)), bridge.resp) != C.RET_OK {
+		return bridge.callError("cGoCodexUploadChunk")
 	}
 
 	_, err := bridge.wait()
-
 	return err
 }
 
-func (self CodexNode) CodexUploadFinalize(sessionId string) (string, error) {
+// UploadFinalize finalizes the upload session and returns the CID of the uploaded file.
+// It takes the session ID returned by UploadInit.
+// This function is called by UploadReader and UploadFile internally.
+// You should use this function only if you need to manage the upload session manually.
+func (node CodexNode) UploadFinalize(sessionId string) (string, error) {
 	bridge := newBridgeCtx()
 	defer bridge.free()
 
 	var cSessionId = C.CString(sessionId)
 	defer C.free(unsafe.Pointer(cSessionId))
 
-	if C.cGoCodexUploadFinalize(self.ctx, cSessionId, bridge.resp) != C.RET_OK {
-		return "", bridge.CallError("cGoCodexUploadFinalize")
+	if C.cGoCodexUploadFinalize(node.ctx, cSessionId, bridge.resp) != C.RET_OK {
+		return "", bridge.callError("cGoCodexUploadFinalize")
 	}
 
 	return bridge.wait()
 }
 
-func (self CodexNode) CodexUploadCancel(sessionId string) error {
+// UploadCancel cancels an ongoing upload session.
+// It can be only if the upload session is managed manually.
+// It doesn't work with UploadFile.
+func (node CodexNode) UploadCancel(sessionId string) error {
 	bridge := newBridgeCtx()
 	defer bridge.free()
 
 	var cSessionId = C.CString(sessionId)
 	defer C.free(unsafe.Pointer(cSessionId))
 
-	if C.cGoCodexUploadCancel(self.ctx, cSessionId, bridge.resp) != C.RET_OK {
-		return bridge.CallError("cGoCodexUploadCancel")
+	if C.cGoCodexUploadCancel(node.ctx, cSessionId, bridge.resp) != C.RET_OK {
+		return bridge.callError("cGoCodexUploadCancel")
 	}
 
 	_, err := bridge.wait()
-
 	return err
 }
 
-func (self CodexNode) CodexUploadReader(options CodexUploadOptions, r io.Reader) (string, error) {
-	sessionId, err := self.CodexUploadInit(&options)
-
+// UploadReader uploads data from an io.Reader to the Codex node.
+// It takes the upload options and the reader as parameters.
+// It returns the CID of the uploaded file or an error.
+//
+// Internally, it calls:
+// - UploadInit to create the upload session.
+// - UploadChunk to upload a chunk to codex.
+// - UploadFinalize to finalize the upload session.
+// - UploadCancel if an error occurs.
+func (node CodexNode) UploadReader(options UploadOptions, r io.Reader) (string, error) {
+	sessionId, err := node.UploadInit(&options)
 	if err != nil {
 		return "", err
 	}
 
-	buf := make([]byte, options.chunkSize.valOrDefault())
+	buf := make([]byte, options.ChunkSize.valOrDefault())
 	total := 0
-	var size int64
 
-	if options.onProgress != nil {
+	var size int64
+	if options.OnProgress != nil {
 		size = getReaderSize(r)
 	}
 
 	for {
 		n, err := r.Read(buf)
-
 		if err == io.EOF {
 			break
 		}
 
 		if err != nil {
-			if cancelErr := self.CodexUploadCancel(sessionId); cancelErr != nil {
+			if cancelErr := node.UploadCancel(sessionId); cancelErr != nil {
 				return "", fmt.Errorf("failed to upload chunk %v and failed to cancel upload session %v", err, cancelErr)
 			}
 
@@ -730,8 +680,8 @@ func (self CodexNode) CodexUploadReader(options CodexUploadOptions, r io.Reader)
 			break
 		}
 
-		if err := self.CodexUploadChunk(sessionId, buf[:n]); err != nil {
-			if cancelErr := self.CodexUploadCancel(sessionId); cancelErr != nil {
+		if err := node.UploadChunk(sessionId, buf[:n]); err != nil {
+			if cancelErr := node.UploadCancel(sessionId); cancelErr != nil {
 				return "", fmt.Errorf("failed to upload chunk %v and failed to cancel upload session %v", err, cancelErr)
 			}
 
@@ -739,34 +689,56 @@ func (self CodexNode) CodexUploadReader(options CodexUploadOptions, r io.Reader)
 		}
 
 		total += n
-		if options.onProgress != nil && size > 0 {
+		if options.OnProgress != nil && size > 0 {
 			percent := float64(total) / float64(size) * 100.0
 			// The last block could be a bit over the size due to padding
 			// on the chunk size.
 			if percent > 100.0 {
 				percent = 100.0
 			}
-			options.onProgress(n, total, percent, nil)
+			options.OnProgress(n, total, percent, nil)
+		} else if options.OnProgress != nil {
+			options.OnProgress(n, total, 0, nil)
 		}
 	}
 
-	return self.CodexUploadFinalize(sessionId)
+	return node.UploadFinalize(sessionId)
 }
 
-func (self CodexNode) CodexUploadReaderAsync(options CodexUploadOptions, r io.Reader, onDone func(cid string, err error)) {
+// UploadReaderAsync is the asynchronous version of UploadReader using a goroutine.
+func (node CodexNode) UploadReaderAsync(options UploadOptions, r io.Reader, onDone func(cid string, err error)) {
 	go func() {
-		cid, err := self.CodexUploadReader(options, r)
+		cid, err := node.UploadReader(options, r)
 		onDone(cid, err)
 	}()
 }
 
-func (self CodexNode) CodexUploadFile(options CodexUploadOptions) (string, error) {
+// UploadFile uploads a file to the Codex node.
+// It takes the upload options as parameter.
+// It returns the CID of the uploaded file or an error.
+//
+// The options parameter contains the following fields:
+// - filepath: the full path of the file to upload.
+// - chunkSize: the size of each upload chunk, passed as `blockSize` to the Codex node
+// store. Default is to 64 KB.
+// - onProgress: a callback function that is called after each chunk is uploaded with:
+//   - read: the number of bytes read in the last chunk.
+//   - total: the total number of bytes read so far.
+//   - percent: the percentage of the total file size that has been uploaded. It is
+//     determined from a `stat` call.
+//   - err: an error, if one occurred.
+//
+// If the chunk size is more than the `chunkSize` parameter, the callback is called after
+// the block is actually stored in the block store. Otherwise, it is called after the chunk
+// is sent to the stream.
+//
+// Internally, it calls UploadInit to create the upload session.
+func (node CodexNode) UploadFile(options UploadOptions) (string, error) {
 	bridge := newBridgeCtx()
 	defer bridge.free()
 
-	if options.onProgress != nil {
-		stat, err := os.Stat(options.filepath)
-
+	if options.OnProgress != nil {
+		stat, err := os.Stat(options.Filepath)
 		if err != nil {
 			return "", err
 		}
@@ -781,7 +753,6 @@ func (self CodexNode) CodexUploadFile(options CodexUploadOptions) (string, error
 				}
 
 				total += read
-
 				percent := float64(total) / float64(size) * 100.0
 				// The last block could be a bit over the size due to padding
 				// on the chunk size.
@@ -789,12 +760,12 @@ func (self CodexNode) CodexUploadFile(options CodexUploadOptions) (string, error
 					percent = 100.0
 				}
 
-				options.onProgress(read, int(size), percent, nil)
+				options.OnProgress(read, int(size), percent, nil)
 			}
 		}
 	}
 
-	sessionId, err := self.CodexUploadInit(&options)
+	sessionId, err := node.UploadInit(&options)
 	if err != nil {
 		return "", err
 	}
@@ -802,556 +773,59 @@ func (self CodexNode) CodexUploadFile(options CodexUploadOptions) (string, error
 	var cSessionId = C.CString(sessionId)
 	defer C.free(unsafe.Pointer(cSessionId))
 
-	if C.cGoCodexUploadFile(self.ctx, cSessionId, bridge.resp) != C.RET_OK {
-		return "", bridge.CallError("cGoCodexUploadFile")
+	if C.cGoCodexUploadFile(node.ctx, cSessionId, bridge.resp) != C.RET_OK {
+		return "", bridge.callError("cGoCodexUploadFile")
 	}
 
 	return bridge.wait()
 }
 
-func (self CodexNode) CodexUploadFileAsync(options CodexUploadOptions, onDone func(cid string, err error)) {
+// UploadFileAsync is the asynchronous version of UploadFile using a goroutine.
+func (node CodexNode) UploadFileAsync(options UploadOptions, onDone func(cid string, err error)) {
 	go func() {
-		cid, err := self.CodexUploadFile(options)
+		cid, err := node.UploadFile(options)
 		onDone(cid, err)
 	}()
 }
 
-func (self CodexNode) CodexDownloadManifest(cid string) (CodexManifest, error) {
-	bridge := newBridgeCtx()
-	defer bridge.free()
-
-	var cCid = C.CString(cid)
-	defer C.free(unsafe.Pointer(cCid))
-
-	if C.cGoCodexDownloadManifest(self.ctx, cCid, bridge.resp) != C.RET_OK {
-		return CodexManifest{}, bridge.CallError("cGoCodexDownloadManifest")
-	}
-
-	val, err := bridge.wait()
-	if err != nil {
-		return CodexManifest{}, err
-	}
-
-	manifest := CodexManifest{Cid: cid}
-	err = json.Unmarshal([]byte(val), &manifest)
-	if err != nil {
-		return CodexManifest{}, err
-	}
-
-	return manifest, nil
-}
-
-func (self CodexNode) CodexDownloadStream(cid string, options CodexDownloadStreamOptions) error {
-	bridge := newBridgeCtx()
-	defer bridge.free()
-
-	if options.datasetSizeAuto {
-		manifest, err := self.CodexDownloadManifest(cid)
-
-		if err != nil {
-			return err
-		}
-
-		options.datasetSize = manifest.DatasetSize
-	}
-
-	total := 0
-	bridge.onProgress = func(read int, chunk []byte) {
-		if read == 0 {
-			return
-		}
-
-		if options.writer != nil {
-			w := options.writer
-			if _, err := w.Write(chunk); err != nil {
-				if options.onProgress != nil {
-					options.onProgress(0, 0, 0.0, err)
-				}
-			}
-		}
-
-		total += read
-
-		if options.onProgress != nil {
-			var percent = 0.0
-			if options.datasetSize > 0 {
-				percent = float64(total) / float64(options.datasetSize) * 100.0
-			}
-
-			options.onProgress(read, total, percent, nil)
-		}
-	}
-
-	var cCid = C.CString(cid)
-	defer C.free(unsafe.Pointer(cCid))
-
-	var cFilepath = C.CString(options.filepath)
-	defer C.free(unsafe.Pointer(cFilepath))
-
-	var cLocal = C.bool(options.local)
-
-	if C.cGoCodexDownloadStream(self.ctx, cCid, options.chunkSize.toSizeT(), cLocal, cFilepath, bridge.resp) != C.RET_OK {
-		return bridge.CallError("cGoCodexDownloadLocal")
-	}
-
-	_, err := bridge.wait()
-
-	return err
-}
-
-func (self CodexNode) CodexDownloadInit(cid string, options CodexDownloadInitOptions) error {
-	bridge := newBridgeCtx()
-	defer bridge.free()
-
-	var cCid = C.CString(cid)
-	defer C.free(unsafe.Pointer(cCid))
-
-	var cLocal = C.bool(options.local)
-
-	if C.cGoCodexDownloadInit(self.ctx, cCid, options.chunkSize.toSizeT(), cLocal, bridge.resp) != C.RET_OK {
-		return bridge.CallError("cGoCodexDownloadInit")
-	}
-
-	_, err := bridge.wait()
-
-	return err
-}
-
-func (self CodexNode) CodexDownloadChunk(cid string) ([]byte, error) {
-	bridge := newBridgeCtx()
-	defer bridge.free()
-
-	var bytes []byte
-
-	bridge.onProgress = func(read int, chunk []byte) {
-		bytes = chunk
-	}
-
-	var cCid = C.CString(cid)
-	defer C.free(unsafe.Pointer(cCid))
-
-	if C.cGoCodexDownloadChunk(self.ctx, cCid, bridge.resp) != C.RET_OK {
-		return nil, bridge.CallError("cGoCodexDownloadChunk")
-	}
-
-	if _, err := bridge.wait(); err != nil {
-		return nil, err
-	}
-
-	return bytes, nil
-}
-
-func (self CodexNode) CodexDownloadCancel(cid string) error {
-	bridge := newBridgeCtx()
-	defer bridge.free()
-
-	var cCid = C.CString(cid)
-	defer C.free(unsafe.Pointer(cCid))
-
-	if C.cGoCodexDownloadCancel(self.ctx, cCid, bridge.resp) != C.RET_OK {
-		return bridge.CallError("cGoCodexDownloadCancel")
-	}
-
-	_, err := bridge.wait()
-
-	return err
-}
-
-func (self CodexNode) CodexStorageList() ([]CodexManifest, error) {
-	bridge := newBridgeCtx()
-	defer bridge.free()
-
-	if C.cGoCodexStorageList(self.ctx, bridge.resp) != C.RET_OK {
-		return nil, bridge.CallError("cGoCodexStorageList")
-	}
-	value, err := bridge.wait()
-	if err != nil {
-		return nil, err
-	}
-
-	var items []CodexManifestWithCid
-	err = json.Unmarshal([]byte(value), &items)
-	if err != nil {
-		return nil, err
-	}
-
-	var list []CodexManifest
-	for _, item := range items {
-		item.Manifest.Cid = item.Cid
-		list = append(list, item.Manifest)
-	}
-
-	return list, err
-}
-
-func (self CodexNode) CodexStorageFetch(cid string) (CodexManifest, error) {
-	bridge := newBridgeCtx()
-	defer bridge.free()
-
-	var cCid = C.CString(cid)
-	defer C.free(unsafe.Pointer(cCid))
-
-	if C.cGoCodexStorageFetch(self.ctx, cCid, bridge.resp) != C.RET_OK {
-		return CodexManifest{}, bridge.CallError("cGoCodexStorageFetch")
-	}
-
-	value, err := bridge.wait()
-	if err != nil {
-		return CodexManifest{}, err
-	}
-
-	var manifest CodexManifest
-	err = json.Unmarshal([]byte(value), &manifest)
-	if err != nil {
-		return CodexManifest{}, err
-	}
-
-	manifest.Cid = cid
-
-	return manifest, nil
-}
-
-func (self CodexNode) CodexStorageSpace() (CodexSpace, error) {
-	var space CodexSpace
-
-	bridge := newBridgeCtx()
-	defer bridge.free()
-
-	if C.cGoCodexStorageSpace(self.ctx, bridge.resp) != C.RET_OK {
-		return space, bridge.CallError("cGoCodexStorageSpace")
-	}
-
-	value, err := bridge.wait()
-	if err != nil {
-		return space, err
-	}
-
-	err = json.Unmarshal([]byte(value), &space)
-
-	return space, err
-}
-
-func (self CodexNode) CodexStorageDelete(cid string) error {
-	bridge := newBridgeCtx()
-	defer bridge.free()
-
-	var cCid = C.CString(cid)
-	defer C.free(unsafe.Pointer(cCid))
-
-	if C.cGoCodexStorageDelete(self.ctx, cCid, bridge.resp) != C.RET_OK {
-		return bridge.CallError("cGoCodexStorageDelete")
-	}
-
-	_, err := bridge.wait()
-	return err
-}
-
-func (self CodexNode) CodexStart() error {
-	bridge := newBridgeCtx()
-	defer bridge.free()
-
-	if C.cGoCodexStart(self.ctx, bridge.resp) != C.RET_OK {
-		return bridge.CallError("cGoCodexStart")
-	}
-
-	_, err := bridge.wait()
-
-	return err
-}
-
-func (self CodexNode) CodexStartAsync(onDone func(error)) {
-	go func() {
-		err := self.CodexStart()
-		onDone(err)
-	}()
-}
-
-func (self CodexNode) CodexStop() error {
-	bridge := newBridgeCtx()
-
-	if C.cGoCodexStop(self.ctx, bridge.resp) != C.RET_OK {
-		return bridge.CallError("cGoCodexStop")
-	}
-
-	_, err := bridge.wait()
-	return err
-}
-
-func (self CodexNode) CodexDestroy() error {
-	bridge := newBridgeCtx()
-
-	if C.cGoCodexDestroy(self.ctx, bridge.resp) != C.RET_OK {
-		return bridge.CallError("cGoCodexDestroy")
-	}
-
-	_, err := bridge.wait()
-	return err
-}
-
-//export globalEventCallback
-func globalEventCallback(callerRet C.int, msg *C.char, len C.size_t, userData unsafe.Pointer) {
-	// This is shared among all Golang instances
-
-	self := CodexNode{ctx: userData}
-	self.MyEventCallback(callerRet, msg, len)
-}
-
-func (self CodexNode) MyEventCallback(callerRet C.int, msg *C.char, len C.size_t) {
-	log.Println("Event received:", C.GoStringN(msg, C.int(len)))
-}
-
-func (self CodexNode) CodexSetEventCallback() {
-	// Notice that the events for self node are handled by the 'MyEventCallback' method
-	C.cGoCodexSetEventCallback(self.ctx)
-}
-
 func main() {
-	config := CodexConfig{}
-
-	node, err := CodexNew(config)
+	node, err := New(Config{
+		BlockRetries: 5,
+	})
 	if err != nil {
-		log.Fatal("Error happened:", err.Error())
+		log.Fatalf("Failed to create Codex node: %v", err)
 	}
 
-	log.Println("Codex created.")
-
-	node.CodexSetEventCallback()
-
-	version, err := node.CodexVersion()
+	version, err := node.Version()
 	if err != nil {
-		log.Fatal("Error happened:", err.Error())
+		log.Fatalf("Failed to get Codex version: %v", err)
 	}
+	log.Printf("Codex version: %s", version)
 
-	log.Println("Codex version:", version)
-
-	revision, err := node.CodexRevision()
-	if err != nil {
-		log.Fatal("Error happened:", err.Error())
+	if err := node.Start(); err != nil {
+		log.Fatalf("Failed to start Codex node: %v", err)
 	}
-
-	log.Println("Codex revision:", revision)
-
-	repo, err := node.CodexRepo()
-	if err != nil {
-		log.Fatal("Error happened:", err.Error())
-	}
-
-	log.Println("Codex repo:", repo)
-
-	log.Println("Starting Codex...")
-
-	err = node.CodexStart()
-
-	if err != nil {
-		log.Fatal("Error happened:", err.Error())
-	}
-
-	log.Println("Codex started...")
-
-	// for i := 0; i < 150; i++ {
-
-	debug, err := node.CodexDebug()
-	if err != nil {
-		log.Fatal("Error happened:", err.Error())
-	}
-
-	pretty, err := json.MarshalIndent(debug, "", "  ")
-	if err != nil {
-		log.Fatal("Error happened:", err.Error())
-	}
-
-	log.Println(string(pretty))
-
-	spr, err := node.CodexSpr()
-	if err != nil {
-		log.Fatal("Error happened:", err.Error())
-	}
-
-	log.Println("Codex SPR:", spr)
-
-	peerId, err := node.CodexPeerId()
-	if err != nil {
-		log.Fatal("Error happened:", err.Error())
-	}
-
-	log.Println("Codex Peer Id:", peerId)
-
-	err = node.CodexLogLevel(Trace)
-	if err != nil {
-		log.Fatal("Error happened:", err.Error())
-	}
-
-	log.Println("Codex Log Level set to TRACE")
-
-	sessionId, err := node.CodexUploadInit(&CodexUploadOptions{filepath: "hello.txt"})
-	if err != nil {
-		log.Fatal("Error happened:", err.Error())
-	}
-	log.Println("Codex Upload Init sessionId:", sessionId)
-
-	err = node.CodexUploadChunk(sessionId, []byte("Hello "))
-	if err != nil {
-		log.Fatal("Error happened:", err.Error())
-	}
-
-	err = node.CodexUploadChunk(sessionId, []byte("World!"))
-	if err != nil {
-		log.Fatal("Error happened:", err.Error())
-	}
-
-	cid, err := node.CodexUploadFinalize(sessionId)
-	if err != nil {
-		log.Fatal("Error happened:", err.Error())
-	}
-
-	log.Println("Codex Upload Finalized, cid:", cid)
+	log.Println("Codex node started")
 
 	buf := bytes.NewBuffer([]byte("Hello World!"))
-	cid, err = node.CodexUploadReader(CodexUploadOptions{filepath: "hello.txt", onProgress: func(read, total int, percent float64, err error) {
-		if err != nil {
-			log.Fatalf("Error happened during upload: %v\n", err)
-		}
-
-		log.Printf("Uploaded %d bytes, total %d bytes (%.2f%%)\n", read, total, percent)
-	}}, buf)
+	len := buf.Len()
+	cid, err := node.UploadReader(UploadOptions{Filepath: "hello.txt"}, buf)
 	if err != nil {
-		log.Fatal("Error happened:", err.Error())
+		log.Fatalf("Failed to upload data: %v", err)
 	}
-
-	log.Println("Codex Upload Finalized from reader, cid:", cid)
-
-	current, err := os.Getwd()
-	if err != nil {
-		log.Fatal("Error happened:", err.Error())
-	}
-	// Choose a big file to see the progress logs
-	filepath := path.Join(current, "examples", "golang", "hello.txt")
-	//filepath := path.Join(current, "examples", "golang", "discord-0.0.109.deb")
-
-	options := CodexUploadOptions{filepath: filepath, onProgress: func(read, total int, percent float64, err error) {
-		if err != nil {
-			log.Fatalf("Error happened during upload: %v\n", err)
-		}
-
-		log.Printf("Uploaded %d bytes, total %d bytes (%.2f%%)\n", read, total, percent)
-	}}
-
-	cid, err = node.CodexUploadFile(options)
-
-	if err != nil {
-		log.Fatal("Error happened:", err.Error())
-	}
-
-	log.Println("Codex Upload File finalized, cid: .", cid)
-
-	f, err := os.Create("hello.loaded.txt")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer f.Close()
-
-	if err := node.CodexDownloadStream(cid,
-		CodexDownloadStreamOptions{writer: f, filepath: "hello.reloaded.txt",
-			onProgress: func(read, total int, percent float64, err error) {
-				log.Println("Downloaded", read, "bytes. Total:", total, "bytes (", percent, "%)")
-			},
-		}); err != nil {
-		log.Fatal("Error happened:", err.Error())
-	}
-
-	log.Println("Codex Download finished.")
-
-	// log.Println("Codex Download Init starting... attempt", i+1)
-
-	if err := node.CodexDownloadInit(cid, CodexDownloadInitOptions{local: true}); err != nil {
-		log.Fatal("Error happened:", err.Error())
-	}
-
-	log.Println("Codex Download Init finished.")
-
-	// log.Println("Codex Download Chunk starting... attempt", i+1)
-
-	chunk, err := node.CodexDownloadChunk(cid)
-	if err != nil {
-		log.Fatal("Error happened:", err.Error())
-	}
-
-	log.Println("Codex Download Chunk finished. Size:", len(chunk))
-
-	if err := node.CodexDownloadCancel(cid); err != nil {
-		log.Fatal("Error happened:", err.Error())
-	}
-
-	log.Println("Codex Download Cancel finished.")
-
-	manifest, err := node.CodexDownloadManifest(cid)
-	if err != nil {
-		log.Fatal("Error happened:", err.Error())
-	}
-
-	log.Println("Manifest content:", manifest)
-
-	manifests, err := node.CodexStorageList()
-	if err != nil {
-		log.Fatal("Error happened:", err.Error())
-	}
-
-	log.Println("Storage List content:", manifests)
-
-	manifest, err = node.CodexStorageFetch(cid)
-	if err != nil {
-		log.Fatal("Error happened:", err.Error())
-	}
-
-	log.Println("Storage Fetch content:", manifest)
-
-	space, err := node.CodexStorageSpace()
-	if err != nil {
-		log.Fatal("Error happened:", err.Error())
-	}
-
-	log.Println("Storage Space content:", space)
-
-	if err := node.CodexStorageDelete(cid); err != nil {
-		log.Fatal("Error happened:", err.Error())
-	}
-
-	log.Println("Storage Delete finished.")
-	// }
-
-	// err = node.CodexConnect(peerId, []string{})
-	// if err != nil {
-	// 	log.Fatal("Error happened:", err.Error())
-	// }
-
-	// log.Println("Codex connecting to self...")
-
-	// val, err := node.CodexPeerDebug(peerId)
-	// if err != nil {
-	// 	log.Fatal("Error happened:", err.Error())
-	// }
-
-	// log.Println("Codex debugging self...", val)
+	log.Printf("Uploaded data with CID: %s (size: %d bytes)", cid, len)
 
 	// Wait for a SIGINT or SIGTERM signal
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
 	<-ch
 
-	log.Println("Stopping the node...")
-
-	err = node.CodexStop()
-
-	if err != nil {
-		log.Fatal("Error happened:", err.Error())
+	if err := node.Stop(); err != nil {
+		log.Fatalf("Failed to stop Codex node: %v", err)
 	}
+	log.Println("Codex node stopped")
 
-	log.Println("Codex stopped...")
-
-	log.Println("Destroying the node...")
-
-	err = node.CodexDestroy()
-	if err != nil {
-		log.Fatal("Error happened:", err.Error())
+	if err := node.Destroy(); err != nil {
+		log.Fatalf("Failed to destroy Codex node: %v", err)
 	}
 }
