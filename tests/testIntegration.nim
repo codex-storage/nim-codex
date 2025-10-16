@@ -12,7 +12,11 @@ when includes != "":
   importAll(includes.split(","))
 else:
   # import all tests in the integration/ directory
-  importTests(currentSourcePath().parentDir() / "integration" / "1_minute")
-  importTests(currentSourcePath().parentDir() / "integration" / "5_minutes")
+  importTests(
+    currentSourcePath().parentDir() / "integration" / "1_minute", "testpurchasing"
+  )
+  importTests(
+    currentSourcePath().parentDir() / "integration" / "5_minutes", "testsales"
+  )
 
 {.warning[UnusedImport]: off.}
