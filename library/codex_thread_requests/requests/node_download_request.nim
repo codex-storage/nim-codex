@@ -89,12 +89,12 @@ proc init(
   ## If the chunkSize is 0, the default block size will be used.
   ## If local is true, the file will be retrived from the local store.
 
-  if downloadSessions.contains($cCid):
-    return ok("Download session already exists.")
-
   let cid = Cid.init($cCid)
   if cid.isErr:
     return err("Failed to download locally: cannot parse cid: " & $cCid)
+
+  if downloadSessions.contains($cid):
+    return ok("Download session already exists.")
 
   let node = codex[].node
   var stream: LPStream
@@ -114,7 +114,7 @@ proc init(
   return ok("")
 
 proc chunk(
-    codex: ptr CodexServer, cid: cstring = "", onChunk: OnChunkHandler
+    codex: ptr CodexServer, cCid: cstring = "", onChunk: OnChunkHandler
 ): Future[Result[string, string]] {.async: (raises: []).} =
   ## Download the next chunk of the file identified by cid.
   ## The chunk is passed to the onChunk handler.
@@ -123,6 +123,10 @@ proc chunk(
   ##
   ## If an error is raised while reading the stream, the session is deleted
   ## and an error is returned.
+
+  let cid = Cid.init($cCid)
+  if cid.isErr:
+    return err("Failed to download locally: cannot parse cid: " & $cCid)
 
   if not downloadSessions.contains($cid):
     return err("Failed to download chunk: no session for cid " & $cid)
@@ -220,13 +224,13 @@ proc stream(
     return err("Failed to download locally: cannot parse cid: " & $cCid)
 
   if not downloadSessions.contains($cid):
-    return err("Failed to download chunk: no session for cid " & $cid)
+    return err("Failed to download stream: no session for cid " & $cid)
 
   var session: DownloadSession
   try:
     session = downloadSessions[$cid]
   except KeyError:
-    return err("Failed to download chunk: no session for cid " & $cid)
+    return err("Failed to download stream: no session for cid " & $cid)
 
   let node = codex[].node
 
