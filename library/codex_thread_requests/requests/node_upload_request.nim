@@ -14,8 +14,7 @@
 ## 2. Directly from a file path: the filepath has to be absolute.
 ##  - INIT: creates a new upload session and returns its ID
 ##  - FILE: starts the upload and returns the CID of the uploaded file
-## Cancel is not supported in this mode because the worker will be busy
-## uploading the file so it cannot pickup another request to cancel the upload.
+##  - CANCEL: cancels the upload session.
 
 import std/[options, os, mimetypes]
 import chronos
@@ -248,9 +247,6 @@ proc cancel(
   ## Cancel the upload session identified by sessionId.
   ## This cancels the `node.store` future and removes the session
   ## from the table.
-  ## This operation is not supported when uploading file because
-  ## the worker will be busy uploading the file so it cannot pickup
-  ## another request to cancel the upload.
 
   if not uploadSessions.contains($sessionId):
     return err("Failed to cancel the upload session, session not found: " & $sessionId)
