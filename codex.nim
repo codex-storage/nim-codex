@@ -54,6 +54,16 @@ when isMainModule:
     ,
   )
   config.setupLogging()
+
+  try:
+    updateLogLevel(config.logLevel)
+  except ValueError as err:
+    try:
+      stderr.write "Invalid value for --log-level. " & err.msg & "\n"
+    except IOError:
+      echo "Invalid value for --log-level. " & err.msg
+    quit QuitFailure
+
   config.setupMetrics()
 
   if not (checkAndCreateDataDir((config.dataDir).string)):
@@ -94,7 +104,7 @@ when isMainModule:
 
   ## Ctrl+C handling
   proc doShutdown() =
-    shutdown = server.stop()
+    shutdown = server.shutdown()
     state = CodexStatus.Stopping
 
     notice "Stopping Codex"

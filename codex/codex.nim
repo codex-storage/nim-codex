@@ -61,6 +61,15 @@ type
   CodexPrivateKey* = libp2p.PrivateKey # alias
   EthWallet = ethers.Wallet
 
+func config*(self: CodexServer): CodexConf =
+  return self.config
+
+func node*(self: CodexServer): CodexNodeRef =
+  return self.codexNode
+
+func repoStore*(self: CodexServer): RepoStore =
+  return self.repoStore
+
 proc waitForSync(provider: Provider): Future[void] {.async.} =
   var sleepTime = 1
   trace "Checking sync state of Ethereum provider..."
@@ -160,8 +169,8 @@ proc bootstrapInteractions(s: CodexServer): Future[void] {.async.} =
 
 proc start*(s: CodexServer) {.async.} =
   trace "Starting codex node", config = $s.config
-
   await s.repoStore.start()
+
   s.maintenance.start()
 
   await s.codexNode.switch.start()
@@ -175,27 +184,49 @@ proc start*(s: CodexServer) {.async.} =
 
   await s.bootstrapInteractions()
   await s.codexNode.start()
-  s.restServer.start()
+
+  if s.restServer != nil:
+    s.restServer.start()
 
 proc stop*(s: CodexServer) {.async.} =
   notice "Stopping codex node"
 
-  let res = await noCancel allFinishedFailed[void](
+  var futures =
     @[
-      s.restServer.stop(),
       s.codexNode.switch.stop(),
       s.codexNode.stop(),
       s.repoStore.stop(),
       s.maintenance.stop(),
     ]
-  )
+
+  if s.restServer != nil:
+    futures.add(s.restServer.stop())
+
+  let res = await noCancel allFinishedFailed[void](futures)
 
   if res.failure.len > 0:
     error "Failed to stop codex node", failures = res.failure.len
     raiseAssert "Failed to stop codex node"
 
+proc close*(s: CodexServer) {.async.} =
+  var futures = @[s.codexNode.close(), s.repoStore.close()]
+
+  let res = await noCancel allFinishedFailed[void](futures)
+
   if not s.taskpool.isNil:
-    s.taskpool.shutdown()
+    try:
+      s.taskpool.shutdown()
+    except Exception as exc:
+      error "Failed to stop the taskpool", failures = res.failure.len
+      raiseAssert("Failure in taskpool shutdown:" & exc.msg)
+
+  if res.failure.len > 0:
+    error "Failed to close codex node", failures = res.failure.len
+    raiseAssert "Failed to close codex node"
+
+proc shutdown*(server: CodexServer) {.async.} =
+  await server.stop()
+  await server.close()
 
 proc new*(
     T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey
@@ -295,7 +326,7 @@ proc new*(
     )
 
     peerStore = PeerCtxStore.new()
-    pendingBlocks = PendingBlocksManager.new()
+    pendingBlocks = PendingBlocksManager.new(retries = config.blockRetries)
     advertiser = Advertiser.new(repoStore, discovery)
     blockDiscovery =
       DiscoveryEngine.new(repoStore, peerStore, network, discovery, pendingBlocks)
@@ -320,10 +351,13 @@ proc new*(
       taskPool = taskpool,
     )
 
+  var restServer: RestServerRef = nil
+
+  if config.apiBindAddress.isSome:
     restServer = RestServerRef
       .new(
         codexNode.initRestApi(config, repoStore, config.apiCorsAllowedOrigin),
-        initTAddress(config.apiBindAddress, config.apiPort),
+        initTAddress(config.apiBindAddress.get(), config.apiPort),
         bufferSize = (1024 * 64),
         maxRequestBodySize = int.high,
       )
