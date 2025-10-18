@@ -85,9 +85,10 @@ declareCounter(
 const
   DefaultMaxPeersPerRequest* = 10
   # The default max message length of nim-libp2p is 100 megabytes, meaning we can
-  # in principle fit up to 1600 64k blocks per message, so 50 is well under
-  # that number.
-  DefaultMaxBlocksPerMessage = 50
+  # in principle fit up to 1600 64k blocks per message. However, in environments
+  # with slow networking, large messages can cause mplex write queue overflow (MaxWrites=1024).
+  # Reducing to 10 blocks (640KB) for now prevents stream resets while still being efficient.
+  DefaultMaxBlocksPerMessage = 10
   DefaultTaskQueueSize = 100
   DefaultConcurrentTasks = 10
   # Don't do more than one discovery request per `DiscoveryRateLimit` seconds.
@@ -132,6 +133,33 @@ proc scheduleTask(self: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, raises:
 
 proc blockexcTaskRunner(self: BlockExcEngine) {.async: (raises: []).}
 
+proc memoryStatsLogger(self: BlockExcEngine) {.async: (raises: []).} =
+  ## Periodically log GC memory statistics
+  ##
+  while self.blockexcRunning:
+    try:
+      GC_fullCollect()
+      let
+        totalMem = getTotalMem()
+        occupiedMem = getOccupiedMem()
+        freeMem = getFreeMem()
+
+      info "GC Memory Stats",
+        totalMemKB = totalMem div 1024,
+        occupiedMemKB = occupiedMem div 1024,
+        freeMemKB = freeMem div 1024,
+        peers = self.peers.len,
+        taskQueueLen = self.taskQueue.len,
+        pendingBlocksCount = self.pendingBlocks.len
+
+      await sleepAsync(5.seconds)
+    except CancelledError:
+      trace "Memory stats logger cancelled"
+      break
+    except CatchableError as exc:
+      warn "Error in memory stats logger", error = exc.msg
+      break
+
 proc start*(self: BlockExcEngine) {.async: (raises: []).} =
   ## Start the blockexc task
   ##
@@ -147,6 +175,10 @@ proc start*(self: BlockExcEngine) {.async: (raises: []).} =
   for i in 0 ..< self.concurrentTasks:
     let fut = self.blockexcTaskRunner()
     self.trackedFutures.track(fut)
+
+  # Start memory stats logger
+  let memStatsFut = self.memoryStatsLogger()
+  self.trackedFutures.track(memStatsFut)
 
 proc stop*(self: BlockExcEngine) {.async: (raises: []).} =
   ## Stop the blockexc blockexc
