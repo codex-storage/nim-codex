@@ -84,9 +84,9 @@ declareCounter(
 const
   DefaultMaxPeersPerRequest* = 10
   # The default max message length of nim-libp2p is 100 megabytes, meaning we can
-  # in principle fit up to 1600 64k blocks per message, so 50 is well under
+  # in principle fit up to 1600 64k blocks per message, so 20 is well under
   # that number.
-  DefaultMaxBlocksPerMessage = 50
+  DefaultMaxBlocksPerMessage = 20
   DefaultTaskQueueSize = 100
   DefaultConcurrentTasks = 10
   # Don't do more than one discovery request per `DiscoveryRateLimit` seconds.
@@ -184,17 +184,74 @@ proc sendWantBlock(
   codex_block_exchange_want_block_lists_sent.inc()
 
 proc refreshBlockKnowledge(
-    self: BlockExcEngine, peer: BlockExcPeerCtx
+    self: BlockExcEngine, peer: BlockExcPeerCtx, skipDelta = false, resetBackoff = false
 ) {.async: (raises: [CancelledError]).} =
-  if self.pendingBlocks.wantListLen > 0:
-    # We send only blocks that the peer hasn't already told us that they already have.
-    let
-      peerHave = peer.peerHave
-      toAsk = self.pendingBlocks.wantList.toSeq.filterIt(it notin peerHave)
+  if self.pendingBlocks.wantListLen == 0:
+    if peer.lastSentWants.len > 0:
+      trace "Clearing want list tracking, no pending blocks", peer = peer.id
+      peer.lastSentWants.clear()
+    return
 
-    if toAsk.len > 0:
-      trace "Sending want list to a peer", peer = peer.id, length = toAsk.len
-      await self.network.request.sendWantList(peer.id, toAsk, full = true)
+  # We send only blocks that the peer hasn't already told us that they already have.
+  let
+    peerHave = peer.peerHave
+    toAsk = toHashSet(self.pendingBlocks.wantList.toSeq.filterIt(it notin peerHave))
+
+  if toAsk.len == 0:
+    if peer.lastSentWants.len > 0:
+      trace "Clearing want list tracking, peer has all blocks", peer = peer.id
+      peer.lastSentWants.clear()
+    return
+
+  let newWants = toAsk - peer.lastSentWants
+
+  if peer.lastSentWants.len > 0 and not skipDelta:
+    if newWants.len > 0:
+      trace "Sending delta want list update",
+        peer = peer.id, newWants = newWants.len, totalWants = toAsk.len
+
+      let newWantsSeq = newWants.toSeq
+      var offset = 0
+      while offset < newWantsSeq.len:
+        let batchEnd = min(offset + MaxWantListBatchSize, newWantsSeq.len)
+        let batch = newWantsSeq[offset ..< batchEnd]
+
+        trace "Sending want list batch",
+          peer = peer.id,
+          batchSize = batch.len,
+          offset = offset,
+          total = newWantsSeq.len
+
+        await self.network.request.sendWantList(peer.id, batch, full = false)
+        for address in batch:
+          peer.lastSentWants.incl(address)
+
+        offset = batchEnd
+
+      if resetBackoff:
+        peer.wantsUpdated
+    else:
+      trace "No changes in want list, skipping send", peer = peer.id
+      peer.lastSentWants = toAsk
+  else:
+    trace "Sending full want list", peer = peer.id, length = toAsk.len
+
+    let toAskSeq = toAsk.toSeq
+    var offset = 0
+    while offset < toAskSeq.len:
+      let batchEnd = min(offset + MaxWantListBatchSize, toAskSeq.len)
+      let batch = toAskSeq[offset ..< batchEnd]
+
+      trace "Sending full want list batch",
+        peer = peer.id, batchSize = batch.len, offset = offset, total = toAskSeq.len
+
+      await self.network.request.sendWantList(peer.id, batch, full = (offset == 0))
+      for address in batch:
+        peer.lastSentWants.incl(address)
+      offset = batchEnd
+
+    if resetBackoff:
+      peer.wantsUpdated
 
 proc refreshBlockKnowledge(self: BlockExcEngine) {.async: (raises: [CancelledError]).} =
   let runtimeQuota = 10.milliseconds
@@ -211,13 +268,16 @@ proc refreshBlockKnowledge(self: BlockExcEngine) {.async: (raises: [CancelledErr
     #
 
     # In dynamic swarms, staleness will dominate latency.
-    if peer.isKnowledgeStale or peer.lastRefresh < self.pendingBlocks.lastInclusion:
+    let
+      hasNewBlocks = peer.lastRefresh < self.pendingBlocks.lastInclusion
+      isKnowledgeStale = peer.isKnowledgeStale
+
+    if isKnowledgeStale or hasNewBlocks:
       if not peer.refreshInProgress:
         peer.refreshRequested()
-        # TODO: optimize this by keeping track of what was sent and sending deltas.
-        #   This should allow us to run much more frequent refreshes, and be way more
-        #   efficient about it.
-        await self.refreshBlockKnowledge(peer)
+        await self.refreshBlockKnowledge(
+          peer, skipDelta = isKnowledgeStale, resetBackoff = hasNewBlocks
+        )
     else:
       trace "Not refreshing: peer is up to date", peer = peer.id
 

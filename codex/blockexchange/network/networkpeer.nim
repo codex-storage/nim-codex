@@ -65,7 +65,9 @@ proc readLoop*(self: NetworkPeer, conn: Connection) {.async: (raises: []).} =
   except CatchableError as err:
     warn "Exception in blockexc read loop", msg = err.msg
   finally:
-    trace "Detaching read loop", peer = self.id, connId = conn.oid
+    warn "Detaching read loop", peer = self.id, connId = conn.oid
+    if self.sendConn == conn:
+      self.sendConn = nil
     await conn.close()
 
 proc connect*(
@@ -89,7 +91,12 @@ proc send*(
     return
 
   trace "Sending message", peer = self.id, connId = conn.oid
-  await conn.writeLp(protobufEncode(msg))
+  try:
+    await conn.writeLp(protobufEncode(msg))
+  except CatchableError as err:
+    if self.sendConn == conn:
+      self.sendConn = nil
+    raise newException(LPStreamError, "Failed to send message: " & err.msg)
 
 func new*(
     T: type NetworkPeer,
