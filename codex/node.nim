@@ -53,7 +53,7 @@ logScope:
   topics = "codex node"
 
 const
-  DefaultFetchBatch = 8192
+  DefaultFetchBatch = 2048
   MaxOnBatchBlocks = 128
 
 type

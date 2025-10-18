@@ -211,7 +211,7 @@ proc new*(
     .withMaxConnections(config.maxPeers)
     .withAgentVersion(config.agentString)
     .withSignedPeerRecord(true)
-    .withTcpTransport({ServerFlags.ReuseAddr})
+    .withTcpTransport({ServerFlags.ReuseAddr, ServerFlags.TcpNoDelay})
     .build()
 
   var
