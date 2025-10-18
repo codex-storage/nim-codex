@@ -28,6 +28,7 @@ export payments, nitro
 const
   MinRefreshInterval = 1.seconds
   MaxRefreshBackoff = 36 # 36 seconds
+  MaxWantListBatchSize* = 1024 # Maximum blocks to send per WantList message
 
 type BlockExcPeerCtx* = ref object of RootObj
   id*: PeerId
@@ -43,6 +44,8 @@ type BlockExcPeerCtx* = ref object of RootObj
   blocksRequested*: HashSet[BlockAddress] # pending block requests to this peer
   lastExchange*: Moment # last time peer has sent us a block
   activityTimeout*: Duration
+  lastSentWants*: HashSet[BlockAddress]
+    # track what wantList we last sent for delta updates
 
 proc isKnowledgeStale*(self: BlockExcPeerCtx): bool =
   let staleness =
@@ -75,6 +78,9 @@ proc refreshReplied*(self: BlockExcPeerCtx) =
   self.refreshBackoff = min(self.refreshBackoff * 2, MaxRefreshBackoff)
 
 proc havesUpdated(self: BlockExcPeerCtx) =
+  self.refreshBackoff = 1
+
+proc wantsUpdated*(self: BlockExcPeerCtx) =
   self.refreshBackoff = 1
 
 proc peerHave*(self: BlockExcPeerCtx): HashSet[BlockAddress] =
