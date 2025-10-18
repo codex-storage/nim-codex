@@ -3,6 +3,7 @@ import std/sequtils
 
 import pkg/unittest2
 import pkg/libp2p
+import pkg/lrucache
 
 import pkg/codex/blockexchange/peers
 import pkg/codex/blockexchange/protobuf/blockexc
@@ -56,13 +57,9 @@ suite "Peer Context Store Peer Selection":
     peerCtxs = @[]
 
   test "Should select peers that have Cid":
-    peerCtxs[0].blocks = collect(initTable):
-      for i, a in addresses:
-        {a: Presence(address: a, price: i.u256)}
-
-    peerCtxs[5].blocks = collect(initTable):
-      for i, a in addresses:
-        {a: Presence(address: a, price: i.u256)}
+    for i, a in addresses:
+      peerCtxs[0].blocks[a] = Presence(address: a, price: i.u256)
+      peerCtxs[5].blocks[a] = Presence(address: a, price: i.u256)
 
     let peers = store.peersHave(addresses[0])
 
@@ -81,8 +78,9 @@ suite "Peer Context Store Peer Selection":
       )
     )
 
-    peerCtxs[0].peerWants = entries
-    peerCtxs[5].peerWants = entries
+    for address in addresses:
+      peerCtxs[0].wantedBlocks.incl(address)
+      peerCtxs[5].wantedBlocks.incl(address)
 
     let peers = store.peersWant(addresses[4])
 

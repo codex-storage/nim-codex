@@ -3,6 +3,7 @@ import std/sequtils
 import pkg/libp2p
 import pkg/nitro
 import pkg/stint
+import pkg/lrucache
 import pkg/codex/rng
 import pkg/codex/stores
 import pkg/codex/blocktype as bt
@@ -38,16 +39,15 @@ proc example*(_: type Pricing): Pricing =
   Pricing(address: EthAddress.example, price: uint32.rand.u256)
 
 proc example*(_: type bt.Block, size: int = 4096): bt.Block =
-  let length = rand(size)
-  let bytes = newSeqWith(length, rand(uint8))
+  let bytes = newSeqWith(size, rand(uint8))
   bt.Block.new(bytes).tryGet()
 
 proc example*(_: type PeerId): PeerId =
   let key = PrivateKey.random(Rng.instance[]).get
   PeerId.init(key.getPublicKey().get).get
 
-proc example*(_: type BlockExcPeerCtx): BlockExcPeerCtx =
-  BlockExcPeerCtx(id: PeerId.example)
+proc example*(_: type BlockExcPeerCtx, size: int = 8192): BlockExcPeerCtx =
+  BlockExcPeerCtx(id: PeerId.example, blocks: newLruCache[BlockAddress, Presence](size))
 
 proc example*(_: type Cid): Cid =
   bt.Block.example.cid
