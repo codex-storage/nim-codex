@@ -235,7 +235,8 @@ proc stream(
   let node = codex[].node
 
   try:
-    let res = await noCancel codex.streamData(session.stream, onChunk, chunkSize, filepath)
+    let res =
+      await noCancel codex.streamData(session.stream, onChunk, chunkSize, filepath)
     if res.isErr:
       return err($res.error)
   except LPStreamError as e:
