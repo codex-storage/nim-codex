@@ -388,7 +388,7 @@ proc codex_download_init(
     ctx, RequestType.DOWNLOAD, req, callback, userData
   )
 
-  result = callback.okOrError(res, userData)
+  return callback.okOrError(res, userData)
 
 proc codex_download_chunk(
     ctx: ptr CodexContext, cid: cstring, callback: CodexCallback, userData: pointer
@@ -402,7 +402,7 @@ proc codex_download_chunk(
     ctx, RequestType.DOWNLOAD, req, callback, userData
   )
 
-  result = callback.okOrError(res, userData)
+  return callback.okOrError(res, userData)
 
 proc codex_download_stream(
     ctx: ptr CodexContext,
@@ -428,7 +428,7 @@ proc codex_download_stream(
     ctx, RequestType.DOWNLOAD, req, callback, userData
   )
 
-  result = callback.okOrError(res, userData)
+  return callback.okOrError(res, userData)
 
 proc codex_download_cancel(
     ctx: ptr CodexContext, cid: cstring, callback: CodexCallback, userData: pointer
@@ -442,7 +442,7 @@ proc codex_download_cancel(
     ctx, RequestType.DOWNLOAD, req, callback, userData
   )
 
-  result = callback.okOrError(res, userData)
+  return callback.okOrError(res, userData)
 
 proc codex_download_manifest(
     ctx: ptr CodexContext, cid: cstring, callback: CodexCallback, userData: pointer
@@ -456,7 +456,7 @@ proc codex_download_manifest(
     ctx, RequestType.DOWNLOAD, req, callback, userData
   )
 
-  result = callback.okOrError(res, userData)
+  return callback.okOrError(res, userData)
 
 proc codex_storage_list(
     ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
@@ -470,7 +470,7 @@ proc codex_storage_list(
     ctx, RequestType.STORAGE, req, callback, userData
   )
 
-  result = callback.okOrError(res, userData)
+  return callback.okOrError(res, userData)
 
 proc codex_storage_space(
     ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
@@ -484,7 +484,7 @@ proc codex_storage_space(
     ctx, RequestType.STORAGE, req, callback, userData
   )
 
-  result = callback.okOrError(res, userData)
+  return callback.okOrError(res, userData)
 
 proc codex_storage_delete(
     ctx: ptr CodexContext, cid: cstring, callback: CodexCallback, userData: pointer
@@ -498,7 +498,7 @@ proc codex_storage_delete(
     ctx, RequestType.STORAGE, req, callback, userData
   )
 
-  result = callback.okOrError(res, userData)
+  return callback.okOrError(res, userData)
 
 proc codex_storage_fetch(
     ctx: ptr CodexContext, cid: cstring, callback: CodexCallback, userData: pointer
@@ -512,7 +512,7 @@ proc codex_storage_fetch(
     ctx, RequestType.STORAGE, req, callback, userData
   )
 
-  result = callback.okOrError(res, userData)
+  return callback.okOrError(res, userData)
 
 proc codex_start(
     ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
