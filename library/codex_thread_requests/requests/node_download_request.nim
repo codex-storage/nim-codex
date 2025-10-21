@@ -235,15 +235,13 @@ proc stream(
   let node = codex[].node
 
   try:
-    let res = await codex.streamData(session.stream, onChunk, chunkSize, filepath)
+    let res = await noCancel codex.streamData(session.stream, onChunk, chunkSize, filepath)
     if res.isErr:
       return err($res.error)
   except LPStreamError as e:
     return err("Failed to stream file: " & $e.msg)
   except IOError as e:
     return err("Failed to stream file: " & $e.msg)
-  except CancelledError:
-    return err("Failed to stream file: download cancelled.")
   finally:
     if session.stream != nil:
       await session.stream.close()
