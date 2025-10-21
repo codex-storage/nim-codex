@@ -221,16 +221,16 @@ proc stream(
 
   let cid = Cid.init($cCid)
   if cid.isErr:
-    return err("Failed to download locally: cannot parse cid: " & $cCid)
+    return err("Failed to stream: cannot parse cid: " & $cCid)
 
   if not downloadSessions.contains($cid):
-    return err("Failed to download stream: no session for cid " & $cid)
+    return err("Failed to stream: no session for cid " & $cid)
 
   var session: DownloadSession
   try:
     session = downloadSessions[$cid]
   except KeyError:
-    return err("Failed to download stream: no session for cid " & $cid)
+    return err("Failed to stream: no session for cid " & $cid)
 
   let node = codex[].node
 
@@ -241,9 +241,9 @@ proc stream(
   except LPStreamError as e:
     return err("Failed to stream file: " & $e.msg)
   except IOError as e:
-    return err("Failed to write to file: " & $e.msg)
+    return err("Failed to stream file: " & $e.msg)
   except CancelledError:
-    return err("Failed to download locally: download cancelled.")
+    return err("Failed to stream file: download cancelled.")
   finally:
     if session.stream != nil:
       await session.stream.close()
@@ -260,16 +260,18 @@ proc cancel(
 
   let cid = Cid.init($cCid)
   if cid.isErr:
-    return err("Failed to download locally: cannot parse cid: " & $cCid)
+    return err("Failed to cancel : cannot parse cid: " & $cCid)
 
   if not downloadSessions.contains($cid):
-    return err("Failed to download chunk: no session for cid " & $cid)
+    # The session is already cancelled
+    return ok("")
 
   var session: DownloadSession
   try:
     session = downloadSessions[$cid]
   except KeyError:
-    return err("Failed to download chunk: no session for cid " & $cid)
+    # The session is already cancelled
+    return ok("")
 
   let stream = session.stream
   await stream.close()
