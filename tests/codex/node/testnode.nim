@@ -230,7 +230,7 @@ asyncchecksuite "Test Node - Basic":
     for blk in blocks:
       check not (await blk.cid in localStore)
 
-  test "Should returns true when a cid is already in the local store":
+  test "Should return true when a cid is already in the local store":
     let
       blocks = await makeRandomBlocks(datasetSize = 1024, blockSize = 256'nb)
       manifest = await storeDataGetManifest(localStore, blocks)

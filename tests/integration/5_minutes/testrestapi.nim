@@ -220,3 +220,13 @@ twonodessuite "REST API":
 
     let response2 = await client1.downloadRaw($cid)
     check (await response2.body) == contents
+
+  test "should returns true when the block exists", twoNodesConfig:
+    let cid = (await client2.upload("some file contents")).get
+
+    var response = await client1.hasBlock(cid)
+    check response.get() == false
+
+    discard (await client1.download(cid)).get
+    response = await client1.hasBlock(cid)
+    check response.get() == false
