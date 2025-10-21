@@ -727,7 +727,7 @@ paths:
         "500":
           description: Well it was bad-bad
 
-  "/data/{cid}/has":
+  "/data/{cid}/exists":
     get:
       summary: "Check if a block identified by CID exists in the local node."
       tags: [Data]

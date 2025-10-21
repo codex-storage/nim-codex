@@ -438,7 +438,7 @@ proc getSlots*(
 proc hasBlock*(
     client: CodexClient, cid: Cid
 ): Future[?!bool] {.async: (raises: [CancelledError, HttpError]).} =
-  let url = client.baseurl & "/data/" & $cid & "/has"
+  let url = client.baseurl & "/data/" & $cid & "/exists"
   let body = await client.getContent(url)
   let response = HasBlockResponse.fromJson(body)
   if response.isErr:
@@ -450,5 +450,5 @@ proc hasBlockRaw*(
 ): Future[HttpClientResponseRef] {.
     async: (raw: true, raises: [CancelledError, HttpError])
 .} =
-  let url = client.baseurl & "/data/" & cid & "/has"
+  let url = client.baseurl & "/data/" & cid & "/exists"
   return client.get(url)
