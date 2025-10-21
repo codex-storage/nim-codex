@@ -365,7 +365,7 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
     let json = %formatManifest(cid.get(), manifest)
     return RestApiResponse.response($json, contentType = "application/json")
 
-  router.api(MethodGet, "/api/codex/v1/data/{cid}/has") do(
+  router.api(MethodGet, "/api/codex/v1/data/{cid}/exists") do(
     cid: Cid, resp: HttpResponseRef
   ) -> RestApiResponse:
     ## Only test if the give CID is available in the local store
