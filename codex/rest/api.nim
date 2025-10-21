@@ -376,6 +376,7 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
       return RestApiResponse.error(Http400, $cid.error(), headers = headers)
 
     let cid = cid.get()
+
     let hasCid = await node.hasLocalBlock(cid)
 
     let json = %*{$cid: hasCid}
