@@ -13,7 +13,7 @@ export logutils
 logScope:
   topics = "integration test proofs"
 
-marketplacesuite(name = "Hosts submit regular proofs", stopOnRequestFail = false):
+marketplacesuite(name = "Hosts submit regular proofs"):
   const minPricePerBytePerSecond = 1.u256
   const collateralPerByte = 1.u256
   const blocks = 8
@@ -34,12 +34,17 @@ marketplacesuite(name = "Hosts submit regular proofs", stopOnRequestFail = false
       # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
       # .withLogTopics("marketplace", "sales", "reservations", "node", "clock")
       .some,
-    ):
+    ),
+    stopOnRequestFail = true:
     let client0 = clients()[0].client
     let expiry = 10.periods
     let duration = expiry + 5.periods
+    let proofSubmittedEvent = newAsyncEvent()
 
-    let data = await RandomChunker.example(blocks = blocks)
+    proc onProofSubmitted(event: ?!ProofSubmitted) =
+      if event.isOk:
+        proofSubmittedEvent.fire()
+
     let datasetSize =
       datasetSize(blocks = blocks, nodes = ecNodes, tolerance = ecTolerance)
     await createAvailabilities(
@@ -49,34 +54,22 @@ marketplacesuite(name = "Hosts submit regular proofs", stopOnRequestFail = false
       minPricePerBytePerSecond,
     )
 
-    let cid = (await client0.upload(data)).get
-
-    let purchaseId = await client0.requestStorage(
-      cid,
-      expiry = expiry,
-      duration = duration,
-      nodes = ecNodes,
-      tolerance = ecTolerance,
-    )
+    let (purchaseId, requestId) =
+      await requestStorage(client0, duration = duration, expiry = expiry)
 
     let purchase = (await client0.getPurchase(purchaseId)).get
     check purchase.error == none string
 
-    let slotSize = slotSize(blocks, ecNodes, ecTolerance)
+    await marketplaceSubscribe(ProofSubmitted, onProofSubmitted)
 
-    discard await waitForRequestToStart(expiry.int)
+    await waitForRequestToStart(requestId, expiry.int64)
 
-    var proofWasSubmitted = false
-    proc onProofSubmitted(event: ?!ProofSubmitted) =
-      proofWasSubmitted = event.isOk
+    let secondsTillRequestEnd = await getSecondsTillRequestEnd(requestId)
+    await proofSubmittedEvent.wait().wait(
+      timeout = chronos.seconds(secondsTillRequestEnd)
+    )
 
-    let subscription = await marketplace.subscribe(ProofSubmitted, onProofSubmitted)
-
-    check eventually(proofWasSubmitted, timeout = (duration - expiry).int * 1000)
-
-    await subscription.unsubscribe()
-
-marketplacesuite(name = "Simulate invalid proofs", stopOnRequestFail = false):
+marketplacesuite(name = "Simulate invalid proofs"):
   # TODO: these are very loose tests in that they are not testing EXACTLY how
   # proofs were marked as missed by the validator. These tests should be
   # tightened so that they are showing, as an integration test, that specific
@@ -87,6 +80,17 @@ marketplacesuite(name = "Simulate invalid proofs", stopOnRequestFail = false):
   const blocks = 8
   const ecNodes = 3
   const ecTolerance = 1
+
+  var slotWasFreedEvent: AsyncEvent
+  var requestId: RequestId
+
+  proc onSlotFreed(event: ?!SlotFreed) =
+    if event.isOk and event.value.requestId == requestId:
+      slotWasFreedEvent.fire()
+
+  setup:
+    requestId = RequestId.default()
+    slotWasFreedEvent = newAsyncEvent()
 
   test "slot is freed after too many invalid proofs submitted",
     NodeConfigs(
@@ -115,12 +119,12 @@ marketplacesuite(name = "Simulate invalid proofs", stopOnRequestFail = false):
       # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
       # .withLogTopics("validator", "onchain", "ethers", "clock")
       .some,
-    ):
+    ),
+    stopOnRequestFail = true:
     let client0 = clients()[0].client
     let expiry = 10.periods
     let duration = expiry + 10.periods
 
-    let data = await RandomChunker.example(blocks = blocks)
     let datasetSize =
       datasetSize(blocks = blocks, nodes = ecNodes, tolerance = ecTolerance)
     await createAvailabilities(
@@ -130,32 +134,14 @@ marketplacesuite(name = "Simulate invalid proofs", stopOnRequestFail = false):
       minPricePerBytePerSecond,
     )
 
-    let cid = (await client0.upload(data)).get
-
-    let purchaseId = (
-      await client0.requestStorage(
-        cid,
-        expiry = expiry,
-        duration = duration,
-        nodes = ecNodes,
-        tolerance = ecTolerance,
-        proofProbability = 1.u256,
-      )
+    let (purchaseId, id) = await requestStorage(
+      client0, duration = duration, proofProbability = 1.u256, expiry = expiry
     )
-    let requestId = (await client0.requestId(purchaseId)).get
+    requestId = id
 
-    discard await waitForRequestToStart(expiry.int)
+    await marketplaceSubscribe(SlotFreed, onSlotFreed)
 
-    var slotWasFreed = false
-    proc onSlotFreed(event: ?!SlotFreed) =
-      if event.isOk and event.value.requestId == requestId:
-        slotWasFreed = true
-
-    let subscription = await marketplace.subscribe(SlotFreed, onSlotFreed)
-
-    check eventually(slotWasFreed, timeout = (duration - expiry).int * 1000)
-
-    await subscription.unsubscribe()
+    await slotWasFreedEvent.wait().wait(timeout = chronos.seconds(duration.int64))
 
   test "slot is not freed when not enough invalid proofs submitted",
     NodeConfigs(
@@ -178,12 +164,20 @@ marketplacesuite(name = "Simulate invalid proofs", stopOnRequestFail = false):
       # .withLogFile() # uncomment to output log file to tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
       # .withLogTopics("validator", "onchain", "ethers", "clock")
       .some,
-    ):
+    ),
+    stopOnRequestFail = true:
     let client0 = clients()[0].client
     let expiry = 10.periods
     let duration = expiry + 10.periods
+    let slotWasFilledEvent = newAsyncEvent()
 
-    let data = await RandomChunker.example(blocks = blocks)
+    proc onSlotFilled(eventResult: ?!SlotFilled) =
+      assert not eventResult.isErr
+      let event = !eventResult
+
+      if event.requestId == requestId:
+        slotWasFilledEvent.fire()
+
     let datasetSize =
       datasetSize(blocks = blocks, nodes = ecNodes, tolerance = ecTolerance)
     await createAvailabilities(
@@ -193,44 +187,24 @@ marketplacesuite(name = "Simulate invalid proofs", stopOnRequestFail = false):
       minPricePerBytePerSecond,
     )
 
-    let cid = (await client0.upload(data)).get
+    let (purchaseId, id) =
+      await requestStorage(client0, duration = duration, expiry = expiry)
+    requestId = id
 
-    let purchaseId = await client0.requestStorage(
-      cid,
-      expiry = expiry,
-      duration = duration,
-      nodes = ecNodes,
-      tolerance = ecTolerance,
-      proofProbability = 1.u256,
-    )
-    let requestId = (await client0.requestId(purchaseId)).get
-
-    var slotWasFilled = false
-    proc onSlotFilled(eventResult: ?!SlotFilled) =
-      assert not eventResult.isErr
-      let event = !eventResult
-
-      if event.requestId == requestId:
-        slotWasFilled = true
-
-    let filledSubscription = await marketplace.subscribe(SlotFilled, onSlotFilled)
+    await marketplaceSubscribe(SlotFilled, onSlotFilled)
+    await marketplaceSubscribe(SlotFreed, onSlotFreed)
 
     # wait for the first slot to be filled
-    check eventually(slotWasFilled, timeout = expiry.int * 1000)
+    await slotWasFilledEvent.wait().wait(timeout = chronos.seconds(expiry.int64))
 
-    var slotWasFreed = false
-    proc onSlotFreed(event: ?!SlotFreed) =
-      if event.isOk and event.value.requestId == requestId:
-        slotWasFreed = true
-
-    let freedSubscription = await marketplace.subscribe(SlotFreed, onSlotFreed)
-
-    # In 2 periods you cannot have enough invalid proofs submitted:
-    await sleepAsync(2.periods.int.seconds)
-    check not slotWasFreed
-
-    await filledSubscription.unsubscribe()
-    await freedSubscription.unsubscribe()
+    try:
+      # In 2 periods you cannot have enough invalid proofs submitted:
+      await slotWasFreedEvent.wait().wait(
+        timeout = chronos.seconds(2.periods.int.seconds)
+      )
+      fail("invalid proofs were not expected in 2 periods")
+    except AsyncTimeoutError:
+      discard
 
   # TODO: uncomment once fixed
   # WARNING: in the meantime minPrice has changed to minPricePerBytePerSecond

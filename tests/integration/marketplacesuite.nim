@@ -1,3 +1,6 @@
+import macros
+import std/unittest
+
 import pkg/chronos
 import pkg/ethers/erc20
 from pkg/libp2p import Cid
@@ -5,54 +8,153 @@ import pkg/codex/contracts/marketplace as mp
 import pkg/codex/periods
 import pkg/codex/utils/json
 from pkg/codex/utils import roundUp, divUp
-import ./multinodes except Subscription
+import ./multinodes except Subscription, Event
 import ../contracts/time
 import ../contracts/deployment
 
 export mp
 export multinodes
 
-template marketplacesuite*(name: string, stopOnRequestFail: bool, body: untyped) =
+template marketplacesuite*(name: string, body: untyped) =
   multinodesuite name:
     var marketplace {.inject, used.}: Marketplace
     var period: uint64
     var periodicity: Periodicity
     var token {.inject, used.}: Erc20Token
-    var requestStartedEvent: AsyncEvent
-    var requestStartedSubscription: Subscription
+    var subscriptions: seq[Subscription] = @[]
+    var tokenSubscription: Subscription
     var requestFailedEvent: AsyncEvent
-    var requestFailedSubscription: Subscription
 
-    proc onRequestStarted(eventResult: ?!RequestFulfilled) {.raises: [].} =
-      requestStartedEvent.fire()
+    template test(tname, startNodeConfigs, stopOnRequestFail, tbody) =
+      test tname, startNodeConfigs:
+        stopOnRequestFailed:
+          tbody
 
-    proc onRequestFailed(eventResult: ?!RequestFailed) {.raises: [].} =
-      requestFailedEvent.fire()
-      if stopOnRequestFail:
-        fail()
+    template stopOnRequestFailed(tbody: untyped) =
+      let completed = newAsyncEvent()
+      let requestFailedEvent = newAsyncEvent()
+
+      proc onRequestFailed(eventResult: ?!RequestFailed) {.raises: [].} =
+        assert not eventResult.isErr
+        requestFailedEvent.fire()
+
+      let sub = await marketplace.subscribe(RequestFailed, onRequestFailed)
+      subscriptions.add(sub)
+
+      let mainFut = (
+        proc(): Future[void] {.async.} =
+          try:
+            tbody
+            completed.fire()
+          except CancelledError as e:
+            raise e
+          except CatchableError as e:
+            completed.fire()
+            raise e
+      )()
+
+      let fastFailFut = (
+        proc(): Future[void] {.async.} =
+          try:
+            await requestFailedEvent.wait().wait(timeout = chronos.seconds(60))
+            completed.fire()
+            raise newException(TestFailedError, "storage request has failed")
+          except AsyncTimeoutError:
+            discard
+      )()
+
+      await completed.wait().wait(timeout = chronos.seconds(60 * 30))
+
+      if not fastFailFut.completed:
+        await fastFailFut.cancelAndWait()
+
+      if mainFut.failed:
+        raise mainFut.error
+
+      if fastFailFut.failed:
+        raise fastFailFut.error
+
+    proc check(cond: bool, reason = "Check failed"): void =
+      if not cond:
+        fail(reason)
+
+    proc marketplaceSubscribe[E: Event](
+        event: type E, handler: EventHandler[E]
+    ) {.async.} =
+      let sub = await marketplace.subscribe(event, handler)
+      subscriptions.add(sub)
+
+    proc tokenSubscribe(
+        handler: proc(event: ?!Transfer) {.gcsafe, raises: [].}
+    ) {.async.} =
+      let sub = await token.subscribe(Transfer, handler)
+      tokenSubscription = sub
+
+    proc subscribeOnRequestFulfilled(
+        requestId: RequestId
+    ): Future[AsyncEvent] {.async.} =
+      let event = newAsyncEvent()
+
+      proc onRequestFulfilled(eventResult: ?!RequestFulfilled) {.raises: [].} =
+        assert not eventResult.isErr
+        let er = !eventResult
+
+        if er.requestId == requestId:
+          event.fire()
+
+      let sub = await marketplace.subscribe(RequestFulfilled, onRequestFulfilled)
+      subscriptions.add(sub)
+
+      return event
 
     proc getCurrentPeriod(): Future[Period] {.async.} =
       return periodicity.periodOf((await ethProvider.currentTime()).truncate(uint64))
 
     proc waitForRequestToStart(
-        seconds = 10 * 60 + 10
-    ): Future[Period] {.async: (raises: [CancelledError, AsyncTimeoutError]).} =
-      await requestStartedEvent.wait().wait(timeout = chronos.seconds(seconds))
-      # Recreate a new future if we need to wait for another request
-      requestStartedEvent = newAsyncEvent()
+        requestId: RequestId, seconds = 10 * 60 + 10
+    ): Future[void] {.async.} =
+      let event = newAsyncEvent()
+
+      proc onRequestFulfilled(eventResult: ?!RequestFulfilled) {.raises: [].} =
+        assert not eventResult.isErr
+        let er = !eventResult
+
+        if er.requestId == requestId:
+          event.fire()
+
+      let sub = await marketplace.subscribe(RequestFulfilled, onRequestFulfilled)
+      subscriptions.add(sub)
+
+      await event.wait().wait(timeout = chronos.seconds(seconds))
+
+    proc getSecondsTillRequestEnd(requestId: RequestId): Future[int64] {.async.} =
+      let currentTime = await ethProvider.currentTime()
+      let requestEnd = await marketplace.requestEnd(requestId)
+      return requestEnd.int64 - currentTime.truncate(int64)
 
     proc waitForRequestToFail(
-        seconds = (5 * 60) + 10
-    ): Future[Period] {.async: (raises: [CancelledError, AsyncTimeoutError]).} =
-      await requestFailedEvent.wait().wait(timeout = chronos.seconds(seconds))
-      # Recreate a new future if we need to wait for another request
-      requestFailedEvent = newAsyncEvent()
+        requestId: RequestId, seconds = (5 * 60) + 10
+    ): Future[void] {.async.} =
+      let event = newAsyncEvent()
+
+      proc onRequestFailed(eventResult: ?!RequestFailed) {.raises: [].} =
+        assert not eventResult.isErr
+        let er = !eventResult
+
+        if er.requestId == requestId:
+          event.fire()
+
+      let sub = await marketplace.subscribe(RequestFailed, onRequestFailed)
+      subscriptions.add(sub)
+
+      await event.wait().wait(timeout = chronos.seconds(seconds))
 
     proc advanceToNextPeriod() {.async.} =
       let periodicity = Periodicity(seconds: period)
       let currentTime = (await ethProvider.currentTime()).truncate(uint64)
       let currentPeriod = periodicity.periodOf(currentTime)
       let endOfPeriod = periodicity.periodEnd(currentPeriod)
+
       await ethProvider.advanceTimeTo(endOfPeriod.u256 + 1)
 
     template eventuallyP(condition: untyped, finalPeriod: Period): bool =
@@ -125,6 +227,36 @@ template marketplacesuite*(name: string, stopOnRequestFail: bool, body: untyped)
 
       return id
 
+    proc requestStorage(
+        client: CodexClient,
+        proofProbability = 3.u256,
+        duration = 20 * 60.uint64,
+        pricePerBytePerSecond = 1.u256,
+        collateralPerByte = 1.u256,
+        expiry = 10 * 60.uint64,
+        nodes = 3,
+        tolerance = 1,
+        blocks = 8,
+        data = seq[byte].none,
+    ): Future[(PurchaseId, RequestId)] {.async.} =
+      let bytes = data |? await RandomChunker.example(blocks = blocks)
+      let cid = (await client.upload(bytes)).get
+
+      let purchaseId = await client.requestStorage(
+        cid,
+        duration = duration,
+        pricePerBytePerSecond = pricePerBytePerSecond,
+        proofProbability = proofProbability,
+        expiry = expiry,
+        collateralPerByte = collateralPerByte,
+        nodes = nodes,
+        tolerance = tolerance,
+      )
+
+      let requestId = (await client.requestId(purchaseId)).get
+
+      return (purchaseId, requestId)
+
     setup:
       marketplace = Marketplace.new(Marketplace.address, ethProvider.getSigner())
       let tokenAddress = await marketplace.token()
@@ -132,18 +264,13 @@ template marketplacesuite*(name: string, stopOnRequestFail: bool, body: untyped)
       let config = await marketplace.configuration()
       period = config.proofs.period
       periodicity = Periodicity(seconds: period)
-
-      requestStartedEvent = newAsyncEvent()
+      subscriptions = @[]
       requestFailedEvent = newAsyncEvent()
-
-      requestStartedSubscription =
-        await marketplace.subscribe(RequestFulfilled, onRequestStarted)
-
-      requestFailedSubscription =
-        await marketplace.subscribe(RequestFailed, onRequestFailed)
-
     teardown:
-      await requestStartedSubscription.unsubscribe()
-      await requestFailedSubscription.unsubscribe()
+      for subscription in subscriptions:
+        await subscription.unsubscribe()
+
+      if not tokenSubscription.isNil:
+        await tokenSubscription.unsubscribe()
 
     body

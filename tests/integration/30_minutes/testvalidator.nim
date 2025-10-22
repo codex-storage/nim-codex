@@ -15,12 +15,11 @@ export logutils
 logScope:
   topics = "integration test validation"
 
-marketplacesuite(name = "Validation", stopOnRequestFail = false):
+marketplacesuite(name = "Validation"):
   const blocks = 8
   const ecNodes = 3
   const ecTolerance = 1
   const proofProbability = 1.u256
-
   const collateralPerByte = 1.u256
   const minPricePerBytePerSecond = 1.u256
 
@@ -60,9 +59,6 @@ marketplacesuite(name = "Validation", stopOnRequestFail = false):
     # let mine a block to sync the blocktime with the current clock
     discard await ethProvider.send("evm_mine")
 
-    var currentTime = await ethProvider.currentTime()
-    let requestEndTime = currentTime.truncate(uint64) + duration
-
     let data = await RandomChunker.example(blocks = blocks)
     let datasetSize =
       datasetSize(blocks = blocks, nodes = ecNodes, tolerance = ecTolerance)
@@ -73,28 +69,19 @@ marketplacesuite(name = "Validation", stopOnRequestFail = false):
       minPricePerBytePerSecond,
     )
 
-    let cid = (await client0.upload(data)).get
-    let purchaseId = await client0.requestStorage(
-      cid,
-      expiry = expiry,
-      duration = duration,
-      nodes = ecNodes,
-      tolerance = ecTolerance,
-      proofProbability = proofProbability,
+    let (purchaseId, requestId) = await requestStorage(
+      client0, duration = duration, expiry = expiry, proofProbability = proofProbability
     )
-    let requestId = (await client0.requestId(purchaseId)).get
 
     debug "validation suite", purchaseId = purchaseId.toHex, requestId = requestId
 
-    discard await waitForRequestToStart(expiry.int + 60)
+    await waitForRequestToStart(requestId, expiry.int64)
 
     discard await ethProvider.send("evm_mine")
-    currentTime = await ethProvider.currentTime()
-    let secondsTillRequestEnd = (requestEndTime - currentTime.truncate(uint64)).int
 
-    debug "validation suite", secondsTillRequestEnd = secondsTillRequestEnd.seconds
-
-    discard await waitForRequestToFail(secondsTillRequestEnd + 60)
+    let secondsTillRequestEnd = await getSecondsTillRequestEnd(requestId)
+    debug "validation suite", secondsTillRequestEnd = secondsTillRequestEnd
+    await waitForRequestToFail(requestId, secondsTillRequestEnd.int64 + 60)
 
   test "validator uses historical state to mark missing proofs",
     NodeConfigs(
@@ -124,7 +111,6 @@ marketplacesuite(name = "Validation", stopOnRequestFail = false):
     var currentTime = await ethProvider.currentTime()
     let requestEndTime = currentTime.truncate(uint64) + duration
 
-    let data = await RandomChunker.example(blocks = blocks)
     let datasetSize =
       datasetSize(blocks = blocks, nodes = ecNodes, tolerance = ecTolerance)
     await createAvailabilities(
@@ -134,20 +120,13 @@ marketplacesuite(name = "Validation", stopOnRequestFail = false):
       minPricePerBytePerSecond,
     )
 
-    let cid = (await client0.upload(data)).get
-    let purchaseId = await client0.requestStorage(
-      cid,
-      expiry = expiry,
-      duration = duration,
-      nodes = ecNodes,
-      tolerance = ecTolerance,
-      proofProbability = proofProbability,
+    let (purchaseId, requestId) = await requestStorage(
+      client0, duration = duration, expiry = expiry, proofProbability = proofProbability
     )
-    let requestId = (await client0.requestId(purchaseId)).get
 
     debug "validation suite", purchaseId = purchaseId.toHex, requestId = requestId
 
-    discard await waitForRequestToStart(expiry.int + 60)
+    await waitForRequestToStart(requestId, expiry.int64)
 
     # extra block just to make sure we have one that separates us
     # from the block containing the last (past) SlotFilled event
@@ -168,10 +147,6 @@ marketplacesuite(name = "Validation", stopOnRequestFail = false):
         let node = await startValidatorNode(config)
         running.add RunningNode(role: Role.Validator, node: node)
 
-    discard await ethProvider.send("evm_mine")
-    currentTime = await ethProvider.currentTime()
-    let secondsTillRequestEnd = (requestEndTime - currentTime.truncate(uint64)).int
-
-    debug "validation suite", secondsTillRequestEnd = secondsTillRequestEnd.seconds
-
-    discard await waitForRequestToFail(secondsTillRequestEnd + 60)
+    let secondsTillRequestEnd = await getSecondsTillRequestEnd(requestId)
+    debug "validation suite", secondsTillRequestEnd = secondsTillRequestEnd
+    await waitForRequestToFail(requestId, secondsTillRequestEnd.int64 + 60)
