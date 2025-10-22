@@ -18,10 +18,10 @@ import pkg/chronos
 
 import ./utils/asyncheapqueue
 import ./utils/fileutils
-import ./utils/asynciter
-import ./utils/safeasynciter
+import ./utils/iter
+import ./utils/asyncresultiter
 
-export asyncheapqueue, fileutils, asynciter, safeasynciter, chronos
+export asyncheapqueue, fileutils, iter, asyncresultiter, chronos
 
 when defined(posix):
   import os, posix

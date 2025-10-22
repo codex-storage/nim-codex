@@ -233,6 +233,11 @@ format:
 	$(NPH) codex/
 	$(NPH) tests/
 
+format-global:
+	nph *.nim
+	nph codex/
+	nph tests/
+
 clean-nph:
 	rm -f $(NPH)
 
