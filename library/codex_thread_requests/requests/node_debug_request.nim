@@ -22,21 +22,28 @@ logScope:
 type NodeDebugMsgType* = enum
   DEBUG
   PEER
+  LOG_LEVEL
 
 type NodeDebugRequest* = object
   operation: NodeDebugMsgType
   peerId: cstring
+  logLevel: cstring
 
 proc createShared*(
-    T: type NodeDebugRequest, op: NodeDebugMsgType, peerId: cstring = ""
+    T: type NodeDebugRequest,
+    op: NodeDebugMsgType,
+    peerId: cstring = "",
+    logLevel: cstring = "",
 ): ptr type T =
   var ret = createShared(T)
   ret[].operation = op
   ret[].peerId = peerId.alloc()
+  ret[].logLevel = logLevel.alloc()
   return ret
 
 proc destroyShared(self: ptr NodeDebugRequest) =
   deallocShared(self[].peerId)
+  deallocShared(self[].logLevel)
   deallocShared(self)
 
 proc getDebug(
@@ -81,6 +88,17 @@ proc getPeer(
   else:
     return err("Failed to get peer: peer debug API is disabled")
 
+proc updateLogLevel(
+    codex: ptr CodexServer, logLevel: cstring
+): Future[Result[string, string]] {.async: (raises: []).} =
+  try:
+    {.gcsafe.}:
+      updateLogLevel($logLevel)
+  except ValueError as err:
+    return err("Failed to update log level: invalid value for log level: " & err.msg)
+
+  return ok("")
+
 proc process*(
     self: ptr NodeDebugRequest, codex: ptr CodexServer
 ): Future[Result[string, string]] {.async: (raises: []).} =
@@ -98,5 +116,10 @@ proc process*(
     let res = (await getPeer(codex, self.peerId))
     if res.isErr:
       error "Failed to get PEER.", error = res.error
+      return err($res.error)
+  of NodeDebugMsgType.LOG_LEVEL:
+    let res = (await updateLogLevel(codex, self.logLevel))
+    if res.isErr:
+      error "Failed to update LOG_LEVEL.", error = res.error
       return err($res.error)
     return res

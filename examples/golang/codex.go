@@ -105,6 +105,10 @@ package main
    static int cGoCodexUploadFile(void* codexCtx, char* sessionId, void* resp) {
       return codex_upload_file(codexCtx, sessionId, (CodexCallback) callback, resp);
    }
+
+   static int cGoCodexLogLevel(void* codexCtx, char* logLevel, void* resp) {
+       return codex_log_level(codexCtx, logLevel, (CodexCallback) callback, resp);
+   }
 */
 import "C"
 import (
@@ -120,18 +124,6 @@ import (
 	"sync"
 	"syscall"
 	"unsafe"
-)
-
-type LogLevel string
-
-const (
-	TRACE  LogLevel = "trace"
-	DEBUG  LogLevel = "debug"
-	INFO   LogLevel = "info"
-	NOTICE LogLevel = "notice"
-	WARN   LogLevel = "warn"
-	ERROR  LogLevel = "error"
-	FATAL  LogLevel = "fatal"
 )
 
 type LogFormat string
@@ -155,7 +147,7 @@ const defaultBlockSize = 1024 * 64
 
 type Config struct {
 	// Default: INFO
-	LogLevel LogLevel `json:"log-level,omitempty"`
+	LogLevel string `json:"log-level,omitempty"`
 
 	// Specifies what kind of logs should be written to stdout
 	// Default: auto
@@ -788,13 +780,34 @@ func (node CodexNode) UploadFileAsync(options UploadOptions, onDone func(cid str
 	}()
 }
 
+func (node CodexNode) UpdateLogLevel(logLevel string) error {
+	bridge := newBridgeCtx()
+	defer bridge.free()
+
+	var cLogLevel = C.CString(string(logLevel))
+	defer C.free(unsafe.Pointer(cLogLevel))
+
+	if C.cGoCodexLogLevel(node.ctx, cLogLevel, bridge.resp) != C.RET_OK {
+		return bridge.callError("cGoCodexLogLevel")
+	}
+
+	_, err := bridge.wait()
+	return err
+}
+
 func main() {
 	node, err := New(Config{
 		BlockRetries: 5,
+		LogLevel:     "WARN",
 	})
 	if err != nil {
 		log.Fatalf("Failed to create Codex node: %v", err)
 	}
+
+	if err := node.Start(); err != nil {
+		log.Fatalf("Failed to start Codex node: %v", err)
+	}
+	log.Println("Codex node started")
 
 	version, err := node.Version()
 	if err != nil {
@@ -802,10 +815,10 @@ func main() {
 	}
 	log.Printf("Codex version: %s", version)
 
-	if err := node.Start(); err != nil {
-		log.Fatalf("Failed to start Codex node: %v", err)
+	err = node.UpdateLogLevel("ERROR")
+	if err != nil {
+		log.Fatalf("Failed to update log level: %v", err)
 	}
-	log.Println("Codex node started")
 
 	buf := bytes.NewBuffer([]byte("Hello World!"))
 	len := buf.Len()

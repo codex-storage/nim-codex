@@ -116,6 +116,13 @@ proc createCodex(
     return err("Failed to create codex: unable to load configuration: " & e.msg)
 
   conf.setupLogging()
+
+  try:
+    {.gcsafe.}:
+      updateLogLevel(conf.logLevel)
+  except ValueError as err:
+    return err("Failed to create codex: invalid value for log level: " & err.msg)
+
   conf.setupMetrics()
 
   if not (checkAndCreateDataDir((conf.dataDir).string)):
