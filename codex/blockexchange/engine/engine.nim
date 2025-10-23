@@ -82,7 +82,6 @@ declareCounter(
 )
 
 const
-  DefaultMaxPeersPerRequest* = 10
   # The default max message length of nim-libp2p is 100 megabytes, meaning we can
   # in principle fit up to 1600 64k blocks per message, so 20 is well under
   # that number.
@@ -90,9 +89,10 @@ const
   DefaultTaskQueueSize = 100
   DefaultConcurrentTasks = 10
   # Don't do more than one discovery request per `DiscoveryRateLimit` seconds.
-  DiscoveryRateLimit = 1.seconds
+  DiscoveryRateLimit = 3.seconds
   DefaultPeerActivityTimeout = 1.minutes
-  PresenceBatchSize = 1024
+  # Match MaxWantListBatchSize to efficiently respond to incoming WantLists
+  PresenceBatchSize = MaxWantListBatchSize
 
 type
   TaskHandler* = proc(task: BlockExcPeerCtx): Future[void] {.gcsafe.}

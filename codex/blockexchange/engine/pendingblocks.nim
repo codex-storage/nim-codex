@@ -34,7 +34,7 @@ declareGauge(
 
 const
   DefaultBlockRetries* = 3000
-  DefaultRetryInterval* = 1.seconds
+  DefaultRetryInterval* = 2.seconds
 
 type
   RetriesExhaustedError* = object of CatchableError
