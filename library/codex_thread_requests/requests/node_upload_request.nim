@@ -249,13 +249,15 @@ proc cancel(
   ## from the table.
 
   if not uploadSessions.contains($sessionId):
-    return err("Failed to cancel the upload session, session not found: " & $sessionId)
+    # Session not found, nothing to cancel
+    return ok("")
 
   try:
     let session = uploadSessions[$sessionId]
     session.fut.cancelSoon()
   except KeyError:
-    return err("Failed to cancel the upload session, invalid session ID: " & $sessionId)
+    # Session not found, nothing to cancel
+    return ok("")
 
   uploadSessions.del($sessionId)
 
