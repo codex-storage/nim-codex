@@ -92,7 +92,8 @@ const
   # Don't do more than one discovery request per `DiscoveryRateLimit` seconds.
   DiscoveryRateLimit = 1.seconds
   DefaultPeerActivityTimeout = 1.minutes
-  PresenceBatchSize = 1024
+  # Match MaxWantListBatchSize to efficiently respond to incoming WantLists
+  PresenceBatchSize = MaxWantListBatchSize
 
 type
   TaskHandler* = proc(task: BlockExcPeerCtx): Future[void] {.gcsafe.}
