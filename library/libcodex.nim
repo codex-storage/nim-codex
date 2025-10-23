@@ -39,7 +39,7 @@ import ./codex_thread_requests/requests/node_download_request
 import ./codex_thread_requests/requests/node_storage_request
 import ./ffi_types
 
-from ../codex/conf import codexVersion, updateLogLevel
+from ../codex/conf import codexVersion
 
 logScope:
   topics = "codexlib"
@@ -201,12 +201,13 @@ proc codex_log_level(
   initializeLibrary()
   checkLibcodexParams(ctx, callback, userData)
 
-  try:
-    updateLogLevel($logLevel)
-  except ValueError as e:
-    return callback.error(e.msg, userData)
+  let reqContent =
+    NodeDebugRequest.createShared(NodeDebugMsgType.LOG_LEVEL, logLevel = logLevel)
+  let res = codex_context.sendRequestToCodexThread(
+    ctx, RequestType.DEBUG, reqContent, callback, userData
+  )
 
-  return callback.success("", userData)
+  return callback.okOrError(res, userData)
 
 proc codex_connect(
     ctx: ptr CodexContext,
