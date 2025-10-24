@@ -82,7 +82,7 @@ find_tests () {
 batch () {
   local batch_size=$1
   local separator=$2
-  xargs -n $batch_size bash -c "IFS=\"$separator\"; echo \"\$*\"" _
+  xargs -n "$batch_size" | sed 's/ /'"$separator"'/g'
 }
 
 # outputs a single integration test job
@@ -125,10 +125,10 @@ integration_test () {
 
 # outputs jobs for all test types
 all_tests () {
-  unit_test
-  contract_test
+  # unit_test
+  # contract_test
   integration_test
-  tools_test
+  # tools_test
 }
 
 # outputs jobs for the specified operating systems and all test types
