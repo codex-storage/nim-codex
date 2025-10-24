@@ -41,12 +41,11 @@ import ./logutils
 import ./stores
 import ./units
 import ./utils
-import ./nat
-import ./utils/natutils
+import ./nat/port_mapping
 
 from ./blockexchange/engine/pendingblocks import DefaultBlockRetries
 
-export units, net, codextypes, logutils, completeCmdArg, parseCmdArg, NatConfig
+export units, net, codextypes, logutils, completeCmdArg, parseCmdArg
 
 export
   DefaultQuotaBytes, DefaultBlockTtl, DefaultBlockInterval, DefaultNumBlocksPerInterval,
@@ -144,14 +143,14 @@ type
       name: "listen-addrs"
     .}: seq[MultiAddress]
 
-    nat* {.
+    forcePortMapping* {.
       desc:
-        "Specify method to use for determining public address. " &
-        "Must be one of: any, none, upnp, pmp, extip:<IP>",
-      defaultValue: defaultNatConfig(),
+        "Overide automatic detection to specific upnp mode. " &
+        "Must be one of: any, none, upnp, pmp",
+      defaultValue: PortMappingStrategy.Any,
       defaultValueDesc: "any",
-      name: "nat"
-    .}: NatConfig
+      name: "force-port-mapping"
+    .}: PortMappingStrategy
 
     discoveryPort* {.
       desc: "Discovery (UDP) port",
@@ -280,9 +279,6 @@ type
 func defaultAddress*(conf: CodexConf): IpAddress =
   result = static parseIpAddress("127.0.0.1")
 
-func defaultNatConfig*(): NatConfig =
-  result = NatConfig(hasExtIp: false, nat: NatStrategy.NatAny)
-
 proc getCodexVersion(): string =
   let tag = strip(staticExec("git describe --tags --abbrev=0"))
   if tag.isEmptyOrWhitespace:
@@ -355,35 +351,20 @@ proc parseCmdArg*(T: type SignedPeerRecord, uri: string): T =
     quit QuitFailure
   return res.get()
 
-func parse*(T: type NatConfig, p: string): Result[NatConfig, string] =
+func parseCmdArg*(T: type PortMappingStrategy, p: string): T {.raises: [ValueError].} =
   case p.toLowerAscii
   of "any":
-    return ok(NatConfig(hasExtIp: false, nat: NatStrategy.NatAny))
+    PortMappingStrategy.Any
   of "none":
-    return ok(NatConfig(hasExtIp: false, nat: NatStrategy.NatNone))
+    PortMappingStrategy.None
   of "upnp":
-    return ok(NatConfig(hasExtIp: false, nat: NatStrategy.NatUpnp))
+    PortMappingStrategy.Upnp
   of "pmp":
-    return ok(NatConfig(hasExtIp: false, nat: NatStrategy.NatPmp))
+    PortMappingStrategy.Pmp
   else:
-    if p.startsWith("extip:"):
-      try:
-        let ip = parseIpAddress(p[6 ..^ 1])
-        return ok(NatConfig(hasExtIp: true, extIp: ip))
-      except ValueError:
-        let error = "Not a valid IP address: " & p[6 ..^ 1]
-        return err(error)
-    else:
-      return err("Not a valid NAT option: " & p)
+    raise newException(ValueError, "Not a valid NAT option: " & p)
 
-proc parseCmdArg*(T: type NatConfig, p: string): T =
-  let res = NatConfig.parse(p)
-  if res.isErr:
-    fatal "Cannot parse the NAT config.", error = res.error(), input = p
-    quit QuitFailure
-  return res.get()
-
-proc completeCmdArg*(T: type NatConfig, val: string): seq[string] =
+proc completeCmdArg*(T: type PortMappingStrategy, val: string): seq[string] =
   return @[]
 
 func parse*(T: type NBytes, p: string): Result[NBytes, string] =
@@ -463,11 +444,11 @@ proc readValue*(
   val = dur
 
 proc readValue*(
-    r: var TomlReader, val: var NatConfig
+    r: var TomlReader, val: var PortMappingStrategy
 ) {.raises: [SerializationError].} =
   val =
     try:
-      parseCmdArg(NatConfig, r.readValue(string))
+      parseCmdArg(PortMappingStrategy, r.readValue(string))
     except CatchableError as err:
       raise newException(SerializationError, err.msg)
 

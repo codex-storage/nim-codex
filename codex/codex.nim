@@ -37,7 +37,7 @@ import ./utils/addrutils
 import ./namespaces
 import ./codextypes
 import ./logutils
-import ./nat
+import ./nat/reachabilitymanager
 
 logScope:
   topics = "codex node"
@@ -50,6 +50,7 @@ type
     repoStore: RepoStore
     maintenance: BlockMaintainer
     taskpool: Taskpool
+    reachabilityManager: ReachabilityManager
     isStarted: bool
 
   CodexPrivateKey* = libp2p.PrivateKey # alias
@@ -75,12 +76,16 @@ proc start*(s: CodexServer) {.async.} =
 
   await s.codexNode.switch.start()
 
-  let (announceAddrs, discoveryAddrs) = nattedAddress(
-    s.config.nat, s.codexNode.switch.peerInfo.addrs, s.config.discoveryPort
-  )
+  s.reachabilityManager.getAnnounceRecords = some proc() =
+    s.codexNode.switch.peerInfo.addrs
+  s.reachabilityManager.getDiscoveryRecords = some proc() =
+    s.codexNode.discovery.dhtRecord.data.addresses.mapIt(it.address)
+  s.reachabilityManager.updateAnnounceRecords = some proc(records: seq[MultiAddress]) =
+    s.codexNode.discovery.updateAnnounceRecord(records)
+  s.reachabilityManager.updateDiscoveryRecords = some proc(records: seq[MultiAddress]) =
+    s.codexNode.discovery.updateDhtRecord(records)
 
-  s.codexNode.discovery.updateAnnounceRecord(announceAddrs)
-  s.codexNode.discovery.updateDhtRecord(discoveryAddrs)
+  await s.reachabilityManager.start(s.codexNode.switch, s.config.bootstrapNodes)
 
   await s.codexNode.start()
 
@@ -98,6 +103,7 @@ proc stop*(s: CodexServer) {.async.} =
 
   var futures =
     @[
+      s.reachabilityManager.stop(),
       s.codexNode.switch.stop(),
       s.codexNode.stop(),
       s.codexNode.discovery.stop(),
@@ -141,6 +147,9 @@ proc new*(
     T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey
 ): CodexServer =
   ## create CodexServer including setting up datastore, repostore, etc
+
+  let reachabilityManager = ReachabilityManager.new(config.portMappingStrategy)
+
   let switch = SwitchBuilder
     .new()
     .withPrivateKey(privateKey)
@@ -152,6 +161,11 @@ proc new*(
     .withAgentVersion(config.agentString)
     .withSignedPeerRecord(true)
     .withTcpTransport({ServerFlags.ReuseAddr, ServerFlags.TcpNoDelay})
+    # Adds AutoNAT server support - ability to respond to other peers ask about their reachability status
+    .withAutonat()
+
+    # Adds AutoNAT client support - to discover the node's rechability
+    .withServices(@[reachabilityManager.getAutonatService()])
     .build()
 
   var
@@ -275,4 +289,5 @@ proc new*(
     repoStore: repoStore,
     maintenance: maintenance,
     taskPool: taskPool,
+    reachabilityManager: reachabilityManager,
   )

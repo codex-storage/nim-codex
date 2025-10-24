@@ -12,6 +12,7 @@
 import std/net
 import std/strutils
 import std/options
+import std/net
 
 import pkg/libp2p
 import pkg/stew/endians2
@@ -42,7 +43,7 @@ func remapAddr*(
 
 proc getMultiAddrWithIPAndUDPPort*(ip: IpAddress, port: Port): MultiAddress =
   ## Creates a MultiAddress with the specified IP address and UDP port
-  ## 
+  ##
   ## Parameters:
   ##   - ip: A valid IP address (IPv4 or IPv6)
   ##   - port: The UDP port number
