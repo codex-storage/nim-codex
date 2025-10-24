@@ -48,6 +48,7 @@ asyncchecksuite "Test Node - Slot Repair":
       findFreePorts: true,
       createFullNode: true,
       enableBootstrap: true,
+      enableDiscovery: true,
     )
   var
     manifest: Manifest
