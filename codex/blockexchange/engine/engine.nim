@@ -88,7 +88,8 @@ const
   # that number.
   DefaultMaxBlocksPerMessage = 20
   DefaultTaskQueueSize = 100
-  DefaultConcurrentTasks = 10
+  DefaultConcurrentTasks = 50
+  DefaultMaxBatchesPerTask = 6
   # Don't do more than one discovery request per `DiscoveryRateLimit` seconds.
   DiscoveryRateLimit = 1.seconds
   DefaultPeerActivityTimeout = 1.minutes
@@ -112,6 +113,8 @@ type
     blockexcRunning: bool # Indicates if the blockexc task is running
     maxBlocksPerMessage: int
       # Maximum number of blocks we can squeeze in a single message
+    maxBatchesPerTask: int
+      # Maximum batches to process per task invocation (0 = unlimited)
     pendingBlocks*: PendingBlocksManager # Blocks we're awaiting to be resolved
     wallet*: WalletRef # Nitro wallet for micropayments
     pricing*: ?Pricing # Optional bandwidth pricing
@@ -904,6 +907,7 @@ proc taskHandler*(
   var
     wantedBlocks = peerCtx.wantedBlocks.filterIt(not peerCtx.isBlockSent(it))
     sent: HashSet[BlockAddress]
+    batchesProcessed = 0
 
   trace "Running task for peer", peer = peerCtx.id
 
@@ -913,9 +917,13 @@ proc taskHandler*(
   try:
     for batch in wantedBlocks.toSeq.splitBatches(self.maxBlocksPerMessage):
       var blockDeliveries: seq[BlockDelivery]
-      for wantedBlock in batch:
-        # I/O is blocking so looking up blocks sequentially is fine.
-        without blockDelivery =? await self.localLookup(wantedBlock), err:
+
+      let lookupFutures = batch.mapIt(self.localLookup(it))
+      let results = await allFinished(lookupFutures)
+
+      for i in 0 ..< batch.len:
+        let wantedBlock = batch[i]
+        without blockDelivery =? results[i].value, err:
           error "Error getting block from local store",
             err = err.msg, address = wantedBlock
           peerCtx.markBlockAsNotSent(wantedBlock)
@@ -934,6 +942,18 @@ proc taskHandler*(
       # have removed those anyway. At that point, we rely on the requester performing
       # a retry for the request to succeed.
       peerCtx.wantedBlocks.keepItIf(it notin sent)
+
+      await idleAsync()
+
+      inc batchesProcessed
+
+      if self.maxBatchesPerTask > 0 and batchesProcessed >= self.maxBatchesPerTask:
+        let remainingBlocks = peerCtx.wantedBlocks.filterIt(not peerCtx.isBlockSent(it))
+        if remainingBlocks.len > 0:
+          trace "Batch limit reached, rescheduling peer",
+            peer = peerCtx.id, batchesProcessed, remainingBlocks = remainingBlocks.len
+          self.scheduleTask(peerCtx)
+        break
   finally:
     # Better safe than sorry: if an exception does happen, we don't want to keep
     # those as sent, as it'll effectively prevent the blocks from ever being sent again.
@@ -998,6 +1018,7 @@ proc new*(
     pendingBlocks: PendingBlocksManager,
     maxBlocksPerMessage = DefaultMaxBlocksPerMessage,
     concurrentTasks = DefaultConcurrentTasks,
+    maxBatchesPerTask = DefaultMaxBatchesPerTask,
     selectPeer: PeerSelector = selectRandom,
 ): BlockExcEngine =
   ## Create new block exchange engine instance
@@ -1012,6 +1033,7 @@ proc new*(
     concurrentTasks: concurrentTasks,
     trackedFutures: TrackedFutures(),
     maxBlocksPerMessage: maxBlocksPerMessage,
+    maxBatchesPerTask: maxBatchesPerTask,
     taskQueue: newAsyncHeapQueue[BlockExcPeerCtx](DefaultTaskQueueSize),
     discovery: discovery,
     advertiser: advertiser,
