@@ -488,10 +488,9 @@ func (node CodexNode) Destroy() error {
 	}
 
 	if C.cGoCodexDestroy(node.ctx, bridge.resp) != C.RET_OK {
-		return bridge.callError("cGoCodexDestroy")
+		return errors.New("Failed to destroy the codex node.")
 	}
 
-	_, err = bridge.wait()
 	return err
 }
 
