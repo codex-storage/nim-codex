@@ -270,7 +270,7 @@ proc codex_destroy(
 
   let res = codex_context.destroyCodexContext(ctx)
   if res.isErr:
-    return callback.error(res.error, userData)
+    return RET_ERR
 
   return RET_OK
 
