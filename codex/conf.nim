@@ -41,13 +41,12 @@ import ./logutils
 import ./stores
 import ./units
 import ./utils
-import ./nat
-import ./utils/natutils
+import ./nat/port_mapping
 
 from ./contracts/config import DefaultRequestCacheSize, DefaultMaxPriorityFeePerGas
 from ./validationconfig import MaxSlots, ValidationGroups
 
-export units, net, codextypes, logutils, completeCmdArg, parseCmdArg, NatConfig
+export units, net, codextypes, logutils, completeCmdArg, parseCmdArg
 export ValidationGroups, MaxSlots
 
 export
@@ -151,14 +150,14 @@ type
       name: "listen-addrs"
     .}: seq[MultiAddress]
 
-    nat* {.
+    forcePortMapping* {.
       desc:
-        "Specify method to use for determining public address. " &
-        "Must be one of: any, none, upnp, pmp, extip:<IP>",
-      defaultValue: defaultNatConfig(),
+        "Overide automatic detection to specific upnp mode. " &
+        "Must be one of: any, none, upnp, pmp",
+      defaultValue: PortMappingStrategy.Any,
       defaultValueDesc: "any",
-      name: "nat"
-    .}: NatConfig
+      name: "force-port-mapping"
+    .}: PortMappingStrategy
 
     discoveryPort* {.
       desc: "Discovery (UDP) port",
@@ -464,9 +463,6 @@ logutils.formatIt(LogFormat.json, EthAddress):
 func defaultAddress*(conf: CodexConf): IpAddress =
   result = static parseIpAddress("127.0.0.1")
 
-func defaultNatConfig*(): NatConfig =
-  result = NatConfig(hasExtIp: false, nat: NatStrategy.NatAny)
-
 func persistence*(self: CodexConf): bool =
   self.cmd == StartUpCmd.persistence
 
@@ -538,29 +534,20 @@ proc parseCmdArg*(T: type SignedPeerRecord, uri: string): T =
     quit QuitFailure
   res
 
-func parseCmdArg*(T: type NatConfig, p: string): T {.raises: [ValueError].} =
+func parseCmdArg*(T: type PortMappingStrategy, p: string): T {.raises: [ValueError].} =
   case p.toLowerAscii
   of "any":
-    NatConfig(hasExtIp: false, nat: NatStrategy.NatAny)
+    PortMappingStrategy.Any
   of "none":
-    NatConfig(hasExtIp: false, nat: NatStrategy.NatNone)
+    PortMappingStrategy.None
   of "upnp":
-    NatConfig(hasExtIp: false, nat: NatStrategy.NatUpnp)
+    PortMappingStrategy.Upnp
   of "pmp":
-    NatConfig(hasExtIp: false, nat: NatStrategy.NatPmp)
+    PortMappingStrategy.Pmp
   else:
-    if p.startsWith("extip:"):
-      try:
-        let ip = parseIpAddress(p[6 ..^ 1])
-        NatConfig(hasExtIp: true, extIp: ip)
-      except ValueError:
-        let error = "Not a valid IP address: " & p[6 ..^ 1]
-        raise newException(ValueError, error)
-    else:
-      let error = "Not a valid NAT option: " & p
-      raise newException(ValueError, error)
+    raise newException(ValueError, "Not a valid NAT option: " & p)
 
-proc completeCmdArg*(T: type NatConfig, val: string): seq[string] =
+proc completeCmdArg*(T: type PortMappingStrategy, val: string): seq[string] =
   return @[]
 
 proc parseCmdArg*(T: type EthAddress, address: string): T =
@@ -642,11 +629,11 @@ proc readValue*(
   val = dur
 
 proc readValue*(
-    r: var TomlReader, val: var NatConfig
+    r: var TomlReader, val: var PortMappingStrategy
 ) {.raises: [SerializationError].} =
   val =
     try:
-      parseCmdArg(NatConfig, r.readValue(string))
+      parseCmdArg(PortMappingStrategy, r.readValue(string))
     except CatchableError as err:
       raise newException(SerializationError, err.msg)
 
