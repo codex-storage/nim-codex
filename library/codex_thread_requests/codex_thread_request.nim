@@ -69,9 +69,12 @@ proc handleRes[T: string | void | seq[byte]](
   if res.isErr():
     foreignThreadGc:
       let msg = $res.error
-      request[].callback(
-        RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), request[].userData
-      )
+      if msg == "":
+        request[].callback(RET_ERR, nil, cast[csize_t](0), request[].userData)
+      else:
+        request[].callback(
+          RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), request[].userData
+        )
     return
 
   foreignThreadGc:
