@@ -375,7 +375,10 @@ proc downloadInternal(
           let peerId = self.pendingBlocks.getRequestPeer(address).get()
           self.peers.get(peerId)
 
-      assert not scheduledPeer.isNil
+      if scheduledPeer.isNil:
+        trace "Scheduled peer no longer available, clearing stale request", address
+        self.pendingBlocks.clearRequest(address)
+        continue
 
       # Parks until either the block is received, or the peer times out.
       let activityTimer = scheduledPeer.activityTimer()
