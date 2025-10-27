@@ -125,10 +125,10 @@ integration_test () {
 
 # outputs jobs for all test types
 all_tests () {
-  # unit_test
-  # contract_test
+  unit_test
+  contract_test
   integration_test
-  # tools_test
+  tools_test
 }
 
 # outputs jobs for the specified operating systems and all test types
