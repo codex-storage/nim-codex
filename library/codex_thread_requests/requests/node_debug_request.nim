@@ -117,6 +117,7 @@ proc process*(
     if res.isErr:
       error "Failed to get PEER.", error = res.error
       return err($res.error)
+    return res
   of NodeDebugMsgType.LOG_LEVEL:
     let res = (await updateLogLevel(codex, self.logLevel))
     if res.isErr:
