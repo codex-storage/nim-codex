@@ -43,6 +43,7 @@ type Discovery* = ref object of RootObj
     # record to advertice node connection information, this carry any
     # address that the node can be connected on
   dhtRecord*: ?SignedPeerRecord # record to advertice DHT connection information
+  isStarted: bool
 
 proc toNodeId*(cid: Cid): NodeId =
   ## Cid to discovery id
@@ -203,10 +204,15 @@ proc start*(d: Discovery) {.async: (raises: []).} =
   try:
     d.protocol.open()
     await d.protocol.start()
+    d.isStarted = true
   except CatchableError as exc:
     error "Error starting discovery", exc = exc.msg
 
 proc stop*(d: Discovery) {.async: (raises: []).} =
+  if not d.isStarted:
+    warn "Discovery not started, skipping stop"
+    return
+
   try:
     await noCancel d.protocol.closeWait()
   except CatchableError as exc:
