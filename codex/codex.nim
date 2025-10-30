@@ -57,6 +57,7 @@ type
     repoStore: RepoStore
     maintenance: BlockMaintainer
     taskpool: Taskpool
+    isStarted: bool
 
   CodexPrivateKey* = libp2p.PrivateKey # alias
   EthWallet = ethers.Wallet
@@ -168,6 +169,10 @@ proc bootstrapInteractions(s: CodexServer): Future[void] {.async.} =
     s.codexNode.contracts = (client, host, validator)
 
 proc start*(s: CodexServer) {.async.} =
+  if s.isStarted:
+    warn "Codex server already started, skipping"
+    return
+
   trace "Starting codex node", config = $s.config
   await s.repoStore.start()
 
@@ -188,7 +193,13 @@ proc start*(s: CodexServer) {.async.} =
   if s.restServer != nil:
     s.restServer.start()
 
+  s.isStarted = true
+
 proc stop*(s: CodexServer) {.async.} =
+  if not s.isStarted:
+    warn "Codex is not started"
+    return
+
   notice "Stopping codex node"
 
   var futures =
