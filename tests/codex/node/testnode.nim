@@ -229,3 +229,17 @@ asyncchecksuite "Test Node - Basic":
     check not await manifestCid in localStore
     for blk in blocks:
       check not (await blk.cid in localStore)
+
+  test "Should return true when a cid is already in the local store":
+    let
+      blocks = await makeRandomBlocks(datasetSize = 1024, blockSize = 256'nb)
+      manifest = await storeDataGetManifest(localStore, blocks)
+      manifestBlock = (await store.storeManifest(manifest)).tryGet()
+      manifestCid = manifestBlock.cid
+
+    check (await node.hasLocalBlock(manifestCid)) == true
+
+  test "Should returns false when a cid is not in the local store":
+    let randomBlock = bt.Block.new("Random block".toBytes).tryGet()
+
+    check (await node.hasLocalBlock(randomBlock.cid)) == false
