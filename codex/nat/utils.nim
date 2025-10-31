@@ -7,13 +7,11 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/strutils
 import std/options
 import std/net
 
 import pkg/libp2p
-import pkg/questionable
-import pkg/questionable/results
+import pkg/stew/endians2
 
 import ./port_mapping
 
@@ -62,7 +60,7 @@ proc getAddressAndPort*(
 
 proc getMultiAddr*(ip: IpAddress, port: MappingPort): MultiAddress =
   let ipFamily = if ip.family == IpAddressFamily.IPv4: "/ip4/" else: "/ip6/"
-  let portType = if (internalPort is TcpPort): "/tcp/" else: "/udp/"
+  let portType = if (port is TcpPort): "/tcp/" else: "/udp/"
   return MultiAddress.init(ipFamily & $ip & portType & $(port.value)).expect(
       "valid multiaddr"
     )
