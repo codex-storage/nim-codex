@@ -10,6 +10,7 @@ import pkg/libp2p/protocols/connectivity/autonat/service
 
 import ../rng as random
 import ./port_mapping
+import ./utils
 
 const AutonatCheckInterval = Opt.some(chronos.seconds(30))
 
@@ -34,11 +35,53 @@ proc new*(
 ): T =
   return T(portMappingStrategy: portMappingStrategy)
 
+proc startPortMapping(self: ReachabilityManager): bool =
+  if not self.started:
+    warn "ReachabilityManager is not started, yet we are trying to map ports already!"
+    return false
+
+  try:
+    let announceRecords = (!self.getAnnounceRecords)()
+    let discoveryRecords = (!self.getDiscoveryRecords)()
+    let portsToBeMapped =
+      (announceRecords & discoveryRecords).mapIt(getAddressAndPort(it)).mapIt(it.port)
+
+    without mappedPorts =? startPortMapping(self.portMappingStrategy, portsToBeMapped),
+      err:
+      warn "Could not start port mapping", msg = err.msg
+      return false
+
+    if mappedPorts.any(
+      proc(x: PortMapping): bool =
+        isNone(x.externalPort)
+    ):
+      warn "Some ports were not mapped - not using port mapping then"
+      return false
+
+    info "Started port mapping"
+
+    let announceMappedRecords = zip(
+        announceRecords, mappedPorts[0 .. announceRecords.len - 1]
+      )
+      .mapIt(getMultiAddr(getAddressAndPort(it[0]).ip, !it[1].externalPort))
+    (!self.updateAnnounceRecords)(announceMappedRecords)
+
+    let discoveryMappedRecords = zip(
+        discoveryRecords, mappedPorts[announceRecords.len .. ^1]
+      )
+      .mapIt(getMultiAddr(getAddressAndPort(it[0]).ip, !it[1].externalPort))
+    (!self.updateDiscoveryRecords)(discoveryMappedRecords)
+
+    return true
+  except ValueError as exc:
+    error "Error while starting port mapping", msg = exc.msg
+    return false
+
 proc getReachabilityHandler(manager: ReachabilityManager): StatusAndConfidenceHandler =
   let statusAndConfidenceHandler = proc(
       networkReachability: NetworkReachability, confidenceOpt: Opt[float]
-  ): Future[void] {.gcsafe, async: (raises: [CancelledError]).} =
-    if not started:
+  ): Future[void] {.async: (raises: [CancelledError]).} =
+    if not manager.started:
       warn "ReachabilityManager was not started, but we are already getting reachability updates! Ignoring..."
       return
 
@@ -56,7 +99,7 @@ proc getReachabilityHandler(manager: ReachabilityManager): StatusAndConfidenceHa
 
     manager.networkReachability = networkReachability
 
-    if networkReachability == NetworkReachability.Unreachable:
+    if networkReachability == NetworkReachability.NotReachable:
       # Lets first start to expose port using port mapping protocols like NAT-PMP or UPnP
       if manager.startPortMapping():
         return # We exposed ports so we should be good!
@@ -64,45 +107,6 @@ proc getReachabilityHandler(manager: ReachabilityManager): StatusAndConfidenceHa
       info "No more options to become reachable"
 
   return statusAndConfidenceHandler
-
-proc startPortMapping(self: ReachabilityManager): bool =
-  try:
-    let announceRecords = self.getAnnounceRecords()
-    let discoveryRecords = self.getDiscoveryRecords()
-    let portsToBeMapped =
-      (announceRecords & discoveryRecords).mapIt(getAddressAndPort(it)).mapIt(it.port)
-
-    without mappedPorts =? startPortMapping(
-      manager.portMappingStrategy, portsToBeMapped
-    ), err:
-      warn "Could not start port mapping", msg = err
-      return false
-
-    if mappedPorts.any(
-      proc(x: ?MappingPort): bool =
-        isNone(x)
-    ):
-      warn "Some ports were not mapped - not using port mapping then"
-      return false
-
-    info "Started port mapping"
-
-    let announceMappedRecords = zip(
-        announceRecords, mappedPorts[0 .. announceRecords.len - 1]
-      )
-      .mapIt(getMultiAddr(getAddressAndPort(it[0]).ip, it[1].value))
-    self.updateAnnounceRecords(announceMappedRecords)
-
-    let discoveryMappedRecords = zip(
-        discoveryRecords, mappedPorts[announceRecords.len, ^1]
-      )
-      .mapIt(getMultiAddr(getAddressAndPort(it[0]).ip, it[1].value))
-    self.updateDiscoveryRecords(discoveryMappedRecords)
-
-    return true
-  except ValueError as exc:
-    error "Error while starting port mapping", msg = exc.msg
-    return false
 
 proc start*(
     self: ReachabilityManager, switch: Switch, bootNodes: seq[SignedPeerRecord]

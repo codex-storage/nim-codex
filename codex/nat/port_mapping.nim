@@ -10,7 +10,6 @@
 
 import std/[options, os, strutils, times, net, atomics]
 
-import pkg/stew/objects
 import pkg/nat_traversal/[miniupnpc, natpmp]
 import pkg/json_serialization/std/net
 import pkg/results
@@ -40,6 +39,9 @@ type PortMappingStrategy* = enum
 type MappingPort* = ref object of RootObj
   value*: Port
 
+proc `$`(p: MappingPort): string =
+  $(p.value)
+
 type TcpPort* = ref object of MappingPort
 type UdpPort* = ref object of MappingPort
 
@@ -49,7 +51,7 @@ proc newTcpMappingPort*(value: Port): TcpPort =
 proc newUdpMappingPort*(value: Port): UdpPort =
   UdpPort(value: value)
 
-type PortMapping = tuple[internalPort: MappingPort, externalPort: Option[MappingPort]]
+type PortMapping* = tuple[internalPort: MappingPort, externalPort: Option[MappingPort]]
 type RenewelThreadArgs =
   tuple[strategy: PortMappingStrategy, portMapping: seq[PortMapping]]
 
@@ -150,7 +152,7 @@ proc upnpPortMapping(
 
   if pmres.isErr:
     error "UPnP port mapping", msg = pmres.error
-    return failure(pmres.error)
+    return failure($pmres.error)
 
   # let's check it
   let cres = upnp.getSpecificPortMapping(
@@ -175,22 +177,23 @@ proc npmpPortMapping(
     internalPort = internalPort.value
     protocol = protocol
 
-  without extPort =?
-    npmp.addPortMapping(
-      eport = externalPort.value,
-      iport = internalPort.value,
-      protocol = protocol,
-      lifetime = Pmp_LIFETIME,
-    ), err:
-    error "NAT-PMP port mapping error", msg = err.msg
-    return failure(err.msg)
+  let extPortRes = npmp.addPortMapping(
+    eport = externalPort.value.cushort,
+    iport = internalPort.value.cushort,
+    protocol = protocol,
+    lifetime = Pmp_LIFETIME,
+  )
+
+  if extPortRes.isErr:
+    error "NAT-PMP port mapping error", msg = extPortRes.error()
+    return failure(extPortRes.error())
 
   info "NAT-PMP: added port mapping"
 
   if internalPort is TcpPort:
-    return success(newTcpMappingPort(extPort))
+    return success(MappingPort(newTcpMappingPort(Port(extPortRes.value))))
   else:
-    return success(newUdpMappingPort(extPort))
+    return success(MappingPort(newUdpMappingPort(Port(extPortRes.value))))
 
 ## Create port mapping that will try to utilize the same port number
 ## of the internal port for the external port mapping.
@@ -216,118 +219,6 @@ proc doPortMapping(
     return npmpPortMapping(internalPort, externalPort)
 
   return failure("No active startegy")
-
-## Gets external IP provided by the port mapping protocols
-## Port mapping needs to be succesfully started first using `startPortMapping()`
-proc getExternalIP*(): ?IpAddress =
-  if upnp == nil and npmp == nil:
-    warn "No available port-mapping protocol"
-    return IpAddress.none
-
-  if upnp != nil:
-    let ires = upnp.externalIPAddress
-    if ires.isOk():
-      info "Got externa IP address: " & ires.value, ip = ires.value
-      return parseIpAddress(ires.value).some
-    else:
-      debug "Getting external IP address using UPnP failed",
-        msg = ires.error, protocol = "upnp"
-
-  if npmp != nil:
-    let nires = npmp.externalIPAddress()
-    if nires.isErr:
-      debug "Getting external IP address using NAT-PMP failed", msg = nires.error
-    else:
-      try:
-        info "Got externa IP address: " & $(nires.value),
-          ip =$ (nires.value), protocol = "npmp"
-        return parseIpAddress($(nires.value)).some
-      except ValueError as e:
-        error "parseIpAddress() exception", err = e.msg
-
-  return IpAddress.none
-
-proc startPortMapping*(
-    strategy: PortMappingStrategy, internalPorts: seq[MappingPort]
-): ?!seq[PortMapping] =
-  if strategy == PortMappingStrategy.None:
-    return failure("No port mapping strategy requested")
-
-  if internalPorts.len == 0:
-    return failure("No internal ports to be mapped were supplied")
-
-  strategy = initProtocols(strategy)
-  if strategy == PortMappingStrategy.None:
-    return failure("No available port mapping protocols on the network")
-
-  portMapping = newSeqOfCap[PortMappings](internalPorts.len)
-
-  for port in internalPorts:
-    without mappedPort =? doPortMapping(port), err:
-      warn "Failed to map port", port = port.value, msg = err.msg
-      portMapping.add((internalPort: port, externalPort: MappingPort.none))
-
-    portMapping.add((internalPort: port, externalPort: mappedPort.some))
-
-  startRenewalThread(strategy)
-
-  return success(externalPorts)
-
-proc stopPortMapping*() =
-  if upnp == nil or npmp == nil:
-    debug "Port mapping is not running, nothing to stop"
-    return
-
-  info "Stopping port mapping renewal threads"
-  try:
-    portMappingExiting.store(true)
-    renewalThread.join()
-  except CatchableError as exc:
-    warn "Failed to stop port mapping renewal thread", exc = exc.msg
-
-    for mapping in portMapping:
-      if upnp != nil:
-        let protocol =
-          if (internalPort is TcpPort): UPNPProtocol.TCP else: UPNPProtocol.UDP
-
-        if err =?
-            upnp.deletePortMapping(
-              externalPort = $(mapping.externalPort.value), protocol = protocol
-            ).errorOption:
-          error "UPnP port mapping deletion error", msg = err.msg
-        else:
-          debug "UPnP: deleted port mapping",
-            externalPort = mapping.externalPort,
-            internalPort = mapping.internalPort,
-            protocol = protocol
-
-      if npnp != nil:
-        let protocol =
-          if (internalPort is TcpPort): NatPmpProtocol.TCP else: NatPmpProtocol.UDP
-
-        if err =?
-            npmp.deletePortMapping(
-              eport = mapping.externalPort.value,
-              iport = mapping.internalPort.value,
-              protocol = protocol,
-            ).errorOption:
-          error "NAT-PMP port mapping deletion error", msg = err.msg
-        else:
-          debug "NAT-PMP: deleted port mapping",
-            externalPort = mapping.externalPort,
-            internalPort = mapping.internalPort,
-            protocol = protocol
-
-proc startRenewalThread(
-    strategy: PortMappingStrategy,
-    internalPorts: seq[MappingPort],
-    externalPorts: seq[?MappingPort],
-) =
-  try:
-    renewalThread = Thread[RenewelThreadArgs]()
-    renewalThread.createThread(renewPortMapping, (strategy, portMapping))
-  except CatchableError as exc:
-    warn "Failed to create NAT port mapping renewal thread", exc = exc.msg
 
 proc renewPortMapping(args: RenewelThreadArgs) {.thread, raises: [ValueError].} =
   ignoreSignalsInThread()
@@ -361,3 +252,121 @@ proc renewPortMapping(args: RenewelThreadArgs) {.thread, raises: [ValueError].} 
       lastUpdate = now()
 
     sleep(sleepDuration)
+
+proc startRenewalThread(strategy: PortMappingStrategy) =
+  try:
+    renewalThread = Thread[RenewelThreadArgs]()
+    renewalThread.createThread(renewPortMapping, (strategy, mappings))
+  except CatchableError as exc:
+    warn "Failed to create NAT port mapping renewal thread", exc = exc.msg
+
+## Gets external IP provided by the port mapping protocols
+## Port mapping needs to be succesfully started first using `startPortMapping()`
+proc getExternalIP*(): ?IpAddress =
+  if upnp == nil and npmp == nil:
+    warn "No available port-mapping protocol"
+    return IpAddress.none
+
+  if upnp != nil:
+    let ires = upnp.externalIPAddress
+    if ires.isOk():
+      info "Got externa IP address", ip = ires.value
+      try:
+        return parseIpAddress(ires.value).some
+      except ValueError as e:
+        error "Failed to parse IP address", err = e.msg
+    else:
+      debug "Getting external IP address using UPnP failed",
+        msg = ires.error, protocol = "upnp"
+
+  if npmp != nil:
+    let nires = npmp.externalIPAddress()
+    if nires.isErr:
+      debug "Getting external IP address using NAT-PMP failed", msg = nires.error
+    else:
+      try:
+        info "Got externa IP address", ip = $(nires.value), protocol = "npmp"
+        return parseIpAddress($(nires.value)).some
+      except ValueError as e:
+        error "Failed to parse IP address", err = e.msg
+
+  return IpAddress.none
+
+proc startPortMapping*(
+    strategy: var PortMappingStrategy, internalPorts: seq[MappingPort]
+): ?!seq[PortMapping] =
+  if strategy == PortMappingStrategy.None:
+    return failure("No port mapping strategy requested")
+
+  if internalPorts.len == 0:
+    return failure("No internal ports to be mapped were supplied")
+
+  strategy = initProtocols(strategy)
+  if strategy == PortMappingStrategy.None:
+    return failure("No available port mapping protocols on the network")
+
+  if mappings.len > 0:
+    return failure("Port mapping was already started! Stop first before re-starting.")
+
+  mappings = newSeqOfCap[PortMapping](internalPorts.len)
+
+  for port in internalPorts:
+    without mappedPort =? doPortMapping(port), err:
+      warn "Failed to map port", port = port, msg = err.msg
+      mappings.add((internalPort: port, externalPort: MappingPort.none))
+
+    mappings.add((internalPort: port, externalPort: mappedPort.some))
+
+  startRenewalThread(strategy)
+
+  return success(mappings)
+
+proc stopPortMapping*() =
+  if upnp == nil or npmp == nil:
+    debug "Port mapping is not running, nothing to stop"
+    return
+
+  info "Stopping port mapping renewal threads"
+  try:
+    portMappingExiting.store(true)
+    renewalThread.joinThread()
+  except CatchableError as exc:
+    warn "Failed to stop port mapping renewal thread", exc = exc.msg
+
+  for mapping in mappings:
+    if mapping.externalPort.isNone:
+      continue
+
+    if upnp != nil:
+      let protocol =
+        if (mapping.internalPort is TcpPort): UPNPProtocol.TCP else: UPNPProtocol.UDP
+
+      if err =?
+          upnp.deletePortMapping(
+            externalPort = $((!mapping.externalPort).value), protocol = protocol
+          ).errorOption:
+        error "UPnP port mapping deletion error", msg = err
+      else:
+        debug "UPnP: deleted port mapping",
+          externalPort = !mapping.externalPort,
+          internalPort = mapping.internalPort,
+          protocol = protocol
+
+    if npmp != nil:
+      let protocol =
+        if (mapping.internalPort is TcpPort): NatPmpProtocol.TCP else: NatPmpProtocol.UDP
+
+      if err =?
+          npmp.deletePortMapping(
+            eport = (!mapping.externalPort).value.cushort,
+            iport = mapping.internalPort.value.cushort,
+            protocol = protocol,
+          ).errorOption:
+        error "NAT-PMP port mapping deletion error", msg = err
+      else:
+        debug "NAT-PMP: deleted port mapping",
+          externalPort = !mapping.externalPort,
+          internalPort = mapping.internalPort,
+          protocol = protocol
+
+  mappings = @[]
