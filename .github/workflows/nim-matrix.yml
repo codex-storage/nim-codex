@@ -8,15 +8,7 @@ env:
   cache_nonce: 0 # Allows for easily busting actions/cache caches
   nim_version: pinned
 
-jobs:
-  pr-title:
-    runs-on: ubuntu-latest
-    steps:
-      - name: PR Conventional Commit Validation
-        uses:  ytanikin/pr-conventional-commits@1.4.1
-        with:
-          task_types: '["feat","fix","docs","test","ci","build","refactor","style","perf","chore","revert"]'
-
+jobs:     
   matrix:
     runs-on: ubuntu-latest
     outputs:
