@@ -897,3 +897,10 @@ proc new*(
     contracts: contracts,
     trackedFutures: TrackedFutures(),
   )
+
+proc hasLocalBlock*(
+    self: CodexNodeRef, cid: Cid
+): Future[bool] {.async: (raises: [CancelledError]).} =
+  ## Returns true if the given Cid is present in the local store
+
+  return await (cid in self.networkStore.localStore)

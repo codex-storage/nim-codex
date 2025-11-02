@@ -16,6 +16,9 @@ type CodexClient* = ref object
   baseurl: string
   session: HttpSessionRef
 
+type HasBlockResponse = object
+  has: bool
+
 proc new*(_: type CodexClient, baseurl: string): CodexClient =
   CodexClient(session: HttpSessionRef.new(), baseurl: baseurl)
 
@@ -431,3 +434,21 @@ proc getSlots*(
   let url = client.baseurl & "/sales/slots"
   let body = await client.getContent(url)
   seq[Slot].fromJson(body)
+
+proc hasBlock*(
+    client: CodexClient, cid: Cid
+): Future[?!bool] {.async: (raises: [CancelledError, HttpError]).} =
+  let url = client.baseurl & "/data/" & $cid & "/exists"
+  let body = await client.getContent(url)
+  let response = HasBlockResponse.fromJson(body)
+  if response.isErr:
+    return failure "Failed to parse has block response"
+  return response.get.has.success
+
+proc hasBlockRaw*(
+    client: CodexClient, cid: string
+): Future[HttpClientResponseRef] {.
+    async: (raw: true, raises: [CancelledError, HttpError])
+.} =
+  let url = client.baseurl & "/data/" & cid & "/exists"
+  return client.get(url)
