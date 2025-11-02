@@ -171,6 +171,7 @@ proc process*(
     if res.isErr:
       error "Failed to SPACE.", error = res.error
       return err($res.error)
+    return res
   of NodeStorageMsgType.EXISTS:
     let res = (await exists(codex, self.cid))
     if res.isErr:
