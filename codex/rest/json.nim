@@ -9,6 +9,8 @@ import ../utils/json
 import ../manifest
 import ../units
 
+import ../tarballs/directorymanifest
+
 export json
 
 type
@@ -47,6 +49,10 @@ type
     cid* {.serialize.}: Cid
     manifest* {.serialize.}: Manifest
 
+  RestDirectoryContent* = object
+    cid* {.serialize.}: Cid
+    manifest* {.serialize.}: DirectoryManifest
+
   RestContentList* = object
     content* {.serialize.}: seq[RestContent]
 
@@ -80,6 +86,11 @@ proc init*(_: type RestContentList, content: seq[RestContent]): RestContentList 
 
 proc init*(_: type RestContent, cid: Cid, manifest: Manifest): RestContent =
   RestContent(cid: cid, manifest: manifest)
+
+proc init*(
+    _: type RestDirectoryContent, cid: Cid, manifest: DirectoryManifest
+): RestDirectoryContent =
+  RestDirectoryContent(cid: cid, manifest: manifest)
 
 proc init*(_: type RestNode, node: dn.Node): RestNode =
   RestNode(
