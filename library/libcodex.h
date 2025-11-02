@@ -172,6 +172,12 @@ int codex_storage_fetch(
                 CodexCallback callback,
                 void* userData);
 
+int codex_storage_exists(
+                void* ctx,
+                const char* cid,
+                CodexCallback callback,
+                void* userData);
+
 int codex_start(void* ctx,
                CodexCallback callback,
                void* userData);

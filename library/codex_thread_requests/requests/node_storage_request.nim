@@ -19,7 +19,7 @@ import ../../../codex/stores/repostore
 
 from ../../../codex/codex import CodexServer, node, repoStore
 from ../../../codex/node import
-  iterateManifests, fetchManifest, fetchDatasetAsyncTask, delete
+  iterateManifests, fetchManifest, fetchDatasetAsyncTask, delete, hasLocalBlock
 from libp2p import Cid, init, `$`
 
 logScope:
@@ -30,6 +30,7 @@ type NodeStorageMsgType* = enum
   DELETE
   FETCH
   SPACE
+  EXISTS
 
 type NodeStorageRequest* = object
   operation: NodeStorageMsgType
@@ -125,6 +126,20 @@ proc space(
   )
   return ok(serde.toJson(space))
 
+proc exists(
+    codex: ptr CodexServer, cCid: cstring
+): Future[Result[string, string]] {.async: (raises: []).} =
+  let cid = Cid.init($cCid)
+  if cid.isErr:
+    return err("Failed to check the data existence: cannot parse cid: " & $cCid)
+
+  try:
+    let node = codex[].node
+    let exists = await node.hasLocalBlock(cid.get())
+    return ok($exists)
+  except CancelledError:
+    return err("Failed to check the data existence: operation cancelled.")
+
 proc process*(
     self: ptr NodeStorageRequest, codex: ptr CodexServer
 ): Future[Result[string, string]] {.async: (raises: []).} =
@@ -154,5 +169,10 @@ proc process*(
     let res = (await space(codex))
     if res.isErr:
       error "Failed to SPACE.", error = res.error
+      return err($res.error)
+  of NodeStorageMsgType.EXISTS:
+    let res = (await exists(codex, self.cid))
+    if res.isErr:
+      error "Failed to EXISTS.", error = res.error
       return err($res.error)
     return res

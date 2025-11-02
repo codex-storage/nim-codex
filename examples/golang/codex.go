@@ -109,6 +109,10 @@ package main
    static int cGoCodexLogLevel(void* codexCtx, char* logLevel, void* resp) {
        return codex_log_level(codexCtx, logLevel, (CodexCallback) callback, resp);
    }
+
+   static int cGoCodexExists(void* codexCtx, char* cid, void* resp) {
+      return codex_storage_exists(codexCtx, cid, (CodexCallback) callback, resp);
+   }
 */
 import "C"
 import (
@@ -794,14 +798,33 @@ func (node CodexNode) UpdateLogLevel(logLevel string) error {
 	return err
 }
 
+func (node CodexNode) Exists(cid string) (bool, error) {
+	bridge := newBridgeCtx()
+	defer bridge.free()
+
+	var cCid = C.CString(cid)
+	defer C.free(unsafe.Pointer(cCid))
+
+	if C.cGoCodexExists(node.ctx, cCid, bridge.resp) != C.RET_OK {
+		return false, bridge.callError("cGoCodexUploadCancel")
+	}
+
+	result, err := bridge.wait()
+	return result == "true", err
+}
+
 func main() {
+	dataDir := os.TempDir() + "/data-dir"
+
 	node, err := New(Config{
 		BlockRetries: 5,
 		LogLevel:     "WARN",
+		DataDir:      dataDir,
 	})
 	if err != nil {
 		log.Fatalf("Failed to create Codex node: %v", err)
 	}
+	defer os.RemoveAll(dataDir)
 
 	if err := node.Start(); err != nil {
 		log.Fatalf("Failed to start Codex node: %v", err)
@@ -819,13 +842,32 @@ func main() {
 		log.Fatalf("Failed to update log level: %v", err)
 	}
 
+	cid := "zDvZRwzmAkhzDRPH5EW242gJBNZ2T7aoH2v1fVH66FxXL4kSbvyM"
+	exists, err := node.Exists(cid)
+	if err != nil {
+		log.Fatalf("Failed to check data existence: %v", err)
+	}
+
+	if exists {
+		log.Fatalf("The data should not exist")
+	}
+
 	buf := bytes.NewBuffer([]byte("Hello World!"))
 	len := buf.Len()
-	cid, err := node.UploadReader(UploadOptions{Filepath: "hello.txt"}, buf)
+	cid, err = node.UploadReader(UploadOptions{Filepath: "hello.txt"}, buf)
 	if err != nil {
 		log.Fatalf("Failed to upload data: %v", err)
 	}
 	log.Printf("Uploaded data with CID: %s (size: %d bytes)", cid, len)
+
+	exists, err = node.Exists(cid)
+	if err != nil {
+		log.Fatalf("Failed to check data existence: %v", err)
+	}
+
+	if !exists {
+		log.Fatalf("The data should exist")
+	}
 
 	// Wait for a SIGINT or SIGTERM signal
 	ch := make(chan os.Signal, 1)

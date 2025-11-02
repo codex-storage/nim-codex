@@ -515,6 +515,20 @@ proc codex_storage_fetch(
 
   return callback.okOrError(res, userData)
 
+proc codex_storage_exists(
+    ctx: ptr CodexContext, cid: cstring, callback: CodexCallback, userData: pointer
+): cint {.dynlib, exportc.} =
+  initializeLibrary()
+  checkLibcodexParams(ctx, callback, userData)
+
+  let req = NodeStorageRequest.createShared(NodeStorageMsgType.EXISTS, cid = cid)
+
+  let res = codex_context.sendRequestToCodexThread(
+    ctx, RequestType.STORAGE, req, callback, userData
+  )
+
+  return callback.okOrError(res, userData)
+
 proc codex_start(
     ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
