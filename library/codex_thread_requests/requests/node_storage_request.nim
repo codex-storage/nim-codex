@@ -6,6 +6,7 @@
 ## - DELETE: Deletes either a single block or an entire dataset from the local node.
 ## - FETCH: download a file from the network to the local node.
 ## - SPACE: get the amount of space used by the local node.
+## - EXISTS: check the existence of a cid in a node (local store).
 
 import std/[options]
 import chronos
