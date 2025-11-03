@@ -16,6 +16,7 @@ import std/strutils
 import pkg/chronos
 import pkg/libp2p
 import pkg/metrics
+import pkg/questionable/results
 
 import ../protobuf/blockexc
 import ../../blocktype
@@ -117,6 +118,9 @@ proc resolve*(
           startTime = blockReq[].startTime
           stopTime = getMonoTime().ticks
           retrievalDurationUs = (stopTime - startTime) div 1000
+
+        if bd.proof.isSome:
+          bd.blk.proof = bd.proof
 
         blockReq.handle.complete(bd.blk)
 
