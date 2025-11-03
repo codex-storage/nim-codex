@@ -184,6 +184,32 @@ proc sendWantBlock(
   ) # we want this remote to send us a block
   codex_block_exchange_want_block_lists_sent.inc()
 
+proc sendBatchedWantList(
+    self: BlockExcEngine,
+    peer: BlockExcPeerCtx,
+    addresses: seq[BlockAddress],
+    full: bool,
+) {.async: (raises: [CancelledError]).} =
+  var offset = 0
+  while offset < addresses.len:
+    let batchEnd = min(offset + MaxWantListBatchSize, addresses.len)
+    let batch = addresses[offset ..< batchEnd]
+
+    trace "Sending want list batch",
+      peer = peer.id,
+      batchSize = batch.len,
+      offset = offset,
+      total = addresses.len,
+      full = full
+
+    await self.network.request.sendWantList(
+      peer.id, batch, full = (full and offset == 0)
+    )
+    for address in batch:
+      peer.lastSentWants.incl(address)
+
+    offset = batchEnd
+
 proc refreshBlockKnowledge(
     self: BlockExcEngine, peer: BlockExcPeerCtx, skipDelta = false, resetBackoff = false
 ) {.async: (raises: [CancelledError]).} =
@@ -225,23 +251,7 @@ proc refreshBlockKnowledge(
       trace "Sending delta want list update",
         peer = peer.id, newWants = newWants.len, totalWants = toAsk.len
 
-      let newWantsSeq = newWants.toSeq
-      var offset = 0
-      while offset < newWantsSeq.len:
-        let batchEnd = min(offset + MaxWantListBatchSize, newWantsSeq.len)
-        let batch = newWantsSeq[offset ..< batchEnd]
-
-        trace "Sending want list batch",
-          peer = peer.id,
-          batchSize = batch.len,
-          offset = offset,
-          total = newWantsSeq.len
-
-        await self.network.request.sendWantList(peer.id, batch, full = false)
-        for address in batch:
-          peer.lastSentWants.incl(address)
-
-        offset = batchEnd
+      await self.sendBatchedWantList(peer, newWants.toSeq, full = false)
 
       if resetBackoff:
         peer.wantsUpdated
@@ -251,19 +261,7 @@ proc refreshBlockKnowledge(
   else:
     trace "Sending full want list", peer = peer.id, length = toAsk.len
 
-    let toAskSeq = toAsk.toSeq
-    var offset = 0
-    while offset < toAskSeq.len:
-      let batchEnd = min(offset + MaxWantListBatchSize, toAskSeq.len)
-      let batch = toAskSeq[offset ..< batchEnd]
-
-      trace "Sending full want list batch",
-        peer = peer.id, batchSize = batch.len, offset = offset, total = toAskSeq.len
-
-      await self.network.request.sendWantList(peer.id, batch, full = (offset == 0))
-      for address in batch:
-        peer.lastSentWants.incl(address)
-      offset = batchEnd
+    await self.sendBatchedWantList(peer, toAsk.toSeq, full = true)
 
     if resetBackoff:
       peer.wantsUpdated
