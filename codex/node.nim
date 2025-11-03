@@ -293,7 +293,7 @@ proc streamEntireDataset(
     proc erasureJob(): Future[void] {.async: (raises: []).} =
       try:
         # Spawn an erasure decoding job
-        let erasure = Erasure.new(
+        let erasure = ErasureRef.new(
           self.networkStore, leoEncoderProvider, leoDecoderProvider, self.taskpool
         )
         without _ =? (await erasure.decode(manifest)), error:
@@ -532,7 +532,7 @@ proc setupRequest(
     return failure error
 
   # Erasure code the dataset according to provided parameters
-  let erasure = Erasure.new(
+  let erasure = ErasureRef.new(
     self.networkStore.localStore, leoEncoderProvider, leoDecoderProvider, self.taskpool
   )
 
@@ -678,7 +678,7 @@ proc onStore(
   if isRepairing:
     trace "start repairing slot", slotIdx
     try:
-      let erasure = Erasure.new(
+      let erasure = ErasureRef.new(
         self.networkStore, leoEncoderProvider, leoDecoderProvider, self.taskpool
       )
       if err =? (await erasure.repair(manifest)).errorOption:
