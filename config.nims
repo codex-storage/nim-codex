@@ -61,11 +61,12 @@ elif defined(macosx) and defined(arm64):
   switch("passC", "-mcpu=apple-a14")
   # TODO: newer Clang >=15.0 can: https://github.com/llvm/llvm-project/commit/fcca10c69aaab539962d10fcc59a5f074b73b0de
 else:
-  switch("passC", "-march=native")
   if defined(windows):
     # https://gcc.gnu.org/bugzilla/show_bug.cgi?id=65782
     # ("-fno-asynchronous-unwind-tables" breaks Nim's exception raising, sometimes)
-    switch("passC", "-mno-avx512vl")
+    switch("passC", "-march=x86-64")
+  else: switch("passC", "-march=native")
+    
 
 --tlsEmulation:
   off
