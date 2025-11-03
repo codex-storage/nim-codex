@@ -9,14 +9,17 @@
 
 {.push raises: [].}
 
-import std/sequtils
+import std/[sequtils, atomics]
 
 import pkg/poseidon2
+import pkg/taskpools
+import pkg/chronos/threadsync
 import pkg/constantine/math/io/io_fields
 import pkg/constantine/platforms/abstractions
 import pkg/questionable/results
 
 import ../utils
+import ../utils/uniqueptr
 import ../rng
 
 import ./merkletree
@@ -43,6 +46,8 @@ type
 
   Poseidon2Tree* = MerkleTree[Poseidon2Hash, PoseidonKeysEnum]
   Poseidon2Proof* = MerkleProof[Poseidon2Hash, PoseidonKeysEnum]
+
+  Poseidon2TreeTask* = MerkleTask[Poseidon2Hash, PoseidonKeysEnum]
 
 proc `$`*(self: Poseidon2Tree): string =
   let root = if self.root.isOk: self.root.get.toHex else: "none"
@@ -77,8 +82,54 @@ func init*(_: type Poseidon2Tree, leaves: openArray[Poseidon2Hash]): ?!Poseidon2
   self.layers = ?merkleTreeWorker(self, leaves, isBottomLayer = true)
   success self
 
+proc init*(
+    _: type Poseidon2Tree, tp: Taskpool, leaves: seq[Poseidon2Hash]
+): Future[?!Poseidon2Tree] {.async: (raises: [CancelledError]).} =
+  if leaves.len == 0:
+    return failure "Empty leaves"
+
+  let compressor = proc(
+      x, y: Poseidon2Hash, key: PoseidonKeysEnum
+  ): ?!Poseidon2Hash {.noSideEffect.} =
+    success compress(x, y, key.toKey)
+
+  without signal =? ThreadSignalPtr.new():
+    return failure("Unable to create thread signal")
+
+  defer:
+    signal.close().expect("closing once works")
+
+  var tree = Poseidon2Tree(compress: compressor, zero: Poseidon2Zero)
+  var task = Poseidon2TreeTask(
+    tree: cast[ptr Poseidon2Tree](addr tree), leaves: leaves, signal: signal
+  )
+
+  doAssert tp.numThreads > 1,
+    "Must have at least one separate thread or signal will never be fired"
+
+  tp.spawn merkleTreeWorker(addr task)
+
+  let threadFut = signal.wait()
+
+  if err =? catch(await threadFut.join()).errorOption:
+    ?catch(await noCancel threadFut)
+    if err of CancelledError:
+      raise (ref CancelledError) err
+
+  if not task.success.load():
+    return failure("merkle tree task failed")
+
+  tree.layers = extractValue(task.layers)
+
+  success tree
+
 func init*(_: type Poseidon2Tree, leaves: openArray[array[31, byte]]): ?!Poseidon2Tree =
   Poseidon2Tree.init(leaves.mapIt(Poseidon2Hash.fromBytes(it)))
+
+proc init*(
+    _: type Poseidon2Tree, tp: Taskpool, leaves: seq[array[31, byte]]
+): Future[?!Poseidon2Tree] {.async: (raises: [CancelledError]).} =
+  await Poseidon2Tree.init(tp, leaves.mapIt(Poseidon2Hash.fromBytes(it)))
 
 proc fromNodes*(
     _: type Poseidon2Tree, nodes: openArray[Poseidon2Hash], nleaves: int

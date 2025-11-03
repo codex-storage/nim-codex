@@ -4,6 +4,7 @@ import pkg/chronos
 import pkg/libp2p/cid
 
 import pkg/codex/merkletree
+import pkg/taskpools
 import pkg/codex/chunker
 import pkg/codex/blocktype as bt
 import pkg/codex/slots
@@ -29,6 +30,7 @@ suite "Test Prover":
   var
     store: BlockStore
     prover: Prover
+    taskPool: Taskpool
 
   setup:
     let
@@ -45,13 +47,14 @@ suite "Test Prover":
         numProofSamples: samples,
       )
       backend = config.initializeBackend().tryGet()
-
+    taskPool = Taskpool.new()
     store = RepoStore.new(repoDs, metaDs)
-    prover = Prover.new(store, backend, config.numProofSamples)
+    prover = Prover.new(store, backend, config.numProofSamples, taskPool)
 
   teardown:
     await repoTmp.destroyDb()
     await metaTmp.destroyDb()
+    taskPool.shutdown()
 
   test "Should sample and prove a slot":
     let (_, _, verifiable) = await createVerifiableManifest(
@@ -61,6 +64,7 @@ suite "Test Prover":
       3, # ecM
       blockSize,
       cellSize,
+      taskPool,
     )
 
     let (inputs, proof) = (await prover.prove(1, verifiable, challenge)).tryGet
@@ -80,6 +84,7 @@ suite "Test Prover":
       1, # ecM
       blockSize,
       cellSize,
+      taskPool,
     )
 
     let (inputs, proof) = (await prover.prove(1, verifiable, challenge)).tryGet

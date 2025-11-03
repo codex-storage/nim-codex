@@ -12,6 +12,7 @@ import pkg/codex/chunker
 import pkg/codex/indexingstrategy
 import pkg/codex/slots
 import pkg/codex/rng
+import pkg/taskpools
 
 import ../helpers
 
@@ -145,6 +146,7 @@ proc createVerifiableManifest*(
     ecM: int,
     blockSize: NBytes,
     cellSize: NBytes,
+    taskPool: Taskpool,
 ): Future[tuple[manifest: Manifest, protected: Manifest, verifiable: Manifest]] {.
     async
 .} =
@@ -165,7 +167,9 @@ proc createVerifiableManifest*(
       totalDatasetSize,
     )
 
-    builder = Poseidon2Builder.new(store, protectedManifest, cellSize = cellSize).tryGet
+    builder = Poseidon2Builder.new(
+      store, protectedManifest, cellSize = cellSize, taskPool = taskPool
+    ).tryGet
     verifiableManifest = (await builder.buildManifest()).tryGet
 
   # build the slots and manifest
