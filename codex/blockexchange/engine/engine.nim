@@ -93,6 +93,7 @@ const
   DefaultPeerActivityTimeout = 1.minutes
   # Match MaxWantListBatchSize to efficiently respond to incoming WantLists
   PresenceBatchSize = MaxWantListBatchSize
+  CleanupBatchSize = 2048
 
 type
   TaskHandler* = proc(task: BlockExcPeerCtx): Future[void] {.gcsafe.}
@@ -186,6 +187,20 @@ proc sendWantBlock(
 proc refreshBlockKnowledge(
     self: BlockExcEngine, peer: BlockExcPeerCtx, skipDelta = false, resetBackoff = false
 ) {.async: (raises: [CancelledError]).} =
+  if peer.lastSentWants.len > 0:
+    var toRemove: seq[BlockAddress]
+
+    for address in peer.lastSentWants:
+      if address notin self.pendingBlocks:
+        toRemove.add(address)
+
+        if toRemove.len >= CleanupBatchSize:
+          await idleAsync()
+          break
+
+    for addr in toRemove:
+      peer.lastSentWants.excl(addr)
+
   if self.pendingBlocks.wantListLen == 0:
     if peer.lastSentWants.len > 0:
       trace "Clearing want list tracking, no pending blocks", peer = peer.id
