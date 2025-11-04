@@ -57,6 +57,8 @@ type
     repoStore: RepoStore
     maintenance: BlockMaintainer
     taskpool: Taskpool
+    isStarted: bool
+    natManager: NatManager
 
   CodexPrivateKey* = libp2p.PrivateKey # alias
   EthWallet = ethers.Wallet
@@ -167,7 +169,7 @@ proc start*(s: CodexServer) {.async.} =
   await s.codexNode.switch.start()
 
   let (announceAddrs, discoveryAddrs) = nattedAddress(
-    s.config.nat, s.codexNode.switch.peerInfo.addrs, s.config.discoveryPort
+    s.natManager, s.config.nat, s.codexNode.switch.peerInfo.addrs, s.config.discoveryPort
   )
 
   s.codexNode.discovery.updateAnnounceRecord(announceAddrs)
@@ -190,17 +192,34 @@ proc stop*(s: CodexServer) {.async.} =
     ]
   )
 
+  shutdownNat(s.natManager)
+
   if res.failure.len > 0:
     error "Failed to stop codex node", failures = res.failure.len
     raiseAssert "Failed to stop codex node"
 
   if not s.taskpool.isNil:
-    s.taskpool.shutdown()
+    try:
+      s.taskpool.shutdown()
+    except Exception as exc:
+      error "Failed to stop the taskpool", failures = res.failure.len
+      raiseAssert("Failure in taskpool shutdown:" & exc.msg)
+
+  shutdownNat(s.natManager)
+
+  if res.failure.len > 0:
+    error "Failed to close codex node", failures = res.failure.len
+    raiseAssert "Failed to close codex node"
+
+proc shutdown*(server: CodexServer) {.async.} =
+  await server.stop()
+  await server.close()
 
 proc new*(
     T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey
 ): CodexServer =
   ## create CodexServer including setting up datastore, repostore, etc
+  let natManager = newNatManager()
   let switch = SwitchBuilder
     .new()
     .withPrivateKey(privateKey)
@@ -338,4 +357,5 @@ proc new*(
     repoStore: repoStore,
     maintenance: maintenance,
     taskpool: taskpool,
+    natManager: natManager,
   )

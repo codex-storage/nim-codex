@@ -186,7 +186,11 @@ proc generateNodes*(
 
         if config.enableBootstrap:
           waitFor switch.peerInfo.update()
+          let natManager = newNatManager()
+          defer:
+            shutdownNat(natManager)
           let (announceAddrs, discoveryAddrs) = nattedAddress(
+            natManager,
             NatConfig(hasExtIp: false, nat: NatNone),
             switch.peerInfo.addrs,
             bindPort.Port,

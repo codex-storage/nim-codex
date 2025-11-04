@@ -38,8 +38,12 @@ suite "NAT Address Tests":
       #ipv6Addr = MultiAddress.init("/ip6/::1/tcp/5000").expect("valid multiaddr")
       addrs = @[localAddr, anyAddr, publicAddr]
 
+    let natManager = newNatManager()
+    defer:
+      shutdownNat(natManager)
+
     # Test address remapping
-    let (libp2pAddrs, discoveryAddrs) = nattedAddress(natConfig, addrs, udpPort)
+    let (libp2pAddrs, discoveryAddrs) = nattedAddress(natManager, natConfig, addrs, udpPort)
 
     # Verify results
     check(discoveryAddrs == expectedDiscoveryAddrs)
