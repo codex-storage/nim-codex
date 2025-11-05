@@ -79,11 +79,14 @@ method start*(
   let poptions = node.processOptions + {AsyncProcessOption.StdErrToStdOut}
 
   trace "starting node",
-    args, executable, workingDir = node.workingDir, processOptions = poptions
+    args = node.arguments,
+    executable = node.executable,
+    workingDir = node.workingDir,
+    processOptions = poptions
 
   try:
     node.process = await startProcess(
-      executable,
+      node.executable,
       node.workingDir,
       @["node"].concat(node.arguments),
       options = poptions,
