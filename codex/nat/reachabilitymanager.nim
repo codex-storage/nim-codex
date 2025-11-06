@@ -19,58 +19,74 @@ logScope:
 
 type
   ReachabilityManager* = ref object of RootObj
+    started = false
+    portMapping: PortMapping
     networkReachability*: NetworkReachability
-    portMappingStrategy: PortMappingStrategy
     getAnnounceRecords*: ?GetRecords
     getDiscoveryRecords*: ?GetRecords
     updateAnnounceRecords*: ?UpdateRecords
     updateDiscoveryRecords*: ?UpdateRecords
-    started = false
 
-  GetRecords* = proc(): seq[MultiAddress] {.raises: [].}
+  GetRecords* = proc(): ?seq[MultiAddress] {.raises: [].}
   UpdateRecords* = proc(records: seq[MultiAddress]) {.raises: [].}
 
 proc new*(
     T: typedesc[ReachabilityManager], portMappingStrategy: PortMappingStrategy
 ): T =
-  return T(portMappingStrategy: portMappingStrategy)
+  return T(portMapping: PortMapping.new(portMappingStrategy))
 
-proc startPortMapping(self: ReachabilityManager): bool =
+proc startPortMapping(
+    self: ReachabilityManager
+): Future[bool] {.async: (raises: [CancelledError]).} =
+  # This check guarantees us that the callbacks are set
+  # and hence we can use ! (Option.get) without fear.
   if not self.started:
     warn "ReachabilityManager is not started, yet we are trying to map ports already!"
     return false
 
   try:
-    let announceRecords = (!self.getAnnounceRecords)()
-    let discoveryRecords = (!self.getDiscoveryRecords)()
-    let portsToBeMapped =
-      (announceRecords & discoveryRecords).mapIt(getAddressAndPort(it)).mapIt(it.port)
+    {.gcsafe.}:
+      let announceRecords = (!self.getAnnounceRecords)()
+      let discoveryRecords = (!self.getDiscoveryRecords)()
 
-    without mappedPorts =? startPortMapping(self.portMappingStrategy, portsToBeMapped),
-      err:
+    var records: seq[MultiAddress] = @[]
+
+    if announceRecords.isSome:
+      records.add(!announceRecords)
+    if discoveryRecords.isSome:
+      records.add(!discoveryRecords)
+
+    let portsToBeMapped = records.mapIt(getAddressAndPort(it)).mapIt(it.port)
+
+    without mappedPorts =? (await self.portMapping.start(portsToBeMapped)), err:
       warn "Could not start port mapping", msg = err.msg
       return false
 
     if mappedPorts.any(
-      proc(x: PortMapping): bool =
+      proc(x: PortMappingEntry): bool =
         isNone(x.externalPort)
     ):
       warn "Some ports were not mapped - not using port mapping then"
       return false
 
-    info "Started port mapping"
+    info "Succesfully exposed ports", ports = portsToBeMapped
 
-    let announceMappedRecords = zip(
-        announceRecords, mappedPorts[0 .. announceRecords.len - 1]
-      )
-      .mapIt(getMultiAddr(getAddressAndPort(it[0]).ip, !it[1].externalPort))
-    (!self.updateAnnounceRecords)(announceMappedRecords)
+    if announceRecords.isSome:
+      let announceMappedRecords = zip(
+          !announceRecords, mappedPorts[0 .. (!announceRecords).len - 1]
+        )
+        .mapIt(getMultiAddr(getAddressAndPort(it[0]).ip, !it[1].externalPort))
+      {.gcsafe.}:
+        (!self.updateAnnounceRecords)(announceMappedRecords)
 
-    let discoveryMappedRecords = zip(
-        discoveryRecords, mappedPorts[announceRecords.len .. ^1]
-      )
-      .mapIt(getMultiAddr(getAddressAndPort(it[0]).ip, !it[1].externalPort))
-    (!self.updateDiscoveryRecords)(discoveryMappedRecords)
+    if discoveryRecords.isSome:
+      let discoveryMappedRecords = zip(
+          !discoveryRecords,
+          mappedPorts[(mappedPorts.len - (!discoveryRecords).len) .. ^1],
+        )
+        .mapIt(getMultiAddr(getAddressAndPort(it[0]).ip, !it[1].externalPort))
+      {.gcsafe.}:
+        (!self.updateDiscoveryRecords)(discoveryMappedRecords)
 
     return true
   except ValueError as exc:
@@ -80,7 +96,7 @@ proc startPortMapping(self: ReachabilityManager): bool =
 proc getReachabilityHandler(manager: ReachabilityManager): StatusAndConfidenceHandler =
   let statusAndConfidenceHandler = proc(
       networkReachability: NetworkReachability, confidenceOpt: Opt[float]
-  ): Future[void] {.async: (raises: [CancelledError]).} =
+  ): Future[void] {.gcsafe, async: (raises: [CancelledError]).} =
     if not manager.started:
       warn "ReachabilityManager was not started, but we are already getting reachability updates! Ignoring..."
       return
@@ -101,8 +117,11 @@ proc getReachabilityHandler(manager: ReachabilityManager): StatusAndConfidenceHa
 
     if networkReachability == NetworkReachability.NotReachable:
       # Lets first start to expose port using port mapping protocols like NAT-PMP or UPnP
-      if manager.startPortMapping():
-        return # We exposed ports so we should be good!
+      if manager.portMapping.isAvailable():
+        debug "Port mapping available on the network"
+
+        if await manager.startPortMapping():
+          return # We exposed ports so we should be good!
 
       info "No more options to become reachable"
 
@@ -129,8 +148,10 @@ proc start*(
     except CatchableError as exc:
       info "Failed to dial bootstrap nodes", err = exc.msg
 
-proc stop*(): Future[void] {.async: (raises: [CancelledError]).} =
-  stopPortMapping()
+proc stop*(
+    self: ReachabilityManager
+): Future[void] {.async: (raises: [CancelledError]).} =
+  await self.portMapping.stop()
   self.started = false
 
 proc getAutonatService*(self: ReachabilityManager): Service =

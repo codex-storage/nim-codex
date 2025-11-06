@@ -49,7 +49,7 @@ export units, net, codextypes, logutils, completeCmdArg, parseCmdArg
 
 export
   DefaultQuotaBytes, DefaultBlockTtl, DefaultBlockInterval, DefaultNumBlocksPerInterval,
-  DefaultBlockRetries
+  DefaultBlockRetries, PortMappingStrategy
 
 type ThreadCount* = distinct Natural
 
