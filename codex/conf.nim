@@ -47,7 +47,7 @@ from ./contracts/config import DefaultRequestCacheSize, DefaultMaxPriorityFeePer
 from ./validationconfig import MaxSlots, ValidationGroups
 
 export units, net, codextypes, logutils, completeCmdArg, parseCmdArg
-export ValidationGroups, MaxSlots
+export ValidationGroups, MaxSlots, PortMappingStrategy
 
 export
   DefaultQuotaBytes, DefaultBlockTtl, DefaultBlockInterval, DefaultNumBlocksPerInterval,

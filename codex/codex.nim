@@ -166,10 +166,12 @@ proc start*(s: CodexServer) {.async.} =
 
   await s.codexNode.switch.start()
 
-  s.reachabilityManager.getAnnounceRecords = some proc() =
-    s.codexNode.switch.peerInfo.addrs
-  s.reachabilityManager.getDiscoveryRecords = some proc() =
-    s.codexNode.discovery.dhtRecord.data.addresses.mapIt(it.address)
+  s.reachabilityManager.getAnnounceRecords = some proc(): ?seq[MultiAddress] =
+    s.codexNode.switch.peerInfo.addrs.some
+  s.reachabilityManager.getDiscoveryRecords = some proc(): ?seq[MultiAddress] =
+    if dhtRecord =? s.codexNode.discovery.dhtRecord:
+      return dhtRecord.data.addresses.mapIt(it.address).some
+
   s.reachabilityManager.updateAnnounceRecords = some proc(records: seq[MultiAddress]) =
     s.codexNode.discovery.updateAnnounceRecord(records)
   s.reachabilityManager.updateDiscoveryRecords = some proc(records: seq[MultiAddress]) =
@@ -207,7 +209,7 @@ proc new*(
 ): CodexServer =
   ## create CodexServer including setting up datastore, repostore, etc
 
-  let reachabilityManager = ReachabilityManager.new(config.portMappingStrategy)
+  let reachabilityManager = ReachabilityManager.new(config.forcePortMapping)
 
   let switch = SwitchBuilder
     .new()

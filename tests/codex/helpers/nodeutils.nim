@@ -10,8 +10,6 @@ import pkg/codex/stores
 import pkg/codex/blocktype as bt
 import pkg/codex/blockexchange
 import pkg/codex/systemclock
-import pkg/codex/nat
-import pkg/codex/utils/natutils
 import pkg/codex/slots
 
 import pkg/codex/node
@@ -186,10 +184,6 @@ proc generateNodes*(
 
         if config.enableBootstrap:
           waitFor switch.peerInfo.update()
-          let (announceAddrs, discoveryAddrs) =
-            nattedAddress(switch.peerInfo.addrs, bindPort.Port)
-          blockDiscovery.updateAnnounceRecord(announceAddrs)
-          blockDiscovery.updateDhtRecord(discoveryAddrs)
           if blockDiscovery.dhtRecord.isSome:
             bootstrapNodes.add !blockDiscovery.dhtRecord
 
