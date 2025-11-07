@@ -31,6 +31,31 @@ type NetworkStore* = ref object of BlockStore
   engine*: BlockExcEngine # blockexc decision engine
   localStore*: BlockStore # local block store
 
+method getBlocks*(
+    self: NetworkStore, addresses: seq[BlockAddress]
+): Future[SafeAsyncIter[Block]] {.async: (raises: [CancelledError]).} =
+  var
+    localAddresses: seq[BlockAddress]
+    remoteAddresses: seq[BlockAddress]
+
+  let runtimeQuota = 10.milliseconds
+  var lastIdle = Moment.now()
+
+  for address in addresses:
+    if not (await address in self.localStore):
+      remoteAddresses.add(address)
+    else:
+      localAddresses.add(address)
+
+    if (Moment.now() - lastIdle) >= runtimeQuota:
+      await idleAsync()
+      lastIdle = Moment.now()
+
+  return chain(
+    await self.localStore.getBlocks(localAddresses),
+    self.engine.requestBlocks(remoteAddresses),
+  )
+
 method getBlock*(
     self: NetworkStore, address: BlockAddress
 ): Future[?!Block] {.async: (raises: [CancelledError]).} =

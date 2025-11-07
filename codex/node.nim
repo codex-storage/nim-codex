@@ -44,7 +44,7 @@ import ./indexingstrategy
 import ./utils
 import ./errors
 import ./logutils
-import ./utils/asynciter
+import ./utils/safeasynciter
 import ./utils/trackedfutures
 
 export logutils
@@ -52,7 +52,10 @@ export logutils
 logScope:
   topics = "codex node"
 
-const DefaultFetchBatch = 10
+const
+  DefaultFetchBatch = 1024
+  MaxOnBatchBlocks = 128
+  BatchRefillThreshold = 0.75 # Refill when 75% of window completes
 
 type
   Contracts* =
@@ -187,33 +190,61 @@ proc fetchBatched*(
   #     (i: int) => self.networkStore.getBlock(BlockAddress.init(cid, i))
   #   )
 
-  while not iter.finished:
-    let blockFutures = collect:
-      for i in 0 ..< batchSize:
-        if not iter.finished:
-          let address = BlockAddress.init(cid, iter.next())
-          if not (await address in self.networkStore) or fetchLocal:
-            self.networkStore.getBlock(address)
+  # Sliding window: maintain batchSize blocks in-flight
+  let
+    refillThreshold = int(float(batchSize) * BatchRefillThreshold)
+    refillSize = max(refillThreshold, 1)
+    maxCallbackBlocks = min(batchSize, MaxOnBatchBlocks)
 
-    if blockFutures.len == 0:
+  var
+    blockData: seq[bt.Block]
+    failedBlocks = 0
+    successfulBlocks = 0
+    completedInWindow = 0
+
+  var addresses = newSeqOfCap[BlockAddress](batchSize)
+  for i in 0 ..< batchSize:
+    if not iter.finished:
+      let address = BlockAddress.init(cid, iter.next())
+      if fetchLocal or not (await address in self.networkStore):
+        addresses.add(address)
+
+  var blockResults = await self.networkStore.getBlocks(addresses)
+
+  while not blockResults.finished:
+    without blk =? await blockResults.next(), err:
+      inc(failedBlocks)
       continue
 
-    without blockResults =? await allFinishedValues[?!bt.Block](blockFutures), err:
-      trace "Some blocks failed to fetch", err = err.msg
-      return failure(err)
+    inc(successfulBlocks)
+    inc(completedInWindow)
 
-    let blocks = blockResults.filterIt(it.isSuccess()).mapIt(it.value)
+    if not onBatch.isNil:
+      blockData.add(blk)
+      if blockData.len >= maxCallbackBlocks:
+        if batchErr =? (await onBatch(blockData)).errorOption:
+          return failure(batchErr)
+        blockData = @[]
 
-    let numOfFailedBlocks = blockResults.len - blocks.len
-    if numOfFailedBlocks > 0:
-      return
-        failure("Some blocks failed (Result) to fetch (" & $numOfFailedBlocks & ")")
+    if completedInWindow >= refillThreshold and not iter.finished:
+      var refillAddresses = newSeqOfCap[BlockAddress](refillSize)
+      for i in 0 ..< refillSize:
+        if not iter.finished:
+          let address = BlockAddress.init(cid, iter.next())
+          if fetchLocal or not (await address in self.networkStore):
+            refillAddresses.add(address)
 
-    if not onBatch.isNil and batchErr =? (await onBatch(blocks)).errorOption:
+      if refillAddresses.len > 0:
+        blockResults =
+          chain(blockResults, await self.networkStore.getBlocks(refillAddresses))
+      completedInWindow = 0
+
+  if failedBlocks > 0:
+    return failure("Some blocks failed (Result) to fetch (" & $failedBlocks & ")")
+
+  if not onBatch.isNil and blockData.len > 0:
+    if batchErr =? (await onBatch(blockData)).errorOption:
       return failure(batchErr)
-
-    if not iter.finished:
-      await sleepAsync(1.millis)
 
   success()
 
