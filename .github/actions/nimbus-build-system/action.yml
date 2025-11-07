@@ -103,7 +103,7 @@ runs:
       uses: hendrikmuhs/ccache-action@v1.2
       with:
         create-symlink: false
-        key: ${{ inputs.os }}-${{ inputs.builder }}-${{ inputs.cpu }}-${{ inputs.tests }}-${{ inputs.nim_version }}
+        key: ${{ inputs.os }}-${{ inputs.builder }}-${{ inputs.cpu }}-${{ inputs.tests }}-${{ inputs.nim_version }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}
         evict-old-files: 7d
 
     - name: Add ccache to path on Linux/Mac
@@ -117,7 +117,7 @@ runs:
       if: inputs.os == 'windows'
       uses: hendrikmuhs/ccache-action@v1.2
       with:
-        key: ${{ inputs.os }}-${{ inputs.builder }}-${{ inputs.cpu }}-${{ inputs.tests }}-${{ inputs.nim_version }}
+        key: ${{ inputs.os }}-${{ inputs.builder }}-${{ inputs.cpu }}-${{ inputs.tests }}-${{ inputs.nim_version }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}
         evict-old-files: 7d
 
     - name: Enable ccache on Windows
@@ -213,7 +213,7 @@ runs:
       if: ${{ inputs.coverage != 'true' }}
       with:
         path: NimBinaries
-        key: ${{ inputs.os }}-${{ inputs.cpu }}-nim-${{ inputs.nim_version }}-cache-${{ env.cache_nonce }}-${{ github.run_id }}
+        key: ${{ inputs.os }}-${{ inputs.cpu }}-nim-${{ inputs.nim_version }}-cache-${{ env.cache_nonce }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}
         restore-keys: ${{ inputs.os }}-${{ inputs.cpu }}-nim-${{ inputs.nim_version }}-cache-${{ env.cache_nonce }}
 
     - name: Set NIM_COMMIT
