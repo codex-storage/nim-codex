@@ -44,7 +44,6 @@ suite "Test BackendFactory":
     let
       config = CodexConf(
         cmd: StartUpCmd.persistence,
-        nat: NatConfig(hasExtIp: false, nat: NatNone),
         metricsAddress: parseIpAddress("127.0.0.1"),
         persistenceCmd: PersistenceCmd.prover,
         marketplaceAddress: EthAddress.example.some,
@@ -64,7 +63,6 @@ suite "Test BackendFactory":
     let
       config = CodexConf(
         cmd: StartUpCmd.persistence,
-        nat: NatConfig(hasExtIp: false, nat: NatNone),
         metricsAddress: parseIpAddress("127.0.0.1"),
         persistenceCmd: PersistenceCmd.prover,
         marketplaceAddress: EthAddress.example.some,
@@ -85,7 +83,6 @@ suite "Test BackendFactory":
     let
       config = CodexConf(
         cmd: StartUpCmd.persistence,
-        nat: NatConfig(hasExtIp: false, nat: NatNone),
         metricsAddress: parseIpAddress("127.0.0.1"),
         persistenceCmd: PersistenceCmd.prover,
         marketplaceAddress: EthAddress.example.some,

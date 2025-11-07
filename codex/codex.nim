@@ -40,11 +40,10 @@ import ./contracts
 import ./systemclock
 import ./contracts/clock
 import ./contracts/deployment
-import ./utils/addrutils
 import ./namespaces
 import ./codextypes
 import ./logutils
-import ./nat
+import ./nat/reachabilitymanager
 
 logScope:
   topics = "codex node"
@@ -57,6 +56,7 @@ type
     repoStore: RepoStore
     maintenance: BlockMaintainer
     taskpool: Taskpool
+    reachabilityManager: ReachabilityManager
 
   CodexPrivateKey* = libp2p.PrivateKey # alias
   EthWallet = ethers.Wallet
@@ -166,12 +166,18 @@ proc start*(s: CodexServer) {.async.} =
 
   await s.codexNode.switch.start()
 
-  let (announceAddrs, discoveryAddrs) = nattedAddress(
-    s.config.nat, s.codexNode.switch.peerInfo.addrs, s.config.discoveryPort
-  )
+  s.reachabilityManager.getAnnounceRecords = some proc(): ?seq[MultiAddress] =
+    s.codexNode.switch.peerInfo.addrs.some
+  s.reachabilityManager.getDiscoveryRecords = some proc(): ?seq[MultiAddress] =
+    if dhtRecord =? s.codexNode.discovery.dhtRecord:
+      return dhtRecord.data.addresses.mapIt(it.address).some
 
-  s.codexNode.discovery.updateAnnounceRecord(announceAddrs)
-  s.codexNode.discovery.updateDhtRecord(discoveryAddrs)
+  s.reachabilityManager.updateAnnounceRecords = some proc(records: seq[MultiAddress]) =
+    s.codexNode.discovery.updateAnnounceRecord(records)
+  s.reachabilityManager.updateDiscoveryRecords = some proc(records: seq[MultiAddress]) =
+    s.codexNode.discovery.updateDhtRecord(records)
+
+  await s.reachabilityManager.start(s.codexNode.switch, s.config.bootstrapNodes)
 
   await s.bootstrapInteractions()
   await s.codexNode.start()
@@ -183,6 +189,7 @@ proc stop*(s: CodexServer) {.async.} =
   let res = await noCancel allFinishedFailed[void](
     @[
       s.restServer.stop(),
+      s.reachabilityManager.stop(),
       s.codexNode.switch.stop(),
       s.codexNode.stop(),
       s.repoStore.stop(),
@@ -201,6 +208,9 @@ proc new*(
     T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey
 ): CodexServer =
   ## create CodexServer including setting up datastore, repostore, etc
+
+  let reachabilityManager = ReachabilityManager.new(config.forcePortMapping)
+
   let switch = SwitchBuilder
     .new()
     .withPrivateKey(privateKey)
@@ -212,6 +222,11 @@ proc new*(
     .withAgentVersion(config.agentString)
     .withSignedPeerRecord(true)
     .withTcpTransport({ServerFlags.ReuseAddr})
+    # Adds AutoNAT server support - ability to respond to other peers ask about their reachability status
+    .withAutonat()
+
+    # Adds AutoNAT client support - to discover the node's rechability
+    .withServices(@[reachabilityManager.getAutonatService()])
     .build()
 
   var
@@ -338,4 +353,5 @@ proc new*(
     repoStore: repoStore,
     maintenance: maintenance,
     taskpool: taskpool,
+    reachabilityManager: reachabilityManager,
   )
