@@ -716,6 +716,8 @@ proc blocksDeliveryHandler*(
         ).errorOption:
           warn "Unable to store proof and cid for a block"
           continue
+    except CancelledError:
+      trace "Block delivery handling cancelled"
     except CatchableError as exc:
       warn "Error handling block delivery", error = exc.msg
       continue
@@ -963,6 +965,8 @@ proc blockexcTaskRunner(self: BlockExcEngine) {.async: (raises: []).} =
     while self.blockexcRunning:
       let peerCtx = await self.taskQueue.pop()
       await self.taskHandler(peerCtx)
+  except CancelledError:
+    trace "block exchange task runner cancelled", peer = peerCtx.id
   except CatchableError as exc:
     error "error running block exchange task", error = exc.msg
 
