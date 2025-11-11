@@ -972,7 +972,7 @@ proc blockexcTaskRunner(self: BlockExcEngine) {.async: (raises: []).} =
       let peerCtx = await self.taskQueue.pop()
       await self.taskHandler(peerCtx)
   except CancelledError:
-    trace "block exchange task runner cancelled", peer = peerCtx.id
+    trace "block exchange task runner cancelled"
   except CatchableError as exc:
     error "error running block exchange task", error = exc.msg
 
