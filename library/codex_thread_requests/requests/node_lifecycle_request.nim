@@ -63,10 +63,7 @@ proc readValue*(r: var JsonReader, val: var ThreadCount) =
   val = res.get()
 
 proc readValue*(r: var JsonReader, val: var NBytes) =
-  let res = NBytes.parse(r.readValue(string))
-  if res.isErr:
-    raise newException(SerializationError, "Cannot parse the NBytes: " & res.error())
-  val = res.get()
+  val = NBytes(r.readValue(int))
 
 proc readValue*(r: var JsonReader, val: var Duration) =
   var dur: Duration
