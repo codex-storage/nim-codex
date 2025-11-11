@@ -362,21 +362,29 @@ proc downloadInternal(
           #   control what happens and how many neighbors we get like this.
         self.searchForNewPeers(address.cidOrTreeCid)
 
+        let nextDiscovery =
+          if self.lastDiscRequest + DiscoveryRateLimit > Moment.now():
+            (self.lastDiscRequest + DiscoveryRateLimit - Moment.now())
+          else:
+            0.milliseconds
+
+        let retryDelay =
+          max(secs(rand(self.pendingBlocks.retryInterval.secs)), nextDiscovery)
+
         # We now wait for a bit and then retry. If the handle gets completed in the
         # meantime (cause the presence handler might have requested the block and
         # received it in the meantime), we are done. Retry delays are randomized
         # so we don't get all block loops spinning at the same time.
-        await handle or sleepAsync(secs(rand(self.pendingBlocks.retryInterval.secs)))
+        await handle or sleepAsync(retryDelay)
         if handle.finished:
           break
-        # If we still don't have the block, we'll go for another cycle.
-        trace "No peers for block, will retry shortly"
-        # Without decremeting the retries count, this would infinitely loop
+
+        # Without decrementing the retries count, this would infinitely loop
         # trying to find peers.
         self.pendingBlocks.decRetries(address)
-        # `searchForNewPeers` will do nothing if DiscoveryRateLimit has not
-        # elapsed, so we should wait to avoid a noop
-        await sleepAsync(DiscoveryRateLimit)
+
+        # If we still don't have the block, we'll go for another cycle.
+        trace "No peers for block, will retry shortly"
         continue
 
       # Once again, it might happen that the block was requested to a peer
