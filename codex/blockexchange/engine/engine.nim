@@ -371,6 +371,12 @@ proc downloadInternal(
           break
         # If we still don't have the block, we'll go for another cycle.
         trace "No peers for block, will retry shortly"
+        # Without decremeting the retries count, this would infinitely loop
+        # trying to find peers.
+        self.pendingBlocks.decRetries(address)
+        # `searchForNewPeers` will do nothing if DiscoveryRateLimit has not
+        # elapsed, so we should wait to avoid a noop
+        await sleepAsync(DiscoveryRateLimit)
         continue
 
       # Once again, it might happen that the block was requested to a peer
