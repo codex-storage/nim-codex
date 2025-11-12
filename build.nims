@@ -156,7 +156,7 @@ task libcodexDynamic, "Generate bindings":
   let name = "libcodex"
   buildLibrary name, "library/", params, "dynamic"
 
-task libcodextatic, "Generate bindings":
+task libcodexStatic, "Generate bindings":
   var params = ""
   when compiles(commandLineParams):
     for param in commandLineParams():
