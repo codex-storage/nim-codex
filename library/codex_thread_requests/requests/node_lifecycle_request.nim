@@ -56,11 +56,7 @@ proc readValue*(r: var JsonReader, val: var SignedPeerRecord) =
   val = res.get()
 
 proc readValue*(r: var JsonReader, val: var ThreadCount) =
-  let res = ThreadCount.parse(r.readValue(string))
-  if res.isErr:
-    raise
-      newException(SerializationError, "Cannot parse the thread count: " & res.error())
-  val = res.get()
+  val = ThreadCount(r.readValue(int))
 
 proc readValue*(r: var JsonReader, val: var NBytes) =
   val = NBytes(r.readValue(int))
