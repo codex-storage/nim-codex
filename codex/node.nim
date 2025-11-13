@@ -84,6 +84,7 @@ type
   BatchProc* = proc(blocks: seq[bt.Block]): Future[?!void] {.
     gcsafe, async: (raises: [CancelledError])
   .}
+  OnBlockStoredProc = proc(chunk: seq[byte]): void {.gcsafe, raises: [].}
 
 func switch*(self: CodexNodeRef): Switch =
   return self.switch
@@ -434,6 +435,7 @@ proc store*(
     filename: ?string = string.none,
     mimetype: ?string = string.none,
     blockSize = DefaultBlockSize,
+    onBlockStored: OnBlockStoredProc = nil,
 ): Future[?!Cid] {.async.} =
   ## Save stream contents as dataset with given blockSize
   ## to nodes's BlockStore, and return Cid of its manifest
@@ -463,6 +465,9 @@ proc store*(
       if err =? (await self.networkStore.putBlock(blk)).errorOption:
         error "Unable to store block", cid = blk.cid, err = err.msg
         return failure(&"Unable to store block {blk.cid}")
+
+      if not onBlockStored.isNil:
+        onBlockStored(chunk)
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
@@ -902,6 +907,7 @@ proc stop*(self: CodexNodeRef) {.async.} =
   if not self.clock.isNil:
     await self.clock.stop()
 
+proc close*(self: CodexNodeRef) {.async.} =
   if not self.networkStore.isNil:
     await self.networkStore.close
 

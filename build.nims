@@ -25,6 +25,30 @@ proc buildBinary(name: string, srcDir = "./", params = "", lang = "c") =
 
   exec(cmd)
 
+proc buildLibrary(name: string, srcDir = "./", params = "", `type` = "dynamic") =
+  if not dirExists "build":
+    mkDir "build"
+
+  if `type` == "dynamic":
+    let lib_name = (
+      when defined(windows): name & ".dll"
+      elif defined(macosx): name & ".dylib"
+      else: name & ".so"
+    )
+    exec "nim c" & " --out:build/" & lib_name &
+      " --threads:on --app:lib --opt:size --noMain --mm:refc --header --d:metrics " &
+      "--nimMainPrefix:libcodex -d:noSignalHandler " &
+      "-d:LeopardExtraCompilerFlags=-fPIC " & "-d:chronicles_runtime_filtering " &
+      "-d:chronicles_log_level=TRACE " & params & " " & srcDir & name & ".nim"
+  else:
+    exec "nim c" & " --out:build/" & name &
+      ".a --threads:on --app:staticlib --opt:size --noMain --mm:refc --header --d:metrics " &
+      "--nimMainPrefix:libcodex -d:noSignalHandler " &
+      "-d:LeopardExtraCompilerFlags=-fPIC " &
+      "-d:chronicles_runtime_filtering " &
+      "-d:chronicles_log_level=TRACE " &
+      params & " " & srcDir & name & ".nim"
+
 proc test(name: string, srcDir = "tests/", params = "", lang = "c") =
   buildBinary name, srcDir, params
   exec "build/" & name
@@ -121,3 +145,23 @@ task showCoverage, "open coverage html":
   echo " ======== Opening HTML coverage report in browser... ======== "
   if findExe("open") != "":
     exec("open coverage/report/index.html")
+
+task libcodexDynamic, "Generate bindings":
+  var params = ""
+  when compiles(commandLineParams):
+    for param in commandLineParams():
+      if param.len > 0 and param.startsWith("-"):
+        params.add " " & param
+
+  let name = "libcodex"
+  buildLibrary name, "library/", params, "dynamic"
+
+task libcodexStatic, "Generate bindings":
+  var params = ""
+  when compiles(commandLineParams):
+    for param in commandLineParams():
+      if param.len > 0 and param.startsWith("-"):
+        params.add " " & param
+
+  let name = "libcodex"
+  buildLibrary name, "library/", params, "static"
