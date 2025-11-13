@@ -92,6 +92,12 @@ else:
   on
 --warningAsError:
   "ProveField:on"
+--define:
+  "libp2p_multicodec_exts:../../../codex/multicodec_exts.nim"
+--define:
+  "libp2p_multihash_exts:../../../codex/multihash_exts.nim"
+--define:
+  "libp2p_contentids_exts:../../../codex/contentids_exts.nim"
 
 when (NimMajor, NimMinor) >= (1, 4):
   --warning:

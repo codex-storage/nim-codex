@@ -82,10 +82,10 @@ suite "Test CodexTree":
       tree == fromNodes
 
 let
-  mhash = sha256.mhash().tryGet
-  zero: seq[byte] = newSeq[byte](mhash.size)
+  digestSize = sha256.digestSize.get
+  zero: seq[byte] = newSeq[byte](digestSize)
   compress = proc(x, y: seq[byte], key: ByteTreeKey): seq[byte] =
-    compress(x, y, key, mhash).tryGet
+    compress(x, y, key, sha256).tryGet
 
   makeTree = proc(data: seq[seq[byte]]): CodexTree =
     CodexTree.init(sha256, leaves = data).tryGet
