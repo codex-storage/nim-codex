@@ -82,7 +82,7 @@ asyncchecksuite "Test Node - Basic":
       ).tryGet()
 
   test "Block Batching with corrupted blocks":
-    let blocks = await makeRandomBlocks(datasetSize = 64.KiBs.int, blockSize = 64.KiBs)
+    let blocks = await makeRandomBlocks(datasetSize = 65536, blockSize = 64.KiBs)
     assert blocks.len == 1
 
     let blk = blocks[0]

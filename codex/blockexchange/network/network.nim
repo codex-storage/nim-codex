@@ -44,6 +44,7 @@ type
   AccountHandler* = proc(peer: PeerId, account: Account) {.gcsafe, async: (raises: []).}
   PaymentHandler* =
     proc(peer: PeerId, payment: SignedState) {.gcsafe, async: (raises: []).}
+  PeerEventHandler* = proc(peer: PeerId) {.gcsafe, async: (raises: [CancelledError]).}
 
   BlockExcHandlers* = object
     onWantList*: WantListHandler
@@ -51,6 +52,9 @@ type
     onPresence*: BlockPresenceHandler
     onAccount*: AccountHandler
     onPayment*: PaymentHandler
+    onPeerJoined*: PeerEventHandler
+    onPeerDeparted*: PeerEventHandler
+    onPeerDropped*: PeerEventHandler
 
   WantListSender* = proc(
     id: PeerId,
@@ -240,86 +244,104 @@ proc handlePayment(
     await network.handlers.onPayment(peer.id, payment)
 
 proc rpcHandler(
-    b: BlockExcNetwork, peer: NetworkPeer, msg: Message
+    self: BlockExcNetwork, peer: NetworkPeer, msg: Message
 ) {.async: (raises: []).} =
   ## handle rpc messages
   ##
   if msg.wantList.entries.len > 0:
-    b.trackedFutures.track(b.handleWantList(peer, msg.wantList))
+    self.trackedFutures.track(self.handleWantList(peer, msg.wantList))
 
   if msg.payload.len > 0:
-    b.trackedFutures.track(b.handleBlocksDelivery(peer, msg.payload))
+    self.trackedFutures.track(self.handleBlocksDelivery(peer, msg.payload))
 
   if msg.blockPresences.len > 0:
-    b.trackedFutures.track(b.handleBlockPresence(peer, msg.blockPresences))
+    self.trackedFutures.track(self.handleBlockPresence(peer, msg.blockPresences))
 
   if account =? Account.init(msg.account):
-    b.trackedFutures.track(b.handleAccount(peer, account))
+    self.trackedFutures.track(self.handleAccount(peer, account))
 
   if payment =? SignedState.init(msg.payment):
-    b.trackedFutures.track(b.handlePayment(peer, payment))
+    self.trackedFutures.track(self.handlePayment(peer, payment))
 
-proc getOrCreatePeer(b: BlockExcNetwork, peer: PeerId): NetworkPeer =
+proc getOrCreatePeer(self: BlockExcNetwork, peer: PeerId): NetworkPeer =
   ## Creates or retrieves a BlockExcNetwork Peer
   ##
 
-  if peer in b.peers:
-    return b.peers.getOrDefault(peer, nil)
+  if peer in self.peers:
+    return self.peers.getOrDefault(peer, nil)
 
   var getConn: ConnProvider = proc(): Future[Connection] {.
       async: (raises: [CancelledError])
   .} =
     try:
       trace "Getting new connection stream", peer
-      return await b.switch.dial(peer, Codec)
+      return await self.switch.dial(peer, Codec)
     except CancelledError as error:
       raise error
     except CatchableError as exc:
       trace "Unable to connect to blockexc peer", exc = exc.msg
 
-  if not isNil(b.getConn):
-    getConn = b.getConn
+  if not isNil(self.getConn):
+    getConn = self.getConn
 
   let rpcHandler = proc(p: NetworkPeer, msg: Message) {.async: (raises: []).} =
-    await b.rpcHandler(p, msg)
+    await self.rpcHandler(p, msg)
 
   # create new pubsub peer
   let blockExcPeer = NetworkPeer.new(peer, getConn, rpcHandler)
   debug "Created new blockexc peer", peer
 
-  b.peers[peer] = blockExcPeer
+  self.peers[peer] = blockExcPeer
 
   return blockExcPeer
 
-proc setupPeer*(b: BlockExcNetwork, peer: PeerId) =
-  ## Perform initial setup, such as want
-  ## list exchange
-  ##
-
-  discard b.getOrCreatePeer(peer)
-
-proc dialPeer*(b: BlockExcNetwork, peer: PeerRecord) {.async.} =
+proc dialPeer*(self: BlockExcNetwork, peer: PeerRecord) {.async.} =
   ## Dial a peer
   ##
 
-  if b.isSelf(peer.peerId):
+  if self.isSelf(peer.peerId):
     trace "Skipping dialing self", peer = peer.peerId
     return
 
-  if peer.peerId in b.peers:
+  if peer.peerId in self.peers:
     trace "Already connected to peer", peer = peer.peerId
     return
 
-  await b.switch.connect(peer.peerId, peer.addresses.mapIt(it.address))
+  await self.switch.connect(peer.peerId, peer.addresses.mapIt(it.address))
 
-proc dropPeer*(b: BlockExcNetwork, peer: PeerId) =
+proc dropPeer*(
+    self: BlockExcNetwork, peer: PeerId
+) {.async: (raises: [CancelledError]).} =
+  trace "Dropping peer", peer
+
+  try:
+    if not self.switch.isNil:
+      await self.switch.disconnect(peer)
+  except CatchableError as error:
+    warn "Error attempting to disconnect from peer", peer = peer, error = error.msg
+
+  if not self.handlers.onPeerDropped.isNil:
+    await self.handlers.onPeerDropped(peer)
+
+proc handlePeerJoined*(
+    self: BlockExcNetwork, peer: PeerId
+) {.async: (raises: [CancelledError]).} =
+  discard self.getOrCreatePeer(peer)
+  if not self.handlers.onPeerJoined.isNil:
+    await self.handlers.onPeerJoined(peer)
+
+proc handlePeerDeparted*(
+    self: BlockExcNetwork, peer: PeerId
+) {.async: (raises: [CancelledError]).} =
   ## Cleanup disconnected peer
   ##
 
-  trace "Dropping peer", peer
-  b.peers.del(peer)
+  trace "Cleaning up departed peer", peer
+  self.peers.del(peer)
+  if not self.handlers.onPeerDeparted.isNil:
+    await self.handlers.onPeerDeparted(peer)
 
-method init*(self: BlockExcNetwork) =
+method init*(self: BlockExcNetwork) {.raises: [].} =
   ## Perform protocol initialization
   ##
 
@@ -327,9 +349,11 @@ method init*(self: BlockExcNetwork) =
       peerId: PeerId, event: PeerEvent
   ): Future[void] {.gcsafe, async: (raises: [CancelledError]).} =
     if event.kind == PeerEventKind.Joined:
-      self.setupPeer(peerId)
+      await self.handlePeerJoined(peerId)
+    elif event.kind == PeerEventKind.Left:
+      await self.handlePeerDeparted(peerId)
     else:
-      self.dropPeer(peerId)
+      warn "Unknown peer event", event
 
   self.switch.addPeerEventHandler(peerEventHandler, PeerEventKind.Joined)
   self.switch.addPeerEventHandler(peerEventHandler, PeerEventKind.Left)

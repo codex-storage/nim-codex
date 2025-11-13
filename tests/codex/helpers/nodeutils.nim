@@ -1,4 +1,5 @@
 import std/sequtils
+import std/sets
 
 import pkg/chronos
 import pkg/taskpools
@@ -12,10 +13,15 @@ import pkg/codex/blockexchange
 import pkg/codex/systemclock
 import pkg/codex/nat
 import pkg/codex/utils/natutils
+import pkg/codex/utils/safeasynciter
 import pkg/codex/slots
+import pkg/codex/merkletree
+import pkg/codex/manifest
 
 import pkg/codex/node
 
+import ./datasetutils
+import ./mockdiscovery
 import ../examples
 import ../../helpers
 
@@ -58,6 +64,7 @@ type
     basePort*: int = 8080
     createFullNode*: bool = false
     enableBootstrap*: bool = false
+    enableDiscovery*: bool = true
 
 converter toTuple*(
     nc: NodesComponents
@@ -89,6 +96,36 @@ proc localStores*(cluster: NodesCluster): seq[BlockStore] =
 
 proc switches*(cluster: NodesCluster): seq[Switch] =
   cluster.components.mapIt(it.switch)
+
+proc assignBlocks*(
+    node: NodesComponents,
+    dataset: TestDataset,
+    indices: seq[int],
+    putMerkleProofs = true,
+): Future[void] {.async: (raises: [CatchableError]).} =
+  let rootCid = dataset.tree.rootCid.tryGet()
+
+  for i in indices:
+    assert (await node.networkStore.putBlock(dataset.blocks[i])).isOk
+    if putMerkleProofs:
+      assert (
+        await node.networkStore.putCidAndProof(
+          rootCid, i, dataset.blocks[i].cid, dataset.tree.getProof(i).tryGet()
+        )
+      ).isOk
+
+proc assignBlocks*(
+    node: NodesComponents,
+    dataset: TestDataset,
+    indices: HSlice[int, int],
+    putMerkleProofs = true,
+): Future[void] {.async: (raises: [CatchableError]).} =
+  await assignBlocks(node, dataset, indices.toSeq, putMerkleProofs)
+
+proc assignBlocks*(
+    node: NodesComponents, dataset: TestDataset, putMerkleProofs = true
+): Future[void] {.async: (raises: [CatchableError]).} =
+  await assignBlocks(node, dataset, 0 ..< dataset.blocks.len, putMerkleProofs)
 
 proc generateNodes*(
     num: Natural, blocks: openArray[bt.Block] = [], config: NodeConfig = NodeConfig()
@@ -145,13 +182,18 @@ proc generateNodes*(
           store =
             RepoStore.new(repoStore.newDb(), mdStore.newDb(), clock = SystemClock.new())
           blockDiscoveryStore = bdStore.newDb()
-          discovery = Discovery.new(
-            switch.peerInfo.privateKey,
-            announceAddrs = @[listenAddr],
-            bindPort = bindPort.Port,
-            store = blockDiscoveryStore,
-            bootstrapNodes = bootstrapNodes,
-          )
+          discovery =
+            if config.enableDiscovery:
+              Discovery.new(
+                switch.peerInfo.privateKey,
+                announceAddrs = @[listenAddr],
+                bindPort = bindPort.Port,
+                store = blockDiscoveryStore,
+                bootstrapNodes = bootstrapNodes,
+              )
+            else:
+              nullDiscovery()
+
         waitFor store.start()
         (store.BlockStore, @[bdStore, repoStore, mdStore], discovery)
       else:
@@ -225,6 +267,26 @@ proc generateNodes*(
 
   return NodesCluster(components: components, taskpool: taskpool)
 
+proc start*(nodes: NodesComponents) {.async: (raises: [CatchableError]).} =
+  await allFuturesThrowing(
+    nodes.switch.start(),
+    #nodes.blockDiscovery.start(),
+    nodes.engine.start(),
+  )
+
+proc stop*(nodes: NodesComponents) {.async: (raises: [CatchableError]).} =
+  await allFuturesThrowing(
+    nodes.switch.stop(),
+    #   nodes.blockDiscovery.stop(),
+    nodes.engine.stop(),
+  )
+
+proc start*(nodes: seq[NodesComponents]) {.async: (raises: [CatchableError]).} =
+  await allFuturesThrowing(nodes.mapIt(it.start()).toSeq)
+
+proc stop*(nodes: seq[NodesComponents]) {.async: (raises: [CatchableError]).} =
+  await allFuturesThrowing(nodes.mapIt(it.stop()).toSeq)
+
 proc connectNodes*(nodes: seq[Switch]) {.async.} =
   for dialer in nodes:
     for node in nodes:
@@ -233,6 +295,15 @@ proc connectNodes*(nodes: seq[Switch]) {.async.} =
 
 proc connectNodes*(nodes: seq[NodesComponents]) {.async.} =
   await connectNodes(nodes.mapIt(it.switch))
+
+proc connectNodes*(nodes: varargs[NodesComponents]): Future[void] =
+  # varargs can't be captured on closures, and async procs are closures,
+  # so we have to do this mess
+  let copy = nodes.toSeq
+  (
+    proc() {.async.} =
+      await connectNodes(copy.mapIt(it.switch))
+  )()
 
 proc connectNodes*(cluster: NodesCluster) {.async.} =
   await connectNodes(cluster.components)
@@ -252,3 +323,26 @@ proc cleanup*(cluster: NodesCluster) {.async.} =
       await RepoStore(component.localStore).stop()
 
   cluster.taskpool.shutdown()
+
+proc linearTopology*(nodes: seq[NodesComponents]) {.async.} =
+  for i in 0 .. nodes.len - 2:
+    await connectNodes(nodes[i], nodes[i + 1])
+
+proc downloadDataset*(
+    node: NodesComponents, dataset: TestDataset
+): Future[void] {.async.} =
+  # This is the same as fetchBatched, but we don't construct CodexNodes so I can't use
+  # it here.
+  let requestAddresses = collect:
+    for i in 0 ..< dataset.manifest.blocksCount:
+      BlockAddress.init(dataset.manifest.treeCid, i)
+
+  let blockCids = dataset.blocks.mapIt(it.cid).toHashSet()
+
+  var count = 0
+  for blockFut in (await node.networkStore.getBlocks(requestAddresses)):
+    let blk = (await blockFut).tryGet()
+    assert blk.cid in blockCids, "Unknown block CID: " & $blk.cid
+    count += 1
+
+  assert count == dataset.blocks.len, "Incorrect number of blocks downloaded"
