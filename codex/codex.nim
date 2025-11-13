@@ -206,6 +206,7 @@ proc stop*(s: CodexServer) {.async.} =
     @[
       s.codexNode.switch.stop(),
       s.codexNode.stop(),
+      s.codexNode.discovery.stop(),
       s.repoStore.stop(),
       s.maintenance.stop(),
     ]
@@ -220,7 +221,8 @@ proc stop*(s: CodexServer) {.async.} =
     raiseAssert "Failed to stop codex node"
 
 proc close*(s: CodexServer) {.async.} =
-  var futures = @[s.codexNode.close(), s.repoStore.close()]
+  var futures =
+    @[s.codexNode.close(), s.repoStore.close(), s.codexNode.discovery.close()]
 
   let res = await noCancel allFinishedFailed[void](futures)
 
@@ -282,12 +284,15 @@ proc new*(
       msg: "Unable to create discovery directory for block store: " & discoveryDir
     )
 
+  let providersPath = config.dataDir / CodexDhtProvidersNamespace
+  let discoveryStoreRes = LevelDbDatastore.new(providersPath)
+  if discoveryStoreRes.isErr:
+    error "Failed to initialize discovery datastore",
+      path = providersPath, err = discoveryStoreRes.error.msg
+
   let
-    discoveryStore = Datastore(
-      LevelDbDatastore.new(config.dataDir / CodexDhtProvidersNamespace).expect(
-        "Should create discovery datastore!"
-      )
-    )
+    discoveryStore =
+      Datastore(discoveryStoreRes.expect("Should create discovery datastore!"))
 
     discovery = Discovery.new(
       switch.peerInfo.privateKey,

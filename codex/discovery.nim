@@ -44,6 +44,7 @@ type Discovery* = ref object of RootObj
     # address that the node can be connected on
   dhtRecord*: ?SignedPeerRecord # record to advertice DHT connection information
   isStarted: bool
+  store: Datastore
 
 proc toNodeId*(cid: Cid): NodeId =
   ## Cid to discovery id
@@ -218,6 +219,11 @@ proc stop*(d: Discovery) {.async: (raises: []).} =
   except CatchableError as exc:
     error "Error stopping discovery", exc = exc.msg
 
+proc close*(d: Discovery) {.async: (raises: []).} =
+  let res = await noCancel d.store.close()
+  if res.isErr:
+    error "Error closing discovery store", error = res.error().msg
+
 proc new*(
     T: type Discovery,
     key: PrivateKey,
@@ -230,8 +236,9 @@ proc new*(
   ## Create a new Discovery node instance for the given key and datastore
   ##
 
-  var self =
-    Discovery(key: key, peerId: PeerId.init(key).expect("Should construct PeerId"))
+  var self = Discovery(
+    key: key, peerId: PeerId.init(key).expect("Should construct PeerId"), store: store
+  )
 
   self.updateAnnounceRecord(announceAddrs)
 
