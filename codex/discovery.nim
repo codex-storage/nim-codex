@@ -216,6 +216,7 @@ proc stop*(d: Discovery) {.async: (raises: []).} =
 
   try:
     await noCancel d.protocol.closeWait()
+    d.isStarted = false
   except CatchableError as exc:
     error "Error stopping discovery", exc = exc.msg
 
