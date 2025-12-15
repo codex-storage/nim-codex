@@ -136,7 +136,8 @@ func init*(
 
   var self = CodexTree(mcodec: mcodec, compress: compressor, zero: Zero)
 
-  self.layers = ?merkleTreeWorker(self, leaves, isBottomLayer = true)
+  self.layers = ?merkleTreeWorker(self[], leaves, isBottomLayer = true)
+
   success self
 
 proc init*(
@@ -144,7 +145,7 @@ proc init*(
     tp: Taskpool,
     mcodec: MultiCodec = Sha256HashCodec,
     leaves: seq[ByteHash],
-): Future[?!CodexTree] {.async: (raises: [CancelledError]).} =
+): Future[?!CodexTree] {.async: (raises: []).} =
   if leaves.len == 0:
     return failure "Empty leaves"
 
@@ -165,25 +166,37 @@ proc init*(
 
   var tree = CodexTree(mcodec: mcodec, compress: compressor, zero: Zero)
 
-  var task =
-    CodexTreeTask(tree: cast[ptr ByteTree](addr tree), leaves: leaves, signal: signal)
+  var
+    nodesPerLevel = nodesPerLevel(leaves.len)
+    hashes = nodesPerLevel.foldl(a + b, 0)
+    layers = newSeq[byte](hashes * digestSize)
+
+  var task = CodexTreeTask(
+    tree: addr tree[],
+    leaves: SharedBuf.view(leaves),
+    layers: SharedBuf.view(layers),
+    signal: signal,
+  )
 
   doAssert tp.numThreads > 1,
     "Must have at least one separate thread or signal will never be fired"
 
   tp.spawn merkleTreeWorker(addr task)
 
-  let threadFut = signal.wait()
-
-  if err =? catch(await threadFut.join()).errorOption:
-    ?catch(await noCancel threadFut)
-    if err of CancelledError:
-      raise (ref CancelledError) err
+  # To support cancellation, we'd have to ensure the task we posted to taskpools
+  # exits early - since we're not doing that, block cancellation attempts
+  try:
+    await noCancel signal.wait()
+  except AsyncError as exc:
+    # Since we initialized the signal, the OS or chronos is misbehaving. In any
+    # case, it would mean the task is still running which would cause a memory
+    # a memory violation if we let it run - panic instead
+    raiseAssert "Could not wait for signal, was it initialized? " & exc.msg
 
   if not task.success.load():
     return failure("merkle tree task failed")
 
-  tree.layers = extractValue(task.layers)
+  tree.layers = unpack[ByteHash](task.layers, leaves.len, digestSize)
 
   success tree
 

@@ -19,7 +19,6 @@ import pkg/constantine/platforms/abstractions
 import pkg/questionable/results
 
 import ../utils
-import ../utils/uniqueptr
 import ../rng
 
 import ./merkletree
@@ -79,12 +78,22 @@ func init*(_: type Poseidon2Tree, leaves: openArray[Poseidon2Hash]): ?!Poseidon2
 
   var self = Poseidon2Tree(compress: compressor, zero: Poseidon2Zero)
 
-  self.layers = ?merkleTreeWorker(self, leaves, isBottomLayer = true)
+  self.layers = ?merkleTreeWorker(self[], leaves, isBottomLayer = true)
   success self
+
+proc len*(v: Poseidon2Hash): int =
+  sizeof(v)
+
+proc assign*(v: var openArray[byte], h: Poseidon2Hash) =
+  doAssert v.len == sizeof(h)
+  copyMem(addr v[0], addr h, sizeof(h))
+proc assign*(h: var Poseidon2Hash, v: openArray[byte]) =
+  doAssert v.len == sizeof(h)
+  copyMem(addr h, addr v[0], sizeof(h))
 
 proc init*(
     _: type Poseidon2Tree, tp: Taskpool, leaves: seq[Poseidon2Hash]
-): Future[?!Poseidon2Tree] {.async: (raises: [CancelledError]).} =
+): Future[?!Poseidon2Tree] {.async: (raises: []).} =
   if leaves.len == 0:
     return failure "Empty leaves"
 
@@ -100,8 +109,16 @@ proc init*(
     signal.close().expect("closing once works")
 
   var tree = Poseidon2Tree(compress: compressor, zero: Poseidon2Zero)
+  var
+    nodesPerLevel = nodesPerLevel(leaves.len)
+    hashes = nodesPerLevel.foldl(a + b, 0)
+    layers = newSeq[byte](hashes * sizeof(Poseidon2Hash))
+
   var task = Poseidon2TreeTask(
-    tree: cast[ptr Poseidon2Tree](addr tree), leaves: leaves, signal: signal
+    tree: addr tree[],
+    leaves: SharedBuf.view(leaves),
+    layers: SharedBuf.view(layers),
+    signal: signal,
   )
 
   doAssert tp.numThreads > 1,
@@ -109,17 +126,20 @@ proc init*(
 
   tp.spawn merkleTreeWorker(addr task)
 
-  let threadFut = signal.wait()
-
-  if err =? catch(await threadFut.join()).errorOption:
-    ?catch(await noCancel threadFut)
-    if err of CancelledError:
-      raise (ref CancelledError) err
+  # To support cancellation, we'd have to ensure the task we posted to taskpools
+  # exits early - since we're not doing that, block cancellation attempts
+  try:
+    await noCancel signal.wait()
+  except AsyncError as exc:
+    # Since we initialized the signal, the OS or chronos is misbehaving. In any
+    # case, it would mean the task is still running which would cause a memory
+    # a memory violation if we let it run - panic instead
+    raiseAssert "Could not wait for signal, was it initialized? " & exc.msg
 
   if not task.success.load():
     return failure("merkle tree task failed")
 
-  tree.layers = extractValue(task.layers)
+  tree.layers = unpack[Poseidon2Hash](task.layers, leaves.len, sizeof(Poseidon2Hash))
 
   success tree
 

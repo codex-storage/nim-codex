@@ -10,21 +10,26 @@
 {.push raises: [].}
 
 import std/[bitops, atomics]
+import stew/assign2
 
 import pkg/questionable/results
 import pkg/taskpools
 import pkg/chronos/threadsync
 
 import ../errors
-import ../utils/uniqueptr
+import ../utils/sharedbuf
+
+export sharedbuf
 
 type
   CompressFn*[H, K] = proc(x, y: H, key: K): ?!H {.noSideEffect, raises: [].}
 
-  MerkleTree*[H, K] = ref object of RootObj
+  MerkleTreeObj*[H, K] = object of RootObj
     layers*: seq[seq[H]]
     compress*: CompressFn[H, K]
     zero*: H
+
+  MerkleTree*[H, K] = ref MerkleTreeObj[H, K]
 
   MerkleProof*[H, K] = ref object of RootObj
     index*: int # linear index of the leaf, starting from 0
@@ -34,10 +39,10 @@ type
     zero*: H # zero value
 
   MerkleTask*[H, K] = object
-    tree*: ptr MerkleTree[H, K]
-    leaves*: seq[H]
+    tree*: ptr MerkleTreeObj[H, K]
+    leaves*: SharedBuf[H]
     signal*: ThreadSignalPtr
-    layers*: UniquePtr[seq[seq[H]]]
+    layers*: SharedBuf[byte]
     success*: Atomic[bool]
 
 func depth*[H, K](self: MerkleTree[H, K]): int =
@@ -48,6 +53,25 @@ func leavesCount*[H, K](self: MerkleTree[H, K]): int =
 
 func levels*[H, K](self: MerkleTree[H, K]): int =
   return self.layers.len
+
+func nodesPerLevel*(nleaves: int): seq[int] =
+  ## Given a number of leaves, the number of nodes at each depth (from the
+  ## bottom/leaves to the root)
+  if nleaves <= 0:
+    return @[]
+  elif nleaves == 1:
+    return @[1, 1] # leaf and root
+
+  var nodes: seq[int] = @[]
+  var m = nleaves
+  while true:
+    nodes.add(m)
+    if m == 1:
+      break
+    # Next layer size is ceil(m/2)
+    m = (m + 1) shr 1
+
+  nodes
 
 func leaves*[H, K](self: MerkleTree[H, K]): seq[H] =
   return self.layers[0]
@@ -133,7 +157,7 @@ func verify*[H, K](proof: MerkleProof[H, K], leaf: H, root: H): ?!bool =
   success bool(root == ?proof.reconstructRoot(leaf))
 
 func merkleTreeWorker*[H, K](
-    self: MerkleTree[H, K], xs: openArray[H], isBottomLayer: static bool
+    self: MerkleTreeObj[H, K], xs: openArray[H], isBottomLayer: static bool
 ): ?!seq[seq[H]] =
   let a = low(xs)
   let b = high(xs)
@@ -162,21 +186,38 @@ func merkleTreeWorker*[H, K](
 
   success @[@xs] & ?self.merkleTreeWorker(ys, isBottomLayer = false)
 
+proc pack*[H](tgt: SharedBuf[byte], v: seq[seq[H]]) =
+  # Pack the given nested sequences into a flat buffer
+  var pos = 0
+  for layer in v:
+    for h in layer:
+      assign(tgt.toOpenArray(pos, pos + h.len - 1), h)
+      pos += h.len
+
+proc unpack*[H](src: SharedBuf[byte], nleaves, digestSize: int): seq[seq[H]] =
+  # Given a flat buffer and the number of leaves, unpack the merkle tree from
+  # its flat storage
+  var
+    nodesPerLevel = nodesPerLevel(nleaves)
+    res = newSeq[seq[H]](nodesPerLevel.len)
+    pos = 0
+  for i, layer in res.mpairs:
+    layer = newSeq[H](nodesPerLevel[i])
+    for j, h in layer.mpairs:
+      assign(h, src.toOpenArray(pos, pos + digestSize - 1))
+      pos += digestSize
+  res
+
 proc merkleTreeWorker*[H, K](task: ptr MerkleTask[H, K]) {.gcsafe.} =
   defer:
     discard task[].signal.fireSync()
 
-  let res = merkleTreeWorker(task[].tree[], task[].leaves, isBottomLayer = true)
-
-  if res.isErr:
+  let res = merkleTreeWorker(
+    task[].tree[], task[].leaves.toOpenArray(), isBottomLayer = true
+  ).valueOr:
     task[].success.store(false)
     return
 
-  var layers = res.get()
-  var newOuterSeq = newSeq[seq[H]](layers.len)
-  for i in 0 ..< layers.len:
-    var isoInner = isolate(layers[i])
-    newOuterSeq[i] = extract(isoInner)
+  task.layers.pack(res)
 
-  task[].layers = newUniquePtr(newOuterSeq)
   task[].success.store(true)

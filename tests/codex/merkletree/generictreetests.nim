@@ -12,6 +12,13 @@ proc testGenericTree*[H, K, U](
   let data = @data
 
   suite "Correctness tests - " & name:
+    test "Should build correct tree for single leaf":
+      let expectedRoot = compress(data[0], zero, K.KeyOddAndBottomLayer)
+
+      let tree = makeTree(data[0 .. 0])
+      check:
+        tree.root.tryGet == expectedRoot
+
     test "Should build correct tree for even bottom layer":
       let expectedRoot = compress(
         compress(

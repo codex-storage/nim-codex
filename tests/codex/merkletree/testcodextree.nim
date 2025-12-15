@@ -96,6 +96,32 @@ suite "Test CodexTree":
       tree.get().leaves == expectedLeaves.mapIt(it.mhash.tryGet.digestBytes)
       tree.get().mcodec == sha256
 
+  test "Should build tree the same tree sync and async":
+    var tp = Taskpool.new(numThreads = 2)
+    defer:
+      tp.shutdown()
+
+    let expectedLeaves = data.mapIt(
+      Cid.init(CidVersion.CIDv1, BlockCodec, MultiHash.digest($sha256, it).tryGet).tryGet
+    )
+
+    let
+      atree = (await CodexTree.init(tp, leaves = expectedLeaves))
+      stree = CodexTree.init(leaves = expectedLeaves)
+
+    check:
+      toSeq(atree.get().nodes) == toSeq(stree.get().nodes)
+      atree.get().root == stree.get().root
+
+    # Single-leaf trees have their root separately computed
+    let
+      atree1 = (await CodexTree.init(tp, leaves = expectedLeaves[0..0]))
+      stree1 = CodexTree.init(leaves = expectedLeaves[0..0])
+
+    check:
+      toSeq(atree.get().nodes) == toSeq(stree.get().nodes)
+      atree.get().root == stree.get().root
+
   test "Should build from raw digestbytes (should not hash leaves)":
     let tree = CodexTree.init(sha256, leaves = data).tryGet
 
