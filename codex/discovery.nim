@@ -10,13 +10,13 @@
 {.push raises: [].}
 
 import std/algorithm
+import std/net
 import std/sequtils
 
 import pkg/chronos
 import pkg/libp2p/[cid, multicodec, routing_record, signed_envelope]
 import pkg/questionable
 import pkg/questionable/results
-import pkg/stew/shims/net
 import pkg/contractabi/address as ca
 import pkg/codexdht/discv5/[routing_table, protocol as discv5]
 from pkg/nimcrypto import keccak256
@@ -43,6 +43,7 @@ type Discovery* = ref object of RootObj
     # record to advertice node connection information, this carry any
     # address that the node can be connected on
   dhtRecord*: ?SignedPeerRecord # record to advertice DHT connection information
+  isStarted: bool
 
 proc toNodeId*(cid: Cid): NodeId =
   ## Cid to discovery id
@@ -157,7 +158,7 @@ method provide*(
 
 method removeProvider*(
     d: Discovery, peerId: PeerId
-): Future[void] {.base, gcsafe, async: (raises: [CancelledError]).} =
+): Future[void] {.base, async: (raises: [CancelledError]).} =
   ## Remove provider from providers table
   ##
 
@@ -203,10 +204,15 @@ proc start*(d: Discovery) {.async: (raises: []).} =
   try:
     d.protocol.open()
     await d.protocol.start()
+    d.isStarted = true
   except CatchableError as exc:
     error "Error starting discovery", exc = exc.msg
 
 proc stop*(d: Discovery) {.async: (raises: []).} =
+  if not d.isStarted:
+    warn "Discovery not started, skipping stop"
+    return
+
   try:
     await noCancel d.protocol.closeWait()
   except CatchableError as exc:

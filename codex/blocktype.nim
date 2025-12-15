@@ -9,16 +9,14 @@
 
 import std/tables
 import std/sugar
+import std/hashes
 
 export tables
 
-import pkg/upraises
-
-push:
-  {.upraises: [].}
+{.push raises: [], gcsafe.}
 
 import pkg/libp2p/[cid, multicodec, multihash]
-import pkg/stew/byteutils
+import pkg/stew/[byteutils, endians2]
 import pkg/questionable
 import pkg/questionable/results
 
@@ -66,6 +64,13 @@ proc `$`*(a: BlockAddress): string =
     "treeCid: " & $a.treeCid & ", index: " & $a.index
   else:
     "cid: " & $a.cid
+
+proc hash*(a: BlockAddress): Hash =
+  if a.leaf:
+    let data = a.treeCid.data.buffer & @(a.index.uint64.toBytesBE)
+    hash(data)
+  else:
+    hash(a.cid.data.buffer)
 
 proc cidOrTreeCid*(a: BlockAddress): Cid =
   if a.leaf: a.treeCid else: a.cid

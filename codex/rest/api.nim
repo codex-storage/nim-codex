@@ -7,10 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import pkg/upraises
-
-push:
-  {.upraises: [].}
+{.push raises: [], gcsafe.}
 
 import std/sequtils
 import std/mimetypes
@@ -363,6 +360,22 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
       return RestApiResponse.error(Http404, err.msg, headers = headers)
 
     let json = %formatManifest(cid.get(), manifest)
+    return RestApiResponse.response($json, contentType = "application/json")
+
+  router.api(MethodGet, "/api/codex/v1/data/{cid}/exists") do(
+    cid: Cid, resp: HttpResponseRef
+  ) -> RestApiResponse:
+    ## Only test if the give CID is available in the local store
+    ##
+    var headers = buildCorsHeaders("GET", allowedOrigin)
+
+    if cid.isErr:
+      return RestApiResponse.error(Http400, $cid.error(), headers = headers)
+
+    let cid = cid.get()
+    let hasCid = await node.hasLocalBlock(cid)
+
+    let json = %*{$cid: hasCid}
     return RestApiResponse.response($json, contentType = "application/json")
 
   router.api(MethodGet, "/api/codex/v1/space") do() -> RestApiResponse:

@@ -51,7 +51,8 @@ proc ethAccount*(node: CodexProcess): Address =
 
 proc apiUrl*(node: CodexProcess): string =
   let config = CodexConf.load(cmdLine = node.arguments, quitOnFailure = false)
-  return "http://" & config.apiBindAddress & ":" & $config.apiPort & "/api/codex/v1"
+  return
+    "http://" & config.apiBindAddress.get() & ":" & $config.apiPort & "/api/codex/v1"
 
 proc client*(node: CodexProcess): CodexClient =
   if client =? node.client:

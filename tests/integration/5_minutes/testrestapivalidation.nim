@@ -396,3 +396,10 @@ multinodesuite "Rest API validation":
     check:
       response.status == 422
       (await response.body) == "totalCollateral must be larger then zero"
+
+  test "has block returns error 400 when the cid is invalid", config:
+    let response = await client.hasBlockRaw("invalid-cid")
+
+    check:
+      response.status == 400
+      (await response.body) == "Incorrect Cid"

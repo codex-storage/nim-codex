@@ -38,6 +38,21 @@ logScope:
 # BlockStore API
 ###########################################################
 
+method getBlocks*(
+    self: RepoStore, addresses: seq[BlockAddress]
+): Future[SafeAsyncIter[Block]] {.async: (raises: [CancelledError]).} =
+  var i = 0
+
+  proc isFinished(): bool =
+    i == addresses.len
+
+  proc genNext(): Future[?!Block] {.async: (raises: [CancelledError]).} =
+    let value = await self.getBlock(addresses[i])
+    inc(i)
+    return value
+
+  return SafeAsyncIter[Block].new(genNext, isFinished)
+
 method getBlock*(
     self: RepoStore, cid: Cid
 ): Future[?!Block] {.async: (raises: [CancelledError]).} =
@@ -428,7 +443,6 @@ proc start*(
 ): Future[void] {.async: (raises: [CancelledError, CodexError]).} =
   ## Start repo
   ##
-
   if self.started:
     trace "Repo already started"
     return
@@ -450,6 +464,5 @@ proc stop*(self: RepoStore): Future[void] {.async: (raises: []).} =
     return
 
   trace "Stopping repo"
-  await self.close()
 
   self.started = false

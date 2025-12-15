@@ -32,7 +32,6 @@ jobs:
         matrix: |
           os {linux},   cpu {amd64}, builder {ubuntu-22.04},     nim_version {${{ env.nim_version }}}, rust_version {${{ env.rust_version }}}, shell {bash --noprofile --norc -e -o pipefail}
           os {linux},   cpu {arm64}, builder {ubuntu-22.04-arm}, nim_version {${{ env.nim_version }}}, rust_version {${{ env.rust_version }}}, shell {bash --noprofile --norc -e -o pipefail}
-          os {macos},   cpu {amd64}, builder {macos-13},         nim_version {${{ env.nim_version }}}, rust_version {${{ env.rust_version }}}, shell {bash --noprofile --norc -e -o pipefail}
           os {macos},   cpu {arm64}, builder {macos-14},         nim_version {${{ env.nim_version }}}, rust_version {${{ env.rust_version }}}, shell {bash --noprofile --norc -e -o pipefail}
           os {windows}, cpu {amd64}, builder {windows-latest},   nim_version {${{ env.nim_version }}}, rust_version {${{ env.rust_version }}}, shell {msys2}
 
@@ -189,6 +188,7 @@ jobs:
             aws s3 cp --recursive "${folder}" s3://${{ env.s3_bucket }}/releases/${branch} --endpoint-url ${{ env.s3_endpoint }}
             echo "${branch}" >  "${folder}"/latest
             aws s3 cp "${folder}"/latest s3://${{ env.s3_bucket }}/releases/latest --endpoint-url ${{ env.s3_endpoint }}
+            rm -f "${folder}"/latest
 
           # master branch
           elif [[ "${branch}" == "${{ github.event.repository.default_branch }}" ]]; then

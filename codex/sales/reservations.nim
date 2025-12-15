@@ -27,9 +27,7 @@
 ## | UInt256          | totalRemainingCollateral |     |
 ## +---------------------------------------------------+
 
-import pkg/upraises
-push:
-  {.upraises: [].}
+{.push raises: [], gcsafe.}
 
 import std/sequtils
 import std/sugar
@@ -38,7 +36,6 @@ import std/sequtils
 import std/times
 import pkg/chronos
 import pkg/datastore
-import pkg/nimcrypto
 import pkg/questionable
 import pkg/questionable/results
 import pkg/stint
@@ -54,6 +51,8 @@ import ../units
 
 export requests
 export logutils
+
+from nimcrypto import randomBytes
 
 logScope:
   topics = "marketplace sales reservations"
@@ -92,14 +91,10 @@ type
     repo: RepoStore
     OnAvailabilitySaved: ?OnAvailabilitySaved
 
-  GetNext* = proc(): Future[?seq[byte]] {.
-    upraises: [], gcsafe, async: (raises: [CancelledError]), closure
-  .}
-  IterDispose* =
-    proc(): Future[?!void] {.gcsafe, async: (raises: [CancelledError]), closure.}
-  OnAvailabilitySaved* = proc(availability: Availability): Future[void] {.
-    upraises: [], gcsafe, async: (raises: [])
-  .}
+  GetNext* = proc(): Future[?seq[byte]] {.async: (raises: [CancelledError]), closure.}
+  IterDispose* = proc(): Future[?!void] {.async: (raises: [CancelledError]), closure.}
+  OnAvailabilitySaved* =
+    proc(availability: Availability): Future[void] {.async: (raises: []).}
   StorableIter* = ref object
     finished*: bool
     next*: GetNext
