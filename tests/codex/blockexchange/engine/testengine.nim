@@ -29,7 +29,6 @@ asyncchecksuite "NetworkStore engine basic":
   var
     peerId: PeerId
     chunker: Chunker
-    wallet: WalletRef
     blockDiscovery: Discovery
     peerStore: PeerCtxStore
     pendingBlocks: PendingBlocksManager
@@ -39,7 +38,6 @@ asyncchecksuite "NetworkStore engine basic":
   setup:
     peerId = PeerId.example
     chunker = RandomChunker.new(Rng.instance(), size = 1024'nb, chunkSize = 256'nb)
-    wallet = WalletRef.example
     blockDiscovery = Discovery.new()
     peerStore = PeerCtxStore.new()
     pendingBlocks = PendingBlocksManager.new()
@@ -74,7 +72,7 @@ asyncchecksuite "NetworkStore engine basic":
       )
       advertiser = Advertiser.new(localStore, blockDiscovery)
       engine = BlockExcEngine.new(
-        localStore, wallet, network, discovery, advertiser, peerStore, pendingBlocks
+        localStore, network, discovery, advertiser, peerStore, pendingBlocks
       )
 
     for b in blocks:
@@ -83,39 +81,10 @@ asyncchecksuite "NetworkStore engine basic":
 
     await done.wait(100.millis)
 
-  test "Should send account to new peers":
-    let pricing = Pricing.example
-
-    proc sendAccount(
-        peer: PeerId, account: Account
-    ) {.async: (raises: [CancelledError]).} =
-      check account.address == pricing.address
-      done.complete()
-
-    let
-      network = BlockExcNetwork(request: BlockExcRequest(sendAccount: sendAccount))
-
-      localStore = CacheStore.new()
-      discovery = DiscoveryEngine.new(
-        localStore, peerStore, network, blockDiscovery, pendingBlocks
-      )
-
-      advertiser = Advertiser.new(localStore, blockDiscovery)
-
-      engine = BlockExcEngine.new(
-        localStore, wallet, network, discovery, advertiser, peerStore, pendingBlocks
-      )
-
-    engine.pricing = pricing.some
-    await engine.peerAddedHandler(peerId)
-
-    await done.wait(100.millis)
-
 asyncchecksuite "NetworkStore engine handlers":
   var
     peerId: PeerId
     chunker: Chunker
-    wallet: WalletRef
     blockDiscovery: Discovery
     peerStore: PeerCtxStore
     pendingBlocks: PendingBlocksManager
@@ -138,7 +107,6 @@ asyncchecksuite "NetworkStore engine handlers":
       blocks.add(Block.new(chunk).tryGet())
 
     peerId = PeerId.example
-    wallet = WalletRef.example
     blockDiscovery = Discovery.new()
     peerStore = PeerCtxStore.new()
     pendingBlocks = PendingBlocksManager.new()
@@ -152,7 +120,7 @@ asyncchecksuite "NetworkStore engine handlers":
     advertiser = Advertiser.new(localStore, blockDiscovery)
 
     engine = BlockExcEngine.new(
-      localStore, wallet, network, discovery, advertiser, peerStore, pendingBlocks
+      localStore, network, discovery, advertiser, peerStore, pendingBlocks
     )
 
     peerCtx = BlockExcPeerCtx(id: peerId)
@@ -258,46 +226,6 @@ asyncchecksuite "NetworkStore engine handlers":
       let present = await engine.localStore.hasBlock(b.cid)
       check present.tryGet()
 
-  test "Should send payments for received blocks":
-    let
-      done = newFuture[void]()
-      account = Account(address: EthAddress.example)
-      peerContext = peerStore.get(peerId)
-
-    peerContext.account = account.some
-    peerContext.blocks = blocks.mapIt(
-      (it.address, Presence(address: it.address, price: rand(uint16).u256, have: true))
-    ).toTable
-
-    for blk in blocks:
-      peerContext.blockRequestScheduled(blk.address)
-
-    engine.network = BlockExcNetwork(
-      request: BlockExcRequest(
-        sendPayment: proc(
-            receiver: PeerId, payment: SignedState
-        ) {.async: (raises: [CancelledError]).} =
-          let
-            amount =
-              blocks.mapIt(peerContext.blocks[it.address].catch.get.price).foldl(a + b)
-            balances = !payment.state.outcome.balances(Asset)
-
-          check receiver == peerId
-          check balances[account.address.toDestination].catch.get == amount
-          done.complete(),
-
-        # Install NOP for want list cancellations so they don't cause a crash
-        sendWantCancellations: NopSendWantCancellationsProc,
-      )
-    )
-
-    let requestedBlocks = blocks.mapIt(engine.pendingBlocks.getWantHandle(it.address))
-    await engine.blocksDeliveryHandler(
-      peerId, blocks.mapIt(BlockDelivery(blk: it, address: it.address))
-    )
-    await done.wait(100.millis)
-    await allFuturesThrowing(requestedBlocks).wait(100.millis)
-
   test "Should handle block presence":
     var handles:
       Table[Cid, Future[Block].Raising([CancelledError, RetriesExhaustedError])]
@@ -323,17 +251,15 @@ asyncchecksuite "NetworkStore engine handlers":
     # only Cids in peer want lists are requested
     handles = blocks.mapIt((it.cid, engine.pendingBlocks.getWantHandle(it.cid))).toTable
 
-    let price = UInt256.example
     await engine.blockPresenceHandler(
       peerId,
       blocks.mapIt(
-        PresenceMessage.init(Presence(address: it.address, have: true, price: price))
+        PresenceMessage.init(Presence(address: it.address, have: true))
       ),
     )
 
     for a in blocks.mapIt(it.address):
       check a in peerCtx.peerHave
-      check peerCtx.blocks[a].price == price
 
   test "Should send cancellations for requested blocks only":
     let
@@ -376,7 +302,6 @@ asyncchecksuite "Block Download":
     seckey: PrivateKey
     peerId: PeerId
     chunker: Chunker
-    wallet: WalletRef
     blockDiscovery: Discovery
     peerStore: PeerCtxStore
     pendingBlocks: PendingBlocksManager
@@ -399,7 +324,6 @@ asyncchecksuite "Block Download":
       blocks.add(Block.new(chunk).tryGet())
 
     peerId = PeerId.example
-    wallet = WalletRef.example
     blockDiscovery = Discovery.new()
     peerStore = PeerCtxStore.new()
     pendingBlocks = PendingBlocksManager.new()
@@ -413,7 +337,7 @@ asyncchecksuite "Block Download":
     advertiser = Advertiser.new(localStore, blockDiscovery)
 
     engine = BlockExcEngine.new(
-      localStore, wallet, network, discovery, advertiser, peerStore, pendingBlocks
+      localStore, network, discovery, advertiser, peerStore, pendingBlocks
     )
 
     peerCtx = BlockExcPeerCtx(id: peerId, activityTimeout: 100.milliseconds)
@@ -540,7 +464,6 @@ asyncchecksuite "Task Handler":
   var
     peerId: PeerId
     chunker: Chunker
-    wallet: WalletRef
     blockDiscovery: Discovery
     peerStore: PeerCtxStore
     pendingBlocks: PendingBlocksManager
@@ -564,7 +487,6 @@ asyncchecksuite "Task Handler":
       blocks.add(Block.new(chunk).tryGet())
 
     peerId = PeerId.example
-    wallet = WalletRef.example
     blockDiscovery = Discovery.new()
     peerStore = PeerCtxStore.new()
     pendingBlocks = PendingBlocksManager.new()
@@ -578,7 +500,7 @@ asyncchecksuite "Task Handler":
     advertiser = Advertiser.new(localStore, blockDiscovery)
 
     engine = BlockExcEngine.new(
-      localStore, wallet, network, discovery, advertiser, peerStore, pendingBlocks
+      localStore, network, discovery, advertiser, peerStore, pendingBlocks
     )
     peersCtx = @[]
 
@@ -586,8 +508,6 @@ asyncchecksuite "Task Handler":
       peers.add(PeerId.example)
       peersCtx.add(BlockExcPeerCtx(id: peers[i]))
       peerStore.add(peersCtx[i])
-
-    engine.pricing = Pricing.example.some
 
   # FIXME: this is disabled for now: I've dropped block priorities to make
   #   my life easier as I try to optimize the protocol, and also because

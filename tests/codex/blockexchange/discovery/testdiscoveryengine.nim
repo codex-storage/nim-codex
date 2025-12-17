@@ -130,7 +130,7 @@ asyncchecksuite "Test Discovery Engine":
 
       let address = BlockAddress(leaf: false, cid: cid)
 
-      peerCtx.blocks[address] = Presence(address: address, price: 0.u256)
+      peerCtx.blocks[address] = Presence(address: address)
       peerStore.add(peerCtx)
       want.fire()
 

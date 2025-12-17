@@ -58,11 +58,11 @@ suite "Peer Context Store Peer Selection":
   test "Should select peers that have Cid":
     peerCtxs[0].blocks = collect(initTable):
       for i, a in addresses:
-        {a: Presence(address: a, price: i.u256)}
+        {a: Presence(address: a)}
 
     peerCtxs[5].blocks = collect(initTable):
       for i, a in addresses:
-        {a: Presence(address: a, price: i.u256)}
+        {a: Presence(address: a)}
 
     let peers = store.peersHave(addresses[0])
 
@@ -94,8 +94,8 @@ suite "Peer Context Store Peer Selection":
   test "Should return peers with and without block":
     let address = addresses[2]
 
-    peerCtxs[1].blocks[address] = Presence(address: address, price: 0.u256)
-    peerCtxs[2].blocks[address] = Presence(address: address, price: 0.u256)
+    peerCtxs[1].blocks[address] = Presence(address: address)
+    peerCtxs[2].blocks[address] = Presence(address: address)
 
     let peers = store.getPeersForBlock(address)
 

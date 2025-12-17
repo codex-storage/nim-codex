@@ -18,12 +18,8 @@ template twonodessuite*(name: string, body: untyped) =
     var node2 {.inject, used.}: CodexProcess
     var client1 {.inject, used.}: CodexClient
     var client2 {.inject, used.}: CodexClient
-    var account1 {.inject, used.}: Address
-    var account2 {.inject, used.}: Address
 
     setup:
-      account1 = accounts[0]
-      account2 = accounts[1]
 
       node1 = clients()[0]
       node2 = clients()[1]

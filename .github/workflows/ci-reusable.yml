@@ -48,29 +48,7 @@ jobs:
         if: matrix.tests == 'unittest' || matrix.tests == 'all'
         run: make -j${ncpu} test
 
-      - name: Setup Node.js
-        if: matrix.tests == 'contract' || matrix.tests == 'integration' || matrix.tests == 'tools' || matrix.tests == 'all'
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Start Ethereum node with Logos Storage contracts
-        if: matrix.tests == 'contract' || matrix.tests == 'integration' || matrix.tests == 'tools' || matrix.tests == 'all'
-        working-directory: vendor/logos-storage-contracts-eth
-        env:
-          MSYS2_PATH_TYPE: inherit
-        run: |
-          npm ci
-          npm start &
-          # Wait for the contracts to be deployed
-          sleep 5
-
       ## Part 2 Tests ##
-      - name: Contract tests
-        if: matrix.tests == 'contract' || matrix.tests == 'all'
-        run: make -j${ncpu} testContracts
-
-      ## Part 3 Tests ##
       - name: Integration tests
         if: matrix.tests == 'integration' || matrix.tests == 'all'
         env:
@@ -84,11 +62,6 @@ jobs:
           name: ${{ matrix.os }}-${{ matrix.cpu }}-${{ matrix.nim_version }}-${{ matrix.job_number }}-integration-tests-logs
           path: tests/integration/logs/
           retention-days: 1
-
-      ## Part 4 Tools ##
-      - name: Tools tests
-        if: matrix.tests == 'tools' || matrix.tests == 'all'
-        run: make -j${ncpu} testTools
 
   status:
     if: always()

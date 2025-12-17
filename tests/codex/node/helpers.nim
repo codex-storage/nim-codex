@@ -64,7 +64,6 @@ template setupAndTearDown*() {.dirty.} =
     file: File
     chunker: Chunker
     switch: Switch
-    wallet: WalletRef
     network: BlockExcNetwork
     clock: Clock
     localStore: RepoStore
@@ -88,7 +87,6 @@ template setupAndTearDown*() {.dirty.} =
     file = open(path /../ "" /../ "fixtures" / "test.jpg")
     chunker = FileChunker.new(file = file, chunkSize = DefaultBlockSize)
     switch = newStandardSwitch()
-    wallet = WalletRef.new(EthPrivateKey.random())
     network = BlockExcNetwork.new(switch)
 
     clock = SystemClock.new()
@@ -110,14 +108,13 @@ template setupAndTearDown*() {.dirty.} =
       DiscoveryEngine.new(localStore, peerStore, network, blockDiscovery, pendingBlocks)
     advertiser = Advertiser.new(localStore, blockDiscovery)
     engine = BlockExcEngine.new(
-      localStore, wallet, network, discovery, advertiser, peerStore, pendingBlocks
+      localStore, network, discovery, advertiser, peerStore, pendingBlocks
     )
     store = NetworkStore.new(engine, localStore)
     node = CodexNodeRef.new(
       switch = switch,
       networkStore = store,
       engine = engine,
-      prover = Prover.none,
       discovery = blockDiscovery,
       taskpool = Taskpool.new(),
     )

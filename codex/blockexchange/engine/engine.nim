@@ -37,12 +37,11 @@ import ../protobuf/presence
 import ../network
 import ../peers
 
-import ./payments
 import ./discovery
 import ./advertiser
 import ./pendingblocks
 
-export peers, pendingblocks, payments, discovery
+export peers, pendingblocks, discovery
 
 logScope:
   topics = "codex blockexcengine"
@@ -113,15 +112,9 @@ type
     maxBlocksPerMessage: int
       # Maximum number of blocks we can squeeze in a single message
     pendingBlocks*: PendingBlocksManager # Blocks we're awaiting to be resolved
-    wallet*: WalletRef # Nitro wallet for micropayments
-    pricing*: ?Pricing # Optional bandwidth pricing
     discovery*: DiscoveryEngine
     advertiser*: Advertiser
     lastDiscRequest: Moment # time of last discovery request
-
-  Pricing* = object
-    address*: EthAddress
-    price*: UInt256
 
 # attach task scheduler to engine
 proc scheduleTask(self: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, raises: [].} =
@@ -644,17 +637,6 @@ proc resolveBlocks*(
     )
   )
 
-proc payForBlocks(
-    self: BlockExcEngine, peer: BlockExcPeerCtx, blocksDelivery: seq[BlockDelivery]
-) {.async: (raises: [CancelledError]).} =
-  let
-    sendPayment = self.network.request.sendPayment
-    price = peer.price(blocksDelivery.mapIt(it.address))
-
-  if payment =? self.wallet.pay(peer, price):
-    trace "Sending payment for blocks", price, len = blocksDelivery.len
-    await sendPayment(peer.id, payment)
-
 proc validateBlockDelivery(self: BlockExcEngine, bd: BlockDelivery): ?!void =
   if bd.address notin self.pendingBlocks:
     return failure("Received block is not currently a pending block")
@@ -749,11 +731,6 @@ proc blocksDeliveryHandler*(
 
   codex_block_exchange_blocks_received.inc(validatedBlocksDelivery.len.int64)
 
-  if peerCtx != nil:
-    if err =? catch(await self.payForBlocks(peerCtx, blocksDelivery)).errorOption:
-      warn "Error paying for blocks", err = err.msg
-      return
-
   if err =? catch(await self.resolveBlocks(validatedBlocksDelivery)).errorOption:
     warn "Error resolving blocks", err = err.msg
     return
@@ -790,7 +767,6 @@ proc wantListHandler*(
             except CatchableError as exc:
               # TODO: should not be necessary once we have proper exception tracking on the BlockStore interface
               false
-          price = @(self.pricing.get(Pricing(price: 0.u256)).price.toBytesBE)
 
         if e.cancel:
           # This is sort of expected if we sent the block to the peer, as we have removed
@@ -806,7 +782,7 @@ proc wantListHandler*(
             trace "We HAVE the block", address = e.address
             presence.add(
               BlockPresence(
-                address: e.address, `type`: BlockPresenceType.Have, price: price
+                address: e.address, `type`: BlockPresenceType.Have
               )
             )
           else:
@@ -814,7 +790,7 @@ proc wantListHandler*(
             if e.sendDontHave:
               presence.add(
                 BlockPresence(
-                  address: e.address, `type`: BlockPresenceType.DontHave, price: price
+                  address: e.address, `type`: BlockPresenceType.DontHave
                 )
               )
 
@@ -856,30 +832,6 @@ proc wantListHandler*(
   except CancelledError as exc: #TODO: replace with CancelledError
     warn "Error processing want list", error = exc.msg
 
-proc accountHandler*(
-    self: BlockExcEngine, peer: PeerId, account: Account
-) {.async: (raises: []).} =
-  let context = self.peers.get(peer)
-  if context.isNil:
-    return
-
-  context.account = account.some
-
-proc paymentHandler*(
-    self: BlockExcEngine, peer: PeerId, payment: SignedState
-) {.async: (raises: []).} =
-  trace "Handling payments", peer
-
-  without context =? self.peers.get(peer).option and account =? context.account:
-    trace "No context or account for peer", peer
-    return
-
-  if channel =? context.paymentChannel:
-    let sender = account.address
-    discard self.wallet.acceptPayment(channel, Asset, sender, payment)
-  else:
-    context.paymentChannel = self.wallet.acceptChannel(payment).option
-
 proc peerAddedHandler*(
     self: BlockExcEngine, peer: PeerId
 ) {.async: (raises: [CancelledError]).} =
@@ -895,10 +847,6 @@ proc peerAddedHandler*(
     self.peers.add(peerCtx)
     trace "Added peer", peers = self.peers.len
     await self.refreshBlockKnowledge(peerCtx)
-
-  if address =? self.pricing .? address:
-    trace "Sending account to peer", peer
-    await self.network.request.sendAccount(peer, Account(address: address))
 
 proc localLookup(
     self: BlockExcEngine, address: BlockAddress
@@ -1023,7 +971,6 @@ proc selectRandom*(
 proc new*(
     T: type BlockExcEngine,
     localStore: BlockStore,
-    wallet: WalletRef,
     network: BlockExcNetwork,
     discovery: DiscoveryEngine,
     advertiser: Advertiser,
@@ -1041,7 +988,6 @@ proc new*(
     peers: peerStore,
     pendingBlocks: pendingBlocks,
     network: network,
-    wallet: wallet,
     concurrentTasks: concurrentTasks,
     trackedFutures: TrackedFutures(),
     maxBlocksPerMessage: maxBlocksPerMessage,
@@ -1066,16 +1012,6 @@ proc new*(
   ): Future[void] {.async: (raises: []).} =
     self.blocksDeliveryHandler(peer, blocksDelivery)
 
-  proc accountHandler(
-      peer: PeerId, account: Account
-  ): Future[void] {.async: (raises: []).} =
-    self.accountHandler(peer, account)
-
-  proc paymentHandler(
-      peer: PeerId, payment: SignedState
-  ): Future[void] {.async: (raises: []).} =
-    self.paymentHandler(peer, payment)
-
   proc peerAddedHandler(
       peer: PeerId
   ): Future[void] {.async: (raises: [CancelledError]).} =
@@ -1090,8 +1026,6 @@ proc new*(
     onWantList: blockWantListHandler,
     onBlocksDelivery: blocksDeliveryHandler,
     onPresence: blockPresenceHandler,
-    onAccount: accountHandler,
-    onPayment: paymentHandler,
     onPeerJoined: peerAddedHandler,
     onPeerDeparted: peerDepartedHandler,
   )

@@ -17,7 +17,6 @@ import ../../blocktype
 export Message, protobufEncode, protobufDecode
 export Wantlist, WantType, WantListEntry
 export BlockDelivery, BlockPresenceType, BlockPresence
-export AccountMessage, StateChannelUpdate
 
 proc hash*(e: WantListEntry): Hash =
   hash(e.address)

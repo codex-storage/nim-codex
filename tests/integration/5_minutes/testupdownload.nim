@@ -63,8 +63,6 @@ twonodessuite "Uploads and downloads":
     check manifest["datasetSize"].getInt() == 18
     check manifest.hasKey("blockSize") == true
     check manifest["blockSize"].getInt() == 65536
-    check manifest.hasKey("protected") == true
-    check manifest["protected"].getBool() == false
 
   test "node allows downloading only manifest", twoNodesConfig:
     let content1 = "some file contents"

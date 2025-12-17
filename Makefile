@@ -98,11 +98,6 @@ all: | build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
 		$(ENV_SCRIPT) nim storage $(NIM_PARAMS) build.nims
 
-# Build tools/cirdl
-cirdl: | deps
-	echo -e $(BUILD_MSG) "build/$@" && \
-		$(ENV_SCRIPT) nim toolsCirdl $(NIM_PARAMS) build.nims
-
 # must be included after the default target
 -include $(BUILD_SYSTEM_DIR)/makefiles/targets.mk
 
@@ -135,11 +130,6 @@ test: | build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
 		$(ENV_SCRIPT) nim test $(NIM_PARAMS) build.nims
 
-# Builds and runs the smart contract tests
-testContracts: | build deps
-	echo -e $(BUILD_MSG) "build/$@" && \
-		$(ENV_SCRIPT) nim testContracts $(NIM_PARAMS) --define:ws_resubscribe=240 build.nims
-
 # Builds and runs the integration tests
 testIntegration: | build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
@@ -149,16 +139,6 @@ testIntegration: | build deps
 testAll: | build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
 		$(ENV_SCRIPT) nim testAll $(NIM_PARAMS) build.nims
-
-# Builds and runs Taiko L2 tests
-testTaiko: | build deps
-	echo -e $(BUILD_MSG) "build/$@" && \
-		$(ENV_SCRIPT) nim testTaiko $(NIM_PARAMS) build.nims
-
-# Builds and runs tool tests
-testTools: | cirdl
-	echo -e $(BUILD_MSG) "build/$@" && \
-		$(ENV_SCRIPT) nim testTools $(NIM_PARAMS) build.nims
 
 # nim-libbacktrace
 LIBBACKTRACE_MAKE_FLAGS := -C vendor/nim-libbacktrace --no-print-directory BUILD_CXX_LIB=0

@@ -3,8 +3,6 @@ import pkg/stew/byteutils
 import pkg/libp2p
 import pkg/codexdht/discv5/node as dn
 import pkg/codexdht/discv5/routing_table as rt
-import ../sales
-import ../purchasing
 import ../utils/json
 import ../manifest
 import ../units
@@ -12,36 +10,6 @@ import ../units
 export json
 
 type
-  StorageRequestParams* = object
-    duration* {.serialize.}: uint64
-    proofProbability* {.serialize.}: UInt256
-    pricePerBytePerSecond* {.serialize.}: UInt256
-    collateralPerByte* {.serialize.}: UInt256
-    expiry* {.serialize.}: uint64
-    nodes* {.serialize.}: ?uint
-    tolerance* {.serialize.}: ?uint
-
-  RestPurchase* = object
-    requestId* {.serialize.}: RequestId
-    request* {.serialize.}: ?StorageRequest
-    state* {.serialize.}: string
-    error* {.serialize.}: ?string
-
-  RestAvailability* = object
-    totalSize* {.serialize.}: uint64
-    duration* {.serialize.}: uint64
-    minPricePerBytePerSecond* {.serialize.}: UInt256
-    totalCollateral* {.serialize.}: UInt256
-    freeSize* {.serialize.}: ?uint64
-    enabled* {.serialize.}: ?bool
-    until* {.serialize.}: ?SecondsSince1970
-
-  RestSalesAgent* = object
-    state* {.serialize.}: string
-    requestId* {.serialize.}: RequestId
-    slotIndex* {.serialize.}: uint64
-    request* {.serialize.}: ?StorageRequest
-    reservation* {.serialize.}: ?Reservation
 
   RestContent* = object
     cid* {.serialize.}: Cid
@@ -105,14 +73,6 @@ proc init*(_: type RestPeerRecord, peerRecord: PeerRecord): RestPeerRecord =
 
 proc init*(_: type RestNodeId, id: NodeId): RestNodeId =
   RestNodeId(id: id)
-
-proc `%`*(obj: StorageRequest | Slot): JsonNode =
-  let jsonObj = newJObject()
-  for k, v in obj.fieldPairs:
-    jsonObj[k] = %v
-  jsonObj["id"] = %(obj.id)
-
-  return jsonObj
 
 proc `%`*(obj: RestNodeId): JsonNode =
   % $obj.id

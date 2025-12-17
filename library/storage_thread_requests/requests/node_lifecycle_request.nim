@@ -69,9 +69,6 @@ proc readValue*(r: var JsonReader, val: var Duration) =
     raise newException(SerializationError, "Cannot parse the duration: " & input)
   val = dur
 
-proc readValue*(r: var JsonReader, val: var EthAddress) =
-  val = EthAddress.init(r.readValue(string)).get()
-
 type NodeLifecycleRequest* = object
   operation: NodeLifecycleMsgType
   configJson: cstring

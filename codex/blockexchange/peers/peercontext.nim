@@ -13,17 +13,13 @@ import std/sets
 
 import pkg/libp2p
 import pkg/chronos
-import pkg/nitro
 import pkg/questionable
 
 import ../protobuf/blockexc
-import ../protobuf/payments
 import ../protobuf/presence
 
 import ../../blocktype
 import ../../logutils
-
-export payments, nitro
 
 const
   MinRefreshInterval = 1.seconds
@@ -32,14 +28,12 @@ const
 
 type BlockExcPeerCtx* = ref object of RootObj
   id*: PeerId
-  blocks*: Table[BlockAddress, Presence] # remote peer have list including price
+  blocks*: Table[BlockAddress, Presence] # remote peer have list
   wantedBlocks*: HashSet[BlockAddress] # blocks that the peer wants
   exchanged*: int # times peer has exchanged with us
   refreshInProgress*: bool # indicates if a refresh is in progress
   lastRefresh*: Moment # last time we refreshed our knowledge of the blocks this peer has
   refreshBackoff*: int = 1 # backoff factor for refresh requests
-  account*: ?Account # ethereum account of this peer
-  paymentChannel*: ?ChannelId # payment channel id
   blocksSent*: HashSet[BlockAddress] # blocks sent to peer
   blocksRequested*: HashSet[BlockAddress] # pending block requests to this peer
   lastExchange*: Moment # last time peer has sent us a block
@@ -104,14 +98,6 @@ func cleanPresence*(self: BlockExcPeerCtx, addresses: seq[BlockAddress]) =
 
 func cleanPresence*(self: BlockExcPeerCtx, address: BlockAddress) =
   self.cleanPresence(@[address])
-
-func price*(self: BlockExcPeerCtx, addresses: seq[BlockAddress]): UInt256 =
-  var price = 0.u256
-  for a in addresses:
-    self.blocks.withValue(a, precense):
-      price += precense[].price
-
-  price
 
 proc blockRequestScheduled*(self: BlockExcPeerCtx, address: BlockAddress) =
   ## Adds a block the set of blocks that have been requested to this peer

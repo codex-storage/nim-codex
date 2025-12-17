@@ -4,9 +4,7 @@ import std/strutils
 import pkg/unittest2
 import pkg/codex/blocktype
 import pkg/codex/conf
-import pkg/codex/contracts/requests
 import pkg/codex/logutils
-import pkg/codex/purchasing/purchaseid
 import pkg/codex/units
 import pkg/codex/utils/json
 import pkg/libp2p/cid
@@ -199,63 +197,6 @@ checksuite "Test logging output":
     log int
     check logged("int", "123")
     check loggedJson("int", "123")
-
-  test "logs EthAddress correctly":
-    let address = EthAddress.fromHex("0xf75e076f650cd51dbfa0fd9c465d5037f22e1b1b")
-    log address
-    check logged("address", "0xf75e..1b1b")
-    check loggedJson("address", "\"0xf75e076f650cd51dbfa0fd9c465d5037f22e1b1b\"")
-
-  test "logs PurchaseId correctly":
-    let id = PurchaseId.fromHex(
-      "0x712003bdfc0db9abf21e7fbb7119cd52ff221c96714d21d39e782d7c744d3dea"
-    )
-    log id
-    check logged("id", "0x7120..3dea")
-
-  test "logs RequestId correctly":
-    let id = RequestId.fromHex(
-      "0x712003bdfc0db9abf21e7fbb7119cd52ff221c96714d21d39e782d7c744d3dea"
-    )
-    log id
-    check logged("id", "0x7120..3dea")
-    check loggedJson(
-      "id", "\"0x712003bdfc0db9abf21e7fbb7119cd52ff221c96714d21d39e782d7c744d3dea\""
-    )
-
-  test "logs seq[RequestId] correctly":
-    let id = RequestId.fromHex(
-      "0x712003bdfc0db9abf21e7fbb7119cd52ff221c96714d21d39e782d7c744d3dea"
-    )
-    let id2 = RequestId.fromHex(
-      "0x9ab2c4d102a95d990facb022d67b3c9b39052597c006fddf122bed2cb594c282"
-    )
-    let ids = @[id, id2]
-    log ids
-    check logged("ids", "\"@[0x7120..3dea, 0x9ab2..c282]\"")
-    check loggedJson(
-      "ids",
-      """["0x712003bdfc0db9abf21e7fbb7119cd52ff221c96714d21d39e782d7c744d3dea","0x9ab2c4d102a95d990facb022d67b3c9b39052597c006fddf122bed2cb594c282"]""",
-    )
-
-  test "logs SlotId correctly":
-    let id = SlotId.fromHex(
-      "0x9ab2c4d102a95d990facb022d67b3c9b39052597c006fddf122bed2cb594c282"
-    )
-    log id
-    check logged("id", "0x9ab2..c282")
-    check loggedJson(
-      "id", "\"0x9ab2c4d102a95d990facb022d67b3c9b39052597c006fddf122bed2cb594c282\""
-    )
-
-  test "logs Nonce correctly":
-    let n =
-      Nonce.fromHex("ce88f368a7b776172ebd29a212456eb66acb60f169ee76eae91935e7fafad6ea")
-    log n
-    check logged("n", "0xce88..d6ea")
-    check loggedJson(
-      "n", "\"0xce88f368a7b776172ebd29a212456eb66acb60f169ee76eae91935e7fafad6ea\""
-    )
 
   test "logs MultiAddress correctly":
     let ma = MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet

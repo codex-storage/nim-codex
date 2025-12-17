@@ -24,27 +24,6 @@ twonodessuite "REST API":
 
     check cid1 != cid2
 
-  test "node shows used and available space", twoNodesConfig:
-    discard (await client1.upload("some file contents")).get
-    let totalSize = 12.uint64
-    let minPricePerBytePerSecond = 1.u256
-    let totalCollateral = totalSize.u256 * minPricePerBytePerSecond
-    discard (
-      await client1.postAvailability(
-        totalSize = totalSize,
-        duration = 2.uint64,
-        minPricePerBytePerSecond = minPricePerBytePerSecond,
-        totalCollateral = totalCollateral,
-        enabled = true.some,
-      )
-    ).get
-    let space = (await client1.space()).tryGet()
-    check:
-      space.totalBlocks == 2
-      space.quotaMaxBytes == 21474836480.NBytes
-      space.quotaUsedBytes == 65592.NBytes
-      space.quotaReservedBytes == 12.NBytes
-
   test "node lists local files", twoNodesConfig:
     let content1 = "some file contents"
     let content2 = "some other contents"
@@ -55,46 +34,6 @@ twonodessuite "REST API":
 
     check:
       [cid1, cid2].allIt(it in list.content.mapIt(it.cid))
-
-  test "request storage succeeds for sufficiently sized datasets", twoNodesConfig:
-    let data = await RandomChunker.example(blocks = 2)
-    let cid = (await client1.upload(data)).get
-    let response = (
-      await client1.requestStorageRaw(
-        cid,
-        duration = 10.uint64,
-        pricePerBytePerSecond = 1.u256,
-        proofProbability = 3.u256,
-        collateralPerByte = 1.u256,
-        expiry = 9.uint64,
-      )
-    )
-
-    check:
-      response.status == 200
-
-  for ecParams in @[
-    (minBlocks: 2, nodes: 3, tolerance: 1), (minBlocks: 3, nodes: 5, tolerance: 2)
-  ]:
-    let (minBlocks, nodes, tolerance) = ecParams
-    test "request storage succeeds if nodes and tolerance within range " &
-      fmt"({minBlocks=}, {nodes=}, {tolerance=})", twoNodesConfig:
-      let data = await RandomChunker.example(blocks = minBlocks)
-      let cid = (await client1.upload(data)).get
-      let duration = 100.uint64
-      let pricePerBytePerSecond = 1.u256
-      let proofProbability = 3.u256
-      let expiry = 30.uint64
-      let collateralPerByte = 1.u256
-
-      var responseBefore = (
-        await client1.requestStorageRaw(
-          cid, duration, pricePerBytePerSecond, proofProbability, collateralPerByte,
-          expiry, nodes.uint, tolerance.uint,
-        )
-      )
-
-      check responseBefore.status == 200
 
   test "node accepts file uploads with content type", twoNodesConfig:
     let headers = @[("Content-Type", "text/plain")]

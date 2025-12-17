@@ -17,8 +17,6 @@ import pkg/stew/byteutils
 import pkg/results
 import pkg/stint
 
-import ../sales
-import ../purchasing
 import ../utils/stintutils
 
 proc encodeString*(cid: type Cid): Result[string, cstring] =
@@ -81,11 +79,6 @@ proc decodeString*(
     ok array[32, byte].fromHex(value)
   except ValueError as e:
     err e.msg.cstring
-
-proc decodeString*[T: PurchaseId | RequestId | Nonce | SlotId | AvailabilityId](
-    _: type T, value: string
-): Result[T, cstring] =
-  array[32, byte].decodeString(value).map(id => T(id))
 
 proc decodeString*(t: typedesc[string], value: string): Result[string, cstring] =
   ok(value)

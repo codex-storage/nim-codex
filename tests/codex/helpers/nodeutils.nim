@@ -14,7 +14,6 @@ import pkg/codex/systemclock
 import pkg/codex/nat
 import pkg/codex/utils/natutils
 import pkg/codex/utils/safeasynciter
-import pkg/codex/slots
 import pkg/codex/merkletree
 import pkg/codex/manifest
 
@@ -43,7 +42,6 @@ type
   NodesComponents* = object
     switch*: Switch
     blockDiscovery*: Discovery
-    wallet*: WalletRef
     network*: BlockExcNetwork
     localStore*: BlockStore
     peerStore*: PeerCtxStore
@@ -71,7 +69,6 @@ converter toTuple*(
 ): tuple[
   switch: Switch,
   blockDiscovery: Discovery,
-  wallet: WalletRef,
   network: BlockExcNetwork,
   localStore: BlockStore,
   peerStore: PeerCtxStore,
@@ -81,7 +78,7 @@ converter toTuple*(
   networkStore: NetworkStore,
 ] =
   (
-    nc.switch, nc.blockDiscovery, nc.wallet, nc.network, nc.localStore, nc.peerStore,
+    nc.switch, nc.blockDiscovery, nc.network, nc.localStore, nc.peerStore,
     nc.pendingBlocks, nc.discovery, nc.engine, nc.networkStore,
   )
 
@@ -164,11 +161,6 @@ proc generateNodes*(
             MultiAddress.init("/ip4/127.0.0.1/tcp/0").expect("invalid multiaddress"),
       )
 
-      wallet =
-        if config.createFullNode:
-          WalletRef.new(EthPrivateKey.random())
-        else:
-          WalletRef.example
       network = BlockExcNetwork.new(switch)
       peerStore = PeerCtxStore.new()
       pendingBlocks = PendingBlocksManager.new()
@@ -209,7 +201,7 @@ proc generateNodes*(
       )
       advertiser = Advertiser.new(localStore, blockDiscovery)
       engine = BlockExcEngine.new(
-        localStore, wallet, network, discovery, advertiser, peerStore, pendingBlocks
+        localStore, network, discovery, advertiser, peerStore, pendingBlocks
       )
       networkStore = NetworkStore.new(engine, localStore)
 
@@ -221,7 +213,6 @@ proc generateNodes*(
           switch = switch,
           networkStore = networkStore,
           engine = engine,
-          prover = Prover.none,
           discovery = blockDiscovery,
           taskpool = taskpool,
         )
@@ -245,7 +236,6 @@ proc generateNodes*(
     let nodeComponent = NodesComponents(
       switch: switch,
       blockDiscovery: blockDiscovery,
-      wallet: wallet,
       network: network,
       localStore: localStore,
       peerStore: peerStore,

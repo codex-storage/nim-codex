@@ -54,8 +54,7 @@ proc new*(
 method `size`*(self: StoreStream): int =
   ## The size of a StoreStream is the size of the original dataset, without
   ## padding or parity blocks.
-  let m = self.manifest
-  (if m.protected: m.originalDatasetSize else: m.datasetSize).int
+  self.manifest.datasetSize.int
 
 proc `size=`*(self: StoreStream, size: int) {.error: "Setting the size is forbidden".} =
   discard

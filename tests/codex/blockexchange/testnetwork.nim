@@ -104,34 +104,6 @@ asyncchecksuite "Network - Handlers":
 
     await done.wait(500.millis)
 
-  test "Handles account messages":
-    let account = Account(address: EthAddress.example)
-
-    proc handleAccount(peer: PeerId, received: Account) {.async: (raises: []).} =
-      check received == account
-      done.complete()
-
-    network.handlers.onAccount = handleAccount
-
-    let message = Message(account: AccountMessage.init(account))
-    await buffer.pushData(lenPrefix(protobufEncode(message)))
-
-    await done.wait(100.millis)
-
-  test "Handles payment messages":
-    let payment = SignedState.example
-
-    proc handlePayment(peer: PeerId, received: SignedState) {.async: (raises: []).} =
-      check received == payment
-      done.complete()
-
-    network.handlers.onPayment = handlePayment
-
-    let message = Message(payment: StateChannelUpdate.init(payment))
-    await buffer.pushData(lenPrefix(protobufEncode(message)))
-
-    await done.wait(100.millis)
-
 asyncchecksuite "Network - Senders":
   let chunker = RandomChunker.new(Rng.instance(), size = 1024, chunkSize = 256)
 
@@ -227,30 +199,6 @@ asyncchecksuite "Network - Senders":
 
     await done.wait(500.millis)
 
-  test "send account":
-    let account = Account(address: EthAddress.example)
-
-    proc handleAccount(peer: PeerId, received: Account) {.async: (raises: []).} =
-      check received == account
-      done.complete()
-
-    network2.handlers.onAccount = handleAccount
-
-    await network1.sendAccount(switch2.peerInfo.peerId, account)
-    await done.wait(500.millis)
-
-  test "send payment":
-    let payment = SignedState.example
-
-    proc handlePayment(peer: PeerId, received: SignedState) {.async: (raises: []).} =
-      check received == payment
-      done.complete()
-
-    network2.handlers.onPayment = handlePayment
-
-    await network1.sendPayment(switch2.peerInfo.peerId, payment)
-    await done.wait(500.millis)
-
 asyncchecksuite "Network - Test Limits":
   var
     switch1, switch2: Switch
@@ -277,14 +225,14 @@ asyncchecksuite "Network - Test Limits":
     await allFuturesThrowing(switch1.stop(), switch2.stop())
 
   test "Concurrent Sends":
-    let account = Account(address: EthAddress.example)
-    network2.handlers.onAccount = proc(
-        peer: PeerId, received: Account
-    ) {.async: (raises: []).} =
+    network2.handlers.onPresence = proc(
+        peer: PeerId, presence: seq[BlockPresence]
+    ): Future[void] {.async: (raises: []).} =
       check false
 
     let fut = network1.send(
-      switch2.peerInfo.peerId, Message(account: AccountMessage.init(account))
+      switch2.peerInfo.peerId, 
+      Message()
     )
 
     await sleepAsync(100.millis)

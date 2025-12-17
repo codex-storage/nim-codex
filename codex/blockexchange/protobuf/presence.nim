@@ -17,7 +17,6 @@ type
   Presence* = object
     address*: BlockAddress
     have*: bool
-    price*: UInt256
 
 func parse(_: type UInt256, bytes: seq[byte]): ?UInt256 =
   if bytes.len > 32:
@@ -25,18 +24,14 @@ func parse(_: type UInt256, bytes: seq[byte]): ?UInt256 =
   UInt256.fromBytesBE(bytes).some
 
 func init*(_: type Presence, message: PresenceMessage): ?Presence =
-  without price =? UInt256.parse(message.price):
-    return none Presence
 
   some Presence(
     address: message.address,
     have: message.`type` == BlockPresenceType.Have,
-    price: price,
   )
 
 func init*(_: type PresenceMessage, presence: Presence): PresenceMessage =
   PresenceMessage(
     address: presence.address,
     `type`: if presence.have: BlockPresenceType.Have else: BlockPresenceType.DontHave,
-    price: @(presence.price.toBytesBE),
   )

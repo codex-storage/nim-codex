@@ -12,8 +12,7 @@ multinodesuite "Node block expiration tests":
       clients: CodexConfigs
         .init(nodes = 1)
         .withBlockTtl(0, 10)
-        .withBlockMaintenanceInterval(0, 1).some,
-      providers: CodexConfigs.none,
+        .withBlockMaintenanceInterval(0, 1).some
     ):
     let client = clients()[0]
     let clientApi = client.client
@@ -33,8 +32,7 @@ multinodesuite "Node block expiration tests":
       clients: CodexConfigs
         .init(nodes = 1)
         .withBlockTtl(0, 1)
-        .withBlockMaintenanceInterval(0, 1).some,
-      providers: CodexConfigs.none,
+        .withBlockMaintenanceInterval(0, 1).some
     ):
     let client = clients()[0]
     let clientApi = client.client

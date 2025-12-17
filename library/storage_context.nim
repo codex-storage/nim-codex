@@ -59,7 +59,7 @@ template callEventCallback(ctx: ptr StorageContext, eventName: string, body: unt
   ## Template used to notify the client of global events 
   ## Example: onConnectionChanged, onProofMissing, etc. 
   if isNil(ctx[].eventCallback):
-    error eventName & " - eventCallback is nil"
+    error eventName&" - eventCallback is nil"
     return
 
   foreignThreadGc:

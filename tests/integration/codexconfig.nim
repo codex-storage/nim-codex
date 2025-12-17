@@ -22,7 +22,6 @@ type
 
   CodexConfig* = object
     cliOptions: Table[StartUpCmd, Table[string, CliOption]]
-    cliPersistenceOptions: Table[PersistenceCmd, Table[string, CliOption]]
     debugEnabled*: bool
 
   CodexConfigError* = object of CatchableError
@@ -66,19 +65,6 @@ proc buildConfig(
     raiseCodexConfigError msg & e.msg.postFix
 
 proc addCliOption*(
-    config: var CodexConfig, group = PersistenceCmd.noCmd, cliOption: CliOption
-) {.raises: [CodexConfigError].} =
-  var options = config.cliPersistenceOptions.getOrDefault(group)
-  options[cliOption.key] = cliOption # overwrite if already exists
-  config.cliPersistenceOptions[group] = options
-  discard config.buildConfig("Invalid cli arg " & $cliOption)
-
-proc addCliOption*(
-    config: var CodexConfig, group = PersistenceCmd.noCmd, key: string, value = ""
-) {.raises: [CodexConfigError].} =
-  config.addCliOption(group, CliOption(key: key, value: value))
-
-proc addCliOption*(
     config: var CodexConfig, group = StartUpCmd.noCmd, cliOption: CliOption
 ) {.raises: [CodexConfigError].} =
   var options = config.cliOptions.getOrDefault(group)
@@ -112,13 +98,6 @@ proc cliArgs*(config: CodexConfig): seq[string] {.gcsafe, raises: [CodexConfigEr
         if cmd != StartUpCmd.noCmd:
           args.add $cmd
         var opts = config.cliOptions[cmd].values.toSeq
-        args = args.concat(opts.map(o => $o))
-
-    for cmd in PersistenceCmd:
-      if config.cliPersistenceOptions.hasKey(cmd):
-        if cmd != PersistenceCmd.noCmd:
-          args.add $cmd
-        var opts = config.cliPersistenceOptions[cmd].values.toSeq
         args = args.concat(opts.map(o => $o))
 
     return args
@@ -246,65 +225,6 @@ proc withBlockMaintenanceInterval*(
   var startConfig = self
   for config in startConfig.configs.mitems:
     config.addCliOption("--block-mi", $interval)
-  return startConfig
-
-proc withSimulateProofFailures*(
-    self: CodexConfigs, idx: int, failEveryNProofs: int
-): CodexConfigs {.raises: [CodexConfigError].} =
-  self.checkBounds idx
-
-  var startConfig = self
-  startConfig.configs[idx].addCliOption(
-    StartUpCmd.persistence, "--simulate-proof-failures", $failEveryNProofs
-  )
-  return startConfig
-
-proc withSimulateProofFailures*(
-    self: CodexConfigs, failEveryNProofs: int
-): CodexConfigs {.raises: [CodexConfigError].} =
-  var startConfig = self
-  for config in startConfig.configs.mitems:
-    config.addCliOption(
-      StartUpCmd.persistence, "--simulate-proof-failures", $failEveryNProofs
-    )
-  return startConfig
-
-proc withValidationGroups*(
-    self: CodexConfigs, groups: ValidationGroups
-): CodexConfigs {.raises: [CodexConfigError].} =
-  var startConfig = self
-  for config in startConfig.configs.mitems:
-    config.addCliOption(StartUpCmd.persistence, "--validator-groups", $(groups))
-  return startConfig
-
-proc withValidationGroupIndex*(
-    self: CodexConfigs, idx: int, groupIndex: uint16
-): CodexConfigs {.raises: [CodexConfigError].} =
-  self.checkBounds idx
-
-  var startConfig = self
-  startConfig.configs[idx].addCliOption(
-    StartUpCmd.persistence, "--validator-group-index", $groupIndex
-  )
-  return startConfig
-
-proc withEthProvider*(
-    self: CodexConfigs, idx: int, ethProvider: string
-): CodexConfigs {.raises: [CodexConfigError].} =
-  self.checkBounds idx
-
-  var startConfig = self
-  startConfig.configs[idx].addCliOption(
-    StartUpCmd.persistence, "--eth-provider", ethProvider
-  )
-  return startConfig
-
-proc withEthProvider*(
-    self: CodexConfigs, ethProvider: string
-): CodexConfigs {.raises: [CodexConfigError].} =
-  var startConfig = self
-  for config in startConfig.configs.mitems:
-    config.addCliOption(StartUpCmd.persistence, "--eth-provider", ethProvider)
   return startConfig
 
 proc logLevelWithTopics(

@@ -32,7 +32,6 @@ asyncchecksuite "Block Advertising and Discovery":
     blockDiscovery: MockDiscovery
     discovery: DiscoveryEngine
     advertiser: Advertiser
-    wallet: WalletRef
     network: BlockExcNetwork
     localStore: CacheStore
     engine: BlockExcEngine
@@ -48,7 +47,6 @@ asyncchecksuite "Block Advertising and Discovery":
 
     switch = newStandardSwitch(transportFlags = {ServerFlags.ReuseAddr})
     blockDiscovery = MockDiscovery.new()
-    wallet = WalletRef.example
     network = BlockExcNetwork.new(switch)
     localStore = CacheStore.new(blocks.mapIt(it))
     peerStore = PeerCtxStore.new()
@@ -72,7 +70,7 @@ asyncchecksuite "Block Advertising and Discovery":
     advertiser = Advertiser.new(localStore, blockDiscovery)
 
     engine = BlockExcEngine.new(
-      localStore, wallet, network, discovery, advertiser, peerStore, pendingBlocks
+      localStore, network, discovery, advertiser, peerStore, pendingBlocks
     )
 
     switch.mount(network)
@@ -132,7 +130,7 @@ asyncchecksuite "Block Advertising and Discovery":
       peerId = PeerId.example
       haves = collect(initTable()):
         for blk in blocks:
-          {blk.address: Presence(address: blk.address, price: 0.u256)}
+          {blk.address: Presence(address: blk.address)}
 
     engine.peers.add(BlockExcPeerCtx(id: peerId, blocks: haves))
 
@@ -180,7 +178,6 @@ asyncchecksuite "E2E - Multiple Nodes Discovery":
       let
         s = newStandardSwitch(transportFlags = {ServerFlags.ReuseAddr})
         blockDiscovery = MockDiscovery.new()
-        wallet = WalletRef.example
         network = BlockExcNetwork.new(s)
         localStore = CacheStore.new()
         peerStore = PeerCtxStore.new()
@@ -198,7 +195,7 @@ asyncchecksuite "E2E - Multiple Nodes Discovery":
         advertiser = Advertiser.new(localStore, blockDiscovery)
 
         engine = BlockExcEngine.new(
-          localStore, wallet, network, discovery, advertiser, peerStore, pendingBlocks
+          localStore, network, discovery, advertiser, peerStore, pendingBlocks
         )
         networkStore = NetworkStore.new(engine, localStore)
 

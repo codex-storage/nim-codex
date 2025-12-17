@@ -31,7 +31,6 @@ import pkg/metrics
 import pkg/metrics/chronos_httpserver
 import pkg/stew/byteutils
 import pkg/libp2p
-import pkg/ethers
 import pkg/questionable
 import pkg/questionable/results
 import pkg/stew/base64
@@ -45,16 +44,13 @@ import ./utils
 import ./nat
 import ./utils/natutils
 
-from ./contracts/config import DefaultRequestCacheSize, DefaultMaxPriorityFeePerGas
-from ./validationconfig import MaxSlots, ValidationGroups
 from ./blockexchange/engine/pendingblocks import DefaultBlockRetries
 
 export units, net, codextypes, logutils, completeCmdArg, parseCmdArg, NatConfig
-export ValidationGroups, MaxSlots
 
 export
   DefaultQuotaBytes, DefaultBlockTtl, DefaultBlockInterval, DefaultNumBlocksPerInterval,
-  DefaultRequestCacheSize, DefaultMaxPriorityFeePerGas, DefaultBlockRetries
+  DefaultBlockRetries
 
 type ThreadCount* = distinct Natural
 
@@ -73,7 +69,6 @@ proc defaultDataDir*(): string =
 
 const
   storage_enable_api_debug_peers* {.booldefine.} = false
-  storage_enable_proof_failures* {.booldefine.} = false
   storage_enable_log_counter* {.booldefine.} = false
 
   DefaultThreadCount* = ThreadCount(0)
@@ -82,10 +77,6 @@ type
   StartUpCmd* {.pure.} = enum
     noCmd
     persistence
-
-  PersistenceCmd* {.pure.} = enum
-    noCmd
-    prover
 
   LogKind* {.pure.} = enum
     Auto = "auto"
@@ -286,203 +277,11 @@ type
       desc: "Logs to file", defaultValue: string.none, name: "log-file", hidden
     .}: Option[string]
 
-    case cmd* {.defaultValue: noCmd, command.}: StartUpCmd
-    of persistence:
-      ethProvider* {.
-        desc: "The URL of the JSON-RPC API of the Ethereum node",
-        defaultValue: "ws://localhost:8545",
-        name: "eth-provider"
-      .}: string
-
-      ethAccount* {.
-        desc: "The Ethereum account that is used for storage contracts",
-        defaultValue: EthAddress.none,
-        defaultValueDesc: "",
-        name: "eth-account"
-      .}: Option[EthAddress]
-
-      ethPrivateKey* {.
-        desc: "File containing Ethereum private key for storage contracts",
-        defaultValue: string.none,
-        defaultValueDesc: "",
-        name: "eth-private-key"
-      .}: Option[string]
-
-      marketplaceAddress* {.
-        desc: "Address of deployed Marketplace contract",
-        defaultValue: EthAddress.none,
-        defaultValueDesc: "",
-        name: "marketplace-address"
-      .}: Option[EthAddress]
-
-      # TODO: should go behind a feature flag
-      simulateProofFailures* {.
-        desc: "Simulates proof failures once every N proofs. 0 = disabled.",
-        defaultValue: 0,
-        name: "simulate-proof-failures",
-        hidden
-      .}: int
-
-      validator* {.
-        desc: "Enables validator, requires an Ethereum node",
-        defaultValue: false,
-        name: "validator"
-      .}: bool
-
-      validatorMaxSlots* {.
-        desc: "Maximum number of slots that the validator monitors",
-        longDesc:
-          "If set to 0, the validator will not limit " &
-          "the maximum number of slots it monitors",
-        defaultValue: 1000,
-        name: "validator-max-slots"
-      .}: MaxSlots
-
-      validatorGroups* {.
-        desc: "Slot validation groups",
-        longDesc:
-          "A number indicating total number of groups into " &
-          "which the whole slot id space will be divided. " &
-          "The value must be in the range [2, 65535]. " &
-          "If not provided, the validator will observe " &
-          "the whole slot id space and the value of " &
-          "the --validator-group-index parameter will be ignored. " &
-          "Powers of twos are advised for even distribution",
-        defaultValue: ValidationGroups.none,
-        name: "validator-groups"
-      .}: Option[ValidationGroups]
-
-      validatorGroupIndex* {.
-        desc: "Slot validation group index",
-        longDesc:
-          "The value provided must be in the range " &
-          "[0, validatorGroups). Ignored when --validator-groups " &
-          "is not provided. Only slot ids satisfying condition " &
-          "[(slotId mod validationGroups) == groupIndex] will be " &
-          "observed by the validator",
-        defaultValue: 0,
-        name: "validator-group-index"
-      .}: uint16
-
-      rewardRecipient* {.
-        desc: "Address to send payouts to (eg rewards and refunds)",
-        name: "reward-recipient"
-      .}: Option[EthAddress]
-
-      marketplaceRequestCacheSize* {.
-        desc:
-          "Maximum number of StorageRequests kept in memory." &
-          "Reduces fetching of StorageRequest data from the contract.",
-        defaultValue: DefaultRequestCacheSize,
-        defaultValueDesc: $DefaultRequestCacheSize,
-        name: "request-cache-size",
-        hidden
-      .}: uint16
-
-      maxPriorityFeePerGas* {.
-        desc:
-          "Sets the default maximum priority fee per gas for Ethereum EIP-1559 transactions, in wei, when not provided by the network.",
-        defaultValue: DefaultMaxPriorityFeePerGas,
-        defaultValueDesc: $DefaultMaxPriorityFeePerGas,
-        name: "max-priority-fee-per-gas",
-        hidden
-      .}: uint64
-
-      case persistenceCmd* {.defaultValue: noCmd, command.}: PersistenceCmd
-      of PersistenceCmd.prover:
-        circuitDir* {.
-          desc: "Directory where Storage will store proof circuit data",
-          defaultValue: defaultDataDir() / "circuits",
-          defaultValueDesc: "data/circuits",
-          abbr: "cd",
-          name: "circuit-dir"
-        .}: OutDir
-
-        circomR1cs* {.
-          desc: "The r1cs file for the storage circuit",
-          defaultValue: defaultDataDir() / "circuits" / "proof_main.r1cs",
-          defaultValueDesc: "data/circuits/proof_main.r1cs",
-          name: "circom-r1cs"
-        .}: InputFile
-
-        circomWasm* {.
-          desc: "The wasm file for the storage circuit",
-          defaultValue: defaultDataDir() / "circuits" / "proof_main.wasm",
-          defaultValueDesc: "data/circuits/proof_main.wasm",
-          name: "circom-wasm"
-        .}: InputFile
-
-        circomZkey* {.
-          desc: "The zkey file for the storage circuit",
-          defaultValue: defaultDataDir() / "circuits" / "proof_main.zkey",
-          defaultValueDesc: "data/circuits/proof_main.zkey",
-          name: "circom-zkey"
-        .}: InputFile
-
-        # TODO: should probably be hidden and behind a feature flag
-        circomNoZkey* {.
-          desc: "Ignore the zkey file - use only for testing!",
-          defaultValue: false,
-          name: "circom-no-zkey"
-        .}: bool
-
-        numProofSamples* {.
-          desc: "Number of samples to prove",
-          defaultValue: DefaultSamplesNum,
-          defaultValueDesc: $DefaultSamplesNum,
-          name: "proof-samples"
-        .}: int
-
-        maxSlotDepth* {.
-          desc: "The maximum depth of the slot tree",
-          defaultValue: DefaultMaxSlotDepth,
-          defaultValueDesc: $DefaultMaxSlotDepth,
-          name: "max-slot-depth"
-        .}: int
-
-        maxDatasetDepth* {.
-          desc: "The maximum depth of the dataset tree",
-          defaultValue: DefaultMaxDatasetDepth,
-          defaultValueDesc: $DefaultMaxDatasetDepth,
-          name: "max-dataset-depth"
-        .}: int
-
-        maxBlockDepth* {.
-          desc: "The maximum depth of the network block merkle tree",
-          defaultValue: DefaultBlockDepth,
-          defaultValueDesc: $DefaultBlockDepth,
-          name: "max-block-depth"
-        .}: int
-
-        maxCellElms* {.
-          desc: "The maximum number of elements in a cell",
-          defaultValue: DefaultCellElms,
-          defaultValueDesc: $DefaultCellElms,
-          name: "max-cell-elements"
-        .}: int
-      of PersistenceCmd.noCmd:
-        discard
-    of StartUpCmd.noCmd:
-      discard # end of persistence
-
-  EthAddress* = ethers.Address
-
-logutils.formatIt(LogFormat.textLines, EthAddress):
-  it.short0xHexLog
-logutils.formatIt(LogFormat.json, EthAddress):
-  %it
-
 func defaultAddress*(conf: CodexConf): IpAddress =
   result = static parseIpAddress("127.0.0.1")
 
 func defaultNatConfig*(): NatConfig =
   result = NatConfig(hasExtIp: false, nat: NatStrategy.NatAny)
-
-func persistence*(self: CodexConf): bool =
-  self.cmd == StartUpCmd.persistence
-
-func prover*(self: CodexConf): bool =
-  self.persistence and self.persistenceCmd == PersistenceCmd.prover
 
 proc getCodexVersion(): string =
   let tag = strip(staticExec("git describe --tags --abbrev=0"))
@@ -495,23 +294,16 @@ proc getCodexRevision(): string =
   var res = strip(staticExec("git rev-parse --short HEAD"))
   return res
 
-proc getCodexContractsRevision(): string =
-  let res =
-    strip(staticExec("git rev-parse --short HEAD:vendor/logos-storage-contracts-eth"))
-  return res
-
 proc getNimBanner(): string =
   staticExec("nim --version | grep Version")
 
 const
   codexVersion* = getCodexVersion()
   codexRevision* = getCodexRevision()
-  codexContractsRevision* = getCodexContractsRevision()
   nimBanner* = getNimBanner()
 
   codexFullVersion* =
-    "Storage version:  " & codexVersion & "\p" & "Storage revision: " & codexRevision &
-    "\p" & "Storage contracts revision: " & codexContractsRevision & "\p" & nimBanner
+    "Storage version:  " & codexVersion & "\p" & "Storage revision: " & codexRevision & "\p"
 
 proc parseCmdArg*(
     T: typedesc[MultiAddress], input: string
@@ -593,9 +385,6 @@ proc parseCmdArg*(T: type NatConfig, p: string): T =
 proc completeCmdArg*(T: type NatConfig, val: string): seq[string] =
   return @[]
 
-proc parseCmdArg*(T: type EthAddress, address: string): T =
-  EthAddress.init($address).get()
-
 func parse*(T: type NBytes, p: string): Result[NBytes, string] =
   var num = 0'i64
   let count = parseSize(p, num, alwaysBin = true)
@@ -617,11 +406,6 @@ proc parseCmdArg*(T: type Duration, val: string): T =
     fatal "Cannot parse duration", dur = dur
     quit QuitFailure
   dur
-
-proc readValue*(
-    r: var TomlReader, val: var EthAddress
-) {.raises: [SerializationError, IOError].} =
-  val = EthAddress.init(r.readValue(string)).get()
 
 proc readValue*(r: var TomlReader, val: var SignedPeerRecord) =
   without uri =? r.readValue(string).catch, err:
@@ -687,9 +471,6 @@ proc readValue*(
       raise newException(SerializationError, err.msg)
 
 # no idea why confutils needs this:
-proc completeCmdArg*(T: type EthAddress, val: string): seq[string] =
-  discard
-
 proc completeCmdArg*(T: type NBytes, val: string): seq[string] =
   discard
 

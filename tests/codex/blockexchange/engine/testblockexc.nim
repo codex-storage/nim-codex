@@ -19,7 +19,6 @@ asyncchecksuite "NetworkStore engine - 2 nodes":
   var
     nodeCmps1, nodeCmps2: NodesComponents
     peerCtx1, peerCtx2: BlockExcPeerCtx
-    pricing1, pricing2: Pricing
     blocks1, blocks2: seq[bt.Block]
     pendingBlocks1, pendingBlocks2: seq[BlockHandle]
 
@@ -37,14 +36,6 @@ asyncchecksuite "NetworkStore engine - 2 nodes":
 
     pendingBlocks2 =
       blocks1[0 .. 3].mapIt(nodeCmps2.pendingBlocks.getWantHandle(it.cid))
-
-    pricing1 = Pricing.example()
-    pricing2 = Pricing.example()
-
-    pricing1.address = nodeCmps1.wallet.address
-    pricing2.address = nodeCmps2.wallet.address
-    nodeCmps1.engine.pricing = pricing1.some
-    nodeCmps2.engine.pricing = pricing2.some
 
     await nodeCmps1.switch.connect(
       nodeCmps2.switch.peerInfo.peerId, nodeCmps2.switch.peerInfo.addrs
@@ -74,10 +65,6 @@ asyncchecksuite "NetworkStore engine - 2 nodes":
       .filterIt(it.completed and it.read.isOk)
       .mapIt($it.read.get.cid)
       .sorted(cmp[string]) == blocks2[0 .. 3].mapIt($it.cid).sorted(cmp[string])
-
-  test "Should exchanges accounts on connect":
-    check peerCtx1.account .? address == pricing1.address.some
-    check peerCtx2.account .? address == pricing2.address.some
 
   test "Should send want-have for block":
     let blk = bt.Block.new("Block 1".toBytes).tryGet()
@@ -111,19 +98,6 @@ asyncchecksuite "NetworkStore engine - 2 nodes":
     # should succeed retrieving block from remote
     check await nodeCmps1.networkStore.getBlock(blk.cid).withTimeout(100.millis)
       # should succeed
-
-  test "Should receive payments for blocks that were sent":
-    discard
-      await allFinished(blocks2[4 .. 7].mapIt(nodeCmps2.networkStore.putBlock(it)))
-
-    discard
-      await allFinished(blocks2[4 .. 7].mapIt(nodeCmps1.networkStore.getBlock(it.cid)))
-
-    let
-      channel = !peerCtx1.paymentChannel
-      wallet = nodeCmps2.wallet
-
-    check eventually wallet.balance(channel, Asset) > 0
 
 asyncchecksuite "NetworkStore - multiple nodes":
   var
