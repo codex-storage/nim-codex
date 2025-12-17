@@ -72,7 +72,6 @@ suite "Test Poseidon2Tree":
       tree.leaves == expectedLeaves
 
   test "Build poseidon2 tree from byte leaves asynchronously":
-    echo "Build poseidon2 tree from byte leaves asynchronously"
     var tp = Taskpool.new()
     defer:
       tp.shutdown()

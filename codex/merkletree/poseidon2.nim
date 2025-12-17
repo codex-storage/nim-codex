@@ -46,7 +46,16 @@ type
   Poseidon2Tree* = MerkleTree[Poseidon2Hash, PoseidonKeysEnum]
   Poseidon2Proof* = MerkleProof[Poseidon2Hash, PoseidonKeysEnum]
 
-  Poseidon2TreeTask* = MerkleTask[Poseidon2Hash, PoseidonKeysEnum]
+proc len*(v: Poseidon2Hash): int =
+  sizeof(v)
+
+proc assign*(v: var openArray[byte], h: Poseidon2Hash) =
+  doAssert v.len == sizeof(h)
+  copyMem(addr v[0], addr h, sizeof(h))
+
+proc assign*(h: var Poseidon2Hash, v: openArray[byte]) =
+  doAssert v.len == sizeof(h)
+  copyMem(addr h, addr v[0], sizeof(h))
 
 proc `$`*(self: Poseidon2Tree): string =
   let root = if self.root.isOk: self.root.get.toHex else: "none"
@@ -67,7 +76,7 @@ converter toKey*(key: PoseidonKeysEnum): Poseidon2Hash =
   of KeyOdd: KeyOddF
   of KeyOddAndBottomLayer: KeyOddAndBottomLayerF
 
-func init*(_: type Poseidon2Tree, leaves: openArray[Poseidon2Hash]): ?!Poseidon2Tree =
+proc initTree(leaves: openArray[Poseidon2Hash]): ?!Poseidon2Tree =
   if leaves.len == 0:
     return failure "Empty leaves"
 
@@ -76,72 +85,24 @@ func init*(_: type Poseidon2Tree, leaves: openArray[Poseidon2Hash]): ?!Poseidon2
   ): ?!Poseidon2Hash {.noSideEffect.} =
     success compress(x, y, key.toKey)
 
-  var self = Poseidon2Tree(compress: compressor, zero: Poseidon2Zero)
-
-  self.layers = ?merkleTreeWorker(self[], leaves, isBottomLayer = true)
+  var self = Poseidon2Tree()
+  ?self.prepare(compressor, Poseidon2Zero, leaves)
   success self
 
-proc len*(v: Poseidon2Hash): int =
-  sizeof(v)
+func init*(_: type Poseidon2Tree, leaves: openArray[Poseidon2Hash]): ?!Poseidon2Tree =
+  let self = ?initTree(leaves)
+  ?self.compute()
 
-proc assign*(v: var openArray[byte], h: Poseidon2Hash) =
-  doAssert v.len == sizeof(h)
-  copyMem(addr v[0], addr h, sizeof(h))
-proc assign*(h: var Poseidon2Hash, v: openArray[byte]) =
-  doAssert v.len == sizeof(h)
-  copyMem(addr h, addr v[0], sizeof(h))
+  success self
 
 proc init*(
     _: type Poseidon2Tree, tp: Taskpool, leaves: seq[Poseidon2Hash]
-): Future[?!Poseidon2Tree] {.async: (raises: []).} =
-  if leaves.len == 0:
-    return failure "Empty leaves"
+): Future[?!Poseidon2Tree] {.async: (raises: [CancelledError]).} =
+  let self = ?initTree(leaves)
 
-  let compressor = proc(
-      x, y: Poseidon2Hash, key: PoseidonKeysEnum
-  ): ?!Poseidon2Hash {.noSideEffect.} =
-    success compress(x, y, key.toKey)
+  ?await self.compute(tp)
 
-  without signal =? ThreadSignalPtr.new():
-    return failure("Unable to create thread signal")
-
-  defer:
-    signal.close().expect("closing once works")
-
-  var tree = Poseidon2Tree(compress: compressor, zero: Poseidon2Zero)
-  var
-    nodesPerLevel = nodesPerLevel(leaves.len)
-    hashes = nodesPerLevel.foldl(a + b, 0)
-    layers = newSeq[byte](hashes * sizeof(Poseidon2Hash))
-
-  var task = Poseidon2TreeTask(
-    tree: addr tree[],
-    leaves: SharedBuf.view(leaves),
-    layers: SharedBuf.view(layers),
-    signal: signal,
-  )
-
-  doAssert tp.numThreads > 1,
-    "Must have at least one separate thread or signal will never be fired"
-
-  tp.spawn merkleTreeWorker(addr task)
-
-  # To support cancellation, we'd have to ensure the task we posted to taskpools
-  # exits early - since we're not doing that, block cancellation attempts
-  try:
-    await noCancel signal.wait()
-  except AsyncError as exc:
-    # Since we initialized the signal, the OS or chronos is misbehaving. In any
-    # case, it would mean the task is still running which would cause a memory
-    # a memory violation if we let it run - panic instead
-    raiseAssert "Could not wait for signal, was it initialized? " & exc.msg
-
-  if not task.success.load():
-    return failure("merkle tree task failed")
-
-  tree.layers = unpack[Poseidon2Hash](task.layers, leaves.len, sizeof(Poseidon2Hash))
-
-  success tree
+  success self
 
 func init*(_: type Poseidon2Tree, leaves: openArray[array[31, byte]]): ?!Poseidon2Tree =
   Poseidon2Tree.init(leaves.mapIt(Poseidon2Hash.fromBytes(it)))
@@ -154,23 +115,13 @@ proc init*(
 proc fromNodes*(
     _: type Poseidon2Tree, nodes: openArray[Poseidon2Hash], nleaves: int
 ): ?!Poseidon2Tree =
-  if nodes.len == 0:
-    return failure "Empty nodes"
-
   let compressor = proc(
       x, y: Poseidon2Hash, key: PoseidonKeysEnum
   ): ?!Poseidon2Hash {.noSideEffect.} =
     success compress(x, y, key.toKey)
 
-  var
-    self = Poseidon2Tree(compress: compressor, zero: zero)
-    layer = nleaves
-    pos = 0
-
-  while pos < nodes.len:
-    self.layers.add(nodes[pos ..< (pos + layer)])
-    pos += layer
-    layer = divUp(layer, 2)
+  let self = Poseidon2Tree()
+  ?self.fromNodes(compressor, Poseidon2Zero, nodes, nleaves)
 
   let
     index = Rng.instance.rand(nleaves - 1)

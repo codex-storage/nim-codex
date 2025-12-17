@@ -21,11 +21,9 @@ import pkg/chronos/threadsync
 import ../../utils
 import ../../rng
 import ../../errors
-import ../../blocktype
+import ../../codextypes
 
 from ../../utils/digest import digestBytes
-
-import ../../utils/uniqueptr
 
 import ../merkletree
 
@@ -44,8 +42,6 @@ type
   ByteHash* = seq[byte]
   ByteTree* = MerkleTree[ByteHash, ByteTreeKey]
   ByteProof* = MerkleProof[ByteHash, ByteTreeKey]
-
-  CodexTreeTask* = MerkleTask[ByteHash, ByteTreeKey]
 
   CodexTree* = ref object of ByteTree
     mcodec*: MultiCodec
@@ -119,9 +115,7 @@ func compress*(x, y: openArray[byte], key: ByteTreeKey, codec: MultiCodec): ?!By
   let digest = ?MultiHash.digest(codec, input).mapFailure
   success digest.digestBytes
 
-func init*(
-    _: type CodexTree, mcodec: MultiCodec = Sha256HashCodec, leaves: openArray[ByteHash]
-): ?!CodexTree =
+func initTree(mcodec: MultiCodec, leaves: openArray[ByteHash]): ?!CodexTree =
   if leaves.len == 0:
     return failure "Empty leaves"
 
@@ -134,70 +128,25 @@ func init*(
   if digestSize != leaves[0].len:
     return failure "Invalid hash length"
 
-  var self = CodexTree(mcodec: mcodec, compress: compressor, zero: Zero)
-
-  self.layers = ?merkleTreeWorker(self[], leaves, isBottomLayer = true)
-
+  var self = CodexTree(mcodec: mcodec)
+  ?self.prepare(compressor, Zero, leaves)
   success self
+
+func init*(
+    _: type CodexTree, mcodec: MultiCodec = Sha256HashCodec, leaves: openArray[ByteHash]
+): ?!CodexTree =
+  let tree = ?initTree(mcodec, leaves)
+  ?tree.compute()
+  success tree
 
 proc init*(
     _: type CodexTree,
     tp: Taskpool,
     mcodec: MultiCodec = Sha256HashCodec,
     leaves: seq[ByteHash],
-): Future[?!CodexTree] {.async: (raises: []).} =
-  if leaves.len == 0:
-    return failure "Empty leaves"
-
-  let
-    compressor = proc(x, y: seq[byte], key: ByteTreeKey): ?!ByteHash {.noSideEffect.} =
-      compress(x, y, key, mcodec)
-    digestSize = ?mcodec.digestSize.mapFailure
-    Zero: ByteHash = newSeq[byte](digestSize)
-
-  if digestSize != leaves[0].len:
-    return failure "Invalid hash length"
-
-  without signal =? ThreadSignalPtr.new():
-    return failure("Unable to create thread signal")
-
-  defer:
-    signal.close().expect("closing once works")
-
-  var tree = CodexTree(mcodec: mcodec, compress: compressor, zero: Zero)
-
-  var
-    nodesPerLevel = nodesPerLevel(leaves.len)
-    hashes = nodesPerLevel.foldl(a + b, 0)
-    layers = newSeq[byte](hashes * digestSize)
-
-  var task = CodexTreeTask(
-    tree: addr tree[],
-    leaves: SharedBuf.view(leaves),
-    layers: SharedBuf.view(layers),
-    signal: signal,
-  )
-
-  doAssert tp.numThreads > 1,
-    "Must have at least one separate thread or signal will never be fired"
-
-  tp.spawn merkleTreeWorker(addr task)
-
-  # To support cancellation, we'd have to ensure the task we posted to taskpools
-  # exits early - since we're not doing that, block cancellation attempts
-  try:
-    await noCancel signal.wait()
-  except AsyncError as exc:
-    # Since we initialized the signal, the OS or chronos is misbehaving. In any
-    # case, it would mean the task is still running which would cause a memory
-    # a memory violation if we let it run - panic instead
-    raiseAssert "Could not wait for signal, was it initialized? " & exc.msg
-
-  if not task.success.load():
-    return failure("merkle tree task failed")
-
-  tree.layers = unpack[ByteHash](task.layers, leaves.len, digestSize)
-
+): Future[?!CodexTree] {.async: (raises: [CancelledError]).} =
+  let tree = ?initTree(mcodec, leaves)
+  ?await tree.compute(tp)
   success tree
 
 func init*(_: type CodexTree, leaves: openArray[MultiHash]): ?!CodexTree =
@@ -262,15 +211,8 @@ proc fromNodes*(
   if digestSize != nodes[0].len:
     return failure "Invalid hash length"
 
-  var
-    self = CodexTree(compress: compressor, zero: Zero, mcodec: mcodec)
-    layer = nleaves
-    pos = 0
-
-  while pos < nodes.len:
-    self.layers.add(nodes[pos ..< (pos + layer)])
-    pos += layer
-    layer = divUp(layer, 2)
+  var self = CodexTree(mcodec: mcodec)
+  ?self.fromNodes(compressor, Zero, nodes, nleaves)
 
   let
     index = Rng.instance.rand(nleaves - 1)
