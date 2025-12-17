@@ -69,13 +69,6 @@ type
     compress*: CompressFn[H, K] # compress function
     zero*: H # zero value
 
-  MerkleTask*[H, K] = object
-    store*: SharedBuf[byte]
-    layerOffsets: SharedBuf[int]
-    compress*: ptr CompressData[H, K]
-    signal*: ThreadSignalPtr
-    success*: Atomic[bool]
-
 func levels*[H, K](self: MerkleTree[H, K]): int =
   return self.layerOffsets.len
 
@@ -324,19 +317,20 @@ func merkleTreeWorker[H, K](
 
   merkleTreeWorker(store, offsets, compress, layer + 1, false)
 
-proc merkleTreeWorker[H, K](task: ptr MerkleTask[H, K]) {.gcsafe.} =
+proc merkleTreeWorker[H, K](
+    store: SharedBuf[byte],
+    offsets: SharedBuf[int],
+    compress: ptr CompressData[H, K],
+    signal: ThreadSignalPtr,
+): bool =
   defer:
-    discard task[].signal.fireSync()
+    discard signal.fireSync()
 
   let res = merkleTreeWorker(
-    task[].store.toOpenArray(),
-    task[].layerOffsets.toOpenArray(),
-    task[].compress[],
-    0,
-    isBottomLayer = true,
+    store.toOpenArray(), offsets.toOpenArray(), compress[], 0, isBottomLayer = true
   )
 
-  task[].success.store(res.isOk())
+  return res.isOk()
 
 func prepare*[H, K](
     self: MerkleTree[H, K], compressor: CompressFn, zero: H, leaves: openArray[H]
@@ -379,14 +373,12 @@ proc compute*[H, K](
   defer:
     signal.close().expect("closing once works")
 
-  var task = MerkleTask[H, K](
-    store: SharedBuf.view(self.store),
-    layerOffsets: SharedBuf.view(self.layerOffsets),
-    compress: addr self.compress,
-    signal: signal,
+  let res = tp.spawn merkleTreeWorker(
+    SharedBuf.view(self.store),
+    SharedBuf.view(self.layerOffsets),
+    addr self.compress,
+    signal,
   )
-
-  tp.spawn merkleTreeWorker(addr task)
 
   # To support cancellation, we'd have to ensure the task we posted to taskpools
   # exits early - since we're not doing that, block cancellation attempts
@@ -398,7 +390,7 @@ proc compute*[H, K](
     # a memory violation if we let it run - panic instead
     raiseAssert "Could not wait for signal, was it initialized? " & exc.msg
 
-  if not task.success.load():
+  if not res.sync():
     return failure("merkle tree task failed")
 
   return success()
