@@ -510,9 +510,8 @@ const
   nimBanner* = getNimBanner()
 
   codexFullVersion* =
-    "Storage version:  " & codexVersion & "\p" & "Storage revision: " &
-    codexRevision & "\p" & "Storage contracts revision: " & codexContractsRevision &
-    "\p" & nimBanner
+    "Storage version:  " & codexVersion & "\p" & "Storage revision: " & codexRevision &
+    "\p" & "Storage contracts revision: " & codexContractsRevision & "\p" & nimBanner
 
 proc parseCmdArg*(
     T: typedesc[MultiAddress], input: string

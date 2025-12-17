@@ -881,8 +881,7 @@ proc start*(self: CodexNodeRef) {.async.} =
       self.contracts.validator = ValidatorInteractions.none
 
   self.networkId = self.switch.peerInfo.peerId
-  notice "Started Storage node",
-    id = self.networkId, addrs = self.switch.peerInfo.addrs
+  notice "Started Storage node", id = self.networkId, addrs = self.switch.peerInfo.addrs
 
 proc stop*(self: CodexNodeRef) {.async.} =
   trace "Stopping node"
