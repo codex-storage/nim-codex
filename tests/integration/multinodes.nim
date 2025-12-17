@@ -69,7 +69,7 @@ proc sanitize(pathSegment: string): string =
   sanitized
 
 proc getTempDirName*(starttime: string, role: Role, roleIdx: int): string =
-  getTempDir() / "Storage" / sanitize($starttime) / sanitize($role & "_" & $roleIdx)
+  getTempDir() / "Codex" / sanitize($starttime) / sanitize($role & "_" & $roleIdx)
 
 template multinodesuite*(name: string, body: untyped) =
   asyncchecksuite name:
