@@ -29,10 +29,10 @@ proc findCodexProjectDir(): string =
 func default*(tp: typedesc[CircuitEnv]): CircuitEnv =
   let codexDir = findCodexProjectDir()
   result.nimCircuitCli =
-    codexDir / "vendor" / "codex-storage-proofs-circuits" / "reference" / "nim" /
+    codexDir / "vendor" / "logos-storage-proofs-circuits" / "reference" / "nim" /
     "proof_input" / "cli"
   result.circuitDirIncludes =
-    codexDir / "vendor" / "codex-storage-proofs-circuits" / "circuit"
+    codexDir / "vendor" / "logos-storage-proofs-circuits" / "circuit"
   result.ptauPath =
     codexDir / "benchmarks" / "ceremony" / "powersOfTau28_hez_final_23.ptau"
   result.ptauUrl = "https://storage.googleapis.com/zkevm/ptau".parseUri
@@ -118,7 +118,7 @@ proc createCircuit*(
   ## 
   ## All needed circuit files will be generated as needed. 
   ## They will be located in `circBenchDir` which defaults to a folder like:
-  ##    `nim-codex/benchmarks/circuit_bench_depth32_maxslots256_cellsize2048_blocksize65536_nsamples9_entropy1234567_seed12345_nslots11_ncells512_index3`
+  ##    `logos-storage-nim/benchmarks/circuit_bench_depth32_maxslots256_cellsize2048_blocksize65536_nsamples9_entropy1234567_seed12345_nslots11_ncells512_index3`
   ## with all the given CircuitArgs.
   ## 
   let circdir = circBenchDir

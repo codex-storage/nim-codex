@@ -25,7 +25,7 @@ pipeline {
     stage('Check') {
       steps {
         script {
-          sh './result/bin/codex --version'
+          sh './result/bin/storage --version'
         }
       }
     }

@@ -1,8 +1,8 @@
 {.push raises: [].}
 
-## This file contains the debug info available with Codex.
+## This file contains the debug info available with Logos Storage.
 ## The DEBUG type will return info about the P2P node.
-## The PEER type is available only with codex_enable_api_debug_peers flag.
+## The PEER type is available only with storage_enable_api_debug_peers flag.
 ## It will return info about a specific peer if available.
 
 import std/[options]
@@ -17,7 +17,7 @@ import ../../../codex/node
 from ../../../codex/codex import CodexServer, node
 
 logScope:
-  topics = "codexlib codexlibdebug"
+  topics = "libstorage libstoragedebug"
 
 type NodeDebugMsgType* = enum
   DEBUG
@@ -47,9 +47,9 @@ proc destroyShared(self: ptr NodeDebugRequest) =
   deallocShared(self)
 
 proc getDebug(
-    codex: ptr CodexServer
+    storage: ptr CodexServer
 ): Future[Result[string, string]] {.async: (raises: []).} =
-  let node = codex[].node
+  let node = storage[].node
   let table = RestRoutingTable.init(node.discovery.protocol.routingTable)
 
   let json =
@@ -65,10 +65,10 @@ proc getDebug(
   return ok($json)
 
 proc getPeer(
-    codex: ptr CodexServer, peerId: cstring
+    storage: ptr CodexServer, peerId: cstring
 ): Future[Result[string, string]] {.async: (raises: []).} =
-  when codex_enable_api_debug_peers:
-    let node = codex[].node
+  when storage_enable_api_debug_peers:
+    let node = storage[].node
     let res = PeerId.init($peerId)
     if res.isErr:
       return err("Failed to get peer: invalid peer ID " & $peerId & ": " & $res.error())
@@ -89,7 +89,7 @@ proc getPeer(
     return err("Failed to get peer: peer debug API is disabled")
 
 proc updateLogLevel(
-    codex: ptr CodexServer, logLevel: cstring
+    storage: ptr CodexServer, logLevel: cstring
 ): Future[Result[string, string]] {.async: (raises: []).} =
   try:
     {.gcsafe.}:
@@ -100,26 +100,26 @@ proc updateLogLevel(
   return ok("")
 
 proc process*(
-    self: ptr NodeDebugRequest, codex: ptr CodexServer
+    self: ptr NodeDebugRequest, storage: ptr CodexServer
 ): Future[Result[string, string]] {.async: (raises: []).} =
   defer:
     destroyShared(self)
 
   case self.operation
   of NodeDebugMsgType.DEBUG:
-    let res = (await getDebug(codex))
+    let res = (await getDebug(storage))
     if res.isErr:
       error "Failed to get DEBUG.", error = res.error
       return err($res.error)
     return res
   of NodeDebugMsgType.PEER:
-    let res = (await getPeer(codex, self.peerId))
+    let res = (await getPeer(storage, self.peerId))
     if res.isErr:
       error "Failed to get PEER.", error = res.error
       return err($res.error)
     return res
   of NodeDebugMsgType.LOG_LEVEL:
-    let res = (await updateLogLevel(codex, self.logLevel))
+    let res = (await updateLogLevel(storage, self.logLevel))
     if res.isErr:
       error "Failed to update LOG_LEVEL.", error = res.error
       return err($res.error)

@@ -1,10 +1,10 @@
 {
-  description = "Nim Codex build flake";
+  description = "Logos Storage build flake";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
     circom-compat = {
-      url = "github:codex-storage/circom-compat-ffi";
+      url = "github:logos-storage/circom-compat-ffi";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
@@ -68,7 +68,7 @@
             machine.start()
             machine.wait_for_unit("nim-codex.service")
             machine.succeed("test -d /var/lib/nim-codex-test")
-            machine.wait_until_succeeds("journalctl -u nim-codex.service | grep 'Started codex node'", 10)
+            machine.wait_until_succeeds("journalctl -u nim-codex.service | grep 'Started Storage node'", 10)
           '';
         };
       });

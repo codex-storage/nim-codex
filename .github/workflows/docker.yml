@@ -31,7 +31,7 @@ jobs:
       - name: Get submodule short hash
         id: get-hash
         run: |
-          hash=$(git rev-parse --short HEAD:vendor/codex-contracts-eth)
+          hash=$(git rev-parse --short HEAD:vendor/logos-storage-contracts-eth)
           echo "hash=$hash" >> $GITHUB_OUTPUT
   build-and-push:
     name: Build and Push

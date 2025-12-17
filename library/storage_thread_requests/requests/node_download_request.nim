@@ -30,7 +30,7 @@ from ../../../codex/rest/json import `%`, RestContent
 from libp2p import Cid, init, `$`
 
 logScope:
-  topics = "codexlib codexlibdownload"
+  topics = "libstorage libstoragedownload"
 
 type NodeDownloadMsgType* = enum
   INIT
@@ -80,7 +80,7 @@ proc destroyShared(self: ptr NodeDownloadRequest) =
   deallocShared(self)
 
 proc init(
-    codex: ptr CodexServer, cCid: cstring = "", chunkSize: csize_t = 0, local: bool
+    storage: ptr CodexServer, cCid: cstring = "", chunkSize: csize_t = 0, local: bool
 ): Future[Result[string, string]] {.async: (raises: []).} =
   ## Init a new session to download the file identified by cid.
   ##
@@ -96,7 +96,7 @@ proc init(
   if downloadSessions.contains($cid):
     return ok("Download session already exists.")
 
-  let node = codex[].node
+  let node = storage[].node
   var stream: LPStream
 
   try:
@@ -114,7 +114,7 @@ proc init(
   return ok("")
 
 proc chunk(
-    codex: ptr CodexServer, cCid: cstring = "", onChunk: OnChunkHandler
+    storage: ptr CodexServer, cCid: cstring = "", onChunk: OnChunkHandler
 ): Future[Result[string, string]] {.async: (raises: []).} =
   ## Download the next chunk of the file identified by cid.
   ## The chunk is passed to the onChunk handler.
@@ -164,7 +164,7 @@ proc chunk(
   return ok("")
 
 proc streamData(
-    codex: ptr CodexServer,
+    storage: ptr CodexServer,
     stream: LPStream,
     onChunk: OnChunkHandler,
     chunkSize: csize_t,
@@ -207,7 +207,7 @@ proc streamData(
   return ok("")
 
 proc stream(
-    codex: ptr CodexServer,
+    storage: ptr CodexServer,
     cCid: cstring,
     chunkSize: csize_t,
     local: bool,
@@ -232,11 +232,11 @@ proc stream(
   except KeyError:
     return err("Failed to stream: no session for cid " & $cid)
 
-  let node = codex[].node
+  let node = storage[].node
 
   try:
     let res =
-      await noCancel codex.streamData(session.stream, onChunk, chunkSize, filepath)
+      await noCancel storage.streamData(session.stream, onChunk, chunkSize, filepath)
     if res.isErr:
       return err($res.error)
   except LPStreamError as e:
@@ -251,7 +251,7 @@ proc stream(
   return ok("")
 
 proc cancel(
-    codex: ptr CodexServer, cCid: cstring
+    storage: ptr CodexServer, cCid: cstring
 ): Future[Result[string, string]] {.raises: [], async: (raises: []).} =
   ## Cancel the download session identified by cid.
   ## This operation is not supported when using the stream mode,
@@ -279,14 +279,14 @@ proc cancel(
   return ok("")
 
 proc manifest(
-    codex: ptr CodexServer, cCid: cstring
+    storage: ptr CodexServer, cCid: cstring
 ): Future[Result[string, string]] {.raises: [], async: (raises: []).} =
   let cid = Cid.init($cCid)
   if cid.isErr:
     return err("Failed to fetch manifest: cannot parse cid: " & $cCid)
 
   try:
-    let node = codex[].node
+    let node = storage[].node
     let manifest = await node.fetchManifest(cid.get())
     if manifest.isErr:
       return err("Failed to fetch manifest: " & manifest.error.msg)
@@ -296,40 +296,42 @@ proc manifest(
     return err("Failed to fetch manifest: download cancelled.")
 
 proc process*(
-    self: ptr NodeDownloadRequest, codex: ptr CodexServer, onChunk: OnChunkHandler
+    self: ptr NodeDownloadRequest, storage: ptr CodexServer, onChunk: OnChunkHandler
 ): Future[Result[string, string]] {.async: (raises: []).} =
   defer:
     destroyShared(self)
 
   case self.operation
   of NodeDownloadMsgType.INIT:
-    let res = (await init(codex, self.cid, self.chunkSize, self.local))
+    let res = (await init(storage, self.cid, self.chunkSize, self.local))
     if res.isErr:
       error "Failed to INIT.", error = res.error
       return err($res.error)
     return res
   of NodeDownloadMsgType.CHUNK:
-    let res = (await chunk(codex, self.cid, onChunk))
+    let res = (await chunk(storage, self.cid, onChunk))
     if res.isErr:
       error "Failed to CHUNK.", error = res.error
       return err($res.error)
     return res
   of NodeDownloadMsgType.STREAM:
     let res = (
-      await stream(codex, self.cid, self.chunkSize, self.local, self.filepath, onChunk)
+      await stream(
+        storage, self.cid, self.chunkSize, self.local, self.filepath, onChunk
+      )
     )
     if res.isErr:
       error "Failed to STREAM.", error = res.error
       return err($res.error)
     return res
   of NodeDownloadMsgType.CANCEL:
-    let res = (await cancel(codex, self.cid))
+    let res = (await cancel(storage, self.cid))
     if res.isErr:
       error "Failed to CANCEL.", error = res.error
       return err($res.error)
     return res
   of NodeDownloadMsgType.MANIFEST:
-    let res = (await manifest(codex, self.cid))
+    let res = (await manifest(storage, self.cid))
     if res.isErr:
       error "Failed to MANIFEST.", error = res.error
       return err($res.error)

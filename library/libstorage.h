@@ -1,15 +1,15 @@
 /**
-* libcodex.h - C Interface for Example Library
+* libstorage.h - C Interface for Example Library
 *
-* This header provides the public API for libcodex
+* This header provides the public API for libstorage
 *
-* To see the auto-generated header by Nim, run `make libcodex` from the
+* To see the auto-generated header by Nim, run `make libstorage` from the
 * repository root. The generated file will be created at:
-* nimcache/release/libcodex/libcodex.h
+* nimcache/release/libstorage/libstorage.h
 */
 
-#ifndef __libcodex__
-#define __libcodex__
+#ifndef __libstorage__
+#define __libstorage__
 
 #include <stddef.h>
 #include <stdint.h>
@@ -24,183 +24,183 @@
 extern "C" {
 #endif
 
-typedef void (*CodexCallback) (int callerRet, const char* msg, size_t len, void* userData);
+typedef void (*StorageCallback) (int callerRet, const char* msg, size_t len, void* userData);
 
-void* codex_new(
+void* storage_new(
              const char* configJson,
-             CodexCallback callback,
+             StorageCallback callback,
              void* userData);
 
-int codex_version(
+int storage_version(
                 void* ctx,
-                CodexCallback callback,
+                StorageCallback callback,
                 void* userData);
 
-int codex_revision(
+int storage_revision(
                 void* ctx,
-                CodexCallback callback,
+                StorageCallback callback,
                 void* userData);
 
-int codex_repo(
+int storage_repo(
                 void* ctx,
-                CodexCallback callback,
+                StorageCallback callback,
                 void* userData);
 
-int codex_debug(
+int storage_debug(
                 void* ctx,
-                CodexCallback callback,
+                StorageCallback callback,
                 void* userData);
 
-int codex_spr(
+int storage_spr(
                 void* ctx,
-                CodexCallback callback,
+                StorageCallback callback,
                 void* userData);
 
-int codex_peer_id(
+int storage_peer_id(
                 void* ctx,
-                CodexCallback callback,
+                StorageCallback callback,
                 void* userData);
 
-int codex_log_level(
+int storage_log_level(
                 void* ctx,
                 const char* logLevel,
-                CodexCallback callback,
+                StorageCallback callback,
                 void* userData);
 
-int codex_connect(
+int storage_connect(
                 void* ctx,
                 const char* peerId,
                 const char** peerAddresses,
                 size_t peerAddressesSize,
-                CodexCallback callback,
+                StorageCallback callback,
                 void* userData);
 
-int codex_peer_debug(
+int storage_peer_debug(
                 void* ctx,
                 const char* peerId,
-                CodexCallback callback,
+                StorageCallback callback,
                 void* userData);
 
 
-int codex_upload_init(
+int storage_upload_init(
                 void* ctx,
                 const char* filepath,
                 size_t chunkSize,
-                CodexCallback callback,
+                StorageCallback callback,
                 void* userData);
 
-int codex_upload_chunk(
+int storage_upload_chunk(
                 void* ctx,
                 const char* sessionId,
                 const uint8_t* chunk,
                 size_t len,
-                CodexCallback callback,
+                StorageCallback callback,
                 void* userData);
 
-int codex_upload_finalize(
+int storage_upload_finalize(
                 void* ctx,
                 const char* sessionId,
-                CodexCallback callback,
+                StorageCallback callback,
                 void* userData);
 
-int codex_upload_cancel(
+int storage_upload_cancel(
                 void* ctx,
                 const char* sessionId,
-                CodexCallback callback,
+                StorageCallback callback,
                 void* userData);
 
-int codex_upload_file(
+int storage_upload_file(
                 void* ctx,
                 const char* sessionId,
-                CodexCallback callback,
+                StorageCallback callback,
                 void* userData);
 
-int codex_download_stream(
+int storage_download_stream(
                 void* ctx,
                 const char* cid,
                 size_t chunkSize,
                 bool local,
                 const char* filepath,
-                CodexCallback callback,
+                StorageCallback callback,
                 void* userData);
 
-int codex_download_init(
+int storage_download_init(
                 void* ctx,
                 const char* cid,
                 size_t chunkSize,
                 bool local,
-                CodexCallback callback,
+                StorageCallback callback,
                 void* userData);
 
-int codex_download_chunk(
+int storage_download_chunk(
                 void* ctx,
                 const char* cid,
-                CodexCallback callback,
+                StorageCallback callback,
                 void* userData);
 
-int codex_download_cancel(
+int storage_download_cancel(
                 void* ctx,
                 const char* cid,
-                CodexCallback callback,
+                StorageCallback callback,
                 void* userData);
 
-int codex_download_manifest(
+int storage_download_manifest(
                 void* ctx,
                 const char* cid,
-                CodexCallback callback,
+                StorageCallback callback,
                 void* userData);
 
-int codex_storage_list(
+int storage_list(
                 void* ctx,
-                CodexCallback callback,
+                StorageCallback callback,
                 void* userData);
 
-int codex_storage_space(
+int storage_space(
                 void* ctx,
-                CodexCallback callback,
+                StorageCallback callback,
                 void* userData);
 
-int codex_storage_delete(
-                void* ctx,
-                const char* cid,
-                CodexCallback callback,
-                void* userData);
-
-int codex_storage_fetch(
+int storage_delete(
                 void* ctx,
                 const char* cid,
-                CodexCallback callback,
+                StorageCallback callback,
                 void* userData);
 
-int codex_storage_exists(
+int storage_fetch(
                 void* ctx,
                 const char* cid,
-                CodexCallback callback,
+                StorageCallback callback,
                 void* userData);
 
-int codex_start(void* ctx,
-               CodexCallback callback,
+int storage_exists(
+                void* ctx,
+                const char* cid,
+                StorageCallback callback,
+                void* userData);
+
+int storage_start(void* ctx,
+               StorageCallback callback,
                void* userData);
 
-int codex_stop(void* ctx,
-              CodexCallback callback,
+int storage_stop(void* ctx,
+              StorageCallback callback,
               void* userData);
 
-int codex_close(void* ctx,
-              CodexCallback callback,
+int storage_close(void* ctx,
+              StorageCallback callback,
               void* userData);
 
-// Destroys an instance of a codex node created with codex_new
-int codex_destroy(void* ctx,
-                  CodexCallback callback,
+// Destroys an instance of a Logos Storage node created with storage_new
+int storage_destroy(void* ctx,
+                  StorageCallback callback,
                  void* userData);
 
-void codex_set_event_callback(void* ctx,
-                             CodexCallback callback,
+void storage_set_event_callback(void* ctx,
+                             StorageCallback callback,
                              void* userData);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* __libcodex__ */
+#endif /* __libstorage__ */

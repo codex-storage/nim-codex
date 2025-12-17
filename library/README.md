@@ -1,6 +1,6 @@
-# Codex Library
+# Logos Storage Library
 
-Codex exposes a C binding that serves as a stable contract, making it straightforward to integrate Codex into other languages such as Go.
+Logos Storage exposes a C binding that serves as a stable contract, making it straightforward to integrate Logos Storage into other languages such as Go.
 
 The implementation was inspired by [nim-library-template](https://github.com/logos-co/nim-library-template)  
 and by the [nwaku](https://github.com/waku-org/nwaku/tree/master/library) library.
@@ -13,13 +13,13 @@ sequenceDiagram
     autonumber
     actor App as App/User
     participant Go as Go Wrapper
-    participant C as C API (libcodex.h)
-    participant Ctx as CodexContext
+    participant C as C API (libstorage.h)
+    participant Ctx as StorageContext
     participant Thr as Worker Thread
     participant Eng as CodexServer
 
     App->>Go: Start
-    Go->>C: codex_start_node
+    Go->>C: storage_start_node
     C->>Ctx: enqueue request
     C->>Ctx: fire signal
     Ctx->>Thr: wake worker

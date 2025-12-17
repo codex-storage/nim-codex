@@ -7,7 +7,7 @@
 ### Exported types
 import results
 
-type CodexCallback* = proc(
+type StorageCallback* = proc(
   callerRet: cint, msg: ptr cchar, len: csize_t, userData: pointer
 ) {.cdecl, gcsafe, raises: [].}
 
@@ -18,15 +18,15 @@ const RET_PROGRESS*: cint = 3
 
 ## Returns RET_OK as acknowledgment and call the callback
 ## with RET_OK code and the provided message.
-proc success*(callback: CodexCallback, msg: string, userData: pointer): cint =
+proc success*(callback: StorageCallback, msg: string, userData: pointer): cint =
   callback(RET_OK, cast[ptr cchar](msg), cast[csize_t](len(msg)), userData)
 
   return RET_OK
 
 ## Returns RET_ERR as acknowledgment and call the callback
 ## with RET_ERR code and the provided message.
-proc error*(callback: CodexCallback, msg: string, userData: pointer): cint =
-  let msg = "libcodex error: " & msg
+proc error*(callback: StorageCallback, msg: string, userData: pointer): cint =
+  let msg = "libstorage error: " & msg
   callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
 
   return RET_ERR
@@ -34,7 +34,7 @@ proc error*(callback: CodexCallback, msg: string, userData: pointer): cint =
 ## Returns RET_OK as acknowledgment if the result is ok.
 ## If not, return RET_ERR and call the callback with the error message.
 proc okOrError*[T](
-    callback: CodexCallback, res: Result[T, string], userData: pointer
+    callback: StorageCallback, res: Result[T, string], userData: pointer
 ): cint =
   if res.isOk:
     return RET_OK

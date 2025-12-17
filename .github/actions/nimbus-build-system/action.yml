@@ -218,7 +218,7 @@ runs:
       run: |
         git config --global core.symlinks false
 
-    - name: Build Nim and Codex dependencies
+    - name: Build Nim and Logos Storage dependencies
       shell: ${{ inputs.shell }} {0}
       run: |
         which gcc

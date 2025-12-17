@@ -60,7 +60,7 @@ method start*(node: NodeProcess) {.base, async.} =
 
   try:
     if node.debug:
-      echo "starting codex node with args: ", node.arguments.join(" ")
+      echo "starting Storage node with args: ", node.arguments.join(" ")
     node.process = await startProcess(
       node.executable,
       node.workingDir,
@@ -105,7 +105,7 @@ proc captureOutput(
 proc startNode*[T: NodeProcess](
     _: type T, args: seq[string], debug: string | bool = false, name: string
 ): Future[T] {.async.} =
-  ## Starts a Codex Node with the specified arguments.
+  ## Starts a Logos Storage Node with the specified arguments.
   ## Set debug to 'true' to see output of the node.
   let node = T(
     arguments: @args,

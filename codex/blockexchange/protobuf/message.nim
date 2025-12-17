@@ -1,4 +1,4 @@
-# Protocol of data exchange between Codex nodes
+# Protocol of data exchange between Logos Storage nodes
 # and Protobuf encoder/decoder for these messages.
 #
 # Eventually all this code should be auto-generated from message.proto.

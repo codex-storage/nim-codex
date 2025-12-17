@@ -32,7 +32,7 @@ from ../../../codex/node import store
 from libp2p import Cid, `$`
 
 logScope:
-  topics = "codexlib codexlibupload"
+  topics = "libstorage libstorageupload"
 
 type NodeUploadMsgType* = enum
   INIT
@@ -86,7 +86,7 @@ proc destroyShared(self: ptr NodeUploadRequest) =
   deallocShared(self)
 
 proc init(
-    codex: ptr CodexServer, filepath: cstring = "", chunkSize: csize_t = 0
+    storage: ptr CodexServer, filepath: cstring = "", chunkSize: csize_t = 0
 ): Future[Result[string, string]] {.async: (raises: []).} =
   ## Init a new session upload and return its ID.
   ## The session contains the future corresponding to the
@@ -133,7 +133,7 @@ proc init(
 
   let stream = BufferStream.new()
   let lpStream = LPStream(stream)
-  let node = codex[].node
+  let node = storage[].node
 
   let onBlockStored = proc(chunk: seq[byte]): void {.gcsafe, raises: [].} =
     try:
@@ -156,7 +156,7 @@ proc init(
   return ok(sessionId)
 
 proc chunk(
-    codex: ptr CodexServer, sessionId: cstring, chunk: seq[byte]
+    storage: ptr CodexServer, sessionId: cstring, chunk: seq[byte]
 ): Future[Result[string, string]] {.async: (raises: []).} =
   ## Upload a chunk of data to the session identified by sessionId.
   ## The chunk is pushed to the BufferStream of the session.
@@ -205,7 +205,7 @@ proc chunk(
   return ok("")
 
 proc finalize(
-    codex: ptr CodexServer, sessionId: cstring
+    storage: ptr CodexServer, sessionId: cstring
 ): Future[Result[string, string]] {.async: (raises: []).} =
   ## Finalize the upload session identified by sessionId.
   ## This closes the BufferStream and waits for the `node.store` future
@@ -242,7 +242,7 @@ proc finalize(
       session.fut.cancelSoon()
 
 proc cancel(
-    codex: ptr CodexServer, sessionId: cstring
+    storage: ptr CodexServer, sessionId: cstring
 ): Future[Result[string, string]] {.async: (raises: []).} =
   ## Cancel the upload session identified by sessionId.
   ## This cancels the `node.store` future and removes the session
@@ -293,7 +293,7 @@ proc streamFile(
     return err("Failed to stream the file: " & $e.msg)
 
 proc file(
-    codex: ptr CodexServer, sessionId: cstring, onProgress: OnProgressHandler
+    storage: ptr CodexServer, sessionId: cstring, onProgress: OnProgressHandler
 ): Future[Result[string, string]] {.async: (raises: []).} =
   ## Starts the file upload for the session identified by sessionId.
   ## Will call finalize when done and return the CID of the uploaded file.
@@ -314,7 +314,7 @@ proc file(
     if res.isErr:
       return err("Failed to upload the file: " & res.error)
 
-    return await codex.finalize(sessionId)
+    return await storage.finalize(sessionId)
   except KeyError:
     return err("Failed to upload the file, the session is not found: " & $sessionId)
   except LPStreamError, IOError:
@@ -333,7 +333,7 @@ proc file(
 
 proc process*(
     self: ptr NodeUploadRequest,
-    codex: ptr CodexServer,
+    storage: ptr CodexServer,
     onUploadProgress: OnProgressHandler = nil,
 ): Future[Result[string, string]] {.async: (raises: []).} =
   defer:
@@ -341,31 +341,31 @@ proc process*(
 
   case self.operation
   of NodeUploadMsgType.INIT:
-    let res = (await init(codex, self.filepath, self.chunkSize))
+    let res = (await init(storage, self.filepath, self.chunkSize))
     if res.isErr:
       error "Failed to INIT.", error = res.error
       return err($res.error)
     return res
   of NodeUploadMsgType.CHUNK:
-    let res = (await chunk(codex, self.sessionId, self.chunk))
+    let res = (await chunk(storage, self.sessionId, self.chunk))
     if res.isErr:
       error "Failed to CHUNK.", error = res.error
       return err($res.error)
     return res
   of NodeUploadMsgType.FINALIZE:
-    let res = (await finalize(codex, self.sessionId))
+    let res = (await finalize(storage, self.sessionId))
     if res.isErr:
       error "Failed to FINALIZE.", error = res.error
       return err($res.error)
     return res
   of NodeUploadMsgType.CANCEL:
-    let res = (await cancel(codex, self.sessionId))
+    let res = (await cancel(storage, self.sessionId))
     if res.isErr:
       error "Failed to CANCEL.", error = res.error
       return err($res.error)
     return res
   of NodeUploadMsgType.FILE:
-    let res = (await file(codex, self.sessionId, onUploadProgress))
+    let res = (await file(storage, self.sessionId, onUploadProgress))
     if res.isErr:
       error "Failed to FILE.", error = res.error
       return err($res.error)

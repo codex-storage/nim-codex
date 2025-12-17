@@ -9,7 +9,7 @@ nix develop '.?submodules=1#'
 
 ## Building
 
-To build a Codex you can use:
+To build a Logos Storage you can use:
 ```sh
 nix build '.?submodules=1#default'
 ```
@@ -19,13 +19,13 @@ https://github.com/NixOS/nix/issues/4423
 
 It can be also done without even cloning the repo:
 ```sh
-nix build 'git+https://github.com/codex-storage/nim-codex?submodules=1#'
+nix build 'git+https://github.com/logos-storage/logos-storage-nim?submodules=1#'
 ```
 
 ## Running
 
 ```sh
-nix run 'git+https://github.com/codex-storage/nim-codex?submodules=1#''
+nix run 'git+https://github.com/logos-storage/logos-storage-nim?submodules=1#''
 ```
 
 ## Testing
@@ -34,26 +34,26 @@ nix run 'git+https://github.com/codex-storage/nim-codex?submodules=1#''
 nix flake check ".?submodules=1#"
 ```
 
-## Running Nim-Codex as a service on NixOS
+## Running Logos Storage as a service on NixOS
 
-Include nim-codex flake in your flake inputs:
+Include logos-storage-nim flake in your flake inputs:
 ```nix
 inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
-    nim-codex-flake.url = "git+https://github.com/codex-storage/nim-codex?submodules=1#";
+    logos-storage-nim-flake.url = "git+https://github.com/logos-storage/logos-storage-nim?submodules=1#";
 };
 ```
 
 To configure the service, you can use the following example:
 ```nix
-services.nim-codex = {
+services.logos-storage-nim = {
    enable = true;
    settings = {
-       data-dir = "/var/lib/codex-test";
+       data-dir = "/var/lib/storage-test";
    };
 };
 ```
 The settings attribute set corresponds directly to the layout of the TOML configuration file 
-used by nim-codex. Each option follows the same naming convention as the CLI flags, but 
+used by logos-storage-nim. Each option follows the same naming convention as the CLI flags, but 
 with the -- prefix removed. For more details on the TOML file structure and options, 
-refer to the official documentation: [nim-codex configuration file](https://docs.codex.storage/learn/run#configuration-file).
+refer to the official documentation: [logos-storage-nim configuration file](https://docs.codex.storage/learn/run#configuration-file).

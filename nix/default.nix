@@ -13,7 +13,7 @@
   # Perform 2-stage bootstrap instead of 3-stage to save time.
   quickAndDirty ? true,
   circomCompatPkg ? (
-    builtins.getFlake "github:codex-storage/circom-compat-ffi"
+    builtins.getFlake "github:logos-storage/circom-compat-ffi"
   ).packages.${builtins.currentSystem}.default
 }:
 
@@ -28,7 +28,7 @@ let
   tools = callPackage ./tools.nix {};
 in pkgs.gcc13Stdenv.mkDerivation rec {
 
-  pname = "codex";
+  pname = "storage";
 
   version = "${tools.findKeyValue "version = \"([0-9]+\.[0-9]+\.[0-9]+)\"" ../codex.nimble}-${revision}";
 
@@ -84,12 +84,12 @@ in pkgs.gcc13Stdenv.mkDerivation rec {
 
   installPhase = ''
     mkdir -p $out/bin
-    cp build/codex $out/bin/
+    cp build/storage $out/bin/
   '';
 
   meta = with pkgs.lib; {
-    description = "Nim Codex storage system";
-    homepage = "https://github.com/codex-storage/nim-codex";
+    description = "Logos Storage storage system";
+    homepage = "https://github.com/logos-storage/logos-storage-nim";
     license = licenses.mit;
     platforms = stableSystems;
   };

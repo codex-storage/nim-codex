@@ -12,7 +12,7 @@ env:
   cache_nonce: 0 # Allows for easily busting actions/cache caches
   nim_version: pinned
   rust_version: 1.79.0
-  codex_binary_base: codex
+  storage_binary_base: storage
   cirdl_binary_base: cirdl
   build_dir: build
   nim_flags: ''
@@ -73,18 +73,18 @@ jobs:
             windows*) os_name="windows" ;;
           esac
           github_ref_name="${GITHUB_REF_NAME/\//-}"
-          codex_binary="${{ env.codex_binary_base }}-${github_ref_name}-${os_name}-${{ matrix.cpu }}"
+          storage_binary="${{ env.storage_binary_base }}-${github_ref_name}-${os_name}-${{ matrix.cpu }}"
           cirdl_binary="${{ env.cirdl_binary_base }}-${github_ref_name}-${os_name}-${{ matrix.cpu }}"
           if [[ ${os_name} == "windows" ]]; then
-            codex_binary="${codex_binary}.exe"
+            storage_binary="${storage_binary}.exe"
             cirdl_binary="${cirdl_binary}.exe"
           fi
-          echo "codex_binary=${codex_binary}" >>$GITHUB_ENV
+          echo "storage_binary=${storage_binary}" >>$GITHUB_ENV
           echo "cirdl_binary=${cirdl_binary}" >>$GITHUB_ENV
 
       - name: Release - Build
         run: |
-          make NIMFLAGS="--out:${{ env.build_dir }}/${{ env.codex_binary }} ${{ env.nim_flags }}"
+          make NIMFLAGS="--out:${{ env.build_dir }}/${{ env.storage_binary }} ${{ env.nim_flags }}"
           make cirdl NIMFLAGS="--out:${{ env.build_dir }}/${{ env.cirdl_binary }} ${{ env.nim_flags }}"
 
       - name: Release - Libraries
@@ -95,11 +95,11 @@ jobs:
             done
           fi
 
-      - name: Release - Upload codex build artifacts
+      - name: Release - Upload Logos Storage build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: release-${{ env.codex_binary }}
-          path: ${{ env.build_dir }}/${{ env.codex_binary_base }}*
+          name: release-${{ env.storage_binary }}
+          path: ${{ env.build_dir }}/${{ env.storage_binary_base }}*
           retention-days: 30
 
       - name: Release - Upload cirdl build artifacts
@@ -139,7 +139,7 @@ jobs:
           }
 
           # Compress and prepare
-          for file in ${{ env.codex_binary_base }}* ${{ env.cirdl_binary_base }}*; do
+          for file in ${{ env.storage_binary_base }}* ${{ env.cirdl_binary_base }}*; do
             if [[ "${file}" == *".exe"* ]]; then
 
               # Windows - binary only
@@ -212,6 +212,6 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         with:
           token: ${{ secrets.DISPATCH_PAT }}
-          repository: codex-storage/py-codex-api-client
+          repository: logos-storage/logos-storage-py-api-client
           event-type: generate
-          client-payload: '{"openapi_url": "https://raw.githubusercontent.com/codex-storage/nim-codex/${{ github.ref }}/openapi.yaml"}'
+          client-payload: '{"openapi_url": "https://raw.githubusercontent.com/logos-storage/logos-storage-nim/${{ github.ref }}/openapi.yaml"}'

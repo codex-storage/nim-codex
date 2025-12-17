@@ -1,22 +1,22 @@
-# Codex Decentralized Durability Engine
+# Logos Storage Decentralized Engine
 
-> The Codex project aims to create a decentralized durability engine that allows persisting data in p2p networks. In other words, it allows storing files and data with predictable durability guarantees for later retrieval.
+> The Logos Storage project aims to create a decentralized engine that allows persisting data in p2p networks.
 
 > WARNING: This project is under active development and is considered pre-alpha.
 
 [![License: Apache](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Stability: experimental](https://img.shields.io/badge/stability-experimental-orange.svg)](#stability)
-[![CI](https://github.com/codex-storage/nim-codex/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/codex-storage/nim-codex/actions/workflows/ci.yml?query=branch%3Amaster)
-[![Docker](https://github.com/codex-storage/nim-codex/actions/workflows/docker.yml/badge.svg?branch=master)](https://github.com/codex-storage/nim-codex/actions/workflows/docker.yml?query=branch%3Amaster)
-[![Codecov](https://codecov.io/gh/codex-storage/nim-codex/branch/master/graph/badge.svg?token=XFmCyPSNzW)](https://codecov.io/gh/codex-storage/nim-codex)
+[![CI](https://github.com/logos-storage/logos-storage-nim/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/logos-storage/logos-storage-nim/actions/workflows/ci.yml?query=branch%3Amaster)
+[![Docker](https://github.com/logos-storage/logos-storage-nim/actions/workflows/docker.yml/badge.svg?branch=master)](https://github.com/logos-storage/logos-storage-nim/actions/workflows/docker.yml?query=branch%3Amaster)
+[![Codecov](https://codecov.io/gh/logos-storage/logos-storage-nim/branch/master/graph/badge.svg?token=XFmCyPSNzW)](https://codecov.io/gh/logos-storage/logos-storage-nim)
 [![Discord](https://img.shields.io/discord/895609329053474826)](https://discord.gg/CaJTh24ddQ)
 ![Docker Pulls](https://img.shields.io/docker/pulls/codexstorage/nim-codex)
 
 
 ## Build and Run
 
-For detailed instructions on preparing to build nim-codex see [*Build Codex*](https://docs.codex.storage/learn/build).
+For detailed instructions on preparing to build logos-storagenim see [*Build Logos Storage*](https://docs.codex.storage/learn/build).
 
 To build the project, clone it and run:
 
@@ -29,12 +29,12 @@ The executable will be placed under the `build` directory under the project root
 Run the client with:
 
 ```bash
-build/codex
+build/storage
 ```
 
 ## Configuration
 
-It is possible to configure a Codex node in several ways:
+It is possible to configure a Logos Storage node in several ways:
  1. CLI options
  2. Environment variables
  3. Configuration file
@@ -45,9 +45,9 @@ Please check [documentation](https://docs.codex.storage/learn/run#configuration)
 
 ## Guides
 
-To get acquainted with Codex, consider:
-* running the simple [Codex Two-Client Test](https://docs.codex.storage/learn/local-two-client-test) for a start, and;
-* if you are feeling more adventurous, try [Running a Local Codex Network with Marketplace Support](https://docs.codex.storage/learn/local-marketplace) using a local blockchain as well.
+To get acquainted with Logos Storage, consider:
+* running the simple [Logos Storage Two-Client Test](https://docs.codex.storage/learn/local-two-client-test) for a start, and;
+* if you are feeling more adventurous, try [Running a Local Logos Storage Network with Marketplace Support](https://docs.codex.storage/learn/local-marketplace) using a local blockchain as well.
 
 ## API
 
@@ -55,13 +55,13 @@ The client exposes a REST API that can be used to interact with the clients. Ove
 
 ## Bindings
 
-Codex provides a C API that can be wrapped by other languages. The bindings is located in the `library` folder.
+Logos Storage provides a C API that can be wrapped by other languages. The bindings is located in the `library` folder.
 Currently, only a Go binding is included.
 
 ### Build the C library
 
 ```bash
-make libcodex
+make libstorage
 ```
 
 This produces the shared library under `build/`.
@@ -71,7 +71,7 @@ This produces the shared library under `build/`.
 Build the Go example:
 
 ```bash
-go build -o codex-go examples/golang/codex.go
+go build -o storage-go examples/golang/storage.go
 ```
 
 Export the library path:
@@ -83,20 +83,20 @@ export LD_LIBRARY_PATH=build
 Run the example:
 
 ```bash
-./codex-go
+./storage-go
 ```
 
 ### Static vs Dynamic build
 
-By default, Codex builds a dynamic library (`libcodex.so`), which you can load at runtime.
-If you prefer a static library (`libcodex.a`), set the `STATIC` flag:
+By default, Logos Storage builds a dynamic library (`libstorage.so`), which you can load at runtime.
+If you prefer a static library (`libstorage.a`), set the `STATIC` flag:
 
 ```bash
 # Build dynamic (default)
-make libcodex
+make libstorage
 
 # Build static
-make STATIC=1 libcodex
+make STATIC=1 libstorage
 ```
 
 ### Limitation
@@ -109,7 +109,7 @@ Feel free to dive in, contributions are welcomed! Open an issue or submit PRs.
 
 ### Linting and formatting
 
-`nim-codex` uses [nph](https://github.com/arnetheduck/nph) for formatting our code and it is required to adhere to its styling.
+`logos-storage-nim` uses [nph](https://github.com/arnetheduck/nph) for formatting our code and it is required to adhere to its styling.
 If you are setting up fresh setup, in order to get `nph` run `make build-nph`.
 In order to format files run `make nph/<file/folder you want to format>`. 
 If you want you can install Git pre-commit hook using `make install-nph-commit`, which will format modified files prior committing them. 

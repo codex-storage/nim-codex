@@ -70,7 +70,7 @@ on:
         type: string
     outputs:
       codex_image:
-        description: Codex Docker image tag
+        description: Logos Storage Docker image tag
         value: ${{ jobs.publish.outputs.codex_image }}
 
 
@@ -87,7 +87,7 @@ env:
   TAG_SUFFIX: ${{ inputs.tag_suffix }}
   CONTRACT_IMAGE: ${{ inputs.contract_image }}
   # Tests
-  TESTS_SOURCE: codex-storage/cs-codex-dist-tests
+  TESTS_SOURCE: logos-storage/logos-storage-nim-cs-dist-tests
   TESTS_BRANCH: master
   CONTINUOUS_TESTS_LIST: ${{ inputs.continuous_tests_list }}
   CONTINUOUS_TESTS_DURATION: ${{ inputs.continuous_tests_duration }}
@@ -316,7 +316,7 @@ jobs:
       max-parallel: 1
       matrix:
         tests: ${{ fromJSON(needs.compute-continuous-tests-inputs.outputs.continuous_tests_list) }}
-    uses: codex-storage/cs-codex-dist-tests/.github/workflows/run-continuous-tests.yaml@master
+    uses: logos-storage/logos-storage-nim-cs-dist-tests/.github/workflows/run-continuous-tests.yaml@master
     with:
       source: ${{ needs.compute-tests-inputs.outputs.source }}
       branch: ${{ needs.compute-tests-inputs.outputs.branch }}
@@ -333,7 +333,7 @@ jobs:
     name: Run Release Tests
     needs: [compute-tests-inputs]
     if: ${{ inputs.run_release_tests == 'true' }}
-    uses: codex-storage/cs-codex-dist-tests/.github/workflows/run-release-tests.yaml@master
+    uses: logos-storage/logos-storage-nim-cs-dist-tests/.github/workflows/run-release-tests.yaml@master
     with:
       source: ${{ needs.compute-tests-inputs.outputs.source }}
       branch: ${{ needs.compute-tests-inputs.outputs.branch }}
