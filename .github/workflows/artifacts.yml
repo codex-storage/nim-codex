@@ -34,11 +34,6 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-
       - name: Install Rust 1.85.0
         if: matrix.target.os != 'windows-latest'
         uses: dtolnay/rust-toolchain@master
