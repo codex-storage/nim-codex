@@ -101,14 +101,14 @@ jobs:
           nim_version: ${{ env.nim_version }}
 
       - name: Record submodule commit
-        run: git -C vendor/nim-codex rev-parse HEAD > vendor/logos-storage-nim/.storage-commit
+        run: git -C . rev-parse HEAD > .storage-commit
 
       - name: Cache libstorage build
         id: cache-libstorage
         uses: actions/cache@v4
         with:
-          path: vendor/logos-storage-nim/build
-          key: ${{ runner.os }}-libstorage-${{ hashFiles('vendor/logos-storage-nim/.storage-commit') }}
+          path: ./build
+          key: ${{ runner.os }}-libstorage-${{ hashFiles('.storage-commit') }}
 
       - name: C Binding build
         if: steps.cache-libstorage.outputs.cache-hit != 'true'
