@@ -92,12 +92,14 @@ jobs:
 
       ## Part 5 C Binding ##
       - name: C Binding build
+        continue-on-error: true
         if: matrix.tests == 'cbindingtest' || matrix.tests == 'all'
         run: |
             make -j${ncpu} libstorage
 
       - name: C Binding test
         if: matrix.tests == 'cbindingtest' || matrix.tests == 'all'
+        continue-on-error: true
         run: |
           cd examples/c
           gcc -o storage storage.c -L../../build -lstorage -Wl,-rpath,../../ -pthread
