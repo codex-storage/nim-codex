@@ -2,8 +2,8 @@ name: Artifacts
 
 on:
   push:
-    tags:
-      - "v*"
+    # tags:
+    #   - "v*"
   workflow_dispatch:
 
 jobs:
@@ -46,14 +46,14 @@ jobs:
           toolchain: 1.85.0
 
       - name: Record submodule commit
-        run: git -C vendor/logos-storage-nim rev-parse HEAD > vendor/logos-storage-nim/.storage-commit
+        run: git -C . rev-parse HEAD > .storage-commit
 
       - name: Cache libstorage build
         id: cache-libstorage
         uses: actions/cache@v4
         with:
-          path: vendor/logos-storage-nim/build
-          key: ${{ runner.os }}-${{ matrix.target.cpu }}-libstorage-${{ hashFiles('vendor/logos-storage-nim/.storage-commit') }}
+          path: ./build
+          key: ${{ runner.os }}-libstorage-${{ hashFiles('.storage-commit') }}
 
       - name: MSYS2 (Windows amd64)
         if: matrix.target.os == 'windows-latest' && matrix.target.cpu == 'amd64'
