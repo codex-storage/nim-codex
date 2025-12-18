@@ -72,6 +72,12 @@ tools_test () {
   job
 }
 
+c_binding_test () {
+  job_tests="cbindingtest"
+  job_includes=""
+  job
+}
+
 # finds all files named test*.nim in the specified directory
 find_tests () {
   local dir=$1
@@ -129,6 +135,7 @@ all_tests () {
   contract_test
   integration_test
   tools_test
+  c_binding_test
 }
 
 # outputs jobs for the specified operating systems and all test types
