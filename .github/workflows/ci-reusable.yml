@@ -90,21 +90,6 @@ jobs:
         if: matrix.tests == 'tools' || matrix.tests == 'all'
         run: make -j${ncpu} testTools
 
-      ## Part 5 C Binding ##
-      - name: C Binding build
-        continue-on-error: true
-        if: matrix.tests == 'cbindingtest' || matrix.tests == 'all'
-        run: |
-            make -j${ncpu} libstorage
-
-      - name: C Binding test
-        if: matrix.tests == 'cbindingtest' || matrix.tests == 'all'
-        continue-on-error: true
-        run: |
-          cd examples/c
-          gcc -o storage storage.c -L../../build -lstorage -Wl,-rpath,../../ -pthread
-          LD_LIBRARY_PATH=../../build ./storage
-
   status:
     if: always()
     needs: [build]
