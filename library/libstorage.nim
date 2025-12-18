@@ -465,7 +465,7 @@ proc storage_download_manifest(
 
   return callback.okOrError(res, userData)
 
-proc storage_storage_list(
+proc storage_list(
     ctx: ptr StorageContext, callback: StorageCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
   initializeLibrary()
@@ -479,7 +479,7 @@ proc storage_storage_list(
 
   return callback.okOrError(res, userData)
 
-proc storage_storage_space(
+proc storage_space(
     ctx: ptr StorageContext, callback: StorageCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
   initializeLibrary()
@@ -493,7 +493,7 @@ proc storage_storage_space(
 
   return callback.okOrError(res, userData)
 
-proc storage_storage_delete(
+proc storage_delete(
     ctx: ptr StorageContext, cid: cstring, callback: StorageCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
   initializeLibrary()
@@ -507,7 +507,7 @@ proc storage_storage_delete(
 
   return callback.okOrError(res, userData)
 
-proc storage_storage_fetch(
+proc storage_fetch(
     ctx: ptr StorageContext, cid: cstring, callback: StorageCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
   initializeLibrary()
