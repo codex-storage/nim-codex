@@ -90,14 +90,14 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -y zip
           ZIPFILE=storage-linux-${{ matrix.target.cpu }}.zip
-          zip -j $ZIPFILE vendor/logos-storage-nim/build/libstorage.${{ matrix.target.lib_ext }} vendor/logos-storage-nim/library/libstorage.h
+          zip -j $ZIPFILE .build/libstorage.${{ matrix.target.lib_ext }} ./library/libstorage.h
           echo "ZIPFILE=$ZIPFILE" >> $GITHUB_ENV
 
       - name: Package artifacts MacOS
         if: matrix.target.os == 'macos-latest'
         run: |
           ZIPFILE=storage-macos-${{ matrix.target.cpu }}.zip
-          zip -j $ZIPFILE vendor/logos-storage-nim/build/libstorage.${{ matrix.target.lib_ext }} vendor/logos-storage-nim/library/libstorage.h
+          zip -j $ZIPFILE ./build/libstorage.${{ matrix.target.lib_ext }} ./library/libstorage.h
           echo "ZIPFILE=$ZIPFILE" >> $GITHUB_ENV
 
       - name: Package artifacts (Windows)
@@ -105,8 +105,8 @@ jobs:
         shell: msys2 {0}
         run: |
           ZIPFILE=storage-windows-${{ matrix.target.cpu }}.zip
-          (cd vendor/logos-storage-nim/build && 7z a -tzip "${GITHUB_WORKSPACE}/${ZIPFILE}" libstorage.dll)
-          (cd vendor/logos-storage-nim/library && 7z a -tzip "${GITHUB_WORKSPACE}/${ZIPFILE}" libstorage.h)
+          (cd ./build && 7z a -tzip "${GITHUB_WORKSPACE}/${ZIPFILE}" libstorage.dll)
+          (cd ./library && 7z a -tzip "${GITHUB_WORKSPACE}/${ZIPFILE}" libstorage.h)
           echo "ZIPFILE=$ZIPFILE" >> $GITHUB_ENV
 
       - name: Upload artifacts
