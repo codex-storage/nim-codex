@@ -45,7 +45,7 @@ This API provides a C-compatible interface to the internal Nim implementation of
 Unless explicitly stated otherwise, all functions are asynchronous and execute their work on a separate thread, returning results via the provided callback. The `int` return value is the synchronous status of dispatch:
 - `RET_OK`: job dispatched to the worker thread
 - `RET_ERR`: immediate failure
-- `RET_MISSING_CALLBACK`: callback is missing (if relevant)
+- `RET_MISSING_CALLBACK`: callback is missing
 
 Some functions may emit progress updates via the callback using `RET_PROGRESS`, and finally complete with `RET_OK` or `RET_ERR`.  
 For upload/download streaming, `msg` contains a chunk of data and `len` the chunk length.
@@ -134,16 +134,6 @@ Destroy the node instance and free associated resources. Node must be stopped an
 
 ```c
 int storage_destroy(void *ctx, StorageCallback callback, void *userData);
-```
-
----
-
-### `storage_set_event_callback`
-
-Not used currently. Reserved for future use to set an event callback.
-
-```c
-void storage_set_event_callback(void *ctx, StorageCallback callback, void *userData);
 ```
 
 ---
@@ -264,13 +254,13 @@ int storage_connect(
 
 ---
 
-## Upload API
+## Upload
 
 ### `storage_upload_init`
 
 Initialize an upload session for a file.
 
-- `filepath`: absolute path for file upload; for chunk uploads it's the file name
+- `filepath`: absolute path for file upload; for chunk uploads it's the file name. The metadata filename and mime type are derived from this value.
 - `chunkSize`: chunk size for upload (default: `1024 * 64` bytes)
 - Callback returns the `sessionId`
 
@@ -477,7 +467,7 @@ int storage_delete(void *ctx, const char *cid, StorageCallback callback, void *u
 ### `storage_fetch`
 
 Fetch content identified by `cid` from the network into local store
-Done in background; callback will not receive progress updates.
+in background. The callback will not receive progress updates.
 
 ```c
 int storage_fetch(void *ctx, const char *cid, StorageCallback callback, void *userData);
@@ -492,6 +482,17 @@ Check if content identified by `cid` exists in local store.
 ```c
 int storage_exists(void *ctx, const char *cid, StorageCallback callback, void *userData);
 ```
+
+
+### `storage_set_event_callback`
+
+Not used currently. Reserved for future use to set an event callback.
+
+```c
+void storage_set_event_callback(void *ctx, StorageCallback callback, void *userData);
+```
+
+---
 
 ## Go wrapper
 
