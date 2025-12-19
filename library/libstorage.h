@@ -131,9 +131,8 @@ extern "C"
         StorageCallback callback,
         void *userData);
 
-    /* Connect to a peer by `peerId`; optionally provide an array of multiaddrs
-     * in `peerAddresses` of length `peerAddressesSize`. Result via `callback`.
-     */
+    // Connect to a peer by using `peerAddresses` if provided, otherwise use `peerId`.
+    // Note that the `peerId` has to be advertised in the DHT for this to work.
     int storage_connect(
         void *ctx,
         const char *peerId,
