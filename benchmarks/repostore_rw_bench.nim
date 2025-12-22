@@ -11,6 +11,24 @@ import pkg/codex/merkletree/codex
 import pkg/codex/manifest
 import pkg/codex/stores/[filestore, repostore]
 
+let
+  PR_TASK_PERF_EVENTS_DISABLE {.
+    importc: "PR_TASK_PERF_EVENTS_DISABLE", header: "<linux/prctl.h>"
+  .}: cint
+  PR_TASK_PERF_EVENTS_ENABLE {.
+    importc: "PR_TASK_PERF_EVENTS_ENABLE", header: "<linux/prctl.h>"
+  .}: cint
+
+proc prctl(
+  option: cint, args: varargs[culong]
+): cint {.importc: "prctl", header: "<sys/prctl.h>".}
+
+proc perfOn() =
+  assert prctl(PR_TASK_PERF_EVENTS_ENABLE) == 0
+
+proc perfOff() =
+  assert prctl(PR_TASK_PERF_EVENTS_DISABLE) == 0
+
 const
   NBlocks = 163_840
   BlockSize = 65_536
@@ -117,6 +135,8 @@ proc runRepostoreBench(
 proc runFilestoreBench(
     dataset: Dataset
 ): Future[void] {.async: (raises: [CatchableError]).} =
+  perfOff()
+
   let
     dir = createTempDir("filestore-bench", "")
     store = FileStore(root: dir)
@@ -128,9 +148,11 @@ proc runFilestoreBench(
   benchmark "filestore write data":
     await writeData(dataset, store)
 
+  perfOn()
+
   benchmark "filestore read data":
     await readData(dataset, store)
 
 let dataset = makeDataset(NBlocks, BlockSize).tryGet()
-waitFor runRepostoreBench(dataset)
+# waitFor runRepostoreBench(dataset)
 waitFor runFilestoreBench(dataset)
