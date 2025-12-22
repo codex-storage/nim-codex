@@ -12,7 +12,7 @@ import pkg/codex/manifest
 import pkg/codex/stores/[filestore, repostore]
 
 const
-  NBlocks = 81_920
+  NBlocks = 163_840
   BlockSize = 65_536
   DataDir = ""
 
@@ -49,7 +49,7 @@ proc newRepostore(dataDir: string): RepoStore =
   let repoStore = RepoStore.new(
     blockStore,
     LevelDbDatastore.new(dataDir / "meta").expect("Should create metadata store!"),
-    quotaMaxBytes = 10_000_000_000'nb,
+    quotaMaxBytes = 50_000_000_000'nb,
   )
   repoStore
 
@@ -67,6 +67,15 @@ proc writeData(
 
   (await store.putBlock(manifest.asBlock())).tryGet()
 
+proc readData(
+    dataset: Dataset, store: RepoStore
+): Future[void] {.async: (raises: [CatchableError]).} =
+  let (blocks, tree, manifest) = dataset
+
+  for i in 0 ..< NBlocks:
+    let blk = (await store.getBlock(blocks[i].cid)).tryGet()
+    assert blk.cid == blocks[i].cid
+
 proc writeData(
     dataset: Dataset, store: FileStore
 ): Future[void] {.async: (raises: [CatchableError]).} =
@@ -76,6 +85,17 @@ proc writeData(
 
   for i in 0 ..< NBlocks:
     (await file.putBlock(i, blocks[i])).tryGet()
+
+proc readData(
+    dataset: Dataset, store: FileStore
+): Future[void] {.async: (raises: [CatchableError]).} =
+  let (blocks, tree, manifest) = dataset
+
+  let file = store.create(manifest).tryGet()
+
+  for i in 0 ..< NBlocks:
+    let blk = (await file.getBlock(i)).tryGet()
+    assert blk.cid == blocks[i].cid
 
 proc runRepostoreBench(
     dataset: Dataset
@@ -88,7 +108,10 @@ proc runRepostoreBench(
   defer:
     removeDir(dir)
 
-  benchmark "filestore write data":
+  benchmark "repostore write data":
+    await writeData(dataset, store)
+
+  benchmark "repostore read data":
     await writeData(dataset, store)
 
 proc runFilestoreBench(
@@ -102,8 +125,11 @@ proc runFilestoreBench(
   defer:
     removeDir(dir)
 
-  benchmark "repostore write data":
+  benchmark "filestore write data":
     await writeData(dataset, store)
+
+  benchmark "filestore read data":
+    await readData(dataset, store)
 
 let dataset = makeDataset(NBlocks, BlockSize).tryGet()
 waitFor runRepostoreBench(dataset)

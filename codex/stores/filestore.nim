@@ -1,3 +1,4 @@
+import std/os
 import std/posix
 import std/strformat
 
@@ -26,7 +27,7 @@ type File* = object
   filepath: string
   fd*: cint
 
-proc allocStorage*(filepath: string, size: int): ?!cint =
+proc allocFile*(filepath: string, size: int): ?!cint =
   let fd = open(filepath, O_CREAT or O_RDWR or O_TRUNC, 0o644)
   if fd < 0:
     return failure(&"open failed with error {fd}")
@@ -37,15 +38,19 @@ proc allocStorage*(filepath: string, size: int): ?!cint =
 
   success(fd)
 
-proc open*(self: var File): ?!void =
-  self.fd = open(self.filepath, O_RDWR)
-  if self.fd < 0:
-    return failure(&"open failed with error {self.fd}")
+proc openFile*(filepath: string): ?!cint =
+  let fd = open(filepath, O_RDWR)
+  if fd < 0:
+    return failure(&"open failed with error {fd}")
 
-  success()
+  success(fd)
 
 proc initDataset*(filepath: string, manifest: Manifest): ?!File =
-  let fd = ?allocStorage(filepath, manifest.datasetSize.int)
+  let fd =
+    ?(
+      if fileExists(filepath): openFile(filepath)
+      else: allocFile(filepath, manifest.datasetSize.int)
+    )
   success(File(manifest: manifest, filepath: filepath, fd: fd))
 
 proc ensureOpen*(self: File): ?!void =
