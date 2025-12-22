@@ -11,23 +11,7 @@ import pkg/codex/merkletree/codex
 import pkg/codex/manifest
 import pkg/codex/stores/[filestore, repostore]
 
-let
-  PR_TASK_PERF_EVENTS_DISABLE {.
-    importc: "PR_TASK_PERF_EVENTS_DISABLE", header: "<linux/prctl.h>"
-  .}: cint
-  PR_TASK_PERF_EVENTS_ENABLE {.
-    importc: "PR_TASK_PERF_EVENTS_ENABLE", header: "<linux/prctl.h>"
-  .}: cint
-
-proc prctl(
-  option: cint, args: varargs[culong]
-): cint {.importc: "prctl", header: "<sys/prctl.h>".}
-
-proc perfOn() =
-  assert prctl(PR_TASK_PERF_EVENTS_ENABLE) == 0
-
-proc perfOff() =
-  assert prctl(PR_TASK_PERF_EVENTS_DISABLE) == 0
+import ./perf
 
 const
   NBlocks = 163_840
@@ -118,6 +102,12 @@ proc readData(
 proc runRepostoreBench(
     dataset: Dataset
 ): Future[void] {.async: (raises: [CatchableError]).} =
+  let perf = Perf.attach("./perf-ctl", "./perf-ack").expect(
+      "failed to locate perf ctl/ack files"
+    )
+
+  perf.perfOff().expect("failed to disable perf")
+
   let
     dir = createTempDir("repostore-bench", "")
     store = newRepostore(dir)
@@ -129,13 +119,19 @@ proc runRepostoreBench(
   benchmark "repostore write data":
     await writeData(dataset, store)
 
+  perf.perfOn().expect("failed to enable perf")
+
   benchmark "repostore read data":
     await writeData(dataset, store)
 
 proc runFilestoreBench(
     dataset: Dataset
 ): Future[void] {.async: (raises: [CatchableError]).} =
-  perfOff()
+  let perf = Perf.attach("./perf-ctl", "./perf-ack").expect(
+      "failed to locate perf ctl/ack files"
+    )
+
+  perf.perfOff().expect("failed to disable perf")
 
   let
     dir = createTempDir("filestore-bench", "")
@@ -148,11 +144,11 @@ proc runFilestoreBench(
   benchmark "filestore write data":
     await writeData(dataset, store)
 
-  perfOn()
+  perf.perfOn().expect("failed to enable perf")
 
   benchmark "filestore read data":
     await readData(dataset, store)
 
 let dataset = makeDataset(NBlocks, BlockSize).tryGet()
-# waitFor runRepostoreBench(dataset)
-waitFor runFilestoreBench(dataset)
+waitFor runRepostoreBench(dataset)
+#waitFor runFilestoreBench(dataset)
