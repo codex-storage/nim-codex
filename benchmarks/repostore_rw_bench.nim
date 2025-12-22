@@ -78,6 +78,13 @@ proc readData(
     let blk = (await store.getBlock(blocks[i].cid)).tryGet()
     assert blk.cid == blocks[i].cid
 
+proc deleteData(
+    dataset: Dataset, store: RepoStore
+): Future[void] {.async: (raises: [CatchableError]).} =
+  let (blocks, tree, manifest) = dataset
+  for i in 0 ..< NBlocks:
+    (await store.delBlock(blocks[i].cid)).tryGet()
+
 proc writeData(
     dataset: Dataset, store: FileStore
 ): Future[void] {.async: (raises: [CatchableError]).} =
@@ -99,14 +106,21 @@ proc readData(
     let blk = (await file.getBlock(i)).tryGet()
     assert blk.cid == blocks[i].cid
 
+proc deleteData(
+    dataset: Dataset, store: FileStore
+): Future[void] {.async: (raises: [CatchableError]).} =
+  let (blocks, tree, manifest) = dataset
+  let file = store.create(manifest).tryGet()
+  file.delete().tryGet()
+
 proc runRepostoreBench(
     dataset: Dataset
 ): Future[void] {.async: (raises: [CatchableError]).} =
-  let perf = Perf.attach("./perf-ctl", "./perf-ack").expect(
-      "failed to locate perf ctl/ack files"
-    )
+  # let perf = Perf.attach("./perf-ctl", "./perf-ack").expect(
+  #     "failed to locate perf ctl/ack files"
+  #   )
 
-  perf.perfOff().expect("failed to disable perf")
+  # perf.perfOff().expect("failed to disable perf")
 
   let
     dir = createTempDir("repostore-bench", "")
@@ -119,19 +133,22 @@ proc runRepostoreBench(
   benchmark "repostore write data":
     await writeData(dataset, store)
 
-  perf.perfOn().expect("failed to enable perf")
+  # perf.perfOn().expect("failed to enable perf")
 
   benchmark "repostore read data":
-    await writeData(dataset, store)
+    await readData(dataset, store)
+
+  benchmark "repostore delete data":
+    await deleteData(dataset, store)
 
 proc runFilestoreBench(
     dataset: Dataset
 ): Future[void] {.async: (raises: [CatchableError]).} =
-  let perf = Perf.attach("./perf-ctl", "./perf-ack").expect(
-      "failed to locate perf ctl/ack files"
-    )
+  # let perf = Perf.attach("./perf-ctl", "./perf-ack").expect(
+  #     "failed to locate perf ctl/ack files"
+  #   )
 
-  perf.perfOff().expect("failed to disable perf")
+  # perf.perfOff().expect("failed to disable perf")
 
   let
     dir = createTempDir("filestore-bench", "")
@@ -144,11 +161,14 @@ proc runFilestoreBench(
   benchmark "filestore write data":
     await writeData(dataset, store)
 
-  perf.perfOn().expect("failed to enable perf")
+  # perf.perfOn().expect("failed to enable perf")
 
   benchmark "filestore read data":
     await readData(dataset, store)
 
+  benchmark "filestore delete data":
+    await deleteData(dataset, store)
+
 let dataset = makeDataset(NBlocks, BlockSize).tryGet()
 waitFor runRepostoreBench(dataset)
-#waitFor runFilestoreBench(dataset)
+waitFor runFilestoreBench(dataset)

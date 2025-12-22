@@ -95,6 +95,11 @@ proc putBlock*(
 
   success()
 
+proc delete*(self: File): ?!void =
+  discard close(self.fd)
+  osfiles.removeFile(self.filepath)
+  success()
+
 proc create*(self: FileStore, manifest: Manifest): ?!File =
   let path = self.root & "/" & $manifest.treeCid
   initDataset(path, manifest)
