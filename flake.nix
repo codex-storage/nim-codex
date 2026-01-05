@@ -27,6 +27,7 @@
         build = targets: buildTarget.override { inherit targets; };
       in rec {
         logos-storage-nim   = build ["all"];
+        libstorage = build ["libstorage"];
         default = logos-storage-nim;
       });
 
@@ -41,6 +42,7 @@
         default = pkgs.mkShell {
           inputsFrom = [
             packages.${system}.logos-storage-nim
+            packages.${system}.libstorage
             circom-compat.packages.${system}.default
           ];
           # Not using buildInputs to override fakeGit and fakeCargo.
