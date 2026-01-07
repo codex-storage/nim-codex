@@ -760,13 +760,12 @@ proc wantListHandler*(
         wantType = $e.wantType
 
       if e.address notin peerCtx.wantedBlocks: # Adding new entry to peer wants
-        let
-          have =
-            try:
-              await e.address in self.localStore
-            except CatchableError as exc:
-              # TODO: should not be necessary once we have proper exception tracking on the BlockStore interface
-              false
+        let have =
+          try:
+            await e.address in self.localStore
+          except CatchableError as exc:
+            # TODO: should not be necessary once we have proper exception tracking on the BlockStore interface
+            false
 
         if e.cancel:
           # This is sort of expected if we sent the block to the peer, as we have removed
@@ -781,17 +780,13 @@ proc wantListHandler*(
           if have:
             trace "We HAVE the block", address = e.address
             presence.add(
-              BlockPresence(
-                address: e.address, `type`: BlockPresenceType.Have
-              )
+              BlockPresence(address: e.address, `type`: BlockPresenceType.Have)
             )
           else:
             trace "We DON'T HAVE the block", address = e.address
             if e.sendDontHave:
               presence.add(
-                BlockPresence(
-                  address: e.address, `type`: BlockPresenceType.DontHave
-                )
+                BlockPresence(address: e.address, `type`: BlockPresenceType.DontHave)
               )
 
           codex_block_exchange_want_have_lists_received.inc()

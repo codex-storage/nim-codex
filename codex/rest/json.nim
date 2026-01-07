@@ -10,7 +10,6 @@ import ../units
 export json
 
 type
-
   RestContent* = object
     cid* {.serialize.}: Cid
     manifest* {.serialize.}: Manifest

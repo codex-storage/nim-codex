@@ -20,7 +20,7 @@ multinodesuite "Rest API validation":
   test "should return 204 when attempting delete of non-existing dataset", config:
     let data = await RandomChunker.example(blocks = 2)
     let cid = (await client.upload(data)).get
-      
+
     let responseBefore = await client.deleteRaw($Cid.example)
     check responseBefore.status == 204
     check (await responseBefore.body) == "" # No content

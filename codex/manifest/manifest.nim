@@ -84,8 +84,7 @@ func isManifest*(mc: MultiCodec): ?!bool =
 func `==`*(a, b: Manifest): bool =
   (a.treeCid == b.treeCid) and (a.datasetSize == b.datasetSize) and
     (a.blockSize == b.blockSize) and (a.version == b.version) and (a.hcodec == b.hcodec) and
-    (a.codec == b.codec) and (a.filename == b.filename) and
-    (a.mimetype == b.mimetype)
+    (a.codec == b.codec) and (a.filename == b.filename) and (a.mimetype == b.mimetype)
 
 func `$`*(self: Manifest): string =
   result =

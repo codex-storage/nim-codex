@@ -253,9 +253,7 @@ asyncchecksuite "NetworkStore engine handlers":
 
     await engine.blockPresenceHandler(
       peerId,
-      blocks.mapIt(
-        PresenceMessage.init(Presence(address: it.address, have: true))
-      ),
+      blocks.mapIt(PresenceMessage.init(Presence(address: it.address, have: true))),
     )
 
     for a in blocks.mapIt(it.address):

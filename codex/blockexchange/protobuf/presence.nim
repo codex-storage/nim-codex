@@ -24,10 +24,8 @@ func parse(_: type UInt256, bytes: seq[byte]): ?UInt256 =
   UInt256.fromBytesBE(bytes).some
 
 func init*(_: type Presence, message: PresenceMessage): ?Presence =
-
   some Presence(
-    address: message.address,
-    have: message.`type` == BlockPresenceType.Have,
+    address: message.address, have: message.`type` == BlockPresenceType.Have
   )
 
 func init*(_: type PresenceMessage, presence: Presence): PresenceMessage =

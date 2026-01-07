@@ -230,10 +230,7 @@ asyncchecksuite "Network - Test Limits":
     ): Future[void] {.async: (raises: []).} =
       check false
 
-    let fut = network1.send(
-      switch2.peerInfo.peerId, 
-      Message()
-    )
+    let fut = network1.send(switch2.peerInfo.peerId, Message())
 
     await sleepAsync(100.millis)
     check not fut.finished

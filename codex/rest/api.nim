@@ -489,10 +489,7 @@ proc initDebugApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
               "",
           "announceAddresses": node.discovery.announceAddrs,
           "table": table,
-          "storage": {
-            "version": $codexVersion,
-            "revision": $codexRevision,
-          },
+          "storage": {"version": $codexVersion, "revision": $codexRevision},
         }
 
       # return pretty json for human readability

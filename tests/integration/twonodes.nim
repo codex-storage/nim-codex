@@ -20,7 +20,6 @@ template twonodessuite*(name: string, body: untyped) =
     var client2 {.inject, used.}: CodexClient
 
     setup:
-
       node1 = clients()[0]
       node2 = clients()[1]
 
