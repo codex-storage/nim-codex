@@ -17,15 +17,6 @@ suite "Manifest":
     manifest =
       Manifest.new(treeCid = Cid.example, blockSize = 1.MiBs, datasetSize = 100.MiBs)
 
-    protectedManifest = Manifest.new(
-      manifest = manifest,
-      treeCid = Cid.example,
-      datasetSize = 200.MiBs,
-      eck = 2,
-      ecM = 2,
-      strategy = SteppedStrategy,
-    )
-
   proc encodeDecode(manifest: Manifest): Manifest =
     let e = manifest.encode().tryGet()
     Manifest.decode(e).tryGet()
