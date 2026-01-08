@@ -37,13 +37,12 @@ proc buildLibrary(name: string, srcDir = "./", params = "", `type` = "dynamic") 
     exec "nim c" & " --out:build/" & lib_name &
       " --threads:on --app:lib --opt:size --noMain --mm:refc --header --d:metrics " &
       "--nimMainPrefix:libstorage -d:noSignalHandler " &
-      "-d:LeopardExtraCompilerFlags=-fPIC " & "-d:chronicles_runtime_filtering " &
+      "-d:chronicles_runtime_filtering " &
       "-d:chronicles_log_level=TRACE " & params & " " & srcDir & name & ".nim"
   else:
     exec "nim c" & " --out:build/" & name &
       ".a --threads:on --app:staticlib --opt:size --noMain --mm:refc --header --d:metrics " &
       "--nimMainPrefix:libstorage -d:noSignalHandler " &
-      "-d:LeopardExtraCompilerFlags=-fPIC " &
       "-d:chronicles_runtime_filtering " &
       "-d:chronicles_log_level=TRACE " &
       params & " " & srcDir & name & ".nim"

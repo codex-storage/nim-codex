@@ -1,6 +1,5 @@
 import std/options
 import std/typetraits
-from pkg/ethers import Address
 from pkg/libp2p import
   Cid, PeerId, SignedPeerRecord, MultiAddress, AddressInfo, init, `$`
 import pkg/contractabi
@@ -32,6 +31,3 @@ func `%`*(obj: AddressInfo): JsonNode =
 
 func `%`*(obj: MultiAddress): JsonNode =
   % $obj
-
-func `%`*(address: ethers.Address): JsonNode =
-  % $address

@@ -156,9 +156,6 @@
 	url = https://github.com/status-im/nim-taskpools.git
 	ignore = untracked
 	branch = stable
-[submodule "vendor/nim-leopard"]
-	path = vendor/nim-leopard
-	url = https://github.com/status-im/nim-leopard.git
 [submodule "vendor/logos-storage-nim-dht"]
 	path = vendor/logos-storage-nim-dht
 	url = https://github.com/logos-storage/logos-storage-nim-dht.git
@@ -173,11 +170,6 @@
 [submodule "vendor/nim-eth"]
 	path = vendor/nim-eth
 	url = https://github.com/status-im/nim-eth
-[submodule "vendor/logos-storage-contracts-eth"]
-	path = vendor/logos-storage-contracts-eth
-	url = https://github.com/logos-storage/logos-storage-contracts-eth.git
-	ignore = untracked
-	branch = master
 [submodule "vendor/nim-protobuf-serialization"]
 	path = vendor/nim-protobuf-serialization
 	url = https://github.com/status-im/nim-protobuf-serialization
@@ -198,16 +190,6 @@
 [submodule "vendor/constantine"]
 	path = vendor/constantine
 	url = https://github.com/mratsim/constantine.git
-[submodule "vendor/nim-circom-compat"]
-	path = vendor/nim-circom-compat
-	url = https://github.com/logos-storage/nim-circom-compat.git
-	ignore = untracked
-	branch = master
-[submodule "vendor/logos-storage-proofs-circuits"]
-	path = vendor/logos-storage-proofs-circuits
-	url = https://github.com/logos-storage/logos-storage-proofs-circuits.git
-	ignore = untracked
-	branch = master
 [submodule "vendor/nim-serde"]
 	path = vendor/nim-serde
 	url = https://github.com/logos-storage/nim-serde.git
