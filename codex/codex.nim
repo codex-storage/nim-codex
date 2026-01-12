@@ -216,6 +216,8 @@ proc stop*(s: CodexServer) {.async.} =
 
   let res = await noCancel allFinishedFailed[void](futures)
 
+  s.isStarted = false
+
   if res.failure.len > 0:
     error "Failed to stop Storage node", failures = res.failure.len
     raiseAssert "Failed to stop Storage node"
