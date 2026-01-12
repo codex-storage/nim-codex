@@ -20,7 +20,6 @@ import ../utils
 import ../utils/json
 import ../units
 import ../blocktype
-import ../indexingstrategy
 import ../logutils
 
 # TODO: Manifest should be reworked to more concrete types,

@@ -9,7 +9,6 @@ import pkg/codex/merkletree
 import pkg/codex/manifest
 import pkg/codex/blocktype as bt
 import pkg/codex/chunker
-import pkg/codex/indexingstrategy
 import pkg/codex/rng
 
 import ../helpers

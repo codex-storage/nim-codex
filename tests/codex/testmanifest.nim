@@ -3,10 +3,8 @@ import pkg/questionable/results
 import pkg/codex/chunker
 import pkg/codex/blocktype as bt
 import pkg/codex/manifest
-import pkg/poseidon2
 
 import pkg/codex/merkletree
-import pkg/codex/indexingstrategy
 
 import ../asynctest
 import ./helpers

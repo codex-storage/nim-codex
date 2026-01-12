@@ -25,7 +25,6 @@ import ./manifest
 import ../errors
 import ../blocktype
 import ../logutils
-import ../indexingstrategy
 
 proc encode*(manifest: Manifest): ?!seq[byte] =
   ## Encode the manifest into a ``ManifestCodec``

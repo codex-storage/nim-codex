@@ -26,34 +26,15 @@ export tables
 const
   # Size of blocks for storage / network exchange,
   DefaultBlockSize* = NBytes 1024 * 64
-  DefaultCellSize* = NBytes 2048
-
-  # Proving defaults
-  DefaultMaxSlotDepth* = 32
-  DefaultMaxDatasetDepth* = 8
-  DefaultBlockDepth* = 5
-  DefaultCellElms* = 67
-  DefaultSamplesNum* = 5
 
   # hashes
   Sha256HashCodec* = multiCodec("sha2-256")
-  Sha512HashCodec* = multiCodec("sha2-512")
-  Pos2Bn128SpngCodec* = multiCodec("poseidon2-alt_bn_128-sponge-r2")
-  Pos2Bn128MrklCodec* = multiCodec("poseidon2-alt_bn_128-merkle-2kb")
 
   ManifestCodec* = multiCodec("codex-manifest")
   DatasetRootCodec* = multiCodec("codex-root")
   BlockCodec* = multiCodec("codex-block")
-  SlotRootCodec* = multiCodec("codex-slot-root")
-  SlotProvingRootCodec* = multiCodec("codex-proving-root")
-  CodexSlotCellCodec* = multiCodec("codex-slot-cell")
 
-  CodexHashesCodecs* = [Sha256HashCodec, Pos2Bn128SpngCodec, Pos2Bn128MrklCodec]
-
-  CodexPrimitivesCodecs* = [
-    ManifestCodec, DatasetRootCodec, BlockCodec, SlotRootCodec, SlotProvingRootCodec,
-    CodexSlotCellCodec,
-  ]
+  CodexPrimitivesCodecs* = [ManifestCodec, DatasetRootCodec, BlockCodec]
 
 proc initEmptyCidTable(): ?!Table[(CidVersion, MultiCodec, MultiCodec), Cid] =
   ## Initialize padding blocks table
@@ -66,8 +47,7 @@ proc initEmptyCidTable(): ?!Table[(CidVersion, MultiCodec, MultiCodec), Cid] =
   let
     emptyData: seq[byte] = @[]
     PadHashes = {
-      Sha256HashCodec: ?MultiHash.digest($Sha256HashCodec, emptyData).mapFailure,
-      Sha512HashCodec: ?MultiHash.digest($Sha512HashCodec, emptyData).mapFailure,
+      Sha256HashCodec: ?MultiHash.digest($Sha256HashCodec, emptyData).mapFailure
     }.toTable
 
   var table = initTable[(CidVersion, MultiCodec, MultiCodec), Cid]()

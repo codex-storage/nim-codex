@@ -36,7 +36,6 @@ import ./stores
 import ./blockexchange
 import ./streams
 import ./discovery
-import ./indexingstrategy
 import ./utils
 import ./errors
 import ./logutils

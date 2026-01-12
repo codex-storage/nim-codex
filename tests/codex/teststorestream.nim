@@ -1,6 +1,6 @@
 import pkg/chronos
 
-import pkg/codex/[streams, stores, indexingstrategy, manifest, blocktype as bt]
+import pkg/codex/[streams, stores, manifest, blocktype as bt]
 
 import ../asynctest
 import ./examples
