@@ -10,8 +10,6 @@ import pkg/datastore/typedds
 import pkg/questionable
 import pkg/questionable/results
 import pkg/stint
-import pkg/poseidon2
-import pkg/poseidon2/io
 import pkg/taskpools
 
 import pkg/codexdht/discv5/protocol as discv5
