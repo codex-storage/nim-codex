@@ -70,7 +70,7 @@ runners busy for longer on a workflow that you know is going to fail anyway.
 Consequent runs will therefore take longer to start. Fail fast is most likely
 better for overall development speed.
 
-[usage]: https://github.com/codex-storage/nim-codex/actions/runs/3462031231/usage
+[usage]: https://github.com/logos-storage/logos-storage-nim/actions/runs/3462031231/usage
 [composite]: https://docs.github.com/en/actions/creating-actions/creating-a-composite-action
 [reusable]: https://docs.github.com/en/actions/using-workflows/reusing-workflows
 [cache]: https://github.com/actions/cache/blob/main/workarounds.md#update-a-cache

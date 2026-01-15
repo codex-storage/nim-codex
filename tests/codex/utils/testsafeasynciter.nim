@@ -373,7 +373,7 @@ asyncchecksuite "Test SafeAsyncIter":
     # Now, to make sure that this mechanism works, and to document its
     # cancellation semantics, this test shows that when the async predicate
     # function is cancelled, this cancellation has immediate effect, which means
-    # that `next()` (or more precisely `getNext()` in `mapFilter` function), is 
+    # that `next()` (or more precisely `getNext()` in `mapFilter` function), is
     # interrupted immediately. If this is the case, the the iterator be interrupted
     # before `next()` returns this locally captured value from the previous
     # iteration and this is exactly the reason why at the end of the test
@@ -415,3 +415,20 @@ asyncchecksuite "Test SafeAsyncIter":
       # will not be returned because of the cancellation.
       collected == @["0", "1"]
       iter2.finished
+
+  test "should allow chaining":
+    let
+      iter1 = SafeAsyncIter[int].new(0 ..< 5)
+      iter2 = SafeAsyncIter[int].new(5 ..< 10)
+      iter3 = chain[int](iter1, SafeAsyncIter[int].empty, iter2)
+
+    var collected: seq[int]
+
+    for fut in iter3:
+      without i =? (await fut), err:
+        fail()
+      collected.add(i)
+
+    check:
+      iter3.finished
+      collected == @[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]

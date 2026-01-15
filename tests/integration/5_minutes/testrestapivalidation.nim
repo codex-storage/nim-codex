@@ -246,7 +246,7 @@ multinodesuite "Rest API validation":
     let data = await RandomChunker.example(blocks = 2)
     let cid = (await client.upload(data)).get
     let duration = (31 * 24 * 60 * 60).uint64
-      # 31 days TODO: this should not be hardcoded, but waits for https://github.com/codex-storage/nim-codex/issues/1056
+      # 31 days TODO: this should not be hardcoded, but waits for https://github.com/logos-storage/logos-storage-nim/issues/1056
     let proofProbability = 3.u256
     let expiry = 30.uint
     let collateralPerByte = 1.u256
@@ -396,3 +396,10 @@ multinodesuite "Rest API validation":
     check:
       response.status == 422
       (await response.body) == "totalCollateral must be larger then zero"
+
+  test "has block returns error 400 when the cid is invalid", config:
+    let response = await client.hasBlockRaw("invalid-cid")
+
+    check:
+      response.status == 400
+      (await response.body) == "Incorrect Cid"

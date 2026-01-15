@@ -7,18 +7,18 @@ let
 
   toml = pkgs.formats.toml { };
 
-  cfg = config.services.nim-codex;
+  cfg = config.services.logos-storage-nim;
 in
 {
   options = {
-    services.nim-codex = {
-      enable = mkEnableOption "Nim Codex Node service.";
+    services.logos-storage-nim = {
+      enable = mkEnableOption "Logos Storage Node service.";
 
       package = mkOption {
         type = types.package;
         default = pkgs.callPackage ./default.nix { src = self; inherit circomCompatPkg; };
         defaultText = literalExpression "pkgs.codex";
-        description = mdDoc "Package to use as Nim Codex node.";
+        description = mdDoc "Package to use as Nim Logos Storage node.";
       };
 
       settings = mkOption {
@@ -31,10 +31,10 @@ in
 
   config = mkIf cfg.enable {
     environment.etc = {
-      "nim-codex/config.toml".source = toml.generate "config.toml" cfg.settings;
+      "logos-storage-nim/config.toml".source = toml.generate "config.toml" cfg.settings;
     };
-    systemd.services.nim-codex = {
-      description = "Nim Codex Node";
+    systemd.services.logos-storage-nim = {
+      description = "Logos Storage Node";
       wantedBy = [ "multi-user.target" ];
       requires = [ "network.target" ];
       serviceConfig = {
@@ -45,12 +45,12 @@ in
         NoNewPrivileges = true;
         PrivateDevices = true;
         MemoryDenyWriteExecute = true;
-        ExecStart = "${cfg.package}/bin/codex --config-file=/etc/nim-codex/config.toml";
+        ExecStart = "${cfg.package}/bin/storage --config-file=/etc/logos-storage-nim/config.toml";
         Restart = "on-failure";
       };
       restartIfChanged = true;
       restartTriggers = [
-        "/etc/nim-codex/config.toml"
+        "/etc/logos-storage-nim/config.toml"
       ];
     };
   };

@@ -1,4 +1,4 @@
-## Nim-Codex
+## Logos Storage
 ## Copyright (c) 2021 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
@@ -29,7 +29,7 @@ type
     Block
     Both
 
-  CidCallback* = proc(cid: Cid): Future[void] {.gcsafe, async: (raises: []).}
+  CidCallback* = proc(cid: Cid): Future[void] {.async: (raises: []).}
   BlockStore* = ref object of RootObj
     onBlockStored*: ?CidCallback
 
@@ -69,6 +69,14 @@ method completeBlock*(
     self: BlockStore, address: BlockAddress, blk: Block
 ) {.base, gcsafe.} =
   discard
+
+method getBlocks*(
+    self: BlockStore, addresses: seq[BlockAddress]
+): Future[SafeAsyncIter[Block]] {.async: (raises: [CancelledError]).} =
+  ## Gets a set of blocks from the blockstore. Blocks might
+  ## be returned in any order.
+
+  raiseAssert("getBlocks not implemented!")
 
 method getBlockAndProof*(
     self: BlockStore, treeCid: Cid, index: Natural

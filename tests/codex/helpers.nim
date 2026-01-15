@@ -12,13 +12,16 @@ import pkg/codex/rng
 import pkg/codex/utils
 
 import ./helpers/nodeutils
+import ./helpers/datasetutils
 import ./helpers/randomchunker
 import ./helpers/mockchunker
 import ./helpers/mockdiscovery
 import ./helpers/always
 import ../checktest
 
-export randomchunker, nodeutils, mockdiscovery, mockchunker, always, checktest, manifest
+export
+  randomchunker, nodeutils, datasetutils, mockdiscovery, mockchunker, always, checktest,
+  manifest
 
 export libp2p except setup, eventually
 
@@ -45,23 +48,6 @@ proc lenPrefix*(msg: openArray[byte]): seq[byte] =
   buf[vbytes.len ..< buf.len] = msg
 
   return buf
-
-proc makeManifestAndTree*(blocks: seq[Block]): ?!(Manifest, CodexTree) =
-  if blocks.len == 0:
-    return failure("Blocks list was empty")
-
-  let
-    datasetSize = blocks.mapIt(it.data.len).foldl(a + b)
-    blockSize = blocks.mapIt(it.data.len).foldl(max(a, b))
-    tree = ?CodexTree.init(blocks.mapIt(it.cid))
-    treeCid = ?tree.rootCid
-    manifest = Manifest.new(
-      treeCid = treeCid,
-      blockSize = NBytes(blockSize),
-      datasetSize = NBytes(datasetSize),
-    )
-
-  return success((manifest, tree))
 
 proc makeWantList*(
     cids: seq[Cid],
@@ -91,7 +77,7 @@ proc storeDataGetManifest*(
     (await store.putBlock(blk)).tryGet()
 
   let
-    (manifest, tree) = makeManifestAndTree(blocks).tryGet()
+    (_, tree, manifest) = makeDataset(blocks).tryGet()
     treeCid = tree.rootCid.tryGet()
 
   for i in 0 ..< tree.leavesCount:
@@ -109,19 +95,6 @@ proc storeDataGetManifest*(
     blocks.add(Block.new(chunk).tryGet())
 
   return await storeDataGetManifest(store, blocks)
-
-proc makeRandomBlocks*(
-    datasetSize: int, blockSize: NBytes
-): Future[seq[Block]] {.async.} =
-  var chunker =
-    RandomChunker.new(Rng.instance(), size = datasetSize, chunkSize = blockSize)
-
-  while true:
-    let chunk = await chunker.getBytes()
-    if chunk.len <= 0:
-      break
-
-    result.add(Block.new(chunk).tryGet())
 
 proc corruptBlocks*(
     store: BlockStore, manifest: Manifest, blks, bytes: int
@@ -147,4 +120,5 @@ proc corruptBlocks*(
 
       bytePos.add(ii)
       blk.data[ii] = byte 0
+
   return pos

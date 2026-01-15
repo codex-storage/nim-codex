@@ -1,6 +1,7 @@
+{.push raises: [].}
+
 import pkg/chronos
 import pkg/stew/endians2
-import pkg/upraises
 import pkg/stint
 
 type
@@ -8,10 +9,12 @@ type
   SecondsSince1970* = int64
   Timeout* = object of CatchableError
 
-method now*(clock: Clock): SecondsSince1970 {.base, gcsafe, upraises: [].} =
+method now*(clock: Clock): SecondsSince1970 {.base, gcsafe, raises: [].} =
   raiseAssert "not implemented"
 
-method waitUntil*(clock: Clock, time: SecondsSince1970) {.base, async.} =
+method waitUntil*(
+    clock: Clock, time: SecondsSince1970
+) {.base, async: (raises: [CancelledError]).} =
   raiseAssert "not implemented"
 
 method start*(clock: Clock) {.base, async.} =

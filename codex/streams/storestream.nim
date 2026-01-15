@@ -1,4 +1,4 @@
-## Nim-Codex
+## Logos Storage
 ## Copyright (c) 2023 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
@@ -9,10 +9,7 @@
 
 import std/options
 
-import pkg/upraises
-
-push:
-  {.upraises: [].}
+{.push raises: [], gcsafe.}
 
 import pkg/chronos
 import pkg/stew/ptrops

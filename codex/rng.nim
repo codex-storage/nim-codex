@@ -1,4 +1,4 @@
-## Nim-Codex
+## Logos Storage
 ## Copyright (c) 2021 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
@@ -7,10 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import pkg/upraises
-
-push:
-  {.upraises: [].}
+{.push raises: [], gcsafe.}
 
 import pkg/libp2p/crypto/crypto
 import pkg/bearssl/rand

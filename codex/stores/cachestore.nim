@@ -1,4 +1,4 @@
-## Nim-Codex
+## Logos Storage
 ## Copyright (c) 2021 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
@@ -65,6 +65,21 @@ method getBlock*(
   except CatchableError as exc:
     trace "Error requesting block from cache", cid, error = exc.msg
     return failure exc
+
+method getBlocks*(
+    self: CacheStore, addresses: seq[BlockAddress]
+): Future[SafeAsyncIter[Block]] {.async: (raises: [CancelledError]).} =
+  var i = 0
+
+  proc isFinished(): bool =
+    i == addresses.len
+
+  proc genNext(): Future[?!Block] {.async: (raises: [CancelledError]).} =
+    let value = await self.getBlock(addresses[i])
+    inc(i)
+    return value
+
+  return SafeAsyncIter[Block].new(genNext, isFinished)
 
 method getCidAndProof*(
     self: CacheStore, treeCid: Cid, index: Natural

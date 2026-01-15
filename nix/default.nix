@@ -13,7 +13,7 @@
   # Perform 2-stage bootstrap instead of 3-stage to save time.
   quickAndDirty ? true,
   circomCompatPkg ? (
-    builtins.getFlake "github:codex-storage/circom-compat-ffi"
+    builtins.getFlake "github:logos-storage/circom-compat-ffi"
   ).packages.${builtins.currentSystem}.default
 }:
 
@@ -21,14 +21,17 @@ assert pkgs.lib.assertMsg ((src.submodules or true) == true)
   "Unable to build without submodules. Append '?submodules=1#' to the URI.";
 
 let
-  inherit (pkgs) stdenv lib writeScriptBin callPackage;
+  inherit (pkgs) lib writeScriptBin callPackage;
 
   revision = lib.substring 0 8 (src.rev or "dirty");
 
   tools = callPackage ./tools.nix {};
-in pkgs.gcc13Stdenv.mkDerivation rec {
 
-  pname = "codex";
+  # Pin GCC/CLang versions
+  stdenv = if pkgs.stdenv.isLinux then pkgs.gcc13Stdenv else pkgs.clang16Stdenv;
+
+in stdenv.mkDerivation rec {
+  pname = "storage";
 
   version = "${tools.findKeyValue "version = \"([0-9]+\.[0-9]+\.[0-9]+)\"" ../codex.nimble}-${revision}";
 
@@ -46,14 +49,16 @@ in pkgs.gcc13Stdenv.mkDerivation rec {
     fakeGit = writeScriptBin "git" "echo ${version}";
     # Fix for the nim-circom-compat-ffi package that is built with cargo.
     fakeCargo = writeScriptBin "cargo" "echo ${version}";
-  in
-    with pkgs; [
-      cmake
-      which
-      lsb-release
-      circomCompatPkg
-      fakeGit
-      fakeCargo
+  in with pkgs; [
+    cmake
+    which
+    circomCompatPkg
+    fakeGit
+    fakeCargo
+  ] ++ lib.optionals stdenv.isLinux [
+    lsb-release
+  ] ++ lib.optionals stdenv.isDarwin [
+    darwin.cctools
   ];
 
   # Disable CPU optimizations that make binary not portable.
@@ -66,6 +71,12 @@ in pkgs.gcc13Stdenv.mkDerivation rec {
     "QUICK_AND_DIRTY_COMPILER=${if quickAndDirty then "1" else "0"}"
     "QUICK_AND_DIRTY_NIMBLE=${if quickAndDirty then "1" else "0"}"
   ];
+
+  # FIXME: Remove once permanent fix is applied to NBS:
+  patchPhase = ''
+    substituteInPlace vendor/nimbus-build-system/scripts/build_nim.sh \
+      --replace-fail '"''${NIX_BUILD_TOP}" != "/build"' '-z $${NIX_BUILD_TOP}'
+  '';
 
   configurePhase = ''
     patchShebangs . vendor/nimbus-build-system > /dev/null
@@ -83,13 +94,19 @@ in pkgs.gcc13Stdenv.mkDerivation rec {
   '';
 
   installPhase = ''
-    mkdir -p $out/bin
-    cp build/codex $out/bin/
+    if [ -f build/storage ]; then
+      mkdir -p $out/bin
+      cp build/storage $out/bin/
+    else
+      mkdir -p $out/lib $out/include
+      cp build/libstorage* $out/lib/
+      cp library/libstorage.h $out/include/
+    fi
   '';
 
   meta = with pkgs.lib; {
-    description = "Nim Codex storage system";
-    homepage = "https://github.com/codex-storage/nim-codex";
+    description = "Logos Storage storage system";
+    homepage = "https://github.com/logos-storage/logos-storage-nim";
     license = licenses.mit;
     platforms = stableSystems;
   };

@@ -81,8 +81,9 @@ suite "Peer Context Store Peer Selection":
       )
     )
 
-    peerCtxs[0].peerWants = entries
-    peerCtxs[5].peerWants = entries
+    for address in addresses:
+      peerCtxs[0].wantedBlocks.incl(address)
+      peerCtxs[5].wantedBlocks.incl(address)
 
     let peers = store.peersWant(addresses[4])
 
