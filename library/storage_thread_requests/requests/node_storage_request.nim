@@ -24,7 +24,7 @@ from ../../../codex/node import
 from libp2p import Cid, init, `$`
 
 logScope:
-  topics = "codexlib codexlibstorage"
+  topics = "libstorage libstoragestorage"
 
 type NodeStorageMsgType* = enum
   LIST
@@ -61,14 +61,14 @@ type ManifestWithCid = object
   manifest {.serialize.}: Manifest
 
 proc list(
-    codex: ptr CodexServer
+    storage: ptr CodexServer
 ): Future[Result[string, string]] {.async: (raises: []).} =
   var manifests = newSeq[ManifestWithCid]()
   proc onManifest(cid: Cid, manifest: Manifest) {.raises: [], gcsafe.} =
     manifests.add(ManifestWithCid(cid: $cid, manifest: manifest))
 
   try:
-    let node = codex[].node
+    let node = storage[].node
     await node.iterateManifests(onManifest)
   except CancelledError:
     return err("Failed to list manifests: cancelled operation.")
@@ -78,13 +78,13 @@ proc list(
   return ok(serde.toJson(manifests))
 
 proc delete(
-    codex: ptr CodexServer, cCid: cstring
+    storage: ptr CodexServer, cCid: cstring
 ): Future[Result[string, string]] {.async: (raises: []).} =
   let cid = Cid.init($cCid)
   if cid.isErr:
     return err("Failed to delete the data: cannot parse cid: " & $cCid)
 
-  let node = codex[].node
+  let node = storage[].node
   try:
     let res = await node.delete(cid.get())
     if res.isErr:
@@ -97,14 +97,14 @@ proc delete(
   return ok("")
 
 proc fetch(
-    codex: ptr CodexServer, cCid: cstring
+    storage: ptr CodexServer, cCid: cstring
 ): Future[Result[string, string]] {.async: (raises: []).} =
   let cid = Cid.init($cCid)
   if cid.isErr:
     return err("Failed to fetch the data: cannot parse cid: " & $cCid)
 
   try:
-    let node = codex[].node
+    let node = storage[].node
     let manifest = await node.fetchManifest(cid.get())
     if manifest.isErr:
       return err("Failed to fetch the data: " & manifest.error.msg)
@@ -116,9 +116,9 @@ proc fetch(
     return err("Failed to fetch the data: download cancelled.")
 
 proc space(
-    codex: ptr CodexServer
+    storage: ptr CodexServer
 ): Future[Result[string, string]] {.async: (raises: []).} =
-  let repoStore = codex[].repoStore
+  let repoStore = storage[].repoStore
   let space = StorageSpace(
     totalBlocks: repoStore.totalBlocks,
     quotaMaxBytes: repoStore.quotaMaxBytes,
@@ -128,52 +128,52 @@ proc space(
   return ok(serde.toJson(space))
 
 proc exists(
-    codex: ptr CodexServer, cCid: cstring
+    storage: ptr CodexServer, cCid: cstring
 ): Future[Result[string, string]] {.async: (raises: []).} =
   let cid = Cid.init($cCid)
   if cid.isErr:
     return err("Failed to check the data existence: cannot parse cid: " & $cCid)
 
   try:
-    let node = codex[].node
+    let node = storage[].node
     let exists = await node.hasLocalBlock(cid.get())
     return ok($exists)
   except CancelledError:
     return err("Failed to check the data existence: operation cancelled.")
 
 proc process*(
-    self: ptr NodeStorageRequest, codex: ptr CodexServer
+    self: ptr NodeStorageRequest, storage: ptr CodexServer
 ): Future[Result[string, string]] {.async: (raises: []).} =
   defer:
     destroyShared(self)
 
   case self.operation
   of NodeStorageMsgType.LIST:
-    let res = (await list(codex))
+    let res = (await list(storage))
     if res.isErr:
       error "Failed to LIST.", error = res.error
       return err($res.error)
     return res
   of NodeStorageMsgType.DELETE:
-    let res = (await delete(codex, self.cid))
+    let res = (await delete(storage, self.cid))
     if res.isErr:
       error "Failed to DELETE.", error = res.error
       return err($res.error)
     return res
   of NodeStorageMsgType.FETCH:
-    let res = (await fetch(codex, self.cid))
+    let res = (await fetch(storage, self.cid))
     if res.isErr:
       error "Failed to FETCH.", error = res.error
       return err($res.error)
     return res
   of NodeStorageMsgType.SPACE:
-    let res = (await space(codex))
+    let res = (await space(storage))
     if res.isErr:
       error "Failed to SPACE.", error = res.error
       return err($res.error)
     return res
   of NodeStorageMsgType.EXISTS:
-    let res = (await exists(codex, self.cid))
+    let res = (await exists(storage, self.cid))
     if res.isErr:
       error "Failed to EXISTS.", error = res.error
       return err($res.error)

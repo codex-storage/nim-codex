@@ -28,7 +28,7 @@ proc printHelp() =
   info "Usage: ./cirdl [circuitPath] [rpcEndpoint] ([marketplaceAddress])"
   info "  circuitPath: path where circuit files will be placed."
   info "  rpcEndpoint: URL of web3 RPC endpoint."
-  info "  marketplaceAddress: Address of deployed Codex marketplace contracts. If left out, will auto-discover based on connected network."
+  info "  marketplaceAddress: Address of deployed Storage marketplace contracts. If left out, will auto-discover based on connected network."
 
 proc getMarketplaceAddress(
     provider: JsonRpcProvider, mpAddressOverride: ?Address
@@ -83,7 +83,7 @@ proc copyFiles(unpackDir: string, circuitPath: string): ?!void =
   success()
 
 proc main() {.async.} =
-  info "Codex Circuit Downloader, Aww yeah!"
+  info "Storage Circuit Downloader, Aww yeah!"
   let args = os.commandLineParams()
   if args.len < 2 or args.len > 3:
     printHelp()
@@ -135,7 +135,7 @@ proc main() {.async.} =
 
   # Unpack library cannot unpack into existing directory. We also cannot
   # delete the targer directory and have the library recreate it because
-  # Codex has likely created it and set correct permissions.
+  # Logos Storage has likely created it and set correct permissions.
   # So, we unpack to a temp folder and move the files.
   if err =? copyFiles(unpackFolder, circuitPath).errorOption:
     error "Failed to copy files", msg = err.msg

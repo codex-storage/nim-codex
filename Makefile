@@ -93,10 +93,10 @@ else # "variables.mk" was included. Business as usual until the end of this file
 
 # default target, because it's the first one that doesn't start with '.'
 
-# Builds the codex binary
+# Builds the Logos Storage binary
 all: | build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
-		$(ENV_SCRIPT) nim codex $(NIM_PARAMS) build.nims
+		$(ENV_SCRIPT) nim storage $(NIM_PARAMS) build.nims
 
 # Build tools/cirdl
 cirdl: | deps
@@ -246,29 +246,29 @@ clean: | clean-nph
 ################
 ## C Bindings ##
 ################
-.PHONY: libcodex
+.PHONY: libstorage
 
 STATIC ?= 0
 
-ifneq ($(strip $(CODEX_LIB_PARAMS)),)
-NIM_PARAMS := $(NIM_PARAMS) $(CODEX_LIB_PARAMS)
+ifneq ($(strip $(STORAGE_LIB_PARAMS)),)
+NIM_PARAMS := $(NIM_PARAMS) $(STORAGE_LIB_PARAMS)
 endif
 
-libcodex:
+libstorage:
 	$(MAKE) deps
-	rm -f build/libcodex*
+	rm -f build/libstorage*
 
 ifeq ($(STATIC), 1)
 		echo -e $(BUILD_MSG) "build/$@.a" && \
-		$(ENV_SCRIPT) nim libcodexStatic $(NIM_PARAMS) -d:LeopardCmakeFlags="\"-DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_BUILD_TYPE=Release\"" codex.nims
+		$(ENV_SCRIPT) nim libstorageStatic $(NIM_PARAMS) -d:LeopardCmakeFlags="\"-DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_BUILD_TYPE=Release\"" codex.nims
 else ifeq ($(detected_OS),Windows)
 		echo -e $(BUILD_MSG) "build/$@.dll" && \
-		$(ENV_SCRIPT) nim libcodexDynamic $(NIM_PARAMS) -d:LeopardCmakeFlags="\"-G \\\"MSYS Makefiles\\\" -DCMAKE_BUILD_TYPE=Release\"" codex.nims
+		$(ENV_SCRIPT) nim libstorageDynamic $(NIM_PARAMS) -d:LeopardCmakeFlags="\"-G \\\"MSYS Makefiles\\\" -DCMAKE_BUILD_TYPE=Release\"" codex.nims
 else ifeq ($(detected_OS),macOS)
 		echo -e $(BUILD_MSG) "build/$@.dylib" && \
-		$(ENV_SCRIPT) nim libcodexDynamic $(NIM_PARAMS) -d:LeopardCmakeFlags="\"-DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_BUILD_TYPE=Release\"" codex.nims
+		$(ENV_SCRIPT) nim libstorageDynamic $(NIM_PARAMS) -d:LeopardCmakeFlags="\"-DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_BUILD_TYPE=Release\"" codex.nims
 else
 		echo -e $(BUILD_MSG) "build/$@.so" && \
-		$(ENV_SCRIPT) nim libcodexDynamic $(NIM_PARAMS) -d:LeopardCmakeFlags="\"-DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_BUILD_TYPE=Release\"" codex.nims
+		$(ENV_SCRIPT) nim libstorageDynamic $(NIM_PARAMS) -d:LeopardCmakeFlags="\"-DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_BUILD_TYPE=Release\"" codex.nims
 endif
 endif # "variables.mk" was not included

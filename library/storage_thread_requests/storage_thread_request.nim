@@ -1,6 +1,6 @@
 ## This file contains the base message request type that will be handled.
 ## The requests are created by the main thread and processed by
-## the Codex Thread.
+## the Logos Storage Thread.
 
 import std/json
 import results
@@ -25,24 +25,24 @@ type RequestType* {.pure.} = enum
   DOWNLOAD
   STORAGE
 
-type CodexThreadRequest* = object
+type StorageThreadRequest* = object
   reqType: RequestType
 
   # Request payloed
   reqContent: pointer
 
   # Callback to notify the client thread of the result
-  callback: CodexCallback
+  callback: StorageCallback
 
   # Custom state attached by the client to the request,
   # returned when its callback is invoked.
   userData: pointer
 
 proc createShared*(
-    T: type CodexThreadRequest,
+    T: type StorageThreadRequest,
     reqType: RequestType,
     reqContent: pointer,
-    callback: CodexCallback,
+    callback: StorageCallback,
     userData: pointer,
 ): ptr type T =
   var ret = createShared(T)
@@ -57,9 +57,9 @@ proc createShared*(
 # and no further requests can be processed.
 # We can improve this by dispatching the callbacks to a thread pool or
 # moving to a MP channel.
-# See: https://github.com/codex-storage/nim-codex/pull/1322#discussion_r2340708316
+# See: https://github.com/logos-storage/logos-storage-nim/pull/1322#discussion_r2340708316
 proc handleRes[T: string | void | seq[byte]](
-    res: Result[T, string], request: ptr CodexThreadRequest
+    res: Result[T, string], request: ptr StorageThreadRequest
 ) =
   ## Handles the Result responses, which can either be Result[string, string] or
   ## Result[void, string].
@@ -87,22 +87,24 @@ proc handleRes[T: string | void | seq[byte]](
   return
 
 proc process*(
-    T: type CodexThreadRequest, request: ptr CodexThreadRequest, codex: ptr CodexServer
+    T: type StorageThreadRequest,
+    request: ptr StorageThreadRequest,
+    storage: ptr CodexServer,
 ) {.async: (raises: []).} =
-  ## Processes the request in the Codex thread.
+  ## Processes the request in the Logos Storage thread.
   ## Dispatch to the appropriate request handler based on reqType.
   let retFut =
     case request[].reqType
     of LIFECYCLE:
-      cast[ptr NodeLifecycleRequest](request[].reqContent).process(codex)
+      cast[ptr NodeLifecycleRequest](request[].reqContent).process(storage)
     of INFO:
-      cast[ptr NodeInfoRequest](request[].reqContent).process(codex)
+      cast[ptr NodeInfoRequest](request[].reqContent).process(storage)
     of RequestType.DEBUG:
-      cast[ptr NodeDebugRequest](request[].reqContent).process(codex)
+      cast[ptr NodeDebugRequest](request[].reqContent).process(storage)
     of P2P:
-      cast[ptr NodeP2PRequest](request[].reqContent).process(codex)
+      cast[ptr NodeP2PRequest](request[].reqContent).process(storage)
     of STORAGE:
-      cast[ptr NodeStorageRequest](request[].reqContent).process(codex)
+      cast[ptr NodeStorageRequest](request[].reqContent).process(storage)
     of DOWNLOAD:
       let onChunk = proc(bytes: seq[byte]) =
         if bytes.len > 0:
@@ -113,14 +115,16 @@ proc process*(
             request[].userData,
           )
 
-      cast[ptr NodeDownloadRequest](request[].reqContent).process(codex, onChunk)
+      cast[ptr NodeDownloadRequest](request[].reqContent).process(storage, onChunk)
     of UPLOAD:
       let onBlockReceived = proc(bytes: int) =
         request[].callback(RET_PROGRESS, nil, cast[csize_t](bytes), request[].userData)
 
-      cast[ptr NodeUploadRequest](request[].reqContent).process(codex, onBlockReceived)
+      cast[ptr NodeUploadRequest](request[].reqContent).process(
+        storage, onBlockReceived
+      )
 
   handleRes(await retFut, request)
 
-proc `$`*(self: CodexThreadRequest): string =
+proc `$`*(self: StorageThreadRequest): string =
   return $self.reqType

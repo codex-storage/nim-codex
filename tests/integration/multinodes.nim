@@ -69,7 +69,7 @@ proc sanitize(pathSegment: string): string =
   sanitized
 
 proc getTempDirName*(starttime: string, role: Role, roleIdx: int): string =
-  getTempDir() / "Codex" / sanitize($starttime) / sanitize($role & "_" & $roleIdx)
+  getTempDir() / "Storage" / sanitize($starttime) / sanitize($role & "_" & $roleIdx)
 
 template multinodesuite*(name: string, body: untyped) =
   asyncchecksuite name:
@@ -230,15 +230,15 @@ template multinodesuite*(name: string, body: untyped) =
       )
       config.addCliOption(
         PersistenceCmd.prover, "--circom-r1cs",
-        "vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.r1cs",
+        "vendor/logos-storage-contracts-eth/verifier/networks/hardhat/proof_main.r1cs",
       )
       config.addCliOption(
         PersistenceCmd.prover, "--circom-wasm",
-        "vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.wasm",
+        "vendor/logos-storage-contracts-eth/verifier/networks/hardhat/proof_main.wasm",
       )
       config.addCliOption(
         PersistenceCmd.prover, "--circom-zkey",
-        "vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.zkey",
+        "vendor/logos-storage-contracts-eth/verifier/networks/hardhat/proof_main.zkey",
       )
 
       return await newCodexProcess(providerIdx, config, Role.Provider)

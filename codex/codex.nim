@@ -1,4 +1,4 @@
-## Nim-Codex
+## Logos Storage
 ## Copyright (c) 2021 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
@@ -138,7 +138,7 @@ proc bootstrapInteractions(s: CodexServer): Future[void] {.async.} =
 
     # This is used for simulation purposes. Normal nodes won't be compiled with this flag
     # and hence the proof failure will always be 0.
-    when codex_enable_proof_failures:
+    when storage_enable_proof_failures:
       let proofFailures = config.simulateProofFailures
       if proofFailures > 0:
         warn "Enabling proof failure simulation!"
@@ -170,10 +170,10 @@ proc bootstrapInteractions(s: CodexServer): Future[void] {.async.} =
 
 proc start*(s: CodexServer) {.async.} =
   if s.isStarted:
-    warn "Codex server already started, skipping"
+    warn "Storage server already started, skipping"
     return
 
-  trace "Starting codex node", config = $s.config
+  trace "Starting Storage node", config = $s.config
   await s.repoStore.start()
 
   s.maintenance.start()
@@ -197,10 +197,10 @@ proc start*(s: CodexServer) {.async.} =
 
 proc stop*(s: CodexServer) {.async.} =
   if not s.isStarted:
-    warn "Codex is not started"
+    warn "Storage is not started"
     return
 
-  notice "Stopping codex node"
+  notice "Stopping Storage node"
 
   var futures =
     @[
@@ -216,8 +216,8 @@ proc stop*(s: CodexServer) {.async.} =
   let res = await noCancel allFinishedFailed[void](futures)
 
   if res.failure.len > 0:
-    error "Failed to stop codex node", failures = res.failure.len
-    raiseAssert "Failed to stop codex node"
+    error "Failed to stop Storage node", failures = res.failure.len
+    raiseAssert "Failed to stop Storage node"
 
 proc close*(s: CodexServer) {.async.} =
   var futures = @[s.codexNode.close(), s.repoStore.close()]
@@ -232,8 +232,8 @@ proc close*(s: CodexServer) {.async.} =
       raiseAssert("Failure in taskpool shutdown:" & exc.msg)
 
   if res.failure.len > 0:
-    error "Failed to close codex node", failures = res.failure.len
-    raiseAssert "Failed to close codex node"
+    error "Failed to close Storage node", failures = res.failure.len
+    raiseAssert "Failed to close Storage node"
 
 proc shutdown*(server: CodexServer) {.async.} =
   await server.stop()

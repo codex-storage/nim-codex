@@ -9,13 +9,13 @@
       "locked": {
         "lastModified": 1736521871,
         "narHash": "sha256-d34XNLg9NGPEOARHW+BIOAWalkHdEUAwsv3mpLZQxds=",
-        "owner": "codex-storage",
+        "owner": "logos-storage",
         "repo": "circom-compat-ffi",
         "rev": "8cd4ed44fdafe59d4ec1184420639cae4c4dbab9",
         "type": "github"
       },
       "original": {
-        "owner": "codex-storage",
+        "owner": "logos-storage",
         "repo": "circom-compat-ffi",
         "type": "github"
       }

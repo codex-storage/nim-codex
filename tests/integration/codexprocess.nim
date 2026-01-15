@@ -25,7 +25,7 @@ method workingDir(node: CodexProcess): string =
   return currentSourcePath() / ".." / ".." / ".."
 
 method executable(node: CodexProcess): string =
-  return "build" / "codex"
+  return "build" / "storage"
 
 method startedOutput(node: CodexProcess): string =
   return "REST service started"
@@ -52,7 +52,7 @@ proc ethAccount*(node: CodexProcess): Address =
 proc apiUrl*(node: CodexProcess): string =
   let config = CodexConf.load(cmdLine = node.arguments, quitOnFailure = false)
   return
-    "http://" & config.apiBindAddress.get() & ":" & $config.apiPort & "/api/codex/v1"
+    "http://" & config.apiBindAddress.get() & ":" & $config.apiPort & "/api/storage/v1"
 
 proc client*(node: CodexProcess): CodexClient =
   if client =? node.client:
@@ -67,7 +67,7 @@ method stop*(node: CodexProcess) {.async.} =
 
   await procCall NodeProcess(node).stop()
 
-  trace "stopping codex client"
+  trace "stopping Storage client"
   if client =? node.client:
     await client.close()
     node.client = none CodexClient

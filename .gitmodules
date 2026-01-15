@@ -159,9 +159,9 @@
 [submodule "vendor/nim-leopard"]
 	path = vendor/nim-leopard
 	url = https://github.com/status-im/nim-leopard.git
-[submodule "vendor/nim-codex-dht"]
-	path = vendor/nim-codex-dht
-	url = https://github.com/codex-storage/nim-codex-dht.git
+[submodule "vendor/logos-storage-nim-dht"]
+	path = vendor/logos-storage-nim-dht
+	url = https://github.com/logos-storage/logos-storage-nim-dht.git
 	ignore = untracked
 	branch = master
 [submodule "vendor/nim-datastore"]
@@ -173,9 +173,11 @@
 [submodule "vendor/nim-eth"]
 	path = vendor/nim-eth
 	url = https://github.com/status-im/nim-eth
-[submodule "vendor/codex-contracts-eth"]
-	path = vendor/codex-contracts-eth
-	url = https://github.com/status-im/codex-contracts-eth
+[submodule "vendor/logos-storage-contracts-eth"]
+	path = vendor/logos-storage-contracts-eth
+	url = https://github.com/logos-storage/logos-storage-contracts-eth.git
+	ignore = untracked
+	branch = master
 [submodule "vendor/nim-protobuf-serialization"]
 	path = vendor/nim-protobuf-serialization
 	url = https://github.com/status-im/nim-protobuf-serialization
@@ -190,26 +192,28 @@
 	url = https://github.com/zevv/npeg
 [submodule "vendor/nim-poseidon2"]
 	path = vendor/nim-poseidon2
-	url = https://github.com/codex-storage/nim-poseidon2.git
+	url = https://github.com/logos-storage/nim-poseidon2.git
+	ignore = untracked
+	branch = master
 [submodule "vendor/constantine"]
 	path = vendor/constantine
 	url = https://github.com/mratsim/constantine.git
 [submodule "vendor/nim-circom-compat"]
 	path = vendor/nim-circom-compat
-	url = https://github.com/codex-storage/nim-circom-compat.git
+	url = https://github.com/logos-storage/nim-circom-compat.git
 	ignore = untracked
 	branch = master
-[submodule "vendor/codex-storage-proofs-circuits"]
-	path = vendor/codex-storage-proofs-circuits
-	url = https://github.com/codex-storage/codex-storage-proofs-circuits.git
+[submodule "vendor/logos-storage-proofs-circuits"]
+	path = vendor/logos-storage-proofs-circuits
+	url = https://github.com/logos-storage/logos-storage-proofs-circuits.git
 	ignore = untracked
 	branch = master
 [submodule "vendor/nim-serde"]
 	path = vendor/nim-serde
-	url = https://github.com/codex-storage/nim-serde.git
+	url = https://github.com/logos-storage/nim-serde.git
 [submodule "vendor/nim-leveldbstatic"]
 	path = vendor/nim-leveldbstatic
-	url = https://github.com/codex-storage/nim-leveldb.git
+	url = https://github.com/logos-storage/nim-leveldb.git
 [submodule "vendor/nim-zippy"]
 	path = vendor/nim-zippy
 	url = https://github.com/status-im/nim-zippy.git

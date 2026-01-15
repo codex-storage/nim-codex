@@ -1,4 +1,4 @@
-## Nim-Codex
+## Logos Storage
 ## Copyright (c) 2021 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
@@ -45,7 +45,7 @@ when isMainModule:
 
   let config = CodexConf.load(
     version = codexFullVersion,
-    envVarsPrefix = "codex",
+    envVarsPrefix = "storage",
     secondarySources = proc(
         config: CodexConf, sources: auto
     ) {.gcsafe, raises: [ConfigurationError].} =
@@ -99,7 +99,7 @@ when isMainModule:
       try:
         CodexServer.new(config, privateKey)
       except Exception as exc:
-        error "Failed to start Codex", msg = exc.msg
+        error "Failed to start Logos Storage", msg = exc.msg
         quit QuitFailure
 
   ## Ctrl+C handling
@@ -107,7 +107,7 @@ when isMainModule:
     shutdown = server.shutdown()
     state = CodexStatus.Stopping
 
-    notice "Stopping Codex"
+    notice "Stopping Logos Storage"
 
   proc controlCHandler() {.noconv.} =
     when defined(windows):
@@ -138,7 +138,7 @@ when isMainModule:
   try:
     waitFor server.start()
   except CatchableError as error:
-    error "Codex failed to start", error = error.msg
+    error "Logos Storage failed to start", error = error.msg
     # XXX ideally we'd like to issue a stop instead of quitting cold turkey,
     #   but this would mean we'd have to fix the implementation of all
     #   services so they won't crash if we attempt to stop them before they
@@ -159,7 +159,7 @@ when isMainModule:
     # be assigned before state switches to Stopping
     waitFor shutdown
   except CatchableError as error:
-    error "Codex didn't shutdown correctly", error = error.msg
+    error "Logos Storage didn't shutdown correctly", error = error.msg
     quit QuitFailure
 
-  notice "Exited codex"
+  notice "Exited Storage"

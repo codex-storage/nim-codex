@@ -12,7 +12,7 @@ import ../../../codex/node
 from ../../../codex/codex import CodexServer, config, node
 
 logScope:
-  topics = "codexlib codexlibinfo"
+  topics = "libstorage libstorageinfo"
 
 type NodeInfoMsgType* = enum
   REPO
@@ -31,45 +31,45 @@ proc destroyShared(self: ptr NodeInfoRequest) =
   deallocShared(self)
 
 proc getRepo(
-    codex: ptr CodexServer
+    storage: ptr CodexServer
 ): Future[Result[string, string]] {.async: (raises: []).} =
-  return ok($(codex[].config.dataDir))
+  return ok($(storage[].config.dataDir))
 
 proc getSpr(
-    codex: ptr CodexServer
+    storage: ptr CodexServer
 ): Future[Result[string, string]] {.async: (raises: []).} =
-  let spr = codex[].node.discovery.dhtRecord
+  let spr = storage[].node.discovery.dhtRecord
   if spr.isNone:
     return err("Failed to get SPR: no SPR record found.")
 
   return ok(spr.get.toURI)
 
 proc getPeerId(
-    codex: ptr CodexServer
+    storage: ptr CodexServer
 ): Future[Result[string, string]] {.async: (raises: []).} =
-  return ok($codex[].node.switch.peerInfo.peerId)
+  return ok($storage[].node.switch.peerInfo.peerId)
 
 proc process*(
-    self: ptr NodeInfoRequest, codex: ptr CodexServer
+    self: ptr NodeInfoRequest, storage: ptr CodexServer
 ): Future[Result[string, string]] {.async: (raises: []).} =
   defer:
     destroyShared(self)
 
   case self.operation
   of REPO:
-    let res = (await getRepo(codex))
+    let res = (await getRepo(storage))
     if res.isErr:
       error "Failed to get REPO.", error = res.error
       return err($res.error)
     return res
   of SPR:
-    let res = (await getSpr(codex))
+    let res = (await getSpr(storage))
     if res.isErr:
       error "Failed to get SPR.", error = res.error
       return err($res.error)
     return res
   of PEERID:
-    let res = (await getPeerId(codex))
+    let res = (await getPeerId(storage))
     if res.isErr:
       error "Failed to get PEERID.", error = res.error
       return err($res.error)

@@ -1,4 +1,4 @@
-## Nim-Codex
+## Logos Storage
 ## Copyright (c) 2021 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
@@ -63,18 +63,18 @@ proc `==`*(a, b: ThreadCount): bool {.borrow.}
 proc defaultDataDir*(): string =
   let dataDir =
     when defined(windows):
-      "AppData" / "Roaming" / "Codex"
+      "AppData" / "Roaming" / "Storage"
     elif defined(macosx):
-      "Library" / "Application Support" / "Codex"
+      "Library" / "Application Support" / "Storage"
     else:
-      ".cache" / "codex"
+      ".cache" / "storage"
 
   getHomeDir() / dataDir
 
 const
-  codex_enable_api_debug_peers* {.booldefine.} = false
-  codex_enable_proof_failures* {.booldefine.} = false
-  codex_enable_log_counter* {.booldefine.} = false
+  storage_enable_api_debug_peers* {.booldefine.} = false
+  storage_enable_proof_failures* {.booldefine.} = false
+  storage_enable_log_counter* {.booldefine.} = false
 
   DefaultThreadCount* = ThreadCount(0)
 
@@ -137,7 +137,7 @@ type
     .}: Port
 
     dataDir* {.
-      desc: "The directory where codex will store configuration and data",
+      desc: "The directory where Storage will store configuration and data",
       defaultValue: defaultDataDir(),
       defaultValueDesc: "",
       abbr: "d",
@@ -198,7 +198,7 @@ type
     .}: ThreadCount
 
     agentString* {.
-      defaultValue: "Codex",
+      defaultValue: "Logos Storage",
       desc: "Node agent string which is used as identifier in network",
       name: "agent-string"
     .}: string
@@ -391,7 +391,7 @@ type
       case persistenceCmd* {.defaultValue: noCmd, command.}: PersistenceCmd
       of PersistenceCmd.prover:
         circuitDir* {.
-          desc: "Directory where Codex will store proof circuit data",
+          desc: "Directory where Storage will store proof circuit data",
           defaultValue: defaultDataDir() / "circuits",
           defaultValueDesc: "data/circuits",
           abbr: "cd",
@@ -496,7 +496,8 @@ proc getCodexRevision(): string =
   return res
 
 proc getCodexContractsRevision(): string =
-  let res = strip(staticExec("git rev-parse --short HEAD:vendor/codex-contracts-eth"))
+  let res =
+    strip(staticExec("git rev-parse --short HEAD:vendor/logos-storage-contracts-eth"))
   return res
 
 proc getNimBanner(): string =
@@ -509,8 +510,8 @@ const
   nimBanner* = getNimBanner()
 
   codexFullVersion* =
-    "Codex version:  " & codexVersion & "\p" & "Codex revision: " & codexRevision & "\p" &
-    "Codex contracts revision: " & codexContractsRevision & "\p" & nimBanner
+    "Storage version:  " & codexVersion & "\p" & "Storage revision: " & codexRevision &
+    "\p" & "Storage contracts revision: " & codexContractsRevision & "\p" & nimBanner
 
 proc parseCmdArg*(
     T: typedesc[MultiAddress], input: string
@@ -803,7 +804,7 @@ proc setupLogging*(conf: CodexConf) =
       of LogKind.None:
         noOutput
 
-    when codex_enable_log_counter:
+    when storage_enable_log_counter:
       var counter = 0.uint64
       proc numberedWriter(logLevel: LogLevel, msg: LogOutputStr) =
         inc(counter)

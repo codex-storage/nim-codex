@@ -13,7 +13,7 @@ import ../../../codex/node
 from ../../../codex/codex import CodexServer, node
 
 logScope:
-  topics = "codexlib codexlibp2p"
+  topics = "libstorage libstoragep2p"
 
 type NodeP2PMsgType* = enum
   CONNECT
@@ -40,9 +40,9 @@ proc destroyShared(self: ptr NodeP2PRequest) =
   deallocShared(self)
 
 proc connect(
-    codex: ptr CodexServer, peerId: cstring, peerAddresses: seq[cstring] = @[]
+    storage: ptr CodexServer, peerId: cstring, peerAddresses: seq[cstring] = @[]
 ): Future[Result[string, string]] {.async: (raises: []).} =
-  let node = codex[].node
+  let node = storage[].node
   let res = PeerId.init($peerId)
   if res.isErr:
     return err("Failed to connect to peer: invalid peer ID: " & $res.error())
@@ -81,14 +81,14 @@ proc connect(
   return ok("")
 
 proc process*(
-    self: ptr NodeP2PRequest, codex: ptr CodexServer
+    self: ptr NodeP2PRequest, storage: ptr CodexServer
 ): Future[Result[string, string]] {.async: (raises: []).} =
   defer:
     destroyShared(self)
 
   case self.operation
   of NodeP2PMsgType.CONNECT:
-    let res = (await connect(codex, self.peerId, self.peerAddresses))
+    let res = (await connect(storage, self.peerId, self.peerAddresses))
     if res.isErr:
       error "Failed to CONNECT.", error = res.error
       return err($res.error)

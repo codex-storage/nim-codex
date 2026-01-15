@@ -3,7 +3,7 @@ mode = ScriptMode.Verbose
 import std/os except commandLineParams
 
 ### Helper functions
-proc buildBinary(name: string, srcDir = "./", params = "", lang = "c") =
+proc buildBinary(srcName: string, outName = os.lastPathPart(srcName),  srcDir = "./", params = "", lang = "c") =
   if not dirExists "build":
     mkDir "build"
 
@@ -18,10 +18,9 @@ proc buildBinary(name: string, srcDir = "./", params = "", lang = "c") =
 
   let
     # Place build output in 'build' folder, even if name includes a longer path.
-    outName = os.lastPathPart(name)
     cmd =
       "nim " & lang & " --out:build/" & outName & " " & extra_params & " " & srcDir &
-      name & ".nim"
+      srcName & ".nim"
 
   exec(cmd)
 
@@ -37,62 +36,64 @@ proc buildLibrary(name: string, srcDir = "./", params = "", `type` = "dynamic") 
     )
     exec "nim c" & " --out:build/" & lib_name &
       " --threads:on --app:lib --opt:size --noMain --mm:refc --header --d:metrics " &
-      "--nimMainPrefix:libcodex -d:noSignalHandler " &
+      "--nimMainPrefix:libstorage -d:noSignalHandler " &
       "-d:LeopardExtraCompilerFlags=-fPIC " & "-d:chronicles_runtime_filtering " &
       "-d:chronicles_log_level=TRACE " & params & " " & srcDir & name & ".nim"
   else:
     exec "nim c" & " --out:build/" & name &
       ".a --threads:on --app:staticlib --opt:size --noMain --mm:refc --header --d:metrics " &
-      "--nimMainPrefix:libcodex -d:noSignalHandler " &
+      "--nimMainPrefix:libstorage -d:noSignalHandler " &
       "-d:LeopardExtraCompilerFlags=-fPIC " &
       "-d:chronicles_runtime_filtering " &
       "-d:chronicles_log_level=TRACE " &
       params & " " & srcDir & name & ".nim"
 
-proc test(name: string, srcDir = "tests/", params = "", lang = "c") =
-  buildBinary name, srcDir, params
-  exec "build/" & name
+proc test(name: string, outName = name, srcDir = "tests/", params = "", lang = "c") =
+  buildBinary name, outName, srcDir, params
+  exec "build/" & outName
 
-task codex, "build codex binary":
+task storage, "build logos storage binary":
   buildBinary "codex",
+    outname = "storage",
     params = "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE"
 
 task toolsCirdl, "build tools/cirdl binary":
   buildBinary "tools/cirdl/cirdl"
 
-task testCodex, "Build & run Codex tests":
-  test "testCodex", params = "-d:codex_enable_proof_failures=true"
+task testStorage, "Build & run Logos Storage tests":
+  test "testCodex", outName = "testStorage", params = "-d:storage_enable_proof_failures=true"
 
-task testContracts, "Build & run Codex Contract tests":
+task testContracts, "Build & run Logos Storage Contract tests":
   test "testContracts"
 
 task testIntegration, "Run integration tests":
   buildBinary "codex",
+    outName = "storage",
     params =
-      "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE -d:codex_enable_proof_failures=true"
+      "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE -d:storage_enable_proof_failures=true"
   test "testIntegration"
   # use params to enable logging from the integration test executable
   # test "testIntegration", params = "-d:chronicles_sinks=textlines[notimestamps,stdout],textlines[dynamic] " &
   #   "-d:chronicles_enabled_topics:integration:TRACE"  
 
-task build, "build codex binary":
-  codexTask()
+task build, "build Logos Storage binary":
+  storageTask()
 
 task test, "Run tests":
-  testCodexTask()
+  testStorageTask()
 
 task testTools, "Run Tools tests":
   toolsCirdlTask()
   test "testTools"
 
 task testAll, "Run all tests (except for Taiko L2 tests)":
-  testCodexTask()
+  testStorageTask()
   testContractsTask()
   testIntegrationTask()
   testToolsTask()
 
 task testTaiko, "Run Taiko L2 tests":
-  codexTask()
+  storageTask()
   test "testTaiko"
 
 import strutils
@@ -125,7 +126,7 @@ task coverage, "generates code coverage report":
   test "coverage",
     srcDir = "tests/",
     params =
-      " --nimcache:nimcache/coverage -d:release -d:codex_enable_proof_failures=true"
+      " --nimcache:nimcache/coverage -d:release -d:storage_enable_proof_failures=true"
   exec("rm nimcache/coverage/*.c")
   rmDir("coverage")
   mkDir("coverage")
@@ -146,22 +147,22 @@ task showCoverage, "open coverage html":
   if findExe("open") != "":
     exec("open coverage/report/index.html")
 
-task libcodexDynamic, "Generate bindings":
+task libstorageDynamic, "Generate bindings":
   var params = ""
   when compiles(commandLineParams):
     for param in commandLineParams():
       if param.len > 0 and param.startsWith("-"):
         params.add " " & param
 
-  let name = "libcodex"
+  let name = "libstorage"
   buildLibrary name, "library/", params, "dynamic"
 
-task libcodexStatic, "Generate bindings":
+task libstorageStatic, "Generate bindings":
   var params = ""
   when compiles(commandLineParams):
     for param in commandLineParams():
       if param.len > 0 and param.startsWith("-"):
         params.add " " & param
 
-  let name = "libcodex"
+  let name = "libstorage"
   buildLibrary name, "library/", params, "static"

@@ -1,4 +1,4 @@
-## Nim-Codex
+## Logos Storage
 ## Copyright (c) 2021 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
@@ -180,7 +180,7 @@ proc getFilenameFromContentDisposition(contentDisposition: string): ?string =
 proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRouter) =
   let allowedOrigin = router.allowedOrigin # prevents capture inside of api defintion
 
-  router.api(MethodOptions, "/api/codex/v1/data") do(
+  router.api(MethodOptions, "/api/storage/v1/data") do(
     resp: HttpResponseRef
   ) -> RestApiResponse:
     if corsOrigin =? allowedOrigin:
@@ -192,7 +192,7 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
     resp.status = Http204
     await resp.sendBody("")
 
-  router.rawApi(MethodPost, "/api/codex/v1/data") do() -> RestApiResponse:
+  router.rawApi(MethodPost, "/api/storage/v1/data") do() -> RestApiResponse:
     ## Upload a file in a streaming manner
     ##
 
@@ -254,11 +254,11 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
     finally:
       await reader.closeWait()
 
-  router.api(MethodGet, "/api/codex/v1/data") do() -> RestApiResponse:
+  router.api(MethodGet, "/api/storage/v1/data") do() -> RestApiResponse:
     let json = await formatManifestBlocks(node)
     return RestApiResponse.response($json, contentType = "application/json")
 
-  router.api(MethodOptions, "/api/codex/v1/data/{cid}") do(
+  router.api(MethodOptions, "/api/storage/v1/data/{cid}") do(
     cid: Cid, resp: HttpResponseRef
   ) -> RestApiResponse:
     if corsOrigin =? allowedOrigin:
@@ -267,7 +267,7 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
     resp.status = Http204
     await resp.sendBody("")
 
-  router.api(MethodGet, "/api/codex/v1/data/{cid}") do(
+  router.api(MethodGet, "/api/storage/v1/data/{cid}") do(
     cid: Cid, resp: HttpResponseRef
   ) -> RestApiResponse:
     var headers = buildCorsHeaders("GET", allowedOrigin)
@@ -283,7 +283,7 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
 
     await node.retrieveCid(cid.get(), local = true, resp = resp)
 
-  router.api(MethodDelete, "/api/codex/v1/data/{cid}") do(
+  router.api(MethodDelete, "/api/storage/v1/data/{cid}") do(
     cid: Cid, resp: HttpResponseRef
   ) -> RestApiResponse:
     ## Deletes either a single block or an entire dataset
@@ -304,7 +304,7 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
     resp.status = Http204
     await resp.sendBody("")
 
-  router.api(MethodPost, "/api/codex/v1/data/{cid}/network") do(
+  router.api(MethodPost, "/api/storage/v1/data/{cid}/network") do(
     cid: Cid, resp: HttpResponseRef
   ) -> RestApiResponse:
     ## Download a file from the network to the local node
@@ -325,7 +325,7 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
     let json = %formatManifest(cid.get(), manifest)
     return RestApiResponse.response($json, contentType = "application/json")
 
-  router.api(MethodGet, "/api/codex/v1/data/{cid}/network/stream") do(
+  router.api(MethodGet, "/api/storage/v1/data/{cid}/network/stream") do(
     cid: Cid, resp: HttpResponseRef
   ) -> RestApiResponse:
     ## Download a file from the network in a streaming
@@ -344,7 +344,7 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
     resp.setHeader("Access-Control-Expose-Headers", "Content-Disposition")
     await node.retrieveCid(cid.get(), local = false, resp = resp)
 
-  router.api(MethodGet, "/api/codex/v1/data/{cid}/network/manifest") do(
+  router.api(MethodGet, "/api/storage/v1/data/{cid}/network/manifest") do(
     cid: Cid, resp: HttpResponseRef
   ) -> RestApiResponse:
     ## Download only the manifest.
@@ -362,7 +362,7 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
     let json = %formatManifest(cid.get(), manifest)
     return RestApiResponse.response($json, contentType = "application/json")
 
-  router.api(MethodGet, "/api/codex/v1/data/{cid}/exists") do(
+  router.api(MethodGet, "/api/storage/v1/data/{cid}/exists") do(
     cid: Cid, resp: HttpResponseRef
   ) -> RestApiResponse:
     ## Only test if the give CID is available in the local store
@@ -378,7 +378,7 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
     let json = %*{$cid: hasCid}
     return RestApiResponse.response($json, contentType = "application/json")
 
-  router.api(MethodGet, "/api/codex/v1/space") do() -> RestApiResponse:
+  router.api(MethodGet, "/api/storage/v1/space") do() -> RestApiResponse:
     let json =
       %RestRepoStore(
         totalBlocks: repoStore.totalBlocks,
@@ -391,7 +391,7 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
 proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
   let allowedOrigin = router.allowedOrigin
 
-  router.api(MethodGet, "/api/codex/v1/sales/slots") do() -> RestApiResponse:
+  router.api(MethodGet, "/api/storage/v1/sales/slots") do() -> RestApiResponse:
     var headers = buildCorsHeaders("GET", allowedOrigin)
 
     ## Returns active slots for the host
@@ -409,7 +409,7 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
       trace "Excepting processing request", exc = exc.msg
       return RestApiResponse.error(Http500, headers = headers)
 
-  router.api(MethodGet, "/api/codex/v1/sales/slots/{slotId}") do(
+  router.api(MethodGet, "/api/storage/v1/sales/slots/{slotId}") do(
     slotId: SlotId
   ) -> RestApiResponse:
     ## Returns active slot with id {slotId} for the host. Returns 404 if the
@@ -439,7 +439,7 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
       restAgent.toJson, contentType = "application/json", headers = headers
     )
 
-  router.api(MethodGet, "/api/codex/v1/sales/availability") do() -> RestApiResponse:
+  router.api(MethodGet, "/api/storage/v1/sales/availability") do() -> RestApiResponse:
     ## Returns storage that is for sale
     var headers = buildCorsHeaders("GET", allowedOrigin)
 
@@ -461,7 +461,7 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
       trace "Excepting processing request", exc = exc.msg
       return RestApiResponse.error(Http500, headers = headers)
 
-  router.rawApi(MethodPost, "/api/codex/v1/sales/availability") do() -> RestApiResponse:
+  router.rawApi(MethodPost, "/api/storage/v1/sales/availability") do() -> RestApiResponse:
     ## Add available storage to sell.
     ## Every time Availability's offer finishes, its capacity is
     ## returned to the availability.
@@ -541,7 +541,7 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
       trace "Excepting processing request", exc = exc.msg
       return RestApiResponse.error(Http500, headers = headers)
 
-  router.api(MethodOptions, "/api/codex/v1/sales/availability/{id}") do(
+  router.api(MethodOptions, "/api/storage/v1/sales/availability/{id}") do(
     id: AvailabilityId, resp: HttpResponseRef
   ) -> RestApiResponse:
     if corsOrigin =? allowedOrigin:
@@ -550,7 +550,7 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
     resp.status = Http204
     await resp.sendBody("")
 
-  router.rawApi(MethodPatch, "/api/codex/v1/sales/availability/{id}") do(
+  router.rawApi(MethodPatch, "/api/storage/v1/sales/availability/{id}") do(
     id: AvailabilityId
   ) -> RestApiResponse:
     ## Updates Availability.
@@ -638,7 +638,7 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
       trace "Excepting processing request", exc = exc.msg
       return RestApiResponse.error(Http500)
 
-  router.rawApi(MethodGet, "/api/codex/v1/sales/availability/{id}/reservations") do(
+  router.rawApi(MethodGet, "/api/storage/v1/sales/availability/{id}/reservations") do(
     id: AvailabilityId
   ) -> RestApiResponse:
     ## Gets Availability's reservations.
@@ -682,7 +682,7 @@ proc initSalesApi(node: CodexNodeRef, router: var RestRouter) =
 proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
   let allowedOrigin = router.allowedOrigin
 
-  router.rawApi(MethodPost, "/api/codex/v1/storage/request/{cid}") do(
+  router.rawApi(MethodPost, "/api/storage/v1/storage/request/{cid}") do(
     cid: Cid
   ) -> RestApiResponse:
     var headers = buildCorsHeaders("POST", allowedOrigin)
@@ -792,7 +792,7 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
       trace "Excepting processing request", exc = exc.msg
       return RestApiResponse.error(Http500, headers = headers)
 
-  router.api(MethodGet, "/api/codex/v1/storage/purchases/{id}") do(
+  router.api(MethodGet, "/api/storage/v1/storage/purchases/{id}") do(
     id: PurchaseId
   ) -> RestApiResponse:
     var headers = buildCorsHeaders("GET", allowedOrigin)
@@ -824,7 +824,7 @@ proc initPurchasingApi(node: CodexNodeRef, router: var RestRouter) =
       trace "Excepting processing request", exc = exc.msg
       return RestApiResponse.error(Http500, headers = headers)
 
-  router.api(MethodGet, "/api/codex/v1/storage/purchases") do() -> RestApiResponse:
+  router.api(MethodGet, "/api/storage/v1/storage/purchases") do() -> RestApiResponse:
     var headers = buildCorsHeaders("GET", allowedOrigin)
 
     try:
@@ -846,7 +846,7 @@ proc initNodeApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
 
   ## various node management api's
   ##
-  router.api(MethodGet, "/api/codex/v1/spr") do() -> RestApiResponse:
+  router.api(MethodGet, "/api/storage/v1/spr") do() -> RestApiResponse:
     ## Returns node SPR in requested format, json or text.
     ##
     var headers = buildCorsHeaders("GET", allowedOrigin)
@@ -869,7 +869,7 @@ proc initNodeApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
       trace "Excepting processing request", exc = exc.msg
       return RestApiResponse.error(Http500, headers = headers)
 
-  router.api(MethodGet, "/api/codex/v1/peerid") do() -> RestApiResponse:
+  router.api(MethodGet, "/api/storage/v1/peerid") do() -> RestApiResponse:
     ## Returns node's peerId in requested format, json or text.
     ##
     var headers = buildCorsHeaders("GET", allowedOrigin)
@@ -888,7 +888,7 @@ proc initNodeApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
       trace "Excepting processing request", exc = exc.msg
       return RestApiResponse.error(Http500, headers = headers)
 
-  router.api(MethodGet, "/api/codex/v1/connect/{peerId}") do(
+  router.api(MethodGet, "/api/storage/v1/connect/{peerId}") do(
     peerId: PeerId, addrs: seq[MultiAddress]
   ) -> RestApiResponse:
     ## Connect to a peer
@@ -926,7 +926,7 @@ proc initNodeApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
 proc initDebugApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
   let allowedOrigin = router.allowedOrigin
 
-  router.api(MethodGet, "/api/codex/v1/debug/info") do() -> RestApiResponse:
+  router.api(MethodGet, "/api/storage/v1/debug/info") do() -> RestApiResponse:
     ## Print rudimentary node information
     ##
     var headers = buildCorsHeaders("GET", allowedOrigin)
@@ -946,7 +946,7 @@ proc initDebugApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
               "",
           "announceAddresses": node.discovery.announceAddrs,
           "table": table,
-          "codex": {
+          "storage": {
             "version": $codexVersion,
             "revision": $codexRevision,
             "contracts": $codexContractsRevision,
@@ -961,7 +961,7 @@ proc initDebugApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
       trace "Excepting processing request", exc = exc.msg
       return RestApiResponse.error(Http500, headers = headers)
 
-  router.api(MethodPost, "/api/codex/v1/debug/chronicles/loglevel") do(
+  router.api(MethodPost, "/api/storage/v1/debug/chronicles/loglevel") do(
     level: Option[string]
   ) -> RestApiResponse:
     ## Set log level at run time
@@ -987,8 +987,8 @@ proc initDebugApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
       trace "Excepting processing request", exc = exc.msg
       return RestApiResponse.error(Http500, headers = headers)
 
-  when codex_enable_api_debug_peers:
-    router.api(MethodGet, "/api/codex/v1/debug/peer/{peerId}") do(
+  when storage_enable_api_debug_peers:
+    router.api(MethodGet, "/api/storage/v1/debug/peer/{peerId}") do(
       peerId: PeerId
     ) -> RestApiResponse:
       var headers = buildCorsHeaders("GET", allowedOrigin)

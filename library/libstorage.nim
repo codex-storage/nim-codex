@@ -1,6 +1,6 @@
-# libcodex.nim - C-exported interface for the Codex shared library
+# libstorage.nim - C-exported interface for the Storage shared library
 #
-# This file implements the public C API for libcodex.
+# This file implements the public C API for libstorage.
 # It acts as the bridge between C programs and the internal Nim implementation.
 #
 # This file defines:
@@ -22,30 +22,30 @@
 
 when defined(linux):
   # Define the canonical name for this library
-  {.passl: "-Wl,-soname,libcodex.so".}
+  {.passl: "-Wl,-soname,libstorage.so".}
 
 import std/[atomics]
 import chronicles
 import chronos
 import chronos/threadsync
-import ./codex_context
-import ./codex_thread_requests/codex_thread_request
-import ./codex_thread_requests/requests/node_lifecycle_request
-import ./codex_thread_requests/requests/node_info_request
-import ./codex_thread_requests/requests/node_debug_request
-import ./codex_thread_requests/requests/node_p2p_request
-import ./codex_thread_requests/requests/node_upload_request
-import ./codex_thread_requests/requests/node_download_request
-import ./codex_thread_requests/requests/node_storage_request
+import ./storage_context
+import ./storage_thread_requests/storage_thread_request
+import ./storage_thread_requests/requests/node_lifecycle_request
+import ./storage_thread_requests/requests/node_info_request
+import ./storage_thread_requests/requests/node_debug_request
+import ./storage_thread_requests/requests/node_p2p_request
+import ./storage_thread_requests/requests/node_upload_request
+import ./storage_thread_requests/requests/node_download_request
+import ./storage_thread_requests/requests/node_storage_request
 import ./ffi_types
 
 from ../codex/conf import codexVersion
 
 logScope:
-  topics = "codexlib"
+  topics = "libstorage"
 
-template checkLibcodexParams*(
-    ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
+template checkLibstorageParams*(
+    ctx: ptr StorageContext, callback: StorageCallback, userData: pointer
 ) =
   if not isNil(ctx):
     ctx[].userData = userData
@@ -57,7 +57,7 @@ template checkLibcodexParams*(
 # "the C targets require you to initialize Nim's internals, which is done calling a NimMain function."
 # "The name NimMain can be influenced via the --nimMainPrefix:prefix switch."
 # "Use --nimMainPrefix:MyLib and the function to call is named MyLibNimMain."
-proc libcodexNimMain() {.importc.}
+proc libstorageNimMain() {.importc.}
 
 # Atomic flag to prevent multiple initializations
 var initialized: Atomic[bool]
@@ -74,7 +74,7 @@ if defined(android):
 proc initializeLibrary() {.exported.} =
   if not initialized.exchange(true):
     ## Every Nim library must call `<prefix>NimMain()` once
-    libcodexNimMain()
+    libstorageNimMain()
   when declared(setupForeignThreadGc):
     setupForeignThreadGc()
   when declared(nimGC_setStackBottom):
@@ -82,16 +82,16 @@ proc initializeLibrary() {.exported.} =
     locals = addr(locals)
     nimGC_setStackBottom(locals)
 
-proc codex_new(
-    configJson: cstring, callback: CodexCallback, userData: pointer
+proc storage_new(
+    configJson: cstring, callback: StorageCallback, userData: pointer
 ): pointer {.dynlib, exported.} =
   initializeLibrary()
 
   if isNil(callback):
-    error "Failed to create codex instance: the callback is missing."
+    error "Failed to create Storage instance: the callback is missing."
     return nil
 
-  var ctx = codex_context.createCodexContext().valueOr:
+  var ctx = storage_context.createStorageContext().valueOr:
     let msg = $error
     callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
     return nil
@@ -101,7 +101,7 @@ proc codex_new(
   let reqContent =
     NodeLifecycleRequest.createShared(NodeLifecycleMsgType.CREATE_NODE, configJson)
 
-  codex_context.sendRequestToCodexThread(
+  storage_context.sendRequestToStorageThread(
     ctx, RequestType.LIFECYCLE, reqContent, callback, userData
   ).isOkOr:
     let msg = $error
@@ -110,11 +110,11 @@ proc codex_new(
 
   return ctx
 
-proc codex_version(
-    ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
+proc storage_version(
+    ctx: ptr StorageContext, callback: StorageCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
   initializeLibrary()
-  checkLibcodexParams(ctx, callback, userData)
+  checkLibstorageParams(ctx, callback, userData)
 
   callback(
     RET_OK,
@@ -125,11 +125,11 @@ proc codex_version(
 
   return RET_OK
 
-proc codex_revision(
-    ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
+proc storage_revision(
+    ctx: ptr StorageContext, callback: StorageCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
   initializeLibrary()
-  checkLibcodexParams(ctx, callback, userData)
+  checkLibstorageParams(ctx, callback, userData)
 
   callback(
     RET_OK,
@@ -140,53 +140,53 @@ proc codex_revision(
 
   return RET_OK
 
-proc codex_repo(
-    ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
+proc storage_repo(
+    ctx: ptr StorageContext, callback: StorageCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
   initializeLibrary()
-  checkLibcodexParams(ctx, callback, userData)
+  checkLibstorageParams(ctx, callback, userData)
 
   let reqContent = NodeInfoRequest.createShared(NodeInfoMsgType.REPO)
-  let res = codex_context.sendRequestToCodexThread(
+  let res = storage_context.sendRequestToStorageThread(
     ctx, RequestType.INFO, reqContent, callback, userData
   )
 
   return callback.okOrError(res, userData)
 
-proc codex_debug(
-    ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
+proc storage_debug(
+    ctx: ptr StorageContext, callback: StorageCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
   initializeLibrary()
-  checkLibcodexParams(ctx, callback, userData)
+  checkLibstorageParams(ctx, callback, userData)
 
   let reqContent = NodeDebugRequest.createShared(NodeDebugMsgType.DEBUG)
-  let res = codex_context.sendRequestToCodexThread(
+  let res = storage_context.sendRequestToStorageThread(
     ctx, RequestType.DEBUG, reqContent, callback, userData
   )
 
   return callback.okOrError(res, userData)
 
-proc codex_spr(
-    ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
+proc storage_spr(
+    ctx: ptr StorageContext, callback: StorageCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
   initializeLibrary()
-  checkLibcodexParams(ctx, callback, userData)
+  checkLibstorageParams(ctx, callback, userData)
 
   let reqContent = NodeInfoRequest.createShared(NodeInfoMsgType.SPR)
-  let res = codex_context.sendRequestToCodexThread(
+  let res = storage_context.sendRequestToStorageThread(
     ctx, RequestType.INFO, reqContent, callback, userData
   )
 
   return callback.okOrError(res, userData)
 
-proc codex_peer_id(
-    ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
+proc storage_peer_id(
+    ctx: ptr StorageContext, callback: StorageCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
   initializeLibrary()
-  checkLibcodexParams(ctx, callback, userData)
+  checkLibstorageParams(ctx, callback, userData)
 
   let reqContent = NodeInfoRequest.createShared(NodeInfoMsgType.PEERID)
-  let res = codex_context.sendRequestToCodexThread(
+  let res = storage_context.sendRequestToStorageThread(
     ctx, RequestType.INFO, reqContent, callback, userData
   )
 
@@ -195,30 +195,33 @@ proc codex_peer_id(
 ## Set the log level of the library at runtime.
 ## It uses updateLogLevel which is a synchronous proc and
 ## cannot be used inside an async context because of gcsafe issue.
-proc codex_log_level(
-    ctx: ptr CodexContext, logLevel: cstring, callback: CodexCallback, userData: pointer
+proc storage_log_level(
+    ctx: ptr StorageContext,
+    logLevel: cstring,
+    callback: StorageCallback,
+    userData: pointer,
 ): cint {.dynlib, exportc.} =
   initializeLibrary()
-  checkLibcodexParams(ctx, callback, userData)
+  checkLibstorageParams(ctx, callback, userData)
 
   let reqContent =
     NodeDebugRequest.createShared(NodeDebugMsgType.LOG_LEVEL, logLevel = logLevel)
-  let res = codex_context.sendRequestToCodexThread(
+  let res = storage_context.sendRequestToStorageThread(
     ctx, RequestType.DEBUG, reqContent, callback, userData
   )
 
   return callback.okOrError(res, userData)
 
-proc codex_connect(
-    ctx: ptr CodexContext,
+proc storage_connect(
+    ctx: ptr StorageContext,
     peerId: cstring,
     peerAddressesPtr: ptr cstring,
     peerAddressesLength: csize_t,
-    callback: CodexCallback,
+    callback: StorageCallback,
     userData: pointer,
 ): cint {.dynlib, exportc.} =
   initializeLibrary()
-  checkLibcodexParams(ctx, callback, userData)
+  checkLibstorageParams(ctx, callback, userData)
 
   var peerAddresses = newSeq[cstring](peerAddressesLength)
   let peers = cast[ptr UncheckedArray[cstring]](peerAddressesPtr)
@@ -228,33 +231,36 @@ proc codex_connect(
   let reqContent = NodeP2PRequest.createShared(
     NodeP2PMsgType.CONNECT, peerId = peerId, peerAddresses = peerAddresses
   )
-  let res = codex_context.sendRequestToCodexThread(
+  let res = storage_context.sendRequestToStorageThread(
     ctx, RequestType.P2P, reqContent, callback, userData
   )
 
   return callback.okOrError(res, userData)
 
-proc codex_peer_debug(
-    ctx: ptr CodexContext, peerId: cstring, callback: CodexCallback, userData: pointer
+proc storage_peer_debug(
+    ctx: ptr StorageContext,
+    peerId: cstring,
+    callback: StorageCallback,
+    userData: pointer,
 ): cint {.dynlib, exportc.} =
   initializeLibrary()
-  checkLibcodexParams(ctx, callback, userData)
+  checkLibstorageParams(ctx, callback, userData)
 
   let reqContent = NodeDebugRequest.createShared(NodeDebugMsgType.PEER, peerId = peerId)
-  let res = codex_context.sendRequestToCodexThread(
+  let res = storage_context.sendRequestToStorageThread(
     ctx, RequestType.DEBUG, reqContent, callback, userData
   )
 
   return callback.okOrError(res, userData)
 
-proc codex_close(
-    ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
+proc storage_close(
+    ctx: ptr StorageContext, callback: StorageCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
   initializeLibrary()
-  checkLibcodexParams(ctx, callback, userData)
+  checkLibstorageParams(ctx, callback, userData)
 
   let reqContent = NodeLifecycleRequest.createShared(NodeLifecycleMsgType.CLOSE_NODE)
-  var res = codex_context.sendRequestToCodexThread(
+  var res = storage_context.sendRequestToStorageThread(
     ctx, RequestType.LIFECYCLE, reqContent, callback, userData
   )
   if res.isErr:
@@ -262,48 +268,48 @@ proc codex_close(
 
   return callback.okOrError(res, userData)
 
-proc codex_destroy(
-    ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
+proc storage_destroy(
+    ctx: ptr StorageContext, callback: StorageCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
   initializeLibrary()
-  checkLibcodexParams(ctx, callback, userData)
+  checkLibstorageParams(ctx, callback, userData)
 
-  let res = codex_context.destroyCodexContext(ctx)
+  let res = storage_context.destroyStorageContext(ctx)
   if res.isErr:
     return RET_ERR
 
   return RET_OK
 
-proc codex_upload_init(
-    ctx: ptr CodexContext,
+proc storage_upload_init(
+    ctx: ptr StorageContext,
     filepath: cstring,
     chunkSize: csize_t,
-    callback: CodexCallback,
+    callback: StorageCallback,
     userData: pointer,
 ): cint {.dynlib, exportc.} =
   initializeLibrary()
-  checkLibcodexParams(ctx, callback, userData)
+  checkLibstorageParams(ctx, callback, userData)
 
   let reqContent = NodeUploadRequest.createShared(
     NodeUploadMsgType.INIT, filepath = filepath, chunkSize = chunkSize
   )
 
-  let res = codex_context.sendRequestToCodexThread(
+  let res = storage_context.sendRequestToStorageThread(
     ctx, RequestType.UPLOAD, reqContent, callback, userData
   )
 
   return callback.okOrError(res, userData)
 
-proc codex_upload_chunk(
-    ctx: ptr CodexContext,
+proc storage_upload_chunk(
+    ctx: ptr StorageContext,
     sessionId: cstring,
     data: ptr byte,
     len: csize_t,
-    callback: CodexCallback,
+    callback: StorageCallback,
     userData: pointer,
 ): cint {.dynlib, exportc.} =
   initializeLibrary()
-  checkLibcodexParams(ctx, callback, userData)
+  checkLibstorageParams(ctx, callback, userData)
 
   let chunk = newSeq[byte](len)
   copyMem(addr chunk[0], data, len)
@@ -311,111 +317,111 @@ proc codex_upload_chunk(
   let reqContent = NodeUploadRequest.createShared(
     NodeUploadMsgType.CHUNK, sessionId = sessionId, chunk = chunk
   )
-  let res = codex_context.sendRequestToCodexThread(
+  let res = storage_context.sendRequestToStorageThread(
     ctx, RequestType.UPLOAD, reqContent, callback, userData
   )
 
   return callback.okOrError(res, userData)
 
-proc codex_upload_finalize(
-    ctx: ptr CodexContext,
+proc storage_upload_finalize(
+    ctx: ptr StorageContext,
     sessionId: cstring,
-    callback: CodexCallback,
+    callback: StorageCallback,
     userData: pointer,
 ): cint {.dynlib, exportc.} =
   initializeLibrary()
-  checkLibcodexParams(ctx, callback, userData)
+  checkLibstorageParams(ctx, callback, userData)
 
   let reqContent =
     NodeUploadRequest.createShared(NodeUploadMsgType.FINALIZE, sessionId = sessionId)
-  let res = codex_context.sendRequestToCodexThread(
+  let res = storage_context.sendRequestToStorageThread(
     ctx, RequestType.UPLOAD, reqContent, callback, userData
   )
 
   return callback.okOrError(res, userData)
 
-proc codex_upload_cancel(
-    ctx: ptr CodexContext,
+proc storage_upload_cancel(
+    ctx: ptr StorageContext,
     sessionId: cstring,
-    callback: CodexCallback,
+    callback: StorageCallback,
     userData: pointer,
 ): cint {.dynlib, exportc.} =
   initializeLibrary()
-  checkLibcodexParams(ctx, callback, userData)
+  checkLibstorageParams(ctx, callback, userData)
 
   let reqContent =
     NodeUploadRequest.createShared(NodeUploadMsgType.CANCEL, sessionId = sessionId)
 
-  let res = codex_context.sendRequestToCodexThread(
+  let res = storage_context.sendRequestToStorageThread(
     ctx, RequestType.UPLOAD, reqContent, callback, userData
   )
 
   return callback.okOrError(res, userData)
 
-proc codex_upload_file(
-    ctx: ptr CodexContext,
+proc storage_upload_file(
+    ctx: ptr StorageContext,
     sessionId: cstring,
-    callback: CodexCallback,
+    callback: StorageCallback,
     userData: pointer,
 ): cint {.dynlib, exportc.} =
   initializeLibrary()
-  checkLibcodexParams(ctx, callback, userData)
+  checkLibstorageParams(ctx, callback, userData)
 
   let reqContent =
     NodeUploadRequest.createShared(NodeUploadMsgType.FILE, sessionId = sessionId)
 
-  let res = codex_context.sendRequestToCodexThread(
+  let res = storage_context.sendRequestToStorageThread(
     ctx, RequestType.UPLOAD, reqContent, callback, userData
   )
 
   return callback.okOrError(res, userData)
 
-proc codex_download_init(
-    ctx: ptr CodexContext,
+proc storage_download_init(
+    ctx: ptr StorageContext,
     cid: cstring,
     chunkSize: csize_t,
     local: bool,
-    callback: CodexCallback,
+    callback: StorageCallback,
     userData: pointer,
 ): cint {.dynlib, exportc.} =
   initializeLibrary()
-  checkLibcodexParams(ctx, callback, userData)
+  checkLibstorageParams(ctx, callback, userData)
 
   let req = NodeDownloadRequest.createShared(
     NodeDownloadMsgType.INIT, cid = cid, chunkSize = chunkSize, local = local
   )
 
-  let res = codex_context.sendRequestToCodexThread(
+  let res = storage_context.sendRequestToStorageThread(
     ctx, RequestType.DOWNLOAD, req, callback, userData
   )
 
   return callback.okOrError(res, userData)
 
-proc codex_download_chunk(
-    ctx: ptr CodexContext, cid: cstring, callback: CodexCallback, userData: pointer
+proc storage_download_chunk(
+    ctx: ptr StorageContext, cid: cstring, callback: StorageCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
   initializeLibrary()
-  checkLibcodexParams(ctx, callback, userData)
+  checkLibstorageParams(ctx, callback, userData)
 
   let req = NodeDownloadRequest.createShared(NodeDownloadMsgType.CHUNK, cid = cid)
 
-  let res = codex_context.sendRequestToCodexThread(
+  let res = storage_context.sendRequestToStorageThread(
     ctx, RequestType.DOWNLOAD, req, callback, userData
   )
 
   return callback.okOrError(res, userData)
 
-proc codex_download_stream(
-    ctx: ptr CodexContext,
+proc storage_download_stream(
+    ctx: ptr StorageContext,
     cid: cstring,
     chunkSize: csize_t,
     local: bool,
     filepath: cstring,
-    callback: CodexCallback,
+    callback: StorageCallback,
     userData: pointer,
 ): cint {.dynlib, exportc.} =
   initializeLibrary()
-  checkLibcodexParams(ctx, callback, userData)
+  checkLibstorageParams(ctx, callback, userData)
 
   let req = NodeDownloadRequest.createShared(
     NodeDownloadMsgType.STREAM,
@@ -425,140 +431,140 @@ proc codex_download_stream(
     filepath = filepath,
   )
 
-  let res = codex_context.sendRequestToCodexThread(
+  let res = storage_context.sendRequestToStorageThread(
     ctx, RequestType.DOWNLOAD, req, callback, userData
   )
 
   return callback.okOrError(res, userData)
 
-proc codex_download_cancel(
-    ctx: ptr CodexContext, cid: cstring, callback: CodexCallback, userData: pointer
+proc storage_download_cancel(
+    ctx: ptr StorageContext, cid: cstring, callback: StorageCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
   initializeLibrary()
-  checkLibcodexParams(ctx, callback, userData)
+  checkLibstorageParams(ctx, callback, userData)
 
   let req = NodeDownloadRequest.createShared(NodeDownloadMsgType.CANCEL, cid = cid)
 
-  let res = codex_context.sendRequestToCodexThread(
+  let res = storage_context.sendRequestToStorageThread(
     ctx, RequestType.DOWNLOAD, req, callback, userData
   )
 
   return callback.okOrError(res, userData)
 
-proc codex_download_manifest(
-    ctx: ptr CodexContext, cid: cstring, callback: CodexCallback, userData: pointer
+proc storage_download_manifest(
+    ctx: ptr StorageContext, cid: cstring, callback: StorageCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
   initializeLibrary()
-  checkLibcodexParams(ctx, callback, userData)
+  checkLibstorageParams(ctx, callback, userData)
 
   let req = NodeDownloadRequest.createShared(NodeDownloadMsgType.MANIFEST, cid = cid)
 
-  let res = codex_context.sendRequestToCodexThread(
+  let res = storage_context.sendRequestToStorageThread(
     ctx, RequestType.DOWNLOAD, req, callback, userData
   )
 
   return callback.okOrError(res, userData)
 
-proc codex_storage_list(
-    ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
+proc storage_list(
+    ctx: ptr StorageContext, callback: StorageCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
   initializeLibrary()
-  checkLibcodexParams(ctx, callback, userData)
+  checkLibstorageParams(ctx, callback, userData)
 
   let req = NodeStorageRequest.createShared(NodeStorageMsgType.LIST)
 
-  let res = codex_context.sendRequestToCodexThread(
+  let res = storage_context.sendRequestToStorageThread(
     ctx, RequestType.STORAGE, req, callback, userData
   )
 
   return callback.okOrError(res, userData)
 
-proc codex_storage_space(
-    ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
+proc storage_space(
+    ctx: ptr StorageContext, callback: StorageCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
   initializeLibrary()
-  checkLibcodexParams(ctx, callback, userData)
+  checkLibstorageParams(ctx, callback, userData)
 
   let req = NodeStorageRequest.createShared(NodeStorageMsgType.SPACE)
 
-  let res = codex_context.sendRequestToCodexThread(
+  let res = storage_context.sendRequestToStorageThread(
     ctx, RequestType.STORAGE, req, callback, userData
   )
 
   return callback.okOrError(res, userData)
 
-proc codex_storage_delete(
-    ctx: ptr CodexContext, cid: cstring, callback: CodexCallback, userData: pointer
+proc storage_delete(
+    ctx: ptr StorageContext, cid: cstring, callback: StorageCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
   initializeLibrary()
-  checkLibcodexParams(ctx, callback, userData)
+  checkLibstorageParams(ctx, callback, userData)
 
   let req = NodeStorageRequest.createShared(NodeStorageMsgType.DELETE, cid = cid)
 
-  let res = codex_context.sendRequestToCodexThread(
+  let res = storage_context.sendRequestToStorageThread(
     ctx, RequestType.STORAGE, req, callback, userData
   )
 
   return callback.okOrError(res, userData)
 
-proc codex_storage_fetch(
-    ctx: ptr CodexContext, cid: cstring, callback: CodexCallback, userData: pointer
+proc storage_fetch(
+    ctx: ptr StorageContext, cid: cstring, callback: StorageCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
   initializeLibrary()
-  checkLibcodexParams(ctx, callback, userData)
+  checkLibstorageParams(ctx, callback, userData)
 
   let req = NodeStorageRequest.createShared(NodeStorageMsgType.FETCH, cid = cid)
 
-  let res = codex_context.sendRequestToCodexThread(
+  let res = storage_context.sendRequestToStorageThread(
     ctx, RequestType.STORAGE, req, callback, userData
   )
 
   return callback.okOrError(res, userData)
 
-proc codex_storage_exists(
-    ctx: ptr CodexContext, cid: cstring, callback: CodexCallback, userData: pointer
+proc storage_exists(
+    ctx: ptr StorageContext, cid: cstring, callback: StorageCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
   initializeLibrary()
-  checkLibcodexParams(ctx, callback, userData)
+  checkLibstorageParams(ctx, callback, userData)
 
   let req = NodeStorageRequest.createShared(NodeStorageMsgType.EXISTS, cid = cid)
 
-  let res = codex_context.sendRequestToCodexThread(
+  let res = storage_context.sendRequestToStorageThread(
     ctx, RequestType.STORAGE, req, callback, userData
   )
 
   return callback.okOrError(res, userData)
 
-proc codex_start(
-    ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
+proc storage_start(
+    ctx: ptr StorageContext, callback: StorageCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
   initializeLibrary()
-  checkLibcodexParams(ctx, callback, userData)
+  checkLibstorageParams(ctx, callback, userData)
 
   let reqContent: ptr NodeLifecycleRequest =
     NodeLifecycleRequest.createShared(NodeLifecycleMsgType.START_NODE)
-  let res = codex_context.sendRequestToCodexThread(
+  let res = storage_context.sendRequestToStorageThread(
     ctx, RequestType.LIFECYCLE, reqContent, callback, userData
   )
 
   return callback.okOrError(res, userData)
 
-proc codex_stop(
-    ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
+proc storage_stop(
+    ctx: ptr StorageContext, callback: StorageCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
   initializeLibrary()
-  checkLibcodexParams(ctx, callback, userData)
+  checkLibstorageParams(ctx, callback, userData)
 
   let reqContent: ptr NodeLifecycleRequest =
     NodeLifecycleRequest.createShared(NodeLifecycleMsgType.STOP_NODE)
-  let res = codex_context.sendRequestToCodexThread(
+  let res = storage_context.sendRequestToStorageThread(
     ctx, RequestType.LIFECYCLE, reqContent, callback, userData
   )
 
   return callback.okOrError(res, userData)
 
-proc codex_set_event_callback(
-    ctx: ptr CodexContext, callback: CodexCallback, userData: pointer
+proc storage_set_event_callback(
+    ctx: ptr StorageContext, callback: StorageCallback, userData: pointer
 ) {.dynlib, exportc.} =
   initializeLibrary()
   ctx[].eventCallback = cast[pointer](callback)
