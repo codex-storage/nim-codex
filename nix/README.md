@@ -22,6 +22,12 @@ It can be also done without even cloning the repo:
 nix build 'git+https://github.com/logos-storage/logos-storage-nim?submodules=1#'
 ```
 
+To build the C bindings you can use:
+
+```sh
+nix build ".?submodules=1#libstorage"
+```
+
 ## Running
 
 ```sh

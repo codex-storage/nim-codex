@@ -40,9 +40,14 @@ privateAccess(CodexNodeRef) # enable access to private fields
 
 asyncchecksuite "Test Node - Basic":
   setupAndTearDown()
+  var taskPool: Taskpool
 
   setup:
+    taskPool = Taskpool.new()
     await node.start()
+
+  teardown:
+    taskPool.shutdown()
 
   test "Fetch Manifest":
     let

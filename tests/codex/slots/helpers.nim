@@ -10,6 +10,7 @@ import pkg/codex/manifest
 import pkg/codex/blocktype as bt
 import pkg/codex/chunker
 import pkg/codex/rng
+import pkg/taskpools
 
 import ../helpers
 

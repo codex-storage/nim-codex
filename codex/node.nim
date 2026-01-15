@@ -60,7 +60,7 @@ type
     engine: BlockExcEngine
     discovery: Discovery
     clock*: Clock
-    taskpool: Taskpool
+    taskPool: Taskpool
     trackedFutures: TrackedFutures
 
   CodexNodeRef* = ref CodexNode
@@ -445,7 +445,7 @@ proc store*(
   finally:
     await stream.close()
 
-  without tree =? CodexTree.init(cids), err:
+  without tree =? (await CodexTree.init(self.taskPool, cids)), err:
     return failure(err)
 
   without treeCid =? tree.rootCid(CIDv1, dataCodec), err:

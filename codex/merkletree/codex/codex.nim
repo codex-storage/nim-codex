@@ -10,16 +10,18 @@
 {.push raises: [].}
 
 import std/bitops
-import std/sequtils
+import std/[atomics, sequtils]
 
 import pkg/questionable
 import pkg/questionable/results
 import pkg/libp2p/[cid, multicodec, multihash]
 import pkg/constantine/hashes
+import pkg/taskpools
+import pkg/chronos/threadsync
 import ../../utils
 import ../../rng
 import ../../errors
-import ../../blocktype
+import ../../codextypes
 
 from ../../utils/digest import digestBytes
 
@@ -113,9 +115,7 @@ func compress*(x, y: openArray[byte], key: ByteTreeKey, codec: MultiCodec): ?!By
   let digest = ?MultiHash.digest(codec, input).mapFailure
   success digest.digestBytes
 
-func init*(
-    _: type CodexTree, mcodec: MultiCodec = Sha256HashCodec, leaves: openArray[ByteHash]
-): ?!CodexTree =
+func initTree(mcodec: MultiCodec, leaves: openArray[ByteHash]): ?!CodexTree =
   if leaves.len == 0:
     return failure "Empty leaves"
 
@@ -128,10 +128,26 @@ func init*(
   if digestSize != leaves[0].len:
     return failure "Invalid hash length"
 
-  var self = CodexTree(mcodec: mcodec, compress: compressor, zero: Zero)
-
-  self.layers = ?merkleTreeWorker(self, leaves, isBottomLayer = true)
+  var self = CodexTree(mcodec: mcodec)
+  ?self.prepare(compressor, Zero, leaves)
   success self
+
+func init*(
+    _: type CodexTree, mcodec: MultiCodec = Sha256HashCodec, leaves: openArray[ByteHash]
+): ?!CodexTree =
+  let tree = ?initTree(mcodec, leaves)
+  ?tree.compute()
+  success tree
+
+proc init*(
+    _: type CodexTree,
+    tp: Taskpool,
+    mcodec: MultiCodec = Sha256HashCodec,
+    leaves: seq[ByteHash],
+): Future[?!CodexTree] {.async: (raises: [CancelledError]).} =
+  let tree = ?initTree(mcodec, leaves)
+  ?await tree.compute(tp)
+  success tree
 
 func init*(_: type CodexTree, leaves: openArray[MultiHash]): ?!CodexTree =
   if leaves.len == 0:
@@ -143,6 +159,18 @@ func init*(_: type CodexTree, leaves: openArray[MultiHash]): ?!CodexTree =
 
   CodexTree.init(mcodec, leaves)
 
+proc init*(
+    _: type CodexTree, tp: Taskpool, leaves: seq[MultiHash]
+): Future[?!CodexTree] {.async: (raises: [CancelledError]).} =
+  if leaves.len == 0:
+    return failure "Empty leaves"
+
+  let
+    mcodec = leaves[0].mcodec
+    leaves = leaves.mapIt(it.digestBytes)
+
+  await CodexTree.init(tp, mcodec, leaves)
+
 func init*(_: type CodexTree, leaves: openArray[Cid]): ?!CodexTree =
   if leaves.len == 0:
     return failure "Empty leaves"
@@ -152,6 +180,18 @@ func init*(_: type CodexTree, leaves: openArray[Cid]): ?!CodexTree =
     leaves = leaves.mapIt((?it.mhash.mapFailure).digestBytes)
 
   CodexTree.init(mcodec, leaves)
+
+proc init*(
+    _: type CodexTree, tp: Taskpool, leaves: seq[Cid]
+): Future[?!CodexTree] {.async: (raises: [CancelledError]).} =
+  if leaves.len == 0:
+    return failure("Empty leaves")
+
+  let
+    mcodec = (?leaves[0].mhash.mapFailure).mcodec
+    leaves = leaves.mapIt((?it.mhash.mapFailure).digestBytes)
+
+  await CodexTree.init(tp, mcodec, leaves)
 
 proc fromNodes*(
     _: type CodexTree,
@@ -171,15 +211,8 @@ proc fromNodes*(
   if digestSize != nodes[0].len:
     return failure "Invalid hash length"
 
-  var
-    self = CodexTree(compress: compressor, zero: Zero, mcodec: mcodec)
-    layer = nleaves
-    pos = 0
-
-  while pos < nodes.len:
-    self.layers.add(nodes[pos ..< (pos + layer)])
-    pos += layer
-    layer = divUp(layer, 2)
+  var self = CodexTree(mcodec: mcodec)
+  ?self.fromNodes(compressor, Zero, nodes, nleaves)
 
   let
     index = Rng.instance.rand(nleaves - 1)

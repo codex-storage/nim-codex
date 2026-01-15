@@ -26,11 +26,12 @@
         };
         build = targets: buildTarget.override { inherit targets; };
       in rec {
-        nim-codex   = build ["all"];
-        default = nim-codex;
+        logos-storage-nim   = build ["all"];
+        libstorage = build ["libstorage"];
+        default = logos-storage-nim;
       });
 
-      nixosModules.nim-codex = { config, lib, pkgs, ... }: import ./nix/service.nix {
+      nixosModules.logos-storage-nim = { config, lib, pkgs, ... }: import ./nix/service.nix {
         inherit config lib pkgs self;
         circomCompatPkg = circom-compat.packages.${pkgs.system}.default;
       };
@@ -40,7 +41,8 @@
       in {
         default = pkgs.mkShell {
           inputsFrom = [
-            packages.${system}.nim-codex
+            packages.${system}.logos-storage-nim
+            packages.${system}.libstorage
             circom-compat.packages.${system}.default
           ];
           # Not using buildInputs to override fakeGit and fakeCargo.
@@ -51,24 +53,24 @@
       checks = forAllSystems (system: let
         pkgs = pkgsFor.${system};
       in {
-        nim-codex-test = pkgs.nixosTest {
-          name = "nim-codex-test";
+        logos-storage-nim-test = pkgs.nixosTest {
+          name = "logos-storage-nim-test";
           nodes = {
             server = { config, pkgs, ... }: {
-              imports = [ self.nixosModules.nim-codex ];
-              services.nim-codex.enable = true;
-              services.nim-codex.settings = {
-                data-dir = "/var/lib/nim-codex-test";
+              imports = [ self.nixosModules.logos-storage-nim ];
+              services.logos-storage-nim.enable = true;
+              services.logos-storage-nim.settings = {
+                data-dir = "/var/lib/logos-storage-nim-test";
               };
-              systemd.services.nim-codex.serviceConfig.StateDirectory = "nim-codex-test";
+              systemd.services.logos-storage-nim.serviceConfig.StateDirectory = "logos-storage-nim-test";
             };
           };
           testScript = ''
-            print("Starting test: nim-codex-test")
+            print("Starting test: logos-storage-nim-test")
             machine.start()
-            machine.wait_for_unit("nim-codex.service")
-            machine.succeed("test -d /var/lib/nim-codex-test")
-            machine.wait_until_succeeds("journalctl -u nim-codex.service | grep 'Started Storage node'", 10)
+            machine.wait_for_unit("logos-storage-nim.service")
+            machine.succeed("test -d /var/lib/logos-storage-nim-test")
+            machine.wait_until_succeeds("journalctl -u logos-storage-nim.service | grep 'Started Storage node'", 10)
           '';
         };
       });
