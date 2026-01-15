@@ -115,8 +115,8 @@ suite "Test CodexTree":
 
     # Single-leaf trees have their root separately computed
     let
-      atree1 = (await CodexTree.init(tp, leaves = expectedLeaves[0..0]))
-      stree1 = CodexTree.init(leaves = expectedLeaves[0..0])
+      atree1 = (await CodexTree.init(tp, leaves = expectedLeaves[0 .. 0]))
+      stree1 = CodexTree.init(leaves = expectedLeaves[0 .. 0])
 
     check:
       toSeq(atree.get().nodes) == toSeq(stree.get().nodes)
