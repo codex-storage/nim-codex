@@ -1,4 +1,4 @@
-## Nim-Codex
+## Logos Storage
 ## Copyright (c) 2023 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
@@ -10,16 +10,18 @@
 {.push raises: [].}
 
 import std/bitops
-import std/sequtils
+import std/[atomics, sequtils]
 
 import pkg/questionable
 import pkg/questionable/results
 import pkg/libp2p/[cid, multicodec, multihash]
 import pkg/constantine/hashes
+import pkg/taskpools
+import pkg/chronos/threadsync
 import ../../utils
 import ../../rng
 import ../../errors
-import ../../blocktype
+import ../../codextypes
 
 from ../../utils/digest import digestBytes
 
@@ -46,28 +48,6 @@ type
 
   CodexProof* = ref object of ByteProof
     mcodec*: MultiCodec
-
-# CodeHashes is not exported from libp2p
-# So we need to recreate it instead of 
-proc initMultiHashCodeTable(): Table[MultiCodec, MHash] {.compileTime.} =
-  for item in HashesList:
-    result[item.mcodec] = item
-
-const CodeHashes = initMultiHashCodeTable()
-
-func mhash*(mcodec: MultiCodec): ?!MHash =
-  let mhash = CodeHashes.getOrDefault(mcodec)
-
-  if isNil(mhash.coder):
-    return failure "Invalid multihash codec"
-
-  success mhash
-
-func digestSize*(self: (CodexTree or CodexProof)): int =
-  ## Number of leaves
-  ##
-
-  self.mhash.size
 
 func getProof*(self: CodexTree, index: int): ?!CodexProof =
   var proof = CodexProof(mcodec: self.mcodec)
@@ -128,37 +108,46 @@ proc `$`*(self: CodexProof): string =
   "CodexProof(" & " nleaves: " & $self.nleaves & ", index: " & $self.index & ", path: " &
     $self.path.mapIt(byteutils.toHex(it)) & ", mcodec: " & $self.mcodec & " )"
 
-func compress*(x, y: openArray[byte], key: ByteTreeKey, mhash: MHash): ?!ByteHash =
+func compress*(x, y: openArray[byte], key: ByteTreeKey, codec: MultiCodec): ?!ByteHash =
   ## Compress two hashes
   ##
-
-  # Using Constantine's SHA256 instead of mhash for optimal performance on 32-byte merkle node hashing
-  # See: https://github.com/codex-storage/nim-codex/issues/1162
-
   let input = @x & @y & @[key.byte]
-  var digest = hashes.sha256.hash(input)
+  let digest = ?MultiHash.digest(codec, input).mapFailure
+  success digest.digestBytes
 
-  success @digest
-
-func init*(
-    _: type CodexTree, mcodec: MultiCodec = Sha256HashCodec, leaves: openArray[ByteHash]
-): ?!CodexTree =
+func initTree(mcodec: MultiCodec, leaves: openArray[ByteHash]): ?!CodexTree =
   if leaves.len == 0:
     return failure "Empty leaves"
 
   let
-    mhash = ?mcodec.mhash()
     compressor = proc(x, y: seq[byte], key: ByteTreeKey): ?!ByteHash {.noSideEffect.} =
-      compress(x, y, key, mhash)
-    Zero: ByteHash = newSeq[byte](mhash.size)
+      compress(x, y, key, mcodec)
+    digestSize = ?mcodec.digestSize.mapFailure
+    Zero: ByteHash = newSeq[byte](digestSize)
 
-  if mhash.size != leaves[0].len:
+  if digestSize != leaves[0].len:
     return failure "Invalid hash length"
 
-  var self = CodexTree(mcodec: mcodec, compress: compressor, zero: Zero)
-
-  self.layers = ?merkleTreeWorker(self, leaves, isBottomLayer = true)
+  var self = CodexTree(mcodec: mcodec)
+  ?self.prepare(compressor, Zero, leaves)
   success self
+
+func init*(
+    _: type CodexTree, mcodec: MultiCodec = Sha256HashCodec, leaves: openArray[ByteHash]
+): ?!CodexTree =
+  let tree = ?initTree(mcodec, leaves)
+  ?tree.compute()
+  success tree
+
+proc init*(
+    _: type CodexTree,
+    tp: Taskpool,
+    mcodec: MultiCodec = Sha256HashCodec,
+    leaves: seq[ByteHash],
+): Future[?!CodexTree] {.async: (raises: [CancelledError]).} =
+  let tree = ?initTree(mcodec, leaves)
+  ?await tree.compute(tp)
+  success tree
 
 func init*(_: type CodexTree, leaves: openArray[MultiHash]): ?!CodexTree =
   if leaves.len == 0:
@@ -170,6 +159,18 @@ func init*(_: type CodexTree, leaves: openArray[MultiHash]): ?!CodexTree =
 
   CodexTree.init(mcodec, leaves)
 
+proc init*(
+    _: type CodexTree, tp: Taskpool, leaves: seq[MultiHash]
+): Future[?!CodexTree] {.async: (raises: [CancelledError]).} =
+  if leaves.len == 0:
+    return failure "Empty leaves"
+
+  let
+    mcodec = leaves[0].mcodec
+    leaves = leaves.mapIt(it.digestBytes)
+
+  await CodexTree.init(tp, mcodec, leaves)
+
 func init*(_: type CodexTree, leaves: openArray[Cid]): ?!CodexTree =
   if leaves.len == 0:
     return failure "Empty leaves"
@@ -179,6 +180,18 @@ func init*(_: type CodexTree, leaves: openArray[Cid]): ?!CodexTree =
     leaves = leaves.mapIt((?it.mhash.mapFailure).digestBytes)
 
   CodexTree.init(mcodec, leaves)
+
+proc init*(
+    _: type CodexTree, tp: Taskpool, leaves: seq[Cid]
+): Future[?!CodexTree] {.async: (raises: [CancelledError]).} =
+  if leaves.len == 0:
+    return failure("Empty leaves")
+
+  let
+    mcodec = (?leaves[0].mhash.mapFailure).mcodec
+    leaves = leaves.mapIt((?it.mhash.mapFailure).digestBytes)
+
+  await CodexTree.init(tp, mcodec, leaves)
 
 proc fromNodes*(
     _: type CodexTree,
@@ -190,23 +203,16 @@ proc fromNodes*(
     return failure "Empty nodes"
 
   let
-    mhash = ?mcodec.mhash()
-    Zero = newSeq[byte](mhash.size)
+    digestSize = ?mcodec.digestSize.mapFailure
+    Zero = newSeq[byte](digestSize)
     compressor = proc(x, y: seq[byte], key: ByteTreeKey): ?!ByteHash {.noSideEffect.} =
-      compress(x, y, key, mhash)
+      compress(x, y, key, mcodec)
 
-  if mhash.size != nodes[0].len:
+  if digestSize != nodes[0].len:
     return failure "Invalid hash length"
 
-  var
-    self = CodexTree(compress: compressor, zero: Zero, mcodec: mcodec)
-    layer = nleaves
-    pos = 0
-
-  while pos < nodes.len:
-    self.layers.add(nodes[pos ..< (pos + layer)])
-    pos += layer
-    layer = divUp(layer, 2)
+  var self = CodexTree(mcodec: mcodec)
+  ?self.fromNodes(compressor, Zero, nodes, nleaves)
 
   let
     index = Rng.instance.rand(nleaves - 1)
@@ -228,10 +234,10 @@ func init*(
     return failure "Empty nodes"
 
   let
-    mhash = ?mcodec.mhash()
-    Zero = newSeq[byte](mhash.size)
+    digestSize = ?mcodec.digestSize.mapFailure
+    Zero = newSeq[byte](digestSize)
     compressor = proc(x, y: seq[byte], key: ByteTreeKey): ?!seq[byte] {.noSideEffect.} =
-      compress(x, y, key, mhash)
+      compress(x, y, key, mcodec)
 
   success CodexProof(
     compress: compressor,

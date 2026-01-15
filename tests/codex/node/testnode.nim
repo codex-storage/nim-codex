@@ -47,9 +47,14 @@ privateAccess(CodexNodeRef) # enable access to private fields
 
 asyncchecksuite "Test Node - Basic":
   setupAndTearDown()
+  var taskPool: Taskpool
 
   setup:
+    taskPool = Taskpool.new()
     await node.start()
+
+  teardown:
+    taskPool.shutdown()
 
   test "Fetch Manifest":
     let
@@ -75,14 +80,14 @@ asyncchecksuite "Test Node - Basic":
           batchSize = batchSize,
           proc(
               blocks: seq[bt.Block]
-          ): Future[?!void] {.gcsafe, async: (raises: [CancelledError]).} =
+          ): Future[?!void] {.async: (raises: [CancelledError]).} =
             check blocks.len > 0 and blocks.len <= batchSize
             return success(),
         )
       ).tryGet()
 
   test "Block Batching with corrupted blocks":
-    let blocks = await makeRandomBlocks(datasetSize = 64.KiBs.int, blockSize = 64.KiBs)
+    let blocks = await makeRandomBlocks(datasetSize = 65536, blockSize = 64.KiBs)
     assert blocks.len == 1
 
     let blk = blocks[0]
@@ -100,7 +105,7 @@ asyncchecksuite "Test Node - Basic":
         batchSize = batchSize,
         proc(
             blocks: seq[bt.Block]
-        ): Future[?!void] {.gcsafe, async: (raises: [CancelledError]).} =
+        ): Future[?!void] {.async: (raises: [CancelledError]).} =
           return failure("Should not be called"),
       )
     )
@@ -173,14 +178,15 @@ asyncchecksuite "Test Node - Basic":
     check string.fromBytes(data) == testString
 
   test "Setup purchase request":
+    echo "Here the tedt"
     let
-      erasure =
-        Erasure.new(store, leoEncoderProvider, leoDecoderProvider, Taskpool.new())
+      erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider, taskPool)
       manifest = await storeDataGetManifest(localStore, chunker)
       manifestBlock =
         bt.Block.new(manifest.encode().tryGet(), codec = ManifestCodec).tryGet()
       protected = (await erasure.encode(manifest, 3, 2)).tryGet()
-      builder = Poseidon2Builder.new(localStore, protected).tryGet()
+    let
+      builder = Poseidon2Builder.new(localStore, protected, taskPool).tryGet()
       verifiable = (await builder.buildManifest()).tryGet()
       verifiableBlock =
         bt.Block.new(verifiable.encode().tryGet(), codec = ManifestCodec).tryGet()

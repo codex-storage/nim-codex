@@ -1,4 +1,4 @@
-## Nim-Codex
+## Logos Storage
 ## Copyright (c) 2022 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
@@ -7,15 +7,13 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import pkg/upraises
-push:
-  {.upraises: [].}
+{.push raises: [], gcsafe.}
 
+import std/net
 import std/strutils
 import std/options
 
 import pkg/libp2p
-import pkg/stew/shims/net
 import pkg/stew/endians2
 
 func remapAddr*(

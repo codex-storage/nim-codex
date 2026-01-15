@@ -68,8 +68,17 @@ template withLock(lock: AsyncLock, body: untyped) =
     except AsyncLockError as parent:
       raiseMultiNodeSuiteError "lock error", parent
 
-template multinodesuite*(suiteName: string, body: untyped) =
-  asyncchecksuite suiteName:
+proc sanitize(pathSegment: string): string =
+  var sanitized = pathSegment
+  for invalid in invalidFilenameChars.items:
+    sanitized = sanitized.replace(invalid, '_').replace(' ', '_')
+  sanitized
+
+proc getTempDirName*(starttime: string, role: Role, roleIdx: int): string =
+  getTempDir() / "Storage" / sanitize($starttime) / sanitize($role & "_" & $roleIdx)
+
+template multinodesuite*(name: string, body: untyped) =
+  asyncchecksuite name:
     # Following the problem described here:
     # https://github.com/NomicFoundation/hardhat/issues/2053
     # It may be desirable to use http RPC provider.
@@ -268,15 +277,15 @@ template multinodesuite*(suiteName: string, body: untyped) =
         )
         config.addCliOption(
           PersistenceCmd.prover, "--circom-r1cs",
-          "vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.r1cs",
+          "vendor/logos-storage-contracts-eth/verifier/networks/hardhat/proof_main.r1cs",
         )
         config.addCliOption(
           PersistenceCmd.prover, "--circom-wasm",
-          "vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.wasm",
+          "vendor/logos-storage-contracts-eth/verifier/networks/hardhat/proof_main.wasm",
         )
         config.addCliOption(
           PersistenceCmd.prover, "--circom-zkey",
-          "vendor/codex-contracts-eth/verifier/networks/hardhat/proof_main.zkey",
+          "vendor/logos-storage-contracts-eth/verifier/networks/hardhat/proof_main.zkey",
         )
 
         return await newCodexProcess(providerIdx, config, Role.Provider)

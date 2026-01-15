@@ -34,7 +34,8 @@ type
   HardhatProcessError* = object of NodeProcessError
 
 method workingDir(node: HardhatProcess): string =
-  return currentSourcePath() / ".." / ".." / ".." / "vendor" / "codex-contracts-eth"
+  return
+    currentSourcePath() / ".." / ".." / ".." / "vendor" / "logos-storage-contracts-eth"
 
 method executable(node: HardhatProcess): string =
   return

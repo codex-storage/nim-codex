@@ -1,5 +1,5 @@
 import ../../conf
-when codex_enable_proof_failures:
+when storage_enable_proof_failures:
   import std/strutils
   import pkg/stint
   import pkg/ethers

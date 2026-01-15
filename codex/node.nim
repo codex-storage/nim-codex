@@ -1,4 +1,4 @@
-## Nim-Codex
+## Logos Storage
 ## Copyright (c) 2021 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
@@ -44,7 +44,7 @@ import ./indexingstrategy
 import ./utils
 import ./errors
 import ./logutils
-import ./utils/asynciter
+import ./utils/safeasynciter
 import ./utils/trackedfutures
 
 export logutils
@@ -52,7 +52,10 @@ export logutils
 logScope:
   topics = "codex node"
 
-const DefaultFetchBatch = 10
+const
+  DefaultFetchBatch = 1024
+  MaxOnBatchBlocks = 128
+  BatchRefillThreshold = 0.75 # Refill when 75% of window completes
 
 type
   Contracts* =
@@ -72,15 +75,15 @@ type
     contracts*: Contracts
     clock*: Clock
     storage*: Contracts
-    taskpool: Taskpool
+    taskPool: Taskpool
     trackedFutures: TrackedFutures
 
   CodexNodeRef* = ref CodexNode
 
   OnManifest* = proc(cid: Cid, manifest: Manifest): void {.gcsafe, raises: [].}
-  BatchProc* = proc(blocks: seq[bt.Block]): Future[?!void] {.
-    gcsafe, async: (raises: [CancelledError])
-  .}
+  BatchProc* =
+    proc(blocks: seq[bt.Block]): Future[?!void] {.async: (raises: [CancelledError]).}
+  OnBlockStoredProc = proc(chunk: seq[byte]): void {.gcsafe, raises: [].}
 
 func switch*(self: CodexNodeRef): Switch =
   return self.switch
@@ -186,33 +189,61 @@ proc fetchBatched*(
   #     (i: int) => self.networkStore.getBlock(BlockAddress.init(cid, i))
   #   )
 
-  while not iter.finished:
-    let blockFutures = collect:
-      for i in 0 ..< batchSize:
-        if not iter.finished:
-          let address = BlockAddress.init(cid, iter.next())
-          if not (await address in self.networkStore) or fetchLocal:
-            self.networkStore.getBlock(address)
+  # Sliding window: maintain batchSize blocks in-flight
+  let
+    refillThreshold = int(float(batchSize) * BatchRefillThreshold)
+    refillSize = max(refillThreshold, 1)
+    maxCallbackBlocks = min(batchSize, MaxOnBatchBlocks)
 
-    if blockFutures.len == 0:
+  var
+    blockData: seq[bt.Block]
+    failedBlocks = 0
+    successfulBlocks = 0
+    completedInWindow = 0
+
+  var addresses = newSeqOfCap[BlockAddress](batchSize)
+  for i in 0 ..< batchSize:
+    if not iter.finished:
+      let address = BlockAddress.init(cid, iter.next())
+      if fetchLocal or not (await address in self.networkStore):
+        addresses.add(address)
+
+  var blockResults = await self.networkStore.getBlocks(addresses)
+
+  while not blockResults.finished:
+    without blk =? await blockResults.next(), err:
+      inc(failedBlocks)
       continue
 
-    without blockResults =? await allFinishedValues[?!bt.Block](blockFutures), err:
-      trace "Some blocks failed to fetch", err = err.msg
-      return failure(err)
+    inc(successfulBlocks)
+    inc(completedInWindow)
 
-    let blocks = blockResults.filterIt(it.isSuccess()).mapIt(it.value)
+    if not onBatch.isNil:
+      blockData.add(blk)
+      if blockData.len >= maxCallbackBlocks:
+        if batchErr =? (await onBatch(blockData)).errorOption:
+          return failure(batchErr)
+        blockData = @[]
 
-    let numOfFailedBlocks = blockResults.len - blocks.len
-    if numOfFailedBlocks > 0:
-      return
-        failure("Some blocks failed (Result) to fetch (" & $numOfFailedBlocks & ")")
+    if completedInWindow >= refillThreshold and not iter.finished:
+      var refillAddresses = newSeqOfCap[BlockAddress](refillSize)
+      for i in 0 ..< refillSize:
+        if not iter.finished:
+          let address = BlockAddress.init(cid, iter.next())
+          if fetchLocal or not (await address in self.networkStore):
+            refillAddresses.add(address)
 
-    if not onBatch.isNil and batchErr =? (await onBatch(blocks)).errorOption:
+      if refillAddresses.len > 0:
+        blockResults =
+          chain(blockResults, await self.networkStore.getBlocks(refillAddresses))
+      completedInWindow = 0
+
+  if failedBlocks > 0:
+    return failure("Some blocks failed (Result) to fetch (" & $failedBlocks & ")")
+
+  if not onBatch.isNil and blockData.len > 0:
+    if batchErr =? (await onBatch(blockData)).errorOption:
       return failure(batchErr)
-
-    if not iter.finished:
-      await sleepAsync(1.millis)
 
   success()
 
@@ -294,7 +325,7 @@ proc streamEntireDataset(
       try:
         # Spawn an erasure decoding job
         let erasure = Erasure.new(
-          self.networkStore, leoEncoderProvider, leoDecoderProvider, self.taskpool
+          self.networkStore, leoEncoderProvider, leoDecoderProvider, self.taskPool
         )
         without _ =? (await erasure.decode(manifest)), error:
           error "Unable to erasure decode manifest", manifestCid, exc = error.msg
@@ -403,6 +434,7 @@ proc store*(
     filename: ?string = string.none,
     mimetype: ?string = string.none,
     blockSize = DefaultBlockSize,
+    onBlockStored: OnBlockStoredProc = nil,
 ): Future[?!Cid] {.async.} =
   ## Save stream contents as dataset with given blockSize
   ## to nodes's BlockStore, and return Cid of its manifest
@@ -432,6 +464,9 @@ proc store*(
       if err =? (await self.networkStore.putBlock(blk)).errorOption:
         error "Unable to store block", cid = blk.cid, err = err.msg
         return failure(&"Unable to store block {blk.cid}")
+
+      if not onBlockStored.isNil:
+        onBlockStored(chunk)
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
@@ -439,7 +474,7 @@ proc store*(
   finally:
     await stream.close()
 
-  without tree =? CodexTree.init(cids), err:
+  without tree =? (await CodexTree.init(self.taskPool, cids)), err:
     return failure(err)
 
   without treeCid =? tree.rootCid(CIDv1, dataCodec), err:
@@ -533,14 +568,15 @@ proc setupRequest(
 
   # Erasure code the dataset according to provided parameters
   let erasure = Erasure.new(
-    self.networkStore.localStore, leoEncoderProvider, leoDecoderProvider, self.taskpool
+    self.networkStore.localStore, leoEncoderProvider, leoDecoderProvider, self.taskPool
   )
 
   without encoded =? (await erasure.encode(manifest, ecK, ecM)), error:
     trace "Unable to erasure code dataset"
     return failure(error)
 
-  without builder =? Poseidon2Builder.new(self.networkStore.localStore, encoded), err:
+  without builder =?
+    Poseidon2Builder.new(self.networkStore.localStore, encoded, self.taskPool), err:
     trace "Unable to create slot builder"
     return failure(err)
 
@@ -644,7 +680,9 @@ proc onStore(
     return failure(err)
 
   without builder =?
-    Poseidon2Builder.new(self.networkStore, manifest, manifest.verifiableStrategy), err:
+    Poseidon2Builder.new(
+      self.networkStore, manifest, self.taskPool, manifest.verifiableStrategy
+    ), err:
     trace "Unable to create slots builder", err = err.msg
     return failure(err)
 
@@ -679,7 +717,7 @@ proc onStore(
     trace "start repairing slot", slotIdx
     try:
       let erasure = Erasure.new(
-        self.networkStore, leoEncoderProvider, leoDecoderProvider, self.taskpool
+        self.networkStore, leoEncoderProvider, leoDecoderProvider, self.taskPool
       )
       if err =? (await erasure.repair(manifest)).errorOption:
         error "Unable to erasure decode repairing manifest",
@@ -846,7 +884,7 @@ proc start*(self: CodexNodeRef) {.async.} =
       self.contracts.validator = ValidatorInteractions.none
 
   self.networkId = self.switch.peerInfo.peerId
-  notice "Started codex node", id = self.networkId, addrs = self.switch.peerInfo.addrs
+  notice "Started Storage node", id = self.networkId, addrs = self.switch.peerInfo.addrs
 
 proc stop*(self: CodexNodeRef) {.async.} =
   trace "Stopping node"
@@ -871,6 +909,7 @@ proc stop*(self: CodexNodeRef) {.async.} =
   if not self.clock.isNil:
     await self.clock.stop()
 
+proc close*(self: CodexNodeRef) {.async.} =
   if not self.networkStore.isNil:
     await self.networkStore.close
 
@@ -880,7 +919,7 @@ proc new*(
     networkStore: NetworkStore,
     engine: BlockExcEngine,
     discovery: Discovery,
-    taskpool: Taskpool,
+    taskPool: Taskpool,
     prover = Prover.none,
     contracts = Contracts.default,
 ): CodexNodeRef =
@@ -893,7 +932,7 @@ proc new*(
     engine: engine,
     prover: prover,
     discovery: discovery,
-    taskPool: taskpool,
+    taskPool: taskPool,
     contracts: contracts,
     trackedFutures: TrackedFutures(),
   )

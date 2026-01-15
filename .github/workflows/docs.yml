@@ -52,7 +52,7 @@ jobs:
           node-version: 18
 
       - name: Build OpenAPI
-        run: npx @redocly/cli build-docs openapi.yaml --output openapi/index.html --title "Codex API"
+        run: npx @redocly/cli build-docs openapi.yaml --output openapi/index.html --title "Logos Storage API"
 
       - name: Build Postman Collection
         run: npx -y openapi-to-postmanv2 -s openapi.yaml -o openapi/postman.json -p -O folderStrategy=Tags,includeAuthInfoInExample=false

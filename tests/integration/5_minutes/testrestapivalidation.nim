@@ -246,7 +246,7 @@ multinodesuite "Rest API validation":
     let data = await RandomChunker.example(blocks = 2)
     let cid = (await client.upload(data)).get
     let duration = (31 * 24 * 60 * 60).uint64
-      # 31 days TODO: this should not be hardcoded, but waits for https://github.com/codex-storage/nim-codex/issues/1056
+      # 31 days TODO: this should not be hardcoded, but waits for https://github.com/logos-storage/logos-storage-nim/issues/1056
     let proofProbability = 3.u256
     let expiry = 30.uint
     let collateralPerByte = 1.u256

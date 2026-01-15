@@ -56,12 +56,13 @@ asyncchecksuite "Test Node - Host contracts":
     verifiable: Manifest
     verifiableBlock: bt.Block
     protected: Manifest
+    taskPool: Taskpool
 
   setup:
     # Setup Host Contracts and dependencies
     market = MockMarket.new()
     sales = Sales.new(market, clock, localStore)
-
+    taskPool = Taskpool.new()
     node.contracts = (
       none ClientInteractions,
       some HostInteractions.new(clock, sales),
@@ -75,19 +76,22 @@ asyncchecksuite "Test Node - Host contracts":
     let
       manifestBlock =
         bt.Block.new(manifest.encode().tryGet(), codec = ManifestCodec).tryGet()
-      erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider, Taskpool.new)
+      erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider, taskPool)
 
     manifestCid = manifestBlock.cid
 
     (await localStore.putBlock(manifestBlock)).tryGet()
 
     protected = (await erasure.encode(manifest, 3, 2)).tryGet()
-    builder = Poseidon2Builder.new(localStore, protected).tryGet()
+    builder = Poseidon2Builder.new(localStore, protected, taskPool).tryGet()
     verifiable = (await builder.buildManifest()).tryGet()
     verifiableBlock =
       bt.Block.new(verifiable.encode().tryGet(), codec = ManifestCodec).tryGet()
 
     (await localStore.putBlock(verifiableBlock)).tryGet()
+
+  teardown:
+    taskPool.shutdown()
 
   test "onExpiryUpdate callback is set":
     check sales.onExpiryUpdate.isSome

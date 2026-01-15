@@ -22,7 +22,7 @@ import ./utils/exceptions
 ## Sales holds a list of available storage that it may sell.
 ##
 ## When storage is requested on the market that matches availability, the Sales
-## object will instruct the Codex node to persist the requested data. Once the
+## object will instruct the Logos Storage node to persist the requested data. Once the
 ## data has been persisted, it uploads a proof of storage to the market in an
 ## attempt to win a storage contract.
 ##

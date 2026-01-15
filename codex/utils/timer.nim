@@ -1,4 +1,4 @@
-## Nim-Codex
+## Logos Storage
 ## Copyright (c) 2023 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
@@ -17,7 +17,7 @@ import pkg/chronos
 import ../logutils
 
 type
-  TimerCallback* = proc(): Future[void] {.gcsafe, async: (raises: []).}
+  TimerCallback* = proc(): Future[void] {.async: (raises: []).}
   Timer* = ref object of RootObj
     callback: TimerCallback
     interval: Duration

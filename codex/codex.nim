@@ -1,4 +1,4 @@
-## Nim-Codex
+## Logos Storage
 ## Copyright (c) 2021 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
@@ -12,6 +12,7 @@ import std/strutils
 import std/os
 import std/tables
 import std/cpuinfo
+import std/net
 
 import pkg/chronos
 import pkg/taskpools
@@ -21,7 +22,6 @@ import pkg/confutils
 import pkg/confutils/defs
 import pkg/nitro
 import pkg/stew/io2
-import pkg/stew/shims/net as stewnet
 import pkg/datastore
 import pkg/ethers except Rng
 import pkg/stew/io2
@@ -57,9 +57,19 @@ type
     repoStore: RepoStore
     maintenance: BlockMaintainer
     taskpool: Taskpool
+    isStarted: bool
 
   CodexPrivateKey* = libp2p.PrivateKey # alias
   EthWallet = ethers.Wallet
+
+func config*(self: CodexServer): CodexConf =
+  return self.config
+
+func node*(self: CodexServer): CodexNodeRef =
+  return self.codexNode
+
+func repoStore*(self: CodexServer): RepoStore =
+  return self.repoStore
 
 proc waitForSync(provider: Provider): Future[void] {.async.} =
   var sleepTime = 1
@@ -128,7 +138,7 @@ proc bootstrapInteractions(s: CodexServer): Future[void] {.async.} =
 
     # This is used for simulation purposes. Normal nodes won't be compiled with this flag
     # and hence the proof failure will always be 0.
-    when codex_enable_proof_failures:
+    when storage_enable_proof_failures:
       let proofFailures = config.simulateProofFailures
       if proofFailures > 0:
         warn "Enabling proof failure simulation!"
@@ -159,9 +169,13 @@ proc bootstrapInteractions(s: CodexServer): Future[void] {.async.} =
     s.codexNode.contracts = (client, host, validator)
 
 proc start*(s: CodexServer) {.async.} =
-  trace "Starting codex node", config = $s.config
+  if s.isStarted:
+    warn "Storage server already started, skipping"
+    return
 
+  trace "Starting Storage node", config = $s.config
   await s.repoStore.start()
+
   s.maintenance.start()
 
   await s.codexNode.switch.start()
@@ -175,27 +189,55 @@ proc start*(s: CodexServer) {.async.} =
 
   await s.bootstrapInteractions()
   await s.codexNode.start()
-  s.restServer.start()
+
+  if s.restServer != nil:
+    s.restServer.start()
+
+  s.isStarted = true
 
 proc stop*(s: CodexServer) {.async.} =
-  notice "Stopping codex node"
+  if not s.isStarted:
+    warn "Storage is not started"
+    return
 
-  let res = await noCancel allFinishedFailed[void](
+  notice "Stopping Storage node"
+
+  var futures =
     @[
-      s.restServer.stop(),
       s.codexNode.switch.stop(),
       s.codexNode.stop(),
       s.repoStore.stop(),
       s.maintenance.stop(),
     ]
-  )
+
+  if s.restServer != nil:
+    futures.add(s.restServer.stop())
+
+  let res = await noCancel allFinishedFailed[void](futures)
 
   if res.failure.len > 0:
-    error "Failed to stop codex node", failures = res.failure.len
-    raiseAssert "Failed to stop codex node"
+    error "Failed to stop Storage node", failures = res.failure.len
+    raiseAssert "Failed to stop Storage node"
+
+proc close*(s: CodexServer) {.async.} =
+  var futures = @[s.codexNode.close(), s.repoStore.close()]
+
+  let res = await noCancel allFinishedFailed[void](futures)
 
   if not s.taskpool.isNil:
-    s.taskpool.shutdown()
+    try:
+      s.taskpool.shutdown()
+    except Exception as exc:
+      error "Failed to stop the taskpool", failures = res.failure.len
+      raiseAssert("Failure in taskpool shutdown:" & exc.msg)
+
+  if res.failure.len > 0:
+    error "Failed to close Storage node", failures = res.failure.len
+    raiseAssert "Failed to close Storage node"
+
+proc shutdown*(server: CodexServer) {.async.} =
+  await server.stop()
+  await server.close()
 
 proc new*(
     T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey
@@ -211,21 +253,21 @@ proc new*(
     .withMaxConnections(config.maxPeers)
     .withAgentVersion(config.agentString)
     .withSignedPeerRecord(true)
-    .withTcpTransport({ServerFlags.ReuseAddr})
+    .withTcpTransport({ServerFlags.ReuseAddr, ServerFlags.TcpNoDelay})
     .build()
 
   var
     cache: CacheStore = nil
-    taskpool: Taskpool
+    taskPool: Taskpool
 
   try:
     if config.numThreads == ThreadCount(0):
-      taskpool = Taskpool.new(numThreads = min(countProcessors(), 16))
+      taskPool = Taskpool.new(numThreads = min(countProcessors(), 16))
     else:
-      taskpool = Taskpool.new(numThreads = int(config.numThreads))
-    info "Threadpool started", numThreads = taskpool.numThreads
+      taskPool = Taskpool.new(numThreads = int(config.numThreads))
+    info "Threadpool started", numThreads = taskPool.numThreads
   except CatchableError as exc:
-    raiseAssert("Failure in taskpool initialization:" & exc.msg)
+    raiseAssert("Failure in taskPool initialization:" & exc.msg)
 
   if config.cacheSize > 0'nb:
     cache = CacheStore.new(cacheSize = config.cacheSize)
@@ -295,7 +337,7 @@ proc new*(
     )
 
     peerStore = PeerCtxStore.new()
-    pendingBlocks = PendingBlocksManager.new()
+    pendingBlocks = PendingBlocksManager.new(retries = config.blockRetries)
     advertiser = Advertiser.new(repoStore, discovery)
     blockDiscovery =
       DiscoveryEngine.new(repoStore, peerStore, network, discovery, pendingBlocks)
@@ -307,7 +349,7 @@ proc new*(
       if config.prover:
         let backend =
           config.initializeBackend().expect("Unable to create prover backend.")
-        some Prover.new(store, backend, config.numProofSamples)
+        some Prover.new(store, backend, config.numProofSamples, taskPool)
       else:
         none Prover
 
@@ -317,13 +359,16 @@ proc new*(
       engine = engine,
       discovery = discovery,
       prover = prover,
-      taskPool = taskpool,
+      taskPool = taskPool,
     )
 
+  var restServer: RestServerRef = nil
+
+  if config.apiBindAddress.isSome:
     restServer = RestServerRef
       .new(
         codexNode.initRestApi(config, repoStore, config.apiCorsAllowedOrigin),
-        initTAddress(config.apiBindAddress, config.apiPort),
+        initTAddress(config.apiBindAddress.get(), config.apiPort),
         bufferSize = (1024 * 64),
         maxRequestBodySize = int.high,
       )
@@ -337,5 +382,5 @@ proc new*(
     restServer: restServer,
     repoStore: repoStore,
     maintenance: maintenance,
-    taskpool: taskpool,
+    taskPool: taskPool,
   )

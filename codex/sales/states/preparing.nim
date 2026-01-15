@@ -61,7 +61,7 @@ method run*(
       return some State(SaleIgnored(reprocessSlot: false))
 
     # TODO: Once implemented, check to ensure the host is allowed to fill the slot,
-    # due to the [sliding window mechanism](https://github.com/codex-storage/codex-research/blob/master/design/marketplace.md#dispersal)
+    # due to the [sliding window mechanism](https://github.com/logos-storage/logos-storage-research/blob/master/design/marketplace.md#dispersal)
 
     logScope:
       slotIndex = data.slotIndex

@@ -1,13 +1,13 @@
-Codex Contracts in Nim
+Logos Storage Contracts in Nim
 =======================
 
-Nim API for the [Codex smart contracts][1].
+Nim API for the [Logos Storage smart contracts][1].
 
 Usage
 -----
 
 For a global overview of the steps involved in starting and fulfilling a
-storage contract, see [Codex Contracts][1].
+storage contract, see [Logos Storage Contracts][1].
 
 Smart contract
 --------------
@@ -144,5 +144,5 @@ await storage
   .markProofAsMissing(id, period)
 ```
 
-[1]: https://github.com/status-im/codex-contracts-eth/
-[2]: https://github.com/status-im/codex-research/blob/main/design/storage-proof-timing.md
+[1]: https://github.com/logos-storage/logos-storage-contracts-eth/
+[2]: https://github.com/logos-storage/logos-storage-research/blob/master/design/storage-proof-timing.md

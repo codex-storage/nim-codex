@@ -43,7 +43,7 @@ method workingDir(node: CodexProcess): string =
   return currentSourcePath() / ".." / ".." / ".."
 
 method executable(node: CodexProcess): string =
-  return "build" / "codex"
+  return "build" / "storage"
 
 method startedOutput(node: CodexProcess): string =
   return "REST service started"
@@ -78,7 +78,7 @@ proc ethAccount*(node: CodexProcess): Address {.raises: [CodexProcessError].} =
 
 proc apiUrl*(node: CodexProcess): string {.raises: [CodexProcessError].} =
   let config = node.config
-  return "http://" & config.apiBindAddress & ":" & $config.apiPort & "/api/codex/v1"
+  return "http://" & config.apiBindAddress & ":" & $config.apiPort & "/api/storage/v1"
 
 proc logFile*(node: CodexProcess): ?string {.raises: [CodexProcessError].} =
   node.config.logFile
