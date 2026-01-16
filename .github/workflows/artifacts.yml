@@ -40,16 +40,6 @@ jobs:
         with:
           toolchain: 1.85.0
 
-      - name: Record submodule commit
-        run: git -C . rev-parse HEAD > .storage-commit
-
-      - name: Cache libstorage build
-        id: cache-libstorage
-        uses: actions/cache@v4
-        with:
-          path: ./build
-          key: ${{ runner.os }}-libstorage-${{ hashFiles('.storage-commit') }}
-
       - name: MSYS2 (Windows amd64)
         if: matrix.target.os == 'windows-latest' && matrix.target.cpu == 'amd64'
         uses: msys2/setup-msys2@v2
@@ -68,19 +58,19 @@ jobs:
           git config --global core.symlinks false
 
       - name: Build libstorage (Linux)
-        if: matrix.target.lib_ext == 'so' && steps.cache-libstorage.outputs.cache-hit != 'true'
+        if: matrix.target.lib_ext == 'so'
         run: |
           make -j${ncpu} update
           make -j${ncpu} libstorage
 
       - name: Build libstorage (MacOS)
-        if: matrix.target.os == 'macos-latest' && steps.cache-libstorage.outputs.cache-hit != 'true'
+        if: matrix.target.os == 'macos-latest'
         run: |
           make -j${ncpu} update
           STORAGE_LIB_PARAMS="--passL:\"-Wl,-install_name,@rpath/libstorage.dylib\"" make -j${ncpu} libstorage
 
       - name: Build libstorage (Windows)
-        if: matrix.target.os == 'windows-latest' && steps.cache-libstorage.outputs.cache-hit != 'true'
+        if: matrix.target.os == 'windows-latest'
         shell: msys2 {0}
         run: |
           make -j${ncpu} update
