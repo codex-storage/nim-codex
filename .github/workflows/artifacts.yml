@@ -91,7 +91,7 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -y zip
           ZIPFILE=storage-linux-${{ matrix.target.cpu }}.zip
-          zip -j $ZIPFILE .build/libstorage.${{ matrix.target.lib_ext }} ./library/libstorage.h
+          zip -j $ZIPFILE ./build/libstorage.${{ matrix.target.lib_ext }} ./library/libstorage.h
           echo "ZIPFILE=$ZIPFILE" >> $GITHUB_ENV
 
       - name: Package artifacts MacOS
