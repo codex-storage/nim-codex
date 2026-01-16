@@ -5,6 +5,7 @@ import pkg/chronicles
 import pkg/chronos/asyncproc
 import pkg/libp2p
 import std/os
+import std/strformat
 import std/strutils
 import codex/conf
 import codex/utils/exceptions
@@ -13,6 +14,8 @@ import ./codexclient
 
 export codexclient
 export chronicles
+
+{.push raises: [].}
 
 logScope:
   topics = "integration testing node process"
@@ -39,24 +42,19 @@ method startedOutput(node: NodeProcess): string {.base, gcsafe.} =
 method processOptions(node: NodeProcess): set[AsyncProcessOption] {.base, gcsafe.} =
   raiseAssert "not implemented"
 
-method outputLineEndings(node: NodeProcess): string {.base, gcsafe, raises: [].} =
+method outputLineEndings(node: NodeProcess): string {.base, gcsafe.} =
   raiseAssert "not implemented"
 
-method onOutputLineCaptured(
-    node: NodeProcess, line: string
-) {.base, gcsafe, raises: [].} =
+method onOutputLineCaptured(node: NodeProcess, line: string) {.base, gcsafe.} =
   raiseAssert "not implemented"
 
-method start*(node: NodeProcess) {.base, async.} =
+method start*(node: NodeProcess) {.base, async: (raises: [CancelledError]).} =
   logScope:
     nodeName = node.name
 
   let poptions = node.processOptions + {AsyncProcessOption.StdErrToStdOut}
   trace "starting node",
-    args = node.arguments,
-    executable = node.executable,
-    workingDir = node.workingDir,
-    processOptions = poptions
+    args = node.arguments, executable = node.executable, workingDir = node.workingDir
 
   try:
     if node.debug:
@@ -81,11 +79,13 @@ proc captureOutput(
 
   trace "waiting for output", output
 
-  let stream = node.process.stdoutStream
-
   try:
     while node.process.running.option == some true:
-      while (let line = await stream.readLine(0, node.outputLineEndings); line != ""):
+      while (
+        let line = await node.process.stdoutStream.readLine(0, node.outputLineEndings)
+        line != ""
+      )
+      :
         if node.debug:
           # would be nice if chronicles could parse and display with colors
           echo line
@@ -95,8 +95,8 @@ proc captureOutput(
 
         node.onOutputLineCaptured(line)
 
-        await sleepAsync(1.millis)
-      await sleepAsync(1.millis)
+        await sleepAsync(1.nanos)
+      await sleepAsync(1.nanos)
   except CancelledError:
     discard # do not propagate as captureOutput was asyncSpawned
   except AsyncStreamError as e:
@@ -104,7 +104,7 @@ proc captureOutput(
 
 proc startNode*[T: NodeProcess](
     _: type T, args: seq[string], debug: string | bool = false, name: string
-): Future[T] {.async.} =
+): Future[T] {.async: (raises: [CancelledError]).} =
   ## Starts a Logos Storage Node with the specified arguments.
   ## Set debug to 'true' to see output of the node.
   let node = T(
@@ -116,34 +116,36 @@ proc startNode*[T: NodeProcess](
   await node.start()
   return node
 
-method stop*(node: NodeProcess) {.base, async.} =
+method stop*(
+    node: NodeProcess, expectedExitCode: int = 0
+) {.base, async: (raises: []).} =
   logScope:
     nodeName = node.name
 
   await node.trackedFutures.cancelTracked()
-  if node.process != nil:
+  if not node.process.isNil:
+    let processId = node.process.processId
+    trace "terminating node process...", processId
     try:
-      trace "terminating node process..."
-      if errCode =? node.process.terminate().errorOption:
-        error "failed to terminate process", errCode = $errCode
+      let exitCode = await noCancel node.process.terminateAndWaitForExit(2.seconds)
+      if exitCode > 0 and exitCode != 143 and # 143 = SIGTERM (initiated above)
+      exitCode != expectedExitCode:
+        warn "process exited with a non-zero exit code", exitCode
+      trace "node process terminated", exitCode
+    except CatchableError:
+      try:
+        let forcedExitCode = await noCancel node.process.killAndWaitForExit(3.seconds)
+        trace "node process forcibly killed with exit code: ", exitCode = forcedExitCode
+      except CatchableError as e:
+        warn "failed to kill node process in time, it will be killed when the parent process exits",
+          error = e.msg
+        writeStackTrace()
 
-      trace "waiting for node process to exit"
-      let exitCode = await node.process.waitForExit(3.seconds)
-      if exitCode > 0:
-        error "failed to exit process, check for zombies", exitCode
+      trace "node stopped"
 
-      trace "closing node process' streams"
-      await node.process.closeWait()
-    except CancelledError as error:
-      raise error
-    except CatchableError as e:
-      error "error stopping node process", error = e.msg
-    finally:
-      node.process = nil
-
-    trace "node stopped"
-
-proc waitUntilOutput*(node: NodeProcess, output: string) {.async.} =
+proc waitUntilOutput*(
+    node: NodeProcess, output: string
+) {.async: (raises: [CancelledError, AsyncTimeoutError]).} =
   logScope:
     nodeName = node.name
 
@@ -153,9 +155,21 @@ proc waitUntilOutput*(node: NodeProcess, output: string) {.async.} =
   let fut = node.captureOutput(output, started)
   node.trackedFutures.track(fut)
   asyncSpawn fut
-  await started.wait(60.seconds) # allow enough time for proof generation
+  try:
+    await started.wait(60.seconds) # allow enough time for proof generation
+  except AsyncTimeoutError as e:
+    raise e
+  except CancelledError as e:
+    raise e
+  except CatchableError as e: # unsure where this originates from
+    error "unexpected error occurred waiting for node output", error = e.msg
 
-proc waitUntilStarted*(node: NodeProcess) {.async.} =
+proc waitUntilStarted*(
+    node: NodeProcess
+) {.async: (raises: [CancelledError, NodeProcessError]).} =
+  logScope:
+    nodeName = node.name
+
   try:
     await node.waitUntilOutput(node.startedOutput)
     trace "node started"
@@ -168,10 +182,10 @@ proc waitUntilStarted*(node: NodeProcess) {.async.} =
     raise
       newException(NodeProcessError, "node did not output '" & node.startedOutput & "'")
 
-proc restart*(node: NodeProcess) {.async.} =
+method restart*(node: NodeProcess) {.base, async.} =
   await node.stop()
   await node.start()
   await node.waitUntilStarted()
 
-method removeDataDir*(node: NodeProcess) {.base.} =
+method removeDataDir*(node: NodeProcess) {.base, raises: [NodeProcessError].} =
   raiseAssert "[removeDataDir] not implemented"

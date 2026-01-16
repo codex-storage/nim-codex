@@ -8,28 +8,38 @@ import pkg/stew/io2
 import std/os
 import std/sets
 import std/sequtils
+import std/strformat
 import std/strutils
 import pkg/codex/conf
 import pkg/codex/utils/trackedfutures
 import ./codexclient
 import ./nodeprocess
+import ./utils
 
 export codexclient
 export chronicles
+export nodeprocess
+
+{.push raises: [].}
 
 logScope:
   topics = "integration testing hardhat process"
-  nodeName = "hardhat"
 
-type HardhatProcess* = ref object of NodeProcess
-  logFile: ?IoHandle
+type
+  OnOutputLineCaptured = proc(line: string) {.gcsafe, raises: [].}
+  HardhatProcess* = ref object of NodeProcess
+    logFile: ?IoHandle
+    onOutputLine: OnOutputLineCaptured
+
+  HardhatProcessError* = object of NodeProcessError
 
 method workingDir(node: HardhatProcess): string =
   return
     currentSourcePath() / ".." / ".." / ".." / "vendor" / "logos-storage-contracts-eth"
 
 method executable(node: HardhatProcess): string =
-  return "node_modules" / ".bin" / "hardhat"
+  return
+    "node_modules" / ".bin" / (when defined(windows): "hardhat.cmd" else: "hardhat")
 
 method startedOutput(node: HardhatProcess): string =
   return "Started HTTP and WebSocket JSON-RPC server at"
@@ -37,7 +47,7 @@ method startedOutput(node: HardhatProcess): string =
 method processOptions(node: HardhatProcess): set[AsyncProcessOption] =
   return {}
 
-method outputLineEndings(node: HardhatProcess): string {.raises: [].} =
+method outputLineEndings(node: HardhatProcess): string =
   return "\n"
 
 proc openLogFile(node: HardhatProcess, logFilePath: string): IoHandle =
@@ -52,7 +62,21 @@ proc openLogFile(node: HardhatProcess, logFilePath: string): IoHandle =
 
   return fileHandle
 
-method start*(node: HardhatProcess) {.async.} =
+method start*(
+    node: HardhatProcess
+) {.async: (raises: [CancelledError, NodeProcessError]).} =
+  logScope:
+    nodeName = node.name
+
+  var executable = ""
+  try:
+    executable = absolutePath(node.workingDir / node.executable)
+    if not fileExists(executable):
+      raiseAssert "cannot start hardhat, executable doesn't exist (looking for " &
+        &"{executable}). Try running `npm install` in {node.workingDir}."
+  except CatchableError as parent:
+    raiseAssert "failed build path to hardhat executable: " & parent.msg
+
   let poptions = node.processOptions + {AsyncProcessOption.StdErrToStdOut}
 
   trace "starting node",
@@ -89,19 +113,37 @@ method start*(node: HardhatProcess) {.async.} =
     trace "hardhat post start scripts executed"
   except CancelledError as error:
     raise error
-  except CatchableError as e:
-    error "failed to start hardhat process", error = e.msg
+  except CatchableError as parent:
+    raise newException(
+      HardhatProcessError, "failed to start hardhat process: " & parent.msg, parent
+    )
+
+proc port(node: HardhatProcess): ?int =
+  var next = false
+  for arg in node.arguments:
+    # TODO: move to constructor
+    if next:
+      return parseInt(arg).catch.option
+    if arg.contains "--port":
+      next = true
+
+  return none int
 
 proc startNode*(
     _: type HardhatProcess,
     args: seq[string],
     debug: string | bool = false,
     name: string,
-): Future[HardhatProcess] {.async.} =
+    onOutputLineCaptured: OnOutputLineCaptured = nil,
+): Future[HardhatProcess] {.async: (raises: [CancelledError, NodeProcessError]).} =
+  logScope:
+    nodeName = name
+
   var logFilePath = ""
 
   var arguments = newSeq[string]()
   for arg in args:
+    # TODO: move to constructor
     if arg.contains "--log-file=":
       logFilePath = arg.split("=")[1]
     else:
@@ -114,17 +156,25 @@ proc startNode*(
     arguments: arguments,
     debug: ($debug != "false"),
     trackedFutures: TrackedFutures.new(),
-    name: "hardhat",
+    name: name,
+    onOutputLine: onOutputLineCaptured,
   )
 
   await hardhat.start()
 
+  # TODO: move to constructor
   if logFilePath != "":
     hardhat.logFile = some hardhat.openLogFile(logFilePath)
 
   return hardhat
 
 method onOutputLineCaptured(node: HardhatProcess, line: string) =
+  logScope:
+    nodeName = node.name
+
+  if not node.onOutputLine.isNil:
+    node.onOutputLine(line)
+
   without logFile =? node.logFile:
     return
 
@@ -133,13 +183,49 @@ method onOutputLineCaptured(node: HardhatProcess, line: string) =
     discard logFile.closeFile()
     node.logFile = none IoHandle
 
-method stop*(node: HardhatProcess) {.async.} =
+proc closeProcessStreams(node: HardhatProcess) {.async: (raises: []).} =
+  when not defined(windows):
+    if not node.process.isNil:
+      trace "closing node process' streams"
+      await node.process.closeWait()
+      trace "node process' streams closed"
+  else:
+    # Windows hangs when attempting to close hardhat's process streams, so try
+    # to kill the process externally.
+    without port =? node.port:
+      error "Failed to get port from Hardhat args"
+      return
+    try:
+      let cmdResult = await forceKillProcess("node.exe", &"--port {port}")
+      if cmdResult.status > 0:
+        error "Failed to forcefully kill windows hardhat process",
+          port, exitCode = cmdResult.status, stderr = cmdResult.stdError
+      else:
+        trace "Successfully killed windows hardhat process by force",
+          port, exitCode = cmdResult.status, stdout = cmdResult.stdOutput
+    except ValueError, OSError:
+      let eMsg = getCurrentExceptionMsg()
+      error "Failed to forcefully kill windows hardhat process, bad path to command",
+        error = eMsg
+    except CancelledError as e:
+      discard
+    except AsyncProcessError as e:
+      error "Failed to forcefully kill windows hardhat process", port, error = e.msg
+    except AsyncProcessTimeoutError as e:
+      error "Timeout while forcefully killing windows hardhat process",
+        port, error = e.msg
+
+method stop*(node: HardhatProcess) {.async: (raises: []).} =
   # terminate the process
   await procCall NodeProcess(node).stop()
+
+  await node.closeProcessStreams()
 
   if logFile =? node.logFile:
     trace "closing hardhat log file"
     discard logFile.closeFile()
+
+  node.process = nil
 
 method removeDataDir*(node: HardhatProcess) =
   discard

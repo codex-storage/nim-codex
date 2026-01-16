@@ -47,3 +47,6 @@ nim.cfg
 tests/integration/logs
 
 data/
+
+examples/c/data-dir
+examples/c/downloaded_hello.txt

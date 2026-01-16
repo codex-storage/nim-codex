@@ -169,7 +169,8 @@ proc withLogFile*(self: CodexConfigs): CodexConfigs {.raises: [CodexConfigError]
 
 proc withLogFile*(
     self: var CodexConfig, logFile: string
-) {.raises: [CodexConfigError].} = #: CodexConfigs =
+) {.raises: [CodexConfigError].} =
+  #: CodexConfigs =
   ## typically called internally from the test suite, sets a log file path to
   ## be created during the test run, for a specified node in the group
   # var config = self

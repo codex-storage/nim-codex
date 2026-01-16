@@ -86,7 +86,10 @@ template marketplacesuite*(name: string, stopOnRequestFail: bool, body: untyped)
         duration: uint64,
         collateralPerByte: UInt256,
         minPricePerBytePerSecond: UInt256,
-    ): Future[void] {.async: (raises: [CancelledError, HttpError, ConfigurationError]).} =
+    ): Future[void] {.
+        async:
+          (raises: [CancelledError, HttpError, ConfigurationError, CodexProcessError])
+    .} =
       let totalCollateral = datasetSize.u256 * collateralPerByte
       # post availability to each provider
       for i in 0 ..< providers().len:

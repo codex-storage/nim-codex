@@ -54,13 +54,20 @@ jobs:
         with:
           node-version: 22
 
-      - name: Start Ethereum node with Logos Storage contracts
+      - name: Install Ethereum node dependencies
         if: matrix.tests == 'contract' || matrix.tests == 'integration' || matrix.tests == 'tools' || matrix.tests == 'all'
         working-directory: vendor/logos-storage-contracts-eth
         env:
           MSYS2_PATH_TYPE: inherit
         run: |
           npm ci
+
+      - name: Run Ethereum node with Logos Storage contracts
+        if: matrix.tests == 'contract' || matrix.tests == 'integration' || matrix.tests == 'tools' || matrix.tests == 'all'
+        working-directory: vendor/logos-storage-contracts-eth
+        env:
+          MSYS2_PATH_TYPE: inherit
+        run: |
           npm start &
           # Wait for the contracts to be deployed
           sleep 5
@@ -75,7 +82,7 @@ jobs:
         if: matrix.tests == 'integration' || matrix.tests == 'all'
         env:
           CODEX_INTEGRATION_TEST_INCLUDES: ${{ matrix.includes }}
-        run: make -j${ncpu} testIntegration
+        run: make -j${ncpu} DEBUG=${{ runner.debug }} testIntegration
 
       - name: Upload integration tests log files
         uses: actions/upload-artifact@v4

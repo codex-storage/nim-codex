@@ -5,6 +5,8 @@ import pkg/chronos
 import ./asynctest
 import ./checktest
 
+const HardhatPort {.intdefine.}: int = 8545
+
 ## Unit testing suite that sets up an Ethereum testing environment.
 ## Injects a `ethProvider` instance, and a list of `accounts`.
 ## Calls the `evm_snapshot` and `evm_revert` methods to ensure that any
@@ -16,7 +18,7 @@ template ethersuite*(name, body) =
     var snapshot: JsonNode
 
     setup:
-      ethProvider = JsonRpcProvider.new("ws://localhost:8545")
+      ethProvider = JsonRpcProvider.new("ws://localhost:" & $HardhatPort)
       snapshot = await send(ethProvider, "evm_snapshot")
       accounts = await ethProvider.listAccounts()
     teardown:
