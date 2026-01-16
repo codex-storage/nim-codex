@@ -691,7 +691,7 @@ int check_list(void *storage_ctx)
 
     int ret = is_resp_ok(r, &res);
 
-    const char *expected_manifest = "{\"treeCid\":\"zDzSvJTf8JYwvysKPmG7BtzpbiAHfuwFMRphxm4hdvnMJ4XPJjKX\",\"datasetSize\":12,\"blockSize\":65536,\"filename\":\"hello_world.txt\",\"mimetype\":\"text/plain\",\"protected\":false}";
+    const char *expected_manifest = "{\"treeCid\":\"zDzSvJTf8JYwvysKPmG7BtzpbiAHfuwFMRphxm4hdvnMJ4XPJjKX\",\"datasetSize\":12,\"blockSize\":65536,\"filename\":\"hello_world.txt\",\"mimetype\":\"text/plain\"}";
 
     if (strstr(res, expected_manifest) == NULL)
     {
