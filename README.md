@@ -47,7 +47,6 @@ Please check [documentation](https://docs.codex.storage/learn/run#configuration)
 
 To get acquainted with Logos Storage, consider:
 * running the simple [Logos Storage Two-Client Test](https://docs.codex.storage/learn/local-two-client-test) for a start, and;
-* if you are feeling more adventurous, try [Running a Local Logos Storage Network with Marketplace Support](https://docs.codex.storage/learn/local-marketplace) using a local blockchain as well.
 
 ## API
 
