@@ -48,7 +48,14 @@ Unless explicitly stated otherwise, all functions are asynchronous and execute t
 - `RET_MISSING_CALLBACK`: callback is missing
 
 Some functions may emit progress updates via the callback using `RET_PROGRESS`, and finally complete with `RET_OK` or `RET_ERR`.  
-For upload/download streaming, `msg` contains a chunk of data and `len` the chunk length.
+
+The `msg` parameter can carry different kinds of data depending on the return code:
+
+- If ret is `RET_ERR`, msg contains an error message.
+- If ret is `RET_OK`, msg contains the response data as a string.
+- If ret is `RET_PROGRESS`, msg contains a chunk of data.
+
+The `len` parameter specifies the length of the data pointed to by msg.
 
 ---
 
