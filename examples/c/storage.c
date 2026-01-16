@@ -665,7 +665,7 @@ int check_download_manifest(void *storage_ctx, const char *cid)
 
     int ret = is_resp_ok(r, &res);
 
-    const char *expected_manifest = "{\"treeCid\":\"zDzSvJTf8JYwvysKPmG7BtzpbiAHfuwFMRphxm4hdvnMJ4XPJjKX\",\"datasetSize\":12,\"blockSize\":65536,\"filename\":\"hello_world.txt\",\"mimetype\":\"text/plain\",\"protected\":false}";
+    const char *expected_manifest = "{\"treeCid\":\"zDzSvJTf8JYwvysKPmG7BtzpbiAHfuwFMRphxm4hdvnMJ4XPJjKX\",\"datasetSize\":12,\"blockSize\":65536,\"filename\":\"hello_world.txt\",\"mimetype\":\"text/plain\"}";
 
     if (strncmp(res, expected_manifest, strlen(expected_manifest)) != 0)
     {
