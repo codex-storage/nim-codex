@@ -65,8 +65,8 @@ else:
     # https://gcc.gnu.org/bugzilla/show_bug.cgi?id=65782
     # ("-fno-asynchronous-unwind-tables" breaks Nim's exception raising, sometimes)
     switch("passC", "-march=x86-64")
-  else: switch("passC", "-march=native")
-    
+  else:
+    switch("passC", "-march=native")
 
 --tlsEmulation:
   off

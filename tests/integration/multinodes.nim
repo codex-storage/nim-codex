@@ -1,3 +1,4 @@
+import std/httpclient
 import std/os
 import std/sequtils
 import std/strutils
@@ -10,6 +11,7 @@ import pkg/questionable
 import ./codexconfig
 import ./codexprocess
 import ./nodeconfigs
+import ./utils
 import ../asynctest
 import ../checktest
 
@@ -17,6 +19,8 @@ export asynctest
 export codexprocess
 export codexconfig
 export nodeconfigs
+
+{.push raises: [].}
 
 type
   RunningNode* = ref object
@@ -27,31 +31,33 @@ type
     Client
 
   MultiNodeSuiteError = object of CatchableError
+  SuiteTimeoutError = object of MultiNodeSuiteError
 
-const jsonRpcProviderUrl* = "ws://localhost:8545"
+const HardhatPort {.intdefine.}: int = 8545
+const CodexApiPort {.intdefine.}: int = 8080
+const CodexDiscPort {.intdefine.}: int = 8090
+const TestId {.strdefine.}: string = "TestId"
+const CodexLogToFile {.booldefine.}: bool = false
+const CodexLogLevel {.strdefine.}: string = ""
+const CodexLogsDir {.strdefine.}: string = ""
 
-proc raiseMultiNodeSuiteError(msg: string) =
-  raise newException(MultiNodeSuiteError, msg)
+proc raiseMultiNodeSuiteError(
+    msg: string, parent: ref CatchableError = nil
+) {.raises: [MultiNodeSuiteError].} =
+  raise newException(MultiNodeSuiteError, msg, parent)
 
-proc nextFreePort*(startPort: int): Future[int] {.async.} =
-  proc client(server: StreamServer, transp: StreamTransport) {.async.} =
-    await transp.closeWait()
+template withLock(lock: AsyncLock, body: untyped) =
+  if lock.isNil:
+    lock = newAsyncLock()
 
-  var port = startPort
-  while true:
-    trace "checking if port is free", port
+  await lock.acquire()
+  try:
+    body
+  finally:
     try:
-      let host = initTAddress("127.0.0.1", port)
-      # We use ReuseAddr here only to be able to reuse the same IP/Port when
-      # there's a TIME_WAIT socket. It's useful when running the test multiple
-      # times or if a test ran previously using the same port.
-      var server = createStreamServer(host, client, {ReuseAddr})
-      trace "port is free", port
-      await server.closeWait()
-      return port
-    except TransportOsError:
-      trace "port is not free", port
-      inc port
+      lock.release()
+    except AsyncLockError as parent:
+      raiseMultiNodeSuiteError "lock error", parent
 
 proc sanitize(pathSegment: string): string =
   var sanitized = pathSegment
@@ -70,6 +76,10 @@ template multinodesuite*(name: string, body: untyped) =
     var currentTestName = ""
     var nodeConfigs: NodeConfigs
     var snapshot: JsonNode
+    var lastUsedHardhatPort = HardhatPort
+    var lastUsedCodexApiPort = CodexApiPort
+    var lastUsedCodexDiscPort = CodexDiscPort
+    var codexPortLock: AsyncLock
 
     template test(tname, startNodeConfigs, tbody) =
       currentTestName = tname
@@ -77,62 +87,69 @@ template multinodesuite*(name: string, body: untyped) =
       test tname:
         tbody
 
-    proc sanitize(pathSegment: string): string =
-      var sanitized = pathSegment
-      for invalid in invalidFilenameChars.items:
-        sanitized = sanitized.replace(invalid, '_').replace(' ', '_')
-      sanitized
-
-    proc getLogFile(role: Role, index: ?int): string =
-      # create log file path, format:
-      # tests/integration/logs/<start_datetime> <suite_name>/<test_name>/<node_role>_<node_idx>.log
-
-      var logDir =
-        currentSourcePath.parentDir() / "logs" / sanitize($starttime & "__" & name) /
-        sanitize($currentTestName)
-      createDir(logDir)
-
-      var fn = $role
-      if idx =? index:
-        fn &= "_" & $idx
-      fn &= ".log"
-
-      let fileName = logDir / fn
-      return fileName
+    proc updatePort(url: var string, port: int) =
+      let parts = url.split(':')
+      url = @[parts[0], parts[1], $port].join(":")
 
     proc newCodexProcess(
         roleIdx: int, conf: CodexConfig, role: Role
-    ): Future[NodeProcess] {.async.} =
+    ): Future[NodeProcess] {.async: (raises: [MultiNodeSuiteError, CancelledError]).} =
       let nodeIdx = running.len
       var config = conf
-      let datadir = getTempDirName(starttime, role, roleIdx)
+      let datadir = getDataDir(TestId, currentTestName, $starttime, $role, some roleIdx)
 
       try:
-        if config.logFile.isSome:
-          let updatedLogFile = getLogFile(role, some roleIdx)
-          config.withLogFile(updatedLogFile)
+        if config.logFile.isSome or CodexLogToFile:
+          try:
+            let updatedLogFile = getLogFile(
+              CodexLogsDir, starttime, suiteName, currentTestName, $role, some roleIdx
+            )
+            config.withLogFile(updatedLogFile)
+          except IOError as e:
+            raiseMultiNodeSuiteError(
+              "failed to start " & $role &
+                " because logfile path could not be obtained: " & e.msg,
+              e,
+            )
+          except OSError as e:
+            raiseMultiNodeSuiteError(
+              "failed to start " & $role &
+                " because logfile path could not be obtained: " & e.msg,
+              e,
+            )
+
+        when CodexLogLevel != "":
+          config.addCliOption("--log-level", CodexLogLevel)
+
+        var apiPort, discPort: int
+        withLock(codexPortLock):
+          apiPort = await nextFreePort(lastUsedCodexApiPort + nodeIdx)
+          discPort = await nextFreePort(lastUsedCodexDiscPort + nodeIdx)
+          config.addCliOption("--api-port", $apiPort)
+          config.addCliOption("--disc-port", $discPort)
+          lastUsedCodexApiPort = apiPort
+          lastUsedCodexDiscPort = discPort
 
         for bootstrapNode in bootstrapNodes:
           config.addCliOption("--bootstrap-node", bootstrapNode)
-        config.addCliOption("--api-port", $await nextFreePort(8080 + nodeIdx))
+
         config.addCliOption("--data-dir", datadir)
         config.addCliOption("--nat", "none")
         config.addCliOption("--listen-addrs", "/ip4/127.0.0.1/tcp/0")
-        config.addCliOption("--disc-port", $await nextFreePort(8090 + nodeIdx))
       except CodexConfigError as e:
         raiseMultiNodeSuiteError "invalid cli option, error: " & e.msg
 
-      let node = await CodexProcess.startNode(
-        config.cliArgs, config.debugEnabled, $role & $roleIdx
-      )
-
       try:
+        let node = await CodexProcess.startNode(
+          config.cliArgs, config.debugEnabled, $role & $roleIdx
+        )
         await node.waitUntilStarted()
         trace "node started", nodeName = $role & $roleIdx
+        return node
+      except CodexConfigError as e:
+        raiseMultiNodeSuiteError "failed to get cli args from config: " & e.msg, e
       except NodeProcessError as e:
-        raiseMultiNodeSuiteError "node not started, error: " & e.msg
-
-      return node
+        raiseMultiNodeSuiteError "node not started, error: " & e.msg, e
 
     proc clients(): seq[CodexProcess] {.used.} =
       return collect:
@@ -148,13 +165,22 @@ template multinodesuite*(name: string, body: untyped) =
       for nodes in @[clients()]:
         for node in nodes:
           await node.stop() # also stops rest client
-          node.removeDataDir()
+          try:
+            node.removeDataDir()
+          except CodexProcessError as e:
+            error "Failed to remove data dir during teardown", error = e.msg
 
       running = @[]
 
     template failAndTeardownOnError(message: string, tryBody: untyped) =
       try:
         tryBody
+      except CancelledError as e:
+        await teardownImpl()
+        when declared(teardownAllIMPL):
+          teardownAllIMPL()
+        fail()
+        quit(1)
       except CatchableError as er:
         fatal message, error = er.msg
         echo "[FATAL] ", message, ": ", er.msg
@@ -166,14 +192,28 @@ template multinodesuite*(name: string, body: untyped) =
 
     proc updateBootstrapNodes(
         node: CodexProcess
-    ): Future[void] {.async: (raises: [CatchableError]).} =
-      without ninfo =? await node.client.info():
-        # raise CatchableError instead of Defect (with .get or !) so we
-        # can gracefully shutdown and prevent zombies
-        raiseMultiNodeSuiteError "Failed to get node info"
-      bootstrapNodes.add ninfo["spr"].getStr()
+    ): Future[void] {.async: (raises: [MultiNodeSuiteError]).} =
+      try:
+        without ninfo =? await node.client.info():
+          # raise CatchableError instead of Defect (with .get or !) so we
+          # can gracefully shutdown and prevent zombies
+          raiseMultiNodeSuiteError "Failed to get node info"
+        bootstrapNodes.add ninfo["spr"].getStr()
+      except CatchableError as e:
+        raiseMultiNodeSuiteError "Failed to get node info: " & e.msg, e
+
+    setupAll:
+      # When this file is run with `-d:chronicles_sinks=textlines[file]`, we
+      # need to set the log file path at runtime, otherwise chronicles didn't seem to
+      # create a log file even when using an absolute path
+      when defaultChroniclesStream.outputs is (FileOutput,) and CodexLogsDir.len > 0:
+        let logFile =
+          CodexLogsDir / sanitize(getAppFilename().extractFilename & ".chronicles.log")
+        let success = defaultChroniclesStream.outputs[0].open(logFile, fmAppend)
+        doAssert success, "Failed to open log file: " & logFile
 
     setup:
+      trace "Setting up test", suite = suiteName, test = currentTestName, nodeConfigs
       if var clients =? nodeConfigs.clients:
         failAndTeardownOnError "failed to start client nodes":
           for config in clients.configs:
@@ -183,5 +223,6 @@ template multinodesuite*(name: string, body: untyped) =
 
     teardown:
       await teardownImpl()
+      trace "Test completed", suite = suiteName, test = currentTestName
 
     body

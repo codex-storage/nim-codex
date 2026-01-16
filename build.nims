@@ -1,9 +1,20 @@
 mode = ScriptMode.Verbose
 
 import std/os except commandLineParams
+import std/strutils
 
 ### Helper functions
-proc buildBinary(srcName: string, outName = os.lastPathPart(srcName), srcDir = "./", params = "", lang = "c") =
+proc truthy(val: string): bool =
+  const truthySwitches = @["yes", "1", "on", "true"]
+  return val in truthySwitches
+
+proc buildBinary(
+    srcName: string,
+    outName = os.lastPathPart(srcName),
+    srcDir = "./",
+    params = "",
+    lang = "c",
+) =
   if not dirExists "build":
     mkDir "build"
 
@@ -37,15 +48,14 @@ proc buildLibrary(name: string, srcDir = "./", params = "", `type` = "dynamic") 
     exec "nim c" & " --out:build/" & lib_name &
       " --threads:on --app:lib --opt:size --noMain --mm:refc --header --d:metrics " &
       "--nimMainPrefix:libstorage -d:noSignalHandler " &
-      "-d:chronicles_runtime_filtering " &
-      "-d:chronicles_log_level=TRACE " & params & " " & srcDir & name & ".nim"
+      "-d:chronicles_runtime_filtering " & "-d:chronicles_log_level=TRACE " & params &
+      " " & srcDir & name & ".nim"
   else:
     exec "nim c" & " --out:build/" & name &
       ".a --threads:on --app:staticlib --opt:size --noMain --mm:refc --header --d:metrics " &
       "--nimMainPrefix:libstorage -d:noSignalHandler " &
-      "-d:chronicles_runtime_filtering " &
-      "-d:chronicles_log_level=TRACE " &
-      params & " " & srcDir & name & ".nim"
+      "-d:chronicles_runtime_filtering " & "-d:chronicles_log_level=TRACE " & params &
+      " " & srcDir & name & ".nim"
 
 proc test(name: string, outName = name, srcDir = "tests/", params = "", lang = "c") =
   buildBinary name, outName, srcDir, params
@@ -65,12 +75,11 @@ task testStorage, "Build & run Logos Storage tests":
 task testIntegration, "Run integration tests":
   buildBinary "codex",
     outName = "storage",
-    params =
-      "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE"
+    params = "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE"
   test "testIntegration"
   # use params to enable logging from the integration test executable
   # test "testIntegration", params = "-d:chronicles_sinks=textlines[notimestamps,stdout],textlines[dynamic] " &
-  #   "-d:chronicles_enabled_topics:integration:TRACE"  
+  #   "-d:chronicles_enabled_topics:integration:TRACE"
 
 task build, "build Logos Storage binary":
   storageTask()
@@ -110,9 +119,7 @@ task coverage, "generates code coverage report":
 
   echo "======== Running Tests ======== "
   test "coverage",
-    srcDir = "tests/",
-    params =
-      " --nimcache:nimcache/coverage -d:release"
+    srcDir = "tests/", params = " --nimcache:nimcache/coverage -d:release"
   exec("rm nimcache/coverage/*.c")
   rmDir("coverage")
   mkDir("coverage")
@@ -125,7 +132,9 @@ task coverage, "generates code coverage report":
       nimSrcs
   )
   echo " ======== Generating HTML coverage report ======== "
-  exec("genhtml coverage/coverage.f.info --keep-going --output-directory coverage/report ")
+  exec(
+    "genhtml coverage/coverage.f.info --keep-going --output-directory coverage/report "
+  )
   echo " ======== Coverage report Done ======== "
 
 task showCoverage, "open coverage html":
