@@ -6,9 +6,9 @@
 #include <unistd.h>
 #include "../../library/libstorage.h"
 
-// We need 150 as max retries mainly for the start function in CI.
+// We need 250 as max retries mainly for the start function in CI.
 // Other functions should be not need that many retries.
-#define MAX_RETRIES 150
+#define MAX_RETRIES 250
 
 typedef struct
 {
