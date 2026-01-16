@@ -67,12 +67,15 @@ proc config(node: CodexProcess): CodexConf {.raises: [CodexProcessError].} =
   except ConfigurationError as parent:
     raiseCodexProcessError "Failed to load node arguments into CodexConf", parent
 
+proc dataDir(node: CodexProcess): string {.raises: [CodexProcessError].} =
+  return node.config.dataDir.string
+
 proc apiUrl*(node: CodexProcess): string {.raises: [CodexProcessError].} =
   let config = node.config
   without apiBindAddress =? config.apiBindAddress:
     raise
       newException(CodexProcessError, "REST API not started: --api-bindaddr not set")
-  return "http://" & apiBindAddress & ":" & $config.apiPort & "/api/storage/v1"
+  return "http://" & apiBindAddress & ":" & $config.apiPort & "/api/sgitorage/v1"
 
 proc logFile*(node: CodexProcess): ?string {.raises: [CodexProcessError].} =
   node.config.logFile
