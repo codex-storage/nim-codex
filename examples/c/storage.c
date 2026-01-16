@@ -6,6 +6,8 @@
 #include <unistd.h>
 #include "../../library/libstorage.h"
 
+// We need 100 as max retries mainly for the start function.
+// Other functions should be not need that many retries.
 #define MAX_RETRIES 100
 
 typedef struct
@@ -55,6 +57,9 @@ static int get_ret(Resp *r)
     return r->ret;
 }
 
+// wait_resp waits until the async response is ready or max retries is reached.
+// The resp is initially set to -1, to any code (RET_OK, RET_ERR, RET_PROGRESS) will
+// indicate that the response is ready to be consumed.
 static void wait_resp(Resp *r)
 {
     int retries = 0;
@@ -66,6 +71,9 @@ static void wait_resp(Resp *r)
     }
 }
 
+// is_resp_ok checks if the async response indicates success.
+// It will wait first for the response to be ready.
+// Then it will copy the message or chunk to res if provided.
 static int is_resp_ok(Resp *r, char **res)
 {
     if (!r)
@@ -77,12 +85,16 @@ static int is_resp_ok(Resp *r, char **res)
 
     int ret = (r->ret == RET_OK) ? RET_OK : RET_ERR;
 
+    // If a response pointer is provided, it’s safe to initialize it to NULL.
     if (res)
     {
         *res = NULL;
     }
 
-    if (r->chunk)
+    // If the response contains a chunk (for a download or an upload with RET_PROGRESS),
+    // the response will be in chunk.
+    // Otherwise, the response will be in msg.
+    if (res && r->chunk)
     {
         *res = strdup(r->chunk);
     }
@@ -96,17 +108,31 @@ static int is_resp_ok(Resp *r, char **res)
     return ret;
 }
 
+// callback is the function that will be called by the storage library
+// when an async operation is completed or has progress to report.
+// - ret is the return code of the callback
+// - msg is the data returned by the callback: it can be a string or a chunk
+// - len is the size of that data
+// - userData is the bridge between the caller and the lib.
+//   The caller passes this userData to the library.
+//   When the library invokes the callback, it passes the same userData back. The callback
+//   then fills it with the received information (return code, message). Once the callback
+//   has completed, the caller can read the populated userData.
 static void callback(int ret, const char *msg, size_t len, void *userData)
 {
     Resp *r = (Resp *)userData;
 
+    // This means that the caller did not provide a valid userData pointer.
+    // In that case, we have nothing to do but return.
     if (!r)
     {
         return;
     }
 
+    // Assign the return code to the response structure.
     r->ret = ret;
 
+    // If the reponse already has a message, just free it first.
     if (r->msg)
     {
         free(r->msg);
@@ -114,16 +140,21 @@ static void callback(int ret, const char *msg, size_t len, void *userData)
         r->len = 0;
     }
 
+    // For a RET_PROGRESS with chunk, copy the chunk data directly.
+    // This is used for upload/download chunk progress.
     if (ret == RET_PROGRESS && msg && len > 0 && r->chunk)
     {
         memcpy(r->chunk, msg, len);
         r->len = len;
     }
 
+    // For other cases, copy the message data.
     if (msg && len > 0)
     {
+        // Allocate memory for the message plus null terminator.
         r->msg = (char *)malloc(len + 1);
 
+        // Just in case malloc fails.
         if (!r->msg)
         {
             r->len = 0;
@@ -131,7 +162,11 @@ static void callback(int ret, const char *msg, size_t len, void *userData)
         }
 
         memcpy(r->msg, msg, len);
+
+        // Null terminate is needed here otherwise
+        // the msg will contains non valid string like "0� :g"
         r->msg[len] = '\0';
+
         r->len = len;
     }
     else
@@ -145,6 +180,7 @@ static int read_file(const char *filepath, char **res)
 {
     FILE *file;
     char c;
+    // Just read first 100 bytes for the test
     char content[100];
 
     file = fopen(filepath, "r");
