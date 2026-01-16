@@ -6,7 +6,7 @@
 #include <unistd.h>
 #include "../../library/libstorage.h"
 
-#define MAX_RETRIES 50
+#define MAX_RETRIES 100
 
 typedef struct
 {
