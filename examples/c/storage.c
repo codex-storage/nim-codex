@@ -117,7 +117,6 @@ static void callback(int ret, const char *msg, size_t len, void *userData)
     if (ret == RET_PROGRESS && msg && len > 0 && r->chunk)
     {
         memcpy(r->chunk, msg, len);
-        r->chunk[len] = '\0';
         r->len = len;
     }
 
