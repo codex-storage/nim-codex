@@ -117,7 +117,7 @@ proc startNode*[T: NodeProcess](
   return node
 
 method stop*(
-    node: NodeProcess, expectedErrCode: int = -1
+    node: NodeProcess, expectedExitCode: int = 0
 ) {.base, async: (raises: []).} =
   logScope:
     nodeName = node.name
@@ -129,7 +129,7 @@ method stop*(
     try:
       let exitCode = await noCancel node.process.terminateAndWaitForExit(2.seconds)
       if exitCode > 0 and exitCode != 143 and # 143 = SIGTERM (initiated above)
-      exitCode != expectedErrCode:
+      exitCode != expectedExitCode:
         warn "process exited with a non-zero exit code", exitCode
       trace "node process terminated", exitCode
     except CatchableError:

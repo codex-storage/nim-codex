@@ -66,7 +66,9 @@ asyncchecksuite "Command line interface":
   test "complains when persistence is enabled without ethereum account":
     let node = await startCodex(@["persistence"])
     await node.waitUntilOutput("Persistence enabled, but no Ethereum account was set")
-    await node.stop(expectedErrCode = 1)
+    # Expect the codex process to return an exit code of 1 indicating the result
+    # of the operation was unsuccessful.
+    await node.stop(expectedExitCode = 1)
 
   test "complains when ethereum private key file has wrong permissions":
     let unsafeKeyFile = genTempPath("", "")
@@ -81,7 +83,9 @@ asyncchecksuite "Command line interface":
     await node.waitUntilOutput(
       "Ethereum private key file does not have safe file permissions"
     )
-    await node.stop(expectedErrCode = 1)
+    # Expect the codex process to return an exit code of 1 indicating the result
+    # of the operation was unsuccessful.
+    await node.stop(expectedExitCode = 1)
     discard removeFile(unsafeKeyFile)
 
   let
@@ -92,7 +96,9 @@ asyncchecksuite "Command line interface":
   test "suggests downloading of circuit files when persistence is enabled without accessible r1cs file":
     let node = await startCodex(@["persistence", "prover", marketplaceArg])
     await node.waitUntilOutput(expectedDownloadInstruction)
-    await node.stop(expectedErrCode = 1)
+    # Expect the codex process to return an exit code of 1 indicating the result
+    # of the operation was unsuccessful.
+    await node.stop(expectedExitCode = 1)
 
   test "suggests downloading of circuit files when persistence is enabled without accessible wasm file":
     let node = await startCodex(
@@ -105,7 +111,9 @@ asyncchecksuite "Command line interface":
       ]
     )
     await node.waitUntilOutput(expectedDownloadInstruction)
-    await node.stop(expectedErrCode = 1)
+    # Expect the codex process to return an exit code of 1 indicating the result
+    # of the operation was unsuccessful.
+    await node.stop(expectedExitCode = 1)
 
   test "suggests downloading of circuit files when persistence is enabled without accessible zkey file":
     let node = await startCodex(
@@ -119,4 +127,6 @@ asyncchecksuite "Command line interface":
       ]
     )
     await node.waitUntilOutput(expectedDownloadInstruction)
-    await node.stop(expectedErrCode = 1)
+    # Expect the codex process to return an exit code of 1 indicating the result
+    # of the operation was unsuccessful.
+    await node.stop(expectedExitCode = 1)
