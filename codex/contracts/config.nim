@@ -1,10 +1,11 @@
 import pkg/contractabi
-import pkg/ethers/fields
+import pkg/ethers/contracts/fields
 import pkg/questionable/results
 
 export contractabi
 
 const DefaultRequestCacheSize* = 128.uint16
+const DefaultMaxPriorityFeePerGas* = 1_000_000_000.uint64
 
 type
   MarketplaceConfig* = object

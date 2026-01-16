@@ -1,18 +1,19 @@
 import helpers/multisetup
 import helpers/trackers
 import helpers/templeveldb
-
+import std/times
 import std/sequtils, chronos
+
+import ./asynctest
 
 export multisetup, trackers, templeveldb
 
 ### taken from libp2p errorhelpers.nim
-proc allFuturesThrowing*(args: varargs[FutureBase]): Future[void] =
+proc allFuturesThrowing(futs: seq[FutureBase]): Future[void] =
   # This proc is only meant for use in tests / not suitable for general use.
   # - Swallowing errors arbitrarily instead of aggregating them is bad design
   # - It raises `CatchableError` instead of the union of the `futs` errors,
   #   inflating the caller's `raises` list unnecessarily. `macro` could fix it
-  let futs = @args
   (
     proc() {.async: (raises: [CatchableError]).} =
       await allFutures(futs)
@@ -27,6 +28,9 @@ proc allFuturesThrowing*(args: varargs[FutureBase]): Future[void] =
       if firstErr != nil:
         raise firstErr
   )()
+
+proc allFuturesThrowing*(args: varargs[FutureBase]): Future[void] =
+  allFuturesThrowing(@args)
 
 proc allFuturesThrowing*[T](futs: varargs[Future[T]]): Future[void] =
   allFuturesThrowing(futs.mapIt(FutureBase(it)))

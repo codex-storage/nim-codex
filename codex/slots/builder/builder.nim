@@ -1,4 +1,4 @@
-## Nim-Codex
+## Logos Storage
 ## Copyright (c) 2023 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
@@ -18,18 +18,20 @@ import pkg/chronos
 import pkg/questionable
 import pkg/questionable/results
 import pkg/constantine/math/io/io_fields
+import pkg/taskpools
 
 import ../../logutils
 import ../../utils
 import ../../stores
 import ../../manifest
 import ../../merkletree
+import ../../utils/poseidon2digest
 import ../../utils/asynciter
 import ../../indexingstrategy
 
 import ../converters
 
-export converters, asynciter
+export converters, asynciter, poseidon2digest
 
 logScope:
   topics = "codex slotsbuilder"
@@ -45,6 +47,7 @@ type SlotsBuilder*[T, H] = ref object of RootObj
   emptyBlock: seq[byte] # empty block
   verifiableTree: ?T # verification tree (dataset tree)
   emptyDigestTree: T # empty digest tree for empty blocks
+  taskPool: Taskpool
 
 func verifiable*[T, H](self: SlotsBuilder[T, H]): bool {.inline.} =
   ## Returns true if the slots are verifiable.
@@ -113,17 +116,17 @@ func numSlotCells*[T, H](self: SlotsBuilder[T, H]): Natural =
 
   self.numBlockCells * self.numSlotBlocks
 
-func slotIndiciesIter*[T, H](self: SlotsBuilder[T, H], slot: Natural): ?!Iter[int] =
+func slotIndicesIter*[T, H](self: SlotsBuilder[T, H], slot: Natural): ?!Iter[int] =
   ## Returns the slot indices.
   ##
 
-  self.strategy.getIndicies(slot).catch
+  self.strategy.getIndices(slot).catch
 
-func slotIndicies*[T, H](self: SlotsBuilder[T, H], slot: Natural): seq[int] =
+func slotIndices*[T, H](self: SlotsBuilder[T, H], slot: Natural): seq[int] =
   ## Returns the slot indices.
   ##
 
-  if iter =? self.strategy.getIndicies(slot).catch:
+  if iter =? self.strategy.getIndices(slot).catch:
     return toSeq(iter)
 
 func manifest*[T, H](self: SlotsBuilder[T, H]): Manifest =
@@ -134,7 +137,7 @@ func manifest*[T, H](self: SlotsBuilder[T, H]): Manifest =
 
 proc buildBlockTree*[T, H](
     self: SlotsBuilder[T, H], blkIdx: Natural, slotPos: Natural
-): Future[?!(seq[byte], T)] {.async.} =
+): Future[?!(seq[byte], T)] {.async: (raises: [CancelledError]).} =
   ## Build the block digest tree and return a tuple with the
   ## block data and the tree.
   ##
@@ -165,9 +168,38 @@ proc buildBlockTree*[T, H](
 
     success (blk.data, tree)
 
+proc getBlockDigest*[T, H](
+    self: SlotsBuilder[T, H], blkIdx: Natural, slotPos: Natural
+): Future[?!H] {.async: (raises: [CancelledError]).} =
+  logScope:
+    blkIdx = blkIdx
+    slotPos = slotPos
+    numSlotBlocks = self.manifest.numSlotBlocks
+    cellSize = self.cellSize
+
+  trace "Building block tree"
+
+  if slotPos > (self.manifest.numSlotBlocks - 1):
+    # pad blocks are 0 byte blocks
+    trace "Returning empty digest tree for pad block"
+    return self.emptyDigestTree.root
+
+  without blk =? await self.store.getBlock(self.manifest.treeCid, blkIdx), err:
+    error "Failed to get block CID for tree at index", err = err.msg
+    return failure(err)
+
+  if blk.isEmpty:
+    return self.emptyDigestTree.root
+
+  without dg =? (await T.digest(self.taskPool, blk.data, self.cellSize.int)), err:
+    error "Failed to create digest for block", err = err.msg
+    return failure(err)
+
+  return success dg
+
 proc getCellHashes*[T, H](
     self: SlotsBuilder[T, H], slotIndex: Natural
-): Future[?!seq[H]] {.async.} =
+): Future[?!seq[H]] {.async: (raises: [CancelledError, IndexingError]).} =
   ## Collect all the cells from a block and return
   ## their hashes.
   ##
@@ -184,14 +216,13 @@ proc getCellHashes*[T, H](
     slotIndex = slotIndex
 
   let hashes = collect(newSeq):
-    for i, blkIdx in self.strategy.getIndicies(slotIndex):
+    for i, blkIdx in self.strategy.getIndices(slotIndex):
       logScope:
         blkIdx = blkIdx
         pos = i
 
       trace "Getting block CID for tree at index"
-      without (_, tree) =? (await self.buildBlockTree(blkIdx, i)) and digest =? tree.root,
-        err:
+      without digest =? (await self.getBlockDigest(blkIdx, i)), err:
         error "Failed to get block CID for tree at index", err = err.msg
         return failure(err)
 
@@ -202,19 +233,23 @@ proc getCellHashes*[T, H](
 
 proc buildSlotTree*[T, H](
     self: SlotsBuilder[T, H], slotIndex: Natural
-): Future[?!T] {.async.} =
+): Future[?!T] {.async: (raises: [CancelledError]).} =
   ## Build the slot tree from the block digest hashes
   ## and return the tree.
 
-  without cellHashes =? (await self.getCellHashes(slotIndex)), err:
-    error "Failed to select slot blocks", err = err.msg
-    return failure(err)
+  try:
+    without cellHashes =? (await self.getCellHashes(slotIndex)), err:
+      error "Failed to select slot blocks", err = err.msg
+      return failure(err)
 
-  T.init(cellHashes)
+    T.init(cellHashes)
+  except IndexingError as err:
+    error "Failed to build slot tree", err = err.msg
+    return failure(err)
 
 proc buildSlot*[T, H](
     self: SlotsBuilder[T, H], slotIndex: Natural
-): Future[?!H] {.async.} =
+): Future[?!H] {.async: (raises: [CancelledError]).} =
   ## Build a slot tree and store the proofs in
   ## the block store.
   ##
@@ -250,7 +285,9 @@ proc buildSlot*[T, H](
 func buildVerifyTree*[T, H](self: SlotsBuilder[T, H], slotRoots: openArray[H]): ?!T =
   T.init(@slotRoots)
 
-proc buildSlots*[T, H](self: SlotsBuilder[T, H]): Future[?!void] {.async.} =
+proc buildSlots*[T, H](
+    self: SlotsBuilder[T, H]
+): Future[?!void] {.async: (raises: [CancelledError]).} =
   ## Build all slot trees and store them in the block store.
   ##
 
@@ -280,7 +317,9 @@ proc buildSlots*[T, H](self: SlotsBuilder[T, H]): Future[?!void] {.async.} =
 
   success()
 
-proc buildManifest*[T, H](self: SlotsBuilder[T, H]): Future[?!Manifest] {.async.} =
+proc buildManifest*[T, H](
+    self: SlotsBuilder[T, H]
+): Future[?!Manifest] {.async: (raises: [CancelledError]).} =
   if err =? (await self.buildSlots()).errorOption:
     error "Failed to build slot roots", err = err.msg
     return failure(err)
@@ -302,7 +341,8 @@ proc new*[T, H](
     _: type SlotsBuilder[T, H],
     store: BlockStore,
     manifest: Manifest,
-    strategy = SteppedStrategy,
+    taskPool: Taskpool,
+    strategy = LinearStrategy,
     cellSize = DefaultCellSize,
 ): ?!SlotsBuilder[T, H] =
   if not manifest.protected:
@@ -346,7 +386,14 @@ proc new*[T, H](
     emptyBlock = newSeq[byte](manifest.blockSize.int)
     emptyDigestTree = ?T.digestTree(emptyBlock, cellSize.int)
 
-    strategy = ?strategy.init(0, numBlocksTotal - 1, manifest.numSlots).catch
+    strategy =
+      ?strategy.init(
+        0,
+        manifest.blocksCount - 1,
+        manifest.numSlots,
+        manifest.numSlots,
+        numPadSlotBlocks,
+      ).catch
 
   logScope:
     numSlotBlocks = numSlotBlocks
@@ -368,6 +415,7 @@ proc new*[T, H](
     emptyBlock: emptyBlock,
     numSlotBlocks: numSlotBlocksTotal,
     emptyDigestTree: emptyDigestTree,
+    taskPool: taskPool,
   )
 
   if manifest.verifiable:

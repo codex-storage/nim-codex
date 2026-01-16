@@ -1,3 +1,5 @@
+{.push raises: [].}
+
 import std/times
 import pkg/ethers
 import pkg/questionable
@@ -72,7 +74,9 @@ method now*(clock: OnChainClock): SecondsSince1970 =
   doAssert clock.started, "clock should be started before calling now()"
   return toUnix(getTime() + clock.offset)
 
-method waitUntil*(clock: OnChainClock, time: SecondsSince1970) {.async.} =
+method waitUntil*(
+    clock: OnChainClock, time: SecondsSince1970
+) {.async: (raises: [CancelledError]).} =
   while (let difference = time - clock.now(); difference > 0):
     clock.newBlock.clear()
     discard await clock.newBlock.wait().withTimeout(chronos.seconds(difference))

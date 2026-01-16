@@ -36,6 +36,9 @@ method run*(
     requestId = data.requestId, slotIndex = data.slotIndex
 
   try:
+    if onClear =? agent.context.onClear:
+      onClear(request, data.slotIndex)
+
     if onCleanUp =? agent.onCleanUp:
       await onCleanUp(returnedCollateral = state.returnedCollateral)
   except CancelledError as e:

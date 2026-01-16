@@ -101,7 +101,7 @@
           "refId": "A"
         }
       ],
-      "title": "Codex Inflight Discovery",
+      "title": "Logos Storage Inflight Discovery",
       "type": "stat"
     },
     {
@@ -1219,7 +1219,7 @@
     ]
   },
   "timezone": "",
-  "title": "Codex Dashboard",
+  "title": "Logos Storage Dashboard",
   "uid": "pgeNfj2Wz2b",
   "version": 24,
   "weekStart": ""

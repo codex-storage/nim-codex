@@ -1,0 +1,7 @@
+extends:
+  - recommended
+
+rules:
+  info-license: off
+  no-required-schema-properties-undefined: error
+  no-server-example.com: off

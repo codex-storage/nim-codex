@@ -1,4 +1,4 @@
-## Nim-Codex
+## Logos Storage
 ## Copyright (c) 2023 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
@@ -7,6 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 ##
+
+{.push raises: [].}
 
 import std/enumerate
 import std/parseutils
@@ -17,8 +19,9 @@ import pkg/chronos
 import ./utils/asyncheapqueue
 import ./utils/fileutils
 import ./utils/asynciter
+import ./utils/safeasynciter
 
-export asyncheapqueue, fileutils, asynciter, chronos
+export asyncheapqueue, fileutils, asynciter, safeasynciter, chronos
 
 when defined(posix):
   import os, posix

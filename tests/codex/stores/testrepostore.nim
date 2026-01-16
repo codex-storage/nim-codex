@@ -15,7 +15,7 @@ import pkg/codex/stores
 import pkg/codex/stores/repostore/operations
 import pkg/codex/blocktype as bt
 import pkg/codex/clock
-import pkg/codex/utils/asynciter
+import pkg/codex/utils/safeasynciter
 import pkg/codex/merkletree/codex
 
 import ../../asynctest
@@ -181,9 +181,8 @@ asyncchecksuite "RepoStore":
 
     var res = newSeq[BlockExpiration]()
     for fut in iter:
-      let be = await fut
-      res.add(be)
-
+      if be =? (await fut):
+        res.add(be)
     res
 
   test "Should store block expiration timestamp":
@@ -294,14 +293,14 @@ asyncchecksuite "RepoStore":
 
   test "Should retrieve block expiration information":
     proc unpack(
-        beIter: Future[?!AsyncIter[BlockExpiration]]
-    ): Future[seq[BlockExpiration]] {.async.} =
+        beIter: Future[?!SafeAsyncIter[BlockExpiration]]
+    ): Future[seq[BlockExpiration]] {.async: (raises: [CatchableError]).} =
       var expirations = newSeq[BlockExpiration](0)
       without iter =? (await beIter), err:
         return expirations
       for beFut in toSeq(iter):
-        let value = await beFut
-        expirations.add(value)
+        if value =? (await beFut):
+          expirations.add(value)
       return expirations
 
     let
@@ -365,9 +364,11 @@ asyncchecksuite "RepoStore":
     let
       repo = RepoStore.new(repoDs, metaDs, clock = mockClock, quotaMaxBytes =
           1000'nb)
-      dataset = await makeRandomBlocks(datasetSize = 512, blockSize = 256'nb)
-      blk = dataset[0]
-      (manifest, tree) = makeManifestAndTree(dataset).tryGet()
+      (blocks, tree, manifest) = makeDataset(
+          await makeRandomBlocks(datasetSize = 2 * 256, blockSize = 256'nb)
+        )
+        .tryGet()
+      blk = blocks[0]
       treeCid = tree.rootCid.tryGet()
       proof = tree.getProof(0).tryGet()
 
@@ -382,9 +383,11 @@ asyncchecksuite "RepoStore":
     let
       repo = RepoStore.new(repoDs, metaDs, clock = mockClock, quotaMaxBytes =
           1000'nb)
-      dataset = await makeRandomBlocks(datasetSize = 512, blockSize = 256'nb)
-      blk = dataset[0]
-      (manifest, tree) = makeManifestAndTree(dataset).tryGet()
+      (blocks, tree, manifest) = makeDataset(
+          await makeRandomBlocks(datasetSize = 2 * 256, blockSize = 256'nb)
+        )
+        .tryGet()
+      blk = blocks[0]
       treeCid = tree.rootCid.tryGet()
       proof = tree.getProof(0).tryGet()
 
@@ -407,9 +410,9 @@ asyncchecksuite "RepoStore":
     let sharedBlock = blockPool[1]
 
     let
-      (manifest1, tree1) = makeManifestAndTree(dataset1).tryGet()
+      (_, tree1, manifest1) = makeDataset(dataset1).tryGet()
       treeCid1 = tree1.rootCid.tryGet()
-      (manifest2, tree2) = makeManifestAndTree(dataset2).tryGet()
+      (_, tree2, manifest2) = makeDataset(dataset2).tryGet()
       treeCid2 = tree2.rootCid.tryGet()
 
     (await repo.putBlock(sharedBlock)).tryGet()
@@ -436,9 +439,9 @@ asyncchecksuite "RepoStore":
     let
       repo = RepoStore.new(repoDs, metaDs, clock = mockClock, quotaMaxBytes =
           1000'nb)
-      dataset = await makeRandomBlocks(datasetSize = 512, blockSize = 256'nb)
-      blk = dataset[0]
-      (manifest, tree) = makeManifestAndTree(dataset).tryGet()
+      blocks = await makeRandomBlocks(datasetSize = 512, blockSize = 256'nb)
+      blk = blocks[0]
+      (_, tree, manifest) = makeDataset(blocks).tryGet()
       treeCid = tree.rootCid.tryGet()
       proof = tree.getProof(1).tryGet()
 
@@ -456,9 +459,9 @@ asyncchecksuite "RepoStore":
     let
       repo = RepoStore.new(repoDs, metaDs, clock = mockClock, quotaMaxBytes =
           1000'nb)
-      dataset = await makeRandomBlocks(datasetSize = 512, blockSize = 256'nb)
-      blk = dataset[0]
-      (manifest, tree) = makeManifestAndTree(dataset).tryGet()
+      blocks = await makeRandomBlocks(datasetSize = 512, blockSize = 256'nb)
+      blk = blocks[0]
+      (_, tree, manifest) = makeDataset(blocks).tryGet()
       treeCid = tree.rootCid.tryGet()
       proof = tree.getProof(1).tryGet()
 

@@ -1,4 +1,4 @@
-## Nim-Codex
+## Logos Storage
 ## Copyright (c) 2022 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
@@ -9,11 +9,9 @@
 
 # This module implements serialization and deserialization of Manifest
 
-import pkg/upraises
 import times
 
-push:
-  {.upraises: [].}
+{.push raises: [].}
 
 import std/tables
 import std/sequtils

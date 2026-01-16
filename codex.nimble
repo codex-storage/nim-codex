@@ -1,9 +1,9 @@
 version = "0.1.0"
-author = "Codex Team"
+author = "Logos Storage Team"
 description = "p2p data durability engine"
 license = "MIT"
 binDir = "build"
 srcDir = "."
-installFiles  = @["build.nims"]
+installFiles = @["build.nims"]
 
 include "build.nims"

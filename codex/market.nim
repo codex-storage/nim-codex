@@ -1,5 +1,4 @@
 import pkg/chronos
-import pkg/upraises
 import pkg/questionable
 import pkg/ethers/erc20
 import ./contracts/requests
@@ -20,17 +19,18 @@ type
   MarketError* = object of CodexError
   SlotStateMismatchError* = object of MarketError
   SlotReservationNotAllowedError* = object of MarketError
+  ProofInvalidError* = object of MarketError
   Subscription* = ref object of RootObj
   OnRequest* =
-    proc(id: RequestId, ask: StorageAsk, expiry: uint64) {.gcsafe, upraises: [].}
-  OnFulfillment* = proc(requestId: RequestId) {.gcsafe, upraises: [].}
-  OnSlotFilled* = proc(requestId: RequestId, slotIndex: uint64) {.gcsafe, upraises: [].}
-  OnSlotFreed* = proc(requestId: RequestId, slotIndex: uint64) {.gcsafe, upraises: [].}
+    proc(id: RequestId, ask: StorageAsk, expiry: uint64) {.gcsafe, raises: [].}
+  OnFulfillment* = proc(requestId: RequestId) {.gcsafe, raises: [].}
+  OnSlotFilled* = proc(requestId: RequestId, slotIndex: uint64) {.gcsafe, raises: [].}
+  OnSlotFreed* = proc(requestId: RequestId, slotIndex: uint64) {.gcsafe, raises: [].}
   OnSlotReservationsFull* =
-    proc(requestId: RequestId, slotIndex: uint64) {.gcsafe, upraises: [].}
-  OnRequestCancelled* = proc(requestId: RequestId) {.gcsafe, upraises: [].}
-  OnRequestFailed* = proc(requestId: RequestId) {.gcsafe, upraises: [].}
-  OnProofSubmitted* = proc(id: SlotId) {.gcsafe, upraises: [].}
+    proc(requestId: RequestId, slotIndex: uint64) {.gcsafe, raises: [].}
+  OnRequestCancelled* = proc(requestId: RequestId) {.gcsafe, raises: [].}
+  OnRequestFailed* = proc(requestId: RequestId) {.gcsafe, raises: [].}
+  OnProofSubmitted* = proc(id: SlotId) {.gcsafe, raises: [].}
   ProofChallenge* = array[32, byte]
 
   # Marketplace events -- located here due to the Market abstraction
@@ -74,7 +74,9 @@ method getZkeyHash*(
 ): Future[?string] {.base, async: (raises: [CancelledError, MarketError]).} =
   raiseAssert("not implemented")
 
-method getSigner*(market: Market): Future[Address] {.base, async.} =
+method getSigner*(
+    market: Market
+): Future[Address] {.base, async: (raises: [CancelledError, MarketError]).} =
   raiseAssert("not implemented")
 
 method periodicity*(
@@ -108,7 +110,9 @@ proc inDowntime*(market: Market, slotId: SlotId): Future[bool] {.async.} =
   let pntr = await market.getPointer(slotId)
   return pntr < downtime
 
-method requestStorage*(market: Market, request: StorageRequest) {.base, async.} =
+method requestStorage*(
+    market: Market, request: StorageRequest
+) {.base, async: (raises: [CancelledError, MarketError]).} =
   raiseAssert("not implemented")
 
 method myRequests*(market: Market): Future[seq[RequestId]] {.base, async.} =
@@ -144,12 +148,12 @@ method requestExpiresAt*(
 
 method getHost*(
     market: Market, requestId: RequestId, slotIndex: uint64
-): Future[?Address] {.base, async.} =
+): Future[?Address] {.base, async: (raises: [CancelledError, MarketError]).} =
   raiseAssert("not implemented")
 
 method currentCollateral*(
     market: Market, slotId: SlotId
-): Future[UInt256] {.base, async.} =
+): Future[UInt256] {.base, async: (raises: [MarketError, CancelledError]).} =
   raiseAssert("not implemented")
 
 method getActiveSlot*(market: Market, slotId: SlotId): Future[?Slot] {.base, async.} =
@@ -161,13 +165,17 @@ method fillSlot*(
     slotIndex: uint64,
     proof: Groth16Proof,
     collateral: UInt256,
-) {.base, async.} =
+) {.base, async: (raises: [CancelledError, MarketError]).} =
   raiseAssert("not implemented")
 
-method freeSlot*(market: Market, slotId: SlotId) {.base, async.} =
+method freeSlot*(
+    market: Market, slotId: SlotId
+) {.base, async: (raises: [CancelledError, MarketError]).} =
   raiseAssert("not implemented")
 
-method withdrawFunds*(market: Market, requestId: RequestId) {.base, async.} =
+method withdrawFunds*(
+    market: Market, requestId: RequestId
+) {.base, async: (raises: [CancelledError, MarketError]).} =
   raiseAssert("not implemented")
 
 method subscribeRequests*(
@@ -186,20 +194,24 @@ method getChallenge*(
 ): Future[ProofChallenge] {.base, async.} =
   raiseAssert("not implemented")
 
-method submitProof*(market: Market, id: SlotId, proof: Groth16Proof) {.base, async.} =
+method submitProof*(
+    market: Market, id: SlotId, proof: Groth16Proof
+) {.base, async: (raises: [CancelledError, MarketError]).} =
   raiseAssert("not implemented")
 
-method markProofAsMissing*(market: Market, id: SlotId, period: Period) {.base, async.} =
-  raiseAssert("not implemented")
-
-method canProofBeMarkedAsMissing*(
+method markProofAsMissing*(
     market: Market, id: SlotId, period: Period
-): Future[bool] {.base, async.} =
+) {.base, async: (raises: [CancelledError, MarketError]).} =
+  raiseAssert("not implemented")
+
+method canMarkProofAsMissing*(
+    market: Market, id: SlotId, period: Period
+): Future[bool] {.base, async: (raises: [CancelledError]).} =
   raiseAssert("not implemented")
 
 method reserveSlot*(
     market: Market, requestId: RequestId, slotIndex: uint64
-) {.base, async.} =
+) {.base, async: (raises: [CancelledError, MarketError]).} =
   raiseAssert("not implemented")
 
 method canReserveSlot*(
@@ -262,7 +274,7 @@ method subscribeProofSubmission*(
 ): Future[Subscription] {.base, async.} =
   raiseAssert("not implemented")
 
-method unsubscribe*(subscription: Subscription) {.base, async, upraises: [].} =
+method unsubscribe*(subscription: Subscription) {.base, async.} =
   raiseAssert("not implemented")
 
 method queryPastSlotFilledEvents*(

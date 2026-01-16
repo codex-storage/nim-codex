@@ -189,7 +189,46 @@ ethersuite "On-Chain Market":
     let missingPeriod =
       periodicity.periodOf((await ethProvider.currentTime()).truncate(uint64))
     await advanceToNextPeriod()
-    check (await market.canProofBeMarkedAsMissing(slotId, missingPeriod)) == true
+    check (await market.canMarkProofAsMissing(slotId, missingPeriod)) == true
+
+  test "can check whether a proof cannot be marked as missing when the slot is free":
+    let slotId = slotId(request, slotIndex)
+    await market.requestStorage(request)
+    await market.reserveSlot(request.id, slotIndex)
+    await market.fillSlot(request.id, slotIndex, proof, request.ask.collateralPerSlot)
+    await waitUntilProofRequired(slotId)
+
+    await market.freeSlot(slotId(request.id, slotIndex))
+
+    let missingPeriod =
+      periodicity.periodOf((await ethProvider.currentTime()).truncate(uint64))
+    await advanceToNextPeriod()
+    check (await market.canMarkProofAsMissing(slotId, missingPeriod)) == false
+
+  test "can check whether a proof cannot be marked as missing before a proof is required":
+    let slotId = slotId(request, slotIndex)
+    await market.requestStorage(request)
+    await market.reserveSlot(request.id, slotIndex)
+    await market.fillSlot(request.id, slotIndex, proof, request.ask.collateralPerSlot)
+
+    let missingPeriod =
+      periodicity.periodOf((await ethProvider.currentTime()).truncate(uint64))
+    await advanceToNextPeriod()
+    check (await market.canMarkProofAsMissing(slotId, missingPeriod)) == false
+
+  test "can check whether a proof cannot be marked as missing if the proof was submitted":
+    let slotId = slotId(request, slotIndex)
+    await market.requestStorage(request)
+    await market.reserveSlot(request.id, slotIndex)
+    await market.fillSlot(request.id, slotIndex, proof, request.ask.collateralPerSlot)
+    await waitUntilProofRequired(slotId)
+
+    await market.submitProof(slotId(request.id, slotIndex), proof)
+
+    let missingPeriod =
+      periodicity.periodOf((await ethProvider.currentTime()).truncate(uint64))
+    await advanceToNextPeriod()
+    check (await market.canMarkProofAsMissing(slotId, missingPeriod)) == false
 
   test "supports slot filled subscriptions":
     await market.requestStorage(request)
@@ -498,6 +537,8 @@ ethersuite "On-Chain Market":
 
     let (_, fromTime) = await ethProvider.blockNumberAndTimestamp(BlockTag.latest)
 
+    await ethProvider.advanceTime(1.u256)
+
     await market.reserveSlot(request.id, 1.uint64)
     await market.reserveSlot(request.id, 2.uint64)
     await market.fillSlot(request.id, 1.uint64, proof, request.ask.collateralPerSlot)
@@ -541,14 +582,14 @@ ethersuite "On-Chain Market":
       (await market.queryPastStorageRequestedEvents(blocksAgo = 2))
     )
 
-  test "pays rewards and collateral to host":
+  test "pays rewards and returns collateral to host":
     await market.requestStorage(request)
 
     let address = await host.getAddress()
     switchAccount(host)
     await market.reserveSlot(request.id, 0.uint64)
     await market.fillSlot(request.id, 0.uint64, proof, request.ask.collateralPerSlot)
-    let filledAt = (await ethProvider.currentTime()) - 1.u256
+    let filledAt = await ethProvider.blockTime(BlockTag.latest)
 
     for slotIndex in 1 ..< request.ask.slots:
       await market.reserveSlot(request.id, slotIndex.uint64)
@@ -575,7 +616,7 @@ ethersuite "On-Chain Market":
     switchAccount(host)
     await market.reserveSlot(request.id, 0.uint64)
     await market.fillSlot(request.id, 0.uint64, proof, request.ask.collateralPerSlot)
-    let filledAt = (await ethProvider.currentTime()) - 1.u256
+    let filledAt = await ethProvider.blockTime(BlockTag.latest)
 
     for slotIndex in 1 ..< request.ask.slots:
       await market.reserveSlot(request.id, slotIndex.uint64)
@@ -629,7 +670,7 @@ ethersuite "On-Chain Market":
     check collateral ==
       request.ask.collateralPerSlot - (request.ask.collateralPerSlot * 10).div(100.u256)
 
-  test "the request is added in cache after the fist access":
+  test "the request is added to cache after the first access":
     await market.requestStorage(request)
 
     check market.requestCache.contains($request.id) == false

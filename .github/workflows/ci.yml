@@ -9,36 +9,29 @@ on:
 
 env:
   cache_nonce: 0 # Allows for easily busting actions/cache caches
-  nim_version: v2.0.14
+  nim_version: v2.2.4
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
   cancel-in-progress: true
 
 jobs:
+
   matrix:
+    name: Compute matrix
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.matrix.outputs.matrix }}
       cache_nonce: ${{ env.cache_nonce }}
     steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
       - name: Compute matrix
         id: matrix
-        uses: fabiocaccamo/create-matrix-action@v5
-        with:
-          matrix: |
-            os {linux},   cpu {amd64}, builder {ubuntu-latest},   tests {unittest},    nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
-            os {linux},   cpu {amd64}, builder {ubuntu-latest},   tests {contract},    nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
-            os {linux},   cpu {amd64}, builder {ubuntu-latest},   tests {integration}, nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
-            os {linux},   cpu {amd64}, builder {ubuntu-latest},   tests {tools},       nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
-            os {macos},   cpu {amd64}, builder {macos-13},       tests {unittest},    nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
-            os {macos},   cpu {amd64}, builder {macos-13},       tests {contract},    nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
-            os {macos},   cpu {amd64}, builder {macos-13},       tests {integration}, nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
-            os {macos},   cpu {amd64}, builder {macos-13},       tests {tools},       nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
-            os {windows}, cpu {amd64}, builder {windows-latest}, tests {unittest},    nim_version {${{ env.nim_version }}}, shell {msys2}
-            os {windows}, cpu {amd64}, builder {windows-latest}, tests {contract},    nim_version {${{ env.nim_version }}}, shell {msys2}
-            os {windows}, cpu {amd64}, builder {windows-latest}, tests {integration}, nim_version {${{ env.nim_version }}}, shell {msys2}
-            os {windows}, cpu {amd64}, builder {windows-latest}, tests {tools},       nim_version {${{ env.nim_version }}}, shell {msys2}
+        run: |
+          echo 'matrix<<EOF' >> $GITHUB_OUTPUT
+          tools/scripts/ci-job-matrix.sh >> $GITHUB_OUTPUT
+          echo 'EOF' >> $GITHUB_OUTPUT
 
   build:
     needs: matrix
@@ -61,11 +54,7 @@ jobs:
           suggest: true
 
   coverage:
-    # Force to stick to ubuntu 20.04 for coverage because
-    # lcov was updated to 2.x version in ubuntu-latest
-    # and cause a lot of issues.
-    # See https://github.com/linux-test-project/lcov/issues/238
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
@@ -96,3 +85,29 @@ jobs:
           name: codecov-umbrella
           token: ${{ secrets.CODECOV_TOKEN }}
           verbose: true
+
+  cbinding:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Setup Nimbus Build System
+        uses: ./.github/actions/nimbus-build-system
+        with:
+          os: linux
+          nim_version: ${{ env.nim_version }}
+
+      - name: C Binding build
+        run: |
+            make -j${ncpu} update
+            make -j${ncpu} libstorage
+
+      - name: C Binding test
+        run: |
+          cd examples/c
+          gcc -o storage storage.c -L../../build -lstorage -Wl,-rpath,../../ -pthread
+          LD_LIBRARY_PATH=../../build ./storage

@@ -30,12 +30,12 @@ method run*(
     requestId = purchase.requestId
 
   proc wait() {.async.} =
-    let done = newFuture[void]()
+    let done = newAsyncEvent()
     proc callback(_: RequestId) =
-      done.complete()
+      done.fire()
 
     let subscription = await market.subscribeFulfillment(request.id, callback)
-    await done
+    await done.wait()
     await subscription.unsubscribe()
 
   proc withTimeout(future: Future[void]) {.async.} =

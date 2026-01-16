@@ -1,4 +1,4 @@
-## Nim-Codex
+## Logos Storage
 ## Copyright (c) 2024 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
@@ -13,6 +13,7 @@ import pkg/chronicles
 import pkg/circomcompat
 import pkg/poseidon2
 import pkg/questionable/results
+import pkg/taskpools
 
 import pkg/libp2p/cid
 
@@ -47,10 +48,11 @@ type
     backend: AnyBackend
     store: BlockStore
     nSamples: int
+    taskPool: Taskpool
 
 proc prove*(
     self: Prover, slotIdx: int, manifest: Manifest, challenge: ProofChallenge
-): Future[?!(AnyProofInputs, AnyProof)] {.async.} =
+): Future[?!(AnyProofInputs, AnyProof)] {.async: (raises: [CancelledError]).} =
   ## Prove a statement using backend.
   ## Returns a future that resolves to a proof.
 
@@ -61,7 +63,7 @@ proc prove*(
 
   trace "Received proof challenge"
 
-  without builder =? AnyBuilder.new(self.store, manifest), err:
+  without builder =? AnyBuilder.new(self.store, manifest, self.taskPool), err:
     error "Unable to create slots builder", err = err.msg
     return failure(err)
 
@@ -82,12 +84,12 @@ proc prove*(
 
 proc verify*(
     self: Prover, proof: AnyProof, inputs: AnyProofInputs
-): Future[?!bool] {.async.} =
+): Future[?!bool] {.async: (raises: [CancelledError]).} =
   ## Prove a statement using backend.
   ## Returns a future that resolves to a proof.
   self.backend.verify(proof, inputs)
 
 proc new*(
-    _: type Prover, store: BlockStore, backend: AnyBackend, nSamples: int
+    _: type Prover, store: BlockStore, backend: AnyBackend, nSamples: int, tp: Taskpool
 ): Prover =
-  Prover(store: store, backend: backend, nSamples: nSamples)
+  Prover(store: store, backend: backend, nSamples: nSamples, taskPool: tp)

@@ -1,4 +1,4 @@
-// Protocol of data exchange between Codex nodes.
+// Protocol of data exchange between Logos Storage nodes.
 // Extended version of https://github.com/ipfs/specs/blob/main/BITSWAP.md
 
 syntax = "proto3";

@@ -8,11 +8,13 @@ import pkg/codex/market
 import pkg/codex/contracts/requests
 import pkg/codex/contracts/proofs
 import pkg/codex/contracts/config
+import pkg/questionable/results
 
 from pkg/ethers import BlockTag
 import codex/clock
 
 import ../examples
+import ./mockclock
 
 export market
 export tables
@@ -47,8 +49,10 @@ type
     config*: MarketplaceConfig
     canReserveSlot*: bool
     errorOnReserveSlot*: ?(ref MarketError)
-    errorOnFillSlot*: ?(ref CatchableError)
-    clock: ?Clock
+    errorOnFillSlot*: ?(ref MarketError)
+    errorOnFreeSlot*: ?(ref MarketError)
+    errorOnGetHost*: ?(ref MarketError)
+    clock: Clock
 
   Fulfillment* = object
     requestId*: RequestId
@@ -60,7 +64,7 @@ type
     host*: Address
     slotIndex*: uint64
     proof*: Groth16Proof
-    timestamp: ?SecondsSince1970
+    timestamp: SecondsSince1970
     collateral*: UInt256
 
   Subscriptions = object
@@ -116,7 +120,7 @@ proc hash*(address: Address): Hash =
 proc hash*(requestId: RequestId): Hash =
   hash(requestId.toArray)
 
-proc new*(_: type MockMarket, clock: ?Clock = Clock.none): MockMarket =
+proc new*(_: type MockMarket, clock: Clock = MockClock.new()): MockMarket =
   ## Create a new mocked Market instance
   ##
   let config = MarketplaceConfig(
@@ -144,7 +148,9 @@ method loadConfig*(
 ): Future[?!void] {.async: (raises: [CancelledError]).} =
   discard
 
-method getSigner*(market: MockMarket): Future[Address] {.async.} =
+method getSigner*(
+    market: MockMarket
+): Future[Address] {.async: (raises: [CancelledError, MarketError]).} =
   return market.signer
 
 method periodicity*(
@@ -173,11 +179,18 @@ method repairRewardPercentage*(
 method getPointer*(market: MockMarket, slotId: SlotId): Future[uint8] {.async.} =
   return market.proofPointer
 
-method requestStorage*(market: MockMarket, request: StorageRequest) {.async.} =
+method requestStorage*(
+    market: MockMarket, request: StorageRequest
+) {.async: (raises: [CancelledError, MarketError]).} =
+  let now = market.clock.now()
+  let requestExpiresAt = now + request.expiry.toSecondsSince1970
+  let requestEndsAt = now + request.ask.duration.toSecondsSince1970
   market.requested.add(request)
+  market.requestExpiry[request.id] = requestExpiresAt
+  market.requestEnds[request.id] = requestEndsAt
   var subscriptions = market.subscriptions.onRequest
   for subscription in subscriptions:
-    subscription.callback(request.id, request.ask, request.expiry)
+    subscription.callback(request.id, request.ask, requestExpiresAt.uint64)
 
 method myRequests*(market: MockMarket): Future[seq[RequestId]] {.async.} =
   return market.activeRequests[market.signer]
@@ -228,7 +241,10 @@ method requestExpiresAt*(
 
 method getHost*(
     market: MockMarket, requestId: RequestId, slotIndex: uint64
-): Future[?Address] {.async.} =
+): Future[?Address] {.async: (raises: [CancelledError, MarketError]).} =
+  if error =? market.errorOnGetHost:
+    raise error
+
   for slot in market.filled:
     if slot.requestId == requestId and slot.slotIndex == slotIndex:
       return some slot.host
@@ -236,7 +252,7 @@ method getHost*(
 
 method currentCollateral*(
     market: MockMarket, slotId: SlotId
-): Future[UInt256] {.async.} =
+): Future[UInt256] {.async: (raises: [MarketError, CancelledError]).} =
   for slot in market.filled:
     if slotId == slotId(slot.requestId, slot.slotIndex):
       return slot.collateral
@@ -298,7 +314,7 @@ proc fillSlot*(
     slotIndex: slotIndex,
     proof: proof,
     host: host,
-    timestamp: market.clock .? now,
+    timestamp: market.clock.now,
     collateral: collateral,
   )
   market.filled.add(slot)
@@ -311,10 +327,15 @@ method fillSlot*(
     slotIndex: uint64,
     proof: Groth16Proof,
     collateral: UInt256,
-) {.async.} =
+) {.async: (raises: [CancelledError, MarketError]).} =
   market.fillSlot(requestId, slotIndex, proof, market.signer, collateral)
 
-method freeSlot*(market: MockMarket, slotId: SlotId) {.async.} =
+method freeSlot*(
+    market: MockMarket, slotId: SlotId
+) {.async: (raises: [CancelledError, MarketError]).} =
+  if error =? market.errorOnFreeSlot:
+    raise error
+
   market.freed.add(slotId)
   for s in market.filled:
     if slotId(s.requestId, s.slotIndex) == slotId:
@@ -322,7 +343,9 @@ method freeSlot*(market: MockMarket, slotId: SlotId) {.async.} =
       break
   market.slotState[slotId] = SlotState.Free
 
-method withdrawFunds*(market: MockMarket, requestId: RequestId) {.async.} =
+method withdrawFunds*(
+    market: MockMarket, requestId: RequestId
+) {.async: (raises: [CancelledError, MarketError]).} =
   market.withdrawn.add(requestId)
 
   if state =? market.requestState .? [requestId] and state == RequestState.Cancelled:
@@ -352,28 +375,32 @@ method getChallenge*(mock: MockMarket, id: SlotId): Future[ProofChallenge] {.asy
 proc setProofEnd*(mock: MockMarket, id: SlotId, proofEnd: UInt256) =
   mock.proofEnds[id] = proofEnd
 
-method submitProof*(mock: MockMarket, id: SlotId, proof: Groth16Proof) {.async.} =
+method submitProof*(
+    mock: MockMarket, id: SlotId, proof: Groth16Proof
+) {.async: (raises: [CancelledError, MarketError]).} =
   mock.submitted.add(proof)
   for subscription in mock.subscriptions.onProofSubmitted:
     subscription.callback(id)
 
-method markProofAsMissing*(market: MockMarket, id: SlotId, period: Period) {.async.} =
+method markProofAsMissing*(
+    market: MockMarket, id: SlotId, period: Period
+) {.async: (raises: [CancelledError, MarketError]).} =
   market.markedAsMissingProofs.add(id)
 
-proc setCanProofBeMarkedAsMissing*(mock: MockMarket, id: SlotId, required: bool) =
+proc setCanMarkProofAsMissing*(mock: MockMarket, id: SlotId, required: bool) =
   if required:
     mock.canBeMarkedAsMissing.incl(id)
   else:
     mock.canBeMarkedAsMissing.excl(id)
 
-method canProofBeMarkedAsMissing*(
+method canMarkProofAsMissing*(
     market: MockMarket, id: SlotId, period: Period
-): Future[bool] {.async.} =
+): Future[bool] {.async: (raises: [CancelledError]).} =
   return market.canBeMarkedAsMissing.contains(id)
 
 method reserveSlot*(
     market: MockMarket, requestId: RequestId, slotIndex: uint64
-) {.async.} =
+) {.async: (raises: [CancelledError, MarketError]).} =
   if error =? market.errorOnReserveSlot:
     raise error
 
@@ -392,10 +419,24 @@ func setErrorOnReserveSlot*(market: MockMarket, error: ref MarketError) =
     else:
       some error
 
-func setErrorOnFillSlot*(market: MockMarket, error: ref CatchableError) =
+func setErrorOnFillSlot*(market: MockMarket, error: ref MarketError) =
   market.errorOnFillSlot =
     if error.isNil:
-      none (ref CatchableError)
+      none (ref MarketError)
+    else:
+      some error
+
+func setErrorOnFreeSlot*(market: MockMarket, error: ref MarketError) =
+  market.errorOnFreeSlot =
+    if error.isNil:
+      none (ref MarketError)
+    else:
+      some error
+
+func setErrorOnGetHost*(market: MockMarket, error: ref MarketError) =
+  market.errorOnGetHost =
+    if error.isNil:
+      none (ref MarketError)
     else:
       some error
 
@@ -506,7 +547,11 @@ method queryPastStorageRequestedEvents*(
 ): Future[seq[StorageRequested]] {.async.} =
   return market.requested.map(
     request =>
-      StorageRequested(requestId: request.id, ask: request.ask, expiry: request.expiry)
+      StorageRequested(
+        requestId: request.id,
+        ask: request.ask,
+        expiry: market.requestExpiry[request.id].uint64,
+      )
   )
 
 method queryPastStorageRequestedEvents*(
@@ -514,7 +559,11 @@ method queryPastStorageRequestedEvents*(
 ): Future[seq[StorageRequested]] {.async.} =
   return market.requested.map(
     request =>
-      StorageRequested(requestId: request.id, ask: request.ask, expiry: request.expiry)
+      StorageRequested(
+        requestId: request.id,
+        ask: request.ask,
+        expiry: market.requestExpiry[request.id].uint64,
+      )
   )
 
 method queryPastSlotFilledEvents*(
@@ -536,10 +585,7 @@ method queryPastSlotFilledEvents*(
 ): Future[seq[SlotFilled]] {.async.} =
   let filtered = market.filled.filter(
     proc(slot: MockSlot): bool =
-      if timestamp =? slot.timestamp:
-        return timestamp >= fromTime
-      else:
-        true
+      return slot.timestamp >= fromTime
   )
   return filtered.map(
     slot => SlotFilled(requestId: slot.requestId, slotIndex: slot.slotIndex)

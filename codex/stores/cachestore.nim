@@ -1,4 +1,4 @@
-## Nim-Codex
+## Logos Storage
 ## Copyright (c) 2021 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
@@ -7,10 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import pkg/upraises
-
-push:
-  {.upraises: [].}
+{.push raises: [].}
 
 import std/options
 
@@ -46,7 +43,9 @@ type
 
 const DefaultCacheSize*: NBytes = 5.MiBs
 
-method getBlock*(self: CacheStore, cid: Cid): Future[?!Block] {.async.} =
+method getBlock*(
+    self: CacheStore, cid: Cid
+): Future[?!Block] {.async: (raises: [CancelledError]).} =
   ## Get a block from the stores
   ##
 
@@ -67,9 +66,24 @@ method getBlock*(self: CacheStore, cid: Cid): Future[?!Block] {.async.} =
     trace "Error requesting block from cache", cid, error = exc.msg
     return failure exc
 
+method getBlocks*(
+    self: CacheStore, addresses: seq[BlockAddress]
+): Future[SafeAsyncIter[Block]] {.async: (raises: [CancelledError]).} =
+  var i = 0
+
+  proc isFinished(): bool =
+    i == addresses.len
+
+  proc genNext(): Future[?!Block] {.async: (raises: [CancelledError]).} =
+    let value = await self.getBlock(addresses[i])
+    inc(i)
+    return value
+
+  return SafeAsyncIter[Block].new(genNext, isFinished)
+
 method getCidAndProof*(
     self: CacheStore, treeCid: Cid, index: Natural
-): Future[?!(Cid, CodexProof)] {.async.} =
+): Future[?!(Cid, CodexProof)] {.async: (raises: [CancelledError]).} =
   if cidAndProof =? self.cidAndProofCache.getOption((treeCid, index)):
     success(cidAndProof)
   else:
@@ -81,7 +95,7 @@ method getCidAndProof*(
 
 method getBlock*(
     self: CacheStore, treeCid: Cid, index: Natural
-): Future[?!Block] {.async.} =
+): Future[?!Block] {.async: (raises: [CancelledError]).} =
   without cidAndProof =? (await self.getCidAndProof(treeCid, index)), err:
     return failure(err)
 
@@ -89,7 +103,7 @@ method getBlock*(
 
 method getBlockAndProof*(
     self: CacheStore, treeCid: Cid, index: Natural
-): Future[?!(Block, CodexProof)] {.async.} =
+): Future[?!(Block, CodexProof)] {.async: (raises: [CancelledError]).} =
   without cidAndProof =? (await self.getCidAndProof(treeCid, index)), err:
     return failure(err)
 
@@ -100,13 +114,17 @@ method getBlockAndProof*(
 
   success((blk, proof))
 
-method getBlock*(self: CacheStore, address: BlockAddress): Future[?!Block] =
+method getBlock*(
+    self: CacheStore, address: BlockAddress
+): Future[?!Block] {.async: (raw: true, raises: [CancelledError]).} =
   if address.leaf:
     self.getBlock(address.treeCid, address.index)
   else:
     self.getBlock(address.cid)
 
-method hasBlock*(self: CacheStore, cid: Cid): Future[?!bool] {.async.} =
+method hasBlock*(
+    self: CacheStore, cid: Cid
+): Future[?!bool] {.async: (raises: [CancelledError]).} =
   ## Check if the block exists in the blockstore
   ##
 
@@ -119,7 +137,7 @@ method hasBlock*(self: CacheStore, cid: Cid): Future[?!bool] {.async.} =
 
 method hasBlock*(
     self: CacheStore, treeCid: Cid, index: Natural
-): Future[?!bool] {.async.} =
+): Future[?!bool] {.async: (raises: [CancelledError]).} =
   without cidAndProof =? (await self.getCidAndProof(treeCid, index)), err:
     if err of BlockNotFoundError:
       return success(false)
@@ -128,7 +146,7 @@ method hasBlock*(
 
   await self.hasBlock(cidAndProof[0])
 
-func cids(self: CacheStore): (iterator (): Cid {.gcsafe.}) =
+func cids(self: CacheStore): (iterator (): Cid {.gcsafe, raises: [].}) =
   return
     iterator (): Cid =
       for cid in self.cache.keys:
@@ -136,7 +154,7 @@ func cids(self: CacheStore): (iterator (): Cid {.gcsafe.}) =
 
 method listBlocks*(
     self: CacheStore, blockType = BlockType.Manifest
-): Future[?!AsyncIter[?Cid]] {.async.} =
+): Future[?!SafeAsyncIter[Cid]] {.async: (raises: [CancelledError]).} =
   ## Get the list of blocks in the BlockStore. This is an intensive operation
   ##
 
@@ -145,12 +163,15 @@ method listBlocks*(
   proc isFinished(): bool =
     return finished(cids)
 
-  proc genNext(): Future[Cid] {.async.} =
-    cids()
+  proc genNext(): Future[?!Cid] {.async: (raises: [CancelledError]).} =
+    success(cids())
 
   let iter = await (
-    AsyncIter[Cid].new(genNext, isFinished).filter(
-      proc(cid: Cid): Future[bool] {.async.} =
+    SafeAsyncIter[Cid].new(genNext, isFinished).filter(
+      proc(cid: ?!Cid): Future[bool] {.async: (raises: [CancelledError]).} =
+        without cid =? cid, err:
+          trace "Cannot get Cid from the iterator", err = err.msg
+          return false
         without isManifest =? cid.isManifest, err:
           trace "Error checking if cid is a manifest", err = err.msg
           return false
@@ -164,14 +185,7 @@ method listBlocks*(
           return not isManifest
     )
   )
-
-  return success(
-    map[Cid, ?Cid](
-      iter,
-      proc(cid: Cid): Future[?Cid] {.async.} =
-        some(cid),
-    )
-  )
+  success(iter)
 
 func putBlockSync(self: CacheStore, blk: Block): bool =
   let blkSize = blk.data.len.NBytes # in bytes
@@ -196,7 +210,7 @@ func putBlockSync(self: CacheStore, blk: Block): bool =
 
 method putBlock*(
     self: CacheStore, blk: Block, ttl = Duration.none
-): Future[?!void] {.async.} =
+): Future[?!void] {.async: (raises: [CancelledError]).} =
   ## Put a block to the blockstore
   ##
 
@@ -213,13 +227,13 @@ method putBlock*(
 
 method putCidAndProof*(
     self: CacheStore, treeCid: Cid, index: Natural, blockCid: Cid, proof: CodexProof
-): Future[?!void] {.async.} =
+): Future[?!void] {.async: (raises: [CancelledError]).} =
   self.cidAndProofCache[(treeCid, index)] = (blockCid, proof)
   success()
 
 method ensureExpiry*(
     self: CacheStore, cid: Cid, expiry: SecondsSince1970
-): Future[?!void] {.async.} =
+): Future[?!void] {.async: (raises: [CancelledError]).} =
   ## Updates block's assosicated TTL in store - not applicable for CacheStore
   ##
 
@@ -227,13 +241,15 @@ method ensureExpiry*(
 
 method ensureExpiry*(
     self: CacheStore, treeCid: Cid, index: Natural, expiry: SecondsSince1970
-): Future[?!void] {.async.} =
+): Future[?!void] {.async: (raises: [CancelledError]).} =
   ## Updates block's associated TTL in store - not applicable for CacheStore
   ##
 
   discard # CacheStore does not have notion of TTL
 
-method delBlock*(self: CacheStore, cid: Cid): Future[?!void] {.async.} =
+method delBlock*(
+    self: CacheStore, cid: Cid
+): Future[?!void] {.async: (raises: [CancelledError]).} =
   ## Delete a block from the blockstore
   ##
 
@@ -250,7 +266,7 @@ method delBlock*(self: CacheStore, cid: Cid): Future[?!void] {.async.} =
 
 method delBlock*(
     self: CacheStore, treeCid: Cid, index: Natural
-): Future[?!void] {.async.} =
+): Future[?!void] {.async: (raises: [CancelledError]).} =
   let maybeRemoved = self.cidAndProofCache.del((treeCid, index))
 
   if removed =? maybeRemoved:
@@ -258,7 +274,10 @@ method delBlock*(
 
   return success()
 
-method close*(self: CacheStore): Future[void] {.async.} =
+method completeBlock*(self: CacheStore, address: BlockAddress, blk: Block) {.gcsafe.} =
+  discard
+
+method close*(self: CacheStore): Future[void] {.async: (raises: []).} =
   ## Close the blockstore, a no-op for this implementation
   ##
 

@@ -11,7 +11,7 @@
 ## 4. Remove usages of `nim-json-serialization` from the codebase
 ## 5. Remove need to declare `writeValue` for new types
 ## 6. Remove need to [avoid importing or exporting `toJson`, `%`, `%*` to prevent
-##    conflicts](https://github.com/codex-storage/nim-codex/pull/645#issuecomment-1838834467)
+##    conflicts](https://github.com/logos-storage/logos-storage-nim/pull/645#issuecomment-1838834467)
 ##
 ## When declaring a new type, one should consider importing the `codex/logutils`
 ## module, and specifying `formatIt`. If textlines log output and json log output
@@ -92,6 +92,7 @@ import std/sugar
 import std/typetraits
 
 import pkg/chronicles except toJson, `%`
+from pkg/chronos import TransportAddress
 from pkg/libp2p import Cid, MultiAddress, `$`
 import pkg/questionable
 import pkg/questionable/results
@@ -255,3 +256,5 @@ formatIt(LogFormat.textLines, array[32, byte]):
   it.short0xHexLog
 formatIt(LogFormat.json, array[32, byte]):
   it.to0xHex
+formatIt(TransportAddress):
+  $it

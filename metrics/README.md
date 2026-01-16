@@ -1,6 +1,6 @@
-# Codex Metrics and Dashboard
+# Logos Storage Metrics and Dashboard
 
-> This readme should help you to get started with collecting and visualizing metrics exposed by the Codex process.
+> This readme should help you to get started with collecting and visualizing metrics exposed by the Logos Storage process.
 
 ## Metrics
 
@@ -12,7 +12,7 @@ Use the `--metrics-address` and `--metrics-port` flags to to adjust the address 
 
 Metrics are useful to monitor the health of the process and should aid in identifying and debugging potential issues that would be hard to notice otherwise.
 
-All Codex metrics should be prefixed with the `codex_` prefix to be able to differentiate from metrics exposed by other subsystems. For example libp2p generally prefixed with the `libp2p_` prefix.
+All Logos Storage metrics should be prefixed with the `codex_` prefix to be able to differentiate from metrics exposed by other subsystems. For example libp2p generally prefixed with the `libp2p_` prefix.
 
 Metrics can be added on an as needed basis, however, keep in mind the potential overhead they might introduce. In particular, be careful with labels as they will generate as many metrics as there are labels for a specific collector. If a metrics or a set of metrics are expensive, it is usually advisable to put them behind a compile time flag.
 

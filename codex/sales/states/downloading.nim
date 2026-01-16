@@ -38,6 +38,7 @@ method run*(
   let agent = SalesAgent(machine)
   let data = agent.data
   let context = agent.context
+  let market = context.market
   let reservations = context.reservations
 
   without onStore =? context.onStore:
@@ -55,7 +56,9 @@ method run*(
     reservationId = reservation.id
     availabilityId = reservation.availabilityId
 
-  proc onBlocks(blocks: seq[bt.Block]): Future[?!void] {.async.} =
+  proc onBlocks(
+      blocks: seq[bt.Block]
+  ): Future[?!void] {.async: (raises: [CancelledError]).} =
     # release batches of blocks as they are written to disk and
     # update availability size
     var bytes: uint = 0
@@ -67,11 +70,21 @@ method run*(
     return await reservations.release(reservation.id, reservation.availabilityId, bytes)
 
   try:
-    let slotId = slotId(request.id, data.slotIndex)
-    let isRepairing = (await context.market.slotState(slotId)) == SlotState.Repair
+    let requestId = request.id
+    let slotId = slotId(requestId, data.slotIndex)
+    let requestState = await market.requestState(requestId)
+    let isRepairing = (await market.slotState(slotId)) == SlotState.Repair
+
+    trace "Retrieving expiry"
+    var expiry: SecondsSince1970
+    if state =? requestState and state == RequestState.Started:
+      expiry = await market.getRequestEnd(requestId)
+    else:
+      expiry = await market.requestExpiresAt(requestId)
 
     trace "Starting download"
-    if err =? (await onStore(request, data.slotIndex, onBlocks, isRepairing)).errorOption:
+    if err =?
+        (await onStore(request, expiry, data.slotIndex, onBlocks, isRepairing)).errorOption:
       return some State(SaleErrored(error: err, reprocessSlot: false))
 
     trace "Download complete"

@@ -1,4 +1,4 @@
-## Nim-Codex
+## Logos Storage
 ## Copyright (c) 2023 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
@@ -72,11 +72,6 @@ suite "BlockMaintainer":
     check:
       mockRepoStore.getBeMaxNumber == 2
       mockRepoStore.getBeOffset == 0
-
-  test "Timer callback should handle Catachable errors":
-    mockRepoStore.getBlockExpirationsThrows = true
-    blockMaintainer.start()
-    await mockTimer.invokeCallback()
 
   test "Subsequent timer callback should call getBlockExpirations on RepoStore with offset":
     blockMaintainer.start()

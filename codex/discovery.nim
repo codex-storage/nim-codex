@@ -1,4 +1,4 @@
-## Nim-Codex
+## Logos Storage
 ## Copyright (c) 2022 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
@@ -10,13 +10,13 @@
 {.push raises: [].}
 
 import std/algorithm
+import std/net
 import std/sequtils
 
 import pkg/chronos
 import pkg/libp2p/[cid, multicodec, routing_record, signed_envelope]
 import pkg/questionable
 import pkg/questionable/results
-import pkg/stew/shims/net
 import pkg/contractabi/address as ca
 import pkg/codexdht/discv5/[routing_table, protocol as discv5]
 from pkg/nimcrypto import keccak256
@@ -43,6 +43,8 @@ type Discovery* = ref object of RootObj
     # record to advertice node connection information, this carry any
     # address that the node can be connected on
   dhtRecord*: ?SignedPeerRecord # record to advertice DHT connection information
+  isStarted: bool
+  store: Datastore
 
 proc toNodeId*(cid: Cid): NodeId =
   ## Cid to discovery id
@@ -157,7 +159,7 @@ method provide*(
 
 method removeProvider*(
     d: Discovery, peerId: PeerId
-): Future[void] {.base, gcsafe, async: (raises: [CancelledError]).} =
+): Future[void] {.base, async: (raises: [CancelledError]).} =
   ## Remove provider from providers table
   ##
 
@@ -203,14 +205,25 @@ proc start*(d: Discovery) {.async: (raises: []).} =
   try:
     d.protocol.open()
     await d.protocol.start()
+    d.isStarted = true
   except CatchableError as exc:
     error "Error starting discovery", exc = exc.msg
 
 proc stop*(d: Discovery) {.async: (raises: []).} =
+  if not d.isStarted:
+    warn "Discovery not started, skipping stop"
+    return
+
   try:
     await noCancel d.protocol.closeWait()
+    d.isStarted = false
   except CatchableError as exc:
     error "Error stopping discovery", exc = exc.msg
+
+proc close*(d: Discovery) {.async: (raises: []).} =
+  let res = await noCancel d.store.close()
+  if res.isErr:
+    error "Error closing discovery store", error = res.error().msg
 
 proc new*(
     T: type Discovery,
@@ -224,8 +237,9 @@ proc new*(
   ## Create a new Discovery node instance for the given key and datastore
   ##
 
-  var self =
-    Discovery(key: key, peerId: PeerId.init(key).expect("Should construct PeerId"))
+  var self = Discovery(
+    key: key, peerId: PeerId.init(key).expect("Should construct PeerId"), store: store
+  )
 
   self.updateAnnounceRecord(announceAddrs)
 

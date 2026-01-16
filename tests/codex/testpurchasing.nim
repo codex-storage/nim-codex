@@ -96,21 +96,19 @@ asyncchecksuite "Purchasing":
     check purchase.error.isNone
 
   test "fails when request times out":
-    let expiry = getTime().toUnix() + 10
-    market.requestExpiry[populatedRequest.id] = expiry
     let purchase = await purchasing.purchase(populatedRequest)
     check eventually market.requested.len > 0
 
+    let expiry = market.requestExpiry[populatedRequest.id]
     clock.set(expiry + 1)
     expect PurchaseTimeout:
       await purchase.wait()
 
   test "checks that funds were withdrawn when purchase times out":
-    let expiry = getTime().toUnix() + 10
-    market.requestExpiry[populatedRequest.id] = expiry
     let purchase = await purchasing.purchase(populatedRequest)
     check eventually market.requested.len > 0
     let request = market.requested[0]
+    let expiry = market.requestExpiry[populatedRequest.id]
     clock.set(expiry + 1)
     expect PurchaseTimeout:
       await purchase.wait()

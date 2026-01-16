@@ -1,4 +1,4 @@
-## Nim-Codex
+## Logos Storage
 ## Copyright (c) 2023 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
@@ -9,10 +9,7 @@
 
 import std/options
 
-import pkg/upraises
-
-push:
-  {.upraises: [].}
+{.push raises: [], gcsafe.}
 
 import pkg/chronos
 import pkg/stew/ptrops
@@ -125,7 +122,7 @@ method readOnce*(
 
   return read
 
-method closeImpl*(self: StoreStream) {.async.} =
+method closeImpl*(self: StoreStream) {.async: (raises: []).} =
   trace "Closing StoreStream"
   self.offset = self.size # set Eof
   await procCall LPStream(self).closeImpl()

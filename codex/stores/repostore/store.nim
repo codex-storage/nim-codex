@@ -1,4 +1,4 @@
-## Nim-Codex
+## Logos Storage
 ## Copyright (c) 2024 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
@@ -6,6 +6,8 @@
 ## at your option.
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
+
+{.push raises: [].}
 
 import pkg/chronos
 import pkg/chronos/futures
@@ -36,7 +38,24 @@ logScope:
 # BlockStore API
 ###########################################################
 
-method getBlock*(self: RepoStore, cid: Cid): Future[?!Block] {.async.} =
+method getBlocks*(
+    self: RepoStore, addresses: seq[BlockAddress]
+): Future[SafeAsyncIter[Block]] {.async: (raises: [CancelledError]).} =
+  var i = 0
+
+  proc isFinished(): bool =
+    i == addresses.len
+
+  proc genNext(): Future[?!Block] {.async: (raises: [CancelledError]).} =
+    let value = await self.getBlock(addresses[i])
+    inc(i)
+    return value
+
+  return SafeAsyncIter[Block].new(genNext, isFinished)
+
+method getBlock*(
+    self: RepoStore, cid: Cid
+): Future[?!Block] {.async: (raises: [CancelledError]).} =
   ## Get a block from the blockstore
   ##
 
@@ -63,7 +82,7 @@ method getBlock*(self: RepoStore, cid: Cid): Future[?!Block] {.async.} =
 
 method getBlockAndProof*(
     self: RepoStore, treeCid: Cid, index: Natural
-): Future[?!(Block, CodexProof)] {.async.} =
+): Future[?!(Block, CodexProof)] {.async: (raises: [CancelledError]).} =
   without leafMd =? await self.getLeafMetadata(treeCid, index), err:
     return failure(err)
 
@@ -74,13 +93,15 @@ method getBlockAndProof*(
 
 method getBlock*(
     self: RepoStore, treeCid: Cid, index: Natural
-): Future[?!Block] {.async.} =
+): Future[?!Block] {.async: (raises: [CancelledError]).} =
   without leafMd =? await self.getLeafMetadata(treeCid, index), err:
     return failure(err)
 
   await self.getBlock(leafMd.blkCid)
 
-method getBlock*(self: RepoStore, address: BlockAddress): Future[?!Block] =
+method getBlock*(
+    self: RepoStore, address: BlockAddress
+): Future[?!Block] {.async: (raw: true, raises: [CancelledError]).} =
   ## Get a block from the blockstore
   ##
 
@@ -91,7 +112,7 @@ method getBlock*(self: RepoStore, address: BlockAddress): Future[?!Block] =
 
 method ensureExpiry*(
     self: RepoStore, cid: Cid, expiry: SecondsSince1970
-): Future[?!void] {.async.} =
+): Future[?!void] {.async: (raises: [CancelledError]).} =
   ## Ensure that block's associated expiry is at least given timestamp
   ## If the current expiry is lower then it is updated to the given one, otherwise it is left intact
   ##
@@ -104,7 +125,7 @@ method ensureExpiry*(
 
 method ensureExpiry*(
     self: RepoStore, treeCid: Cid, index: Natural, expiry: SecondsSince1970
-): Future[?!void] {.async.} =
+): Future[?!void] {.async: (raises: [CancelledError]).} =
   ## Ensure that block's associated expiry is at least given timestamp
   ## If the current expiry is lower then it is updated to the given one, otherwise it is left intact
   ##
@@ -116,7 +137,7 @@ method ensureExpiry*(
 
 method putCidAndProof*(
     self: RepoStore, treeCid: Cid, index: Natural, blkCid: Cid, proof: CodexProof
-): Future[?!void] {.async.} =
+): Future[?!void] {.async: (raises: [CancelledError]).} =
   ## Put a block to the blockstore
   ##
 
@@ -142,13 +163,15 @@ method putCidAndProof*(
 
 method getCidAndProof*(
     self: RepoStore, treeCid: Cid, index: Natural
-): Future[?!(Cid, CodexProof)] {.async.} =
+): Future[?!(Cid, CodexProof)] {.async: (raises: [CancelledError]).} =
   without leafMd =? await self.getLeafMetadata(treeCid, index), err:
     return failure(err)
 
   success((leafMd.blkCid, leafMd.proof))
 
-method getCid*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!Cid] {.async.} =
+method getCid*(
+    self: RepoStore, treeCid: Cid, index: Natural
+): Future[?!Cid] {.async: (raises: [CancelledError]).} =
   without leafMd =? await self.getLeafMetadata(treeCid, index), err:
     return failure(err)
 
@@ -156,7 +179,7 @@ method getCid*(self: RepoStore, treeCid: Cid, index: Natural): Future[?!Cid] {.a
 
 method putBlock*(
     self: RepoStore, blk: Block, ttl = Duration.none
-): Future[?!void] {.async.} =
+): Future[?!void] {.async: (raises: [CancelledError]).} =
   ## Put a block to the blockstore
   ##
 
@@ -186,7 +209,9 @@ method putBlock*(
 
   return success()
 
-proc delBlockInternal(self: RepoStore, cid: Cid): Future[?!DeleteResultKind] {.async.} =
+proc delBlockInternal(
+    self: RepoStore, cid: Cid
+): Future[?!DeleteResultKind] {.async: (raises: [CancelledError]).} =
   logScope:
     cid = cid
 
@@ -208,7 +233,9 @@ proc delBlockInternal(self: RepoStore, cid: Cid): Future[?!DeleteResultKind] {.a
 
   success(res.kind)
 
-method delBlock*(self: RepoStore, cid: Cid): Future[?!void] {.async.} =
+method delBlock*(
+    self: RepoStore, cid: Cid
+): Future[?!void] {.async: (raises: [CancelledError]).} =
   ## Delete a block from the blockstore when block refCount is 0 or block is expired
   ##
 
@@ -230,7 +257,7 @@ method delBlock*(self: RepoStore, cid: Cid): Future[?!void] {.async.} =
 
 method delBlock*(
     self: RepoStore, treeCid: Cid, index: Natural
-): Future[?!void] {.async.} =
+): Future[?!void] {.async: (raises: [CancelledError]).} =
   without leafMd =? await self.getLeafMetadata(treeCid, index), err:
     if err of BlockNotFoundError:
       return success()
@@ -251,7 +278,9 @@ method delBlock*(
 
   success()
 
-method hasBlock*(self: RepoStore, cid: Cid): Future[?!bool] {.async.} =
+method hasBlock*(
+    self: RepoStore, cid: Cid
+): Future[?!bool] {.async: (raises: [CancelledError]).} =
   ## Check if the block exists in the blockstore
   ##
 
@@ -270,7 +299,7 @@ method hasBlock*(self: RepoStore, cid: Cid): Future[?!bool] {.async.} =
 
 method hasBlock*(
     self: RepoStore, treeCid: Cid, index: Natural
-): Future[?!bool] {.async.} =
+): Future[?!bool] {.async: (raises: [CancelledError]).} =
   without leafMd =? await self.getLeafMetadata(treeCid, index), err:
     if err of BlockNotFoundError:
       return success(false)
@@ -281,12 +310,12 @@ method hasBlock*(
 
 method listBlocks*(
     self: RepoStore, blockType = BlockType.Manifest
-): Future[?!AsyncIter[?Cid]] {.async.} =
+): Future[?!SafeAsyncIter[Cid]] {.async: (raises: [CancelledError]).} =
   ## Get the list of blocks in the RepoStore.
   ## This is an intensive operation
   ##
 
-  var iter = AsyncIter[?Cid]()
+  var iter = SafeAsyncIter[Cid]()
 
   let key =
     case blockType
@@ -299,7 +328,7 @@ method listBlocks*(
     trace "Error querying cids in repo", blockType, err = err.msg
     return failure(err)
 
-  proc next(): Future[?Cid] {.async.} =
+  proc next(): Future[?!Cid] {.async: (raises: [CancelledError]).} =
     await idleAsync()
     if queryIter.finished:
       iter.finish
@@ -307,9 +336,9 @@ method listBlocks*(
       if pair =? (await queryIter.next()) and cid =? pair.key:
         doAssert pair.data.len == 0
         trace "Retrieved record from repo", cid
-        return Cid.init(cid.value).option
+        return Cid.init(cid.value).mapFailure
       else:
-        return Cid.none
+        return Cid.failure("No or invalid Cid")
 
   iter.next = next
   return success iter
@@ -332,7 +361,9 @@ proc blockRefCount*(self: RepoStore, cid: Cid): Future[?!Natural] {.async.} =
 
 method getBlockExpirations*(
     self: RepoStore, maxNumber: int, offset: int
-): Future[?!AsyncIter[BlockExpiration]] {.async, base.} =
+): Future[?!SafeAsyncIter[BlockExpiration]] {.
+    async: (raises: [CancelledError]), base, gcsafe
+.} =
   ## Get iterator with block expirations
   ##
 
@@ -344,26 +375,30 @@ method getBlockExpirations*(
     error "Unable to execute block expirations query", err = err.msg
     return failure(err)
 
-  without asyncQueryIter =? await queryIter.toAsyncIter(), err:
+  without asyncQueryIter =? (await queryIter.toSafeAsyncIter()), err:
     error "Unable to convert QueryIter to AsyncIter", err = err.msg
     return failure(err)
 
-  let filteredIter: AsyncIter[KeyVal[BlockMetadata]] =
+  let filteredIter: SafeAsyncIter[KeyVal[BlockMetadata]] =
     await asyncQueryIter.filterSuccess()
 
-  proc mapping(kv: KeyVal[BlockMetadata]): Future[?BlockExpiration] {.async.} =
+  proc mapping(
+      kvRes: ?!KeyVal[BlockMetadata]
+  ): Future[Option[?!BlockExpiration]] {.async: (raises: [CancelledError]).} =
+    without kv =? kvRes, err:
+      error "Error occurred when getting KeyVal", err = err.msg
+      return Result[BlockExpiration, ref CatchableError].none
     without cid =? Cid.init(kv.key.value).mapFailure, err:
       error "Failed decoding cid", err = err.msg
-      return BlockExpiration.none
+      return Result[BlockExpiration, ref CatchableError].none
 
-    BlockExpiration(cid: cid, expiry: kv.value.expiry).some
+    some(success(BlockExpiration(cid: cid, expiry: kv.value.expiry)))
 
   let blockExpIter =
     await mapFilter[KeyVal[BlockMetadata], BlockExpiration](filteredIter, mapping)
-
   success(blockExpIter)
 
-method close*(self: RepoStore): Future[void] {.async.} =
+method close*(self: RepoStore): Future[void] {.async: (raises: []).} =
   ## Close the blockstore, cleaning up resources managed by it.
   ## For some implementations this may be a no-op
   ##
@@ -371,16 +406,21 @@ method close*(self: RepoStore): Future[void] {.async.} =
   trace "Closing repostore"
 
   if not self.metaDs.isNil:
-    (await self.metaDs.close()).expect("Should meta datastore")
+    try:
+      (await noCancel self.metaDs.close()).expect("Should meta datastore")
+    except CatchableError as err:
+      error "Failed to close meta datastore", err = err.msg
 
   if not self.repoDs.isNil:
-    (await self.repoDs.close()).expect("Should repo datastore")
+    (await noCancel self.repoDs.close()).expect("Should repo datastore")
 
 ###########################################################
 # RepoStore procs
 ###########################################################
 
-proc reserve*(self: RepoStore, bytes: NBytes): Future[?!void] {.async.} =
+proc reserve*(
+    self: RepoStore, bytes: NBytes
+): Future[?!void] {.async: (raises: [CancelledError]).} =
   ## Reserve bytes
   ##
 
@@ -388,7 +428,9 @@ proc reserve*(self: RepoStore, bytes: NBytes): Future[?!void] {.async.} =
 
   await self.updateQuotaUsage(plusReserved = bytes)
 
-proc release*(self: RepoStore, bytes: NBytes): Future[?!void] {.async.} =
+proc release*(
+    self: RepoStore, bytes: NBytes
+): Future[?!void] {.async: (raises: [CancelledError]).} =
   ## Release bytes
   ##
 
@@ -396,10 +438,11 @@ proc release*(self: RepoStore, bytes: NBytes): Future[?!void] {.async.} =
 
   await self.updateQuotaUsage(minusReserved = bytes)
 
-proc start*(self: RepoStore): Future[void] {.async.} =
+proc start*(
+    self: RepoStore
+): Future[void] {.async: (raises: [CancelledError, CodexError]).} =
   ## Start repo
   ##
-
   if self.started:
     trace "Repo already started"
     return
@@ -413,7 +456,7 @@ proc start*(self: RepoStore): Future[void] {.async.} =
 
   self.started = true
 
-proc stop*(self: RepoStore): Future[void] {.async.} =
+proc stop*(self: RepoStore): Future[void] {.async: (raises: []).} =
   ## Stop repo
   ##
   if not self.started:
@@ -421,6 +464,5 @@ proc stop*(self: RepoStore): Future[void] {.async.} =
     return
 
   trace "Stopping repo"
-  await self.close()
 
   self.started = false

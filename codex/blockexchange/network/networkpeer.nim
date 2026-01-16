@@ -1,4 +1,4 @@
-## Nim-Codex
+## Logos Storage
 ## Copyright (c) 2021 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
@@ -24,10 +24,9 @@ logScope:
 const DefaultYieldInterval = 50.millis
 
 type
-  ConnProvider* =
-    proc(): Future[Connection] {.gcsafe, async: (raises: [CancelledError]).}
+  ConnProvider* = proc(): Future[Connection] {.async: (raises: [CancelledError]).}
 
-  RPCHandler* = proc(peer: NetworkPeer, msg: Message) {.gcsafe, async: (raises: []).}
+  RPCHandler* = proc(peer: NetworkPeer, msg: Message) {.async: (raises: []).}
 
   NetworkPeer* = ref object of RootObj
     id*: PeerId
@@ -65,7 +64,9 @@ proc readLoop*(self: NetworkPeer, conn: Connection) {.async: (raises: []).} =
   except CatchableError as err:
     warn "Exception in blockexc read loop", msg = err.msg
   finally:
-    trace "Detaching read loop", peer = self.id, connId = conn.oid
+    warn "Detaching read loop", peer = self.id, connId = conn.oid
+    if self.sendConn == conn:
+      self.sendConn = nil
     await conn.close()
 
 proc connect*(
@@ -89,7 +90,12 @@ proc send*(
     return
 
   trace "Sending message", peer = self.id, connId = conn.oid
-  await conn.writeLp(protobufEncode(msg))
+  try:
+    await conn.writeLp(protobufEncode(msg))
+  except CatchableError as err:
+    if self.sendConn == conn:
+      self.sendConn = nil
+    raise newException(LPStreamError, "Failed to send message: " & err.msg)
 
 func new*(
     T: type NetworkPeer,

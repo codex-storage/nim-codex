@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Environment variables from files
+# Environment variables from files in form of foo=bar
 # If set to file path, read the file and export the variables
 # If set to directory path, read all files in the directory and export the variables
 if [[ -n "${ENV_PATH}" ]]; then
@@ -9,7 +9,12 @@ if [[ -n "${ENV_PATH}" ]]; then
   set +a
 fi
 
-# Bootstrap node from URL
+# Codex Network
+if [[ -n "${NETWORK}" ]]; then
+  export BOOTSTRAP_NODE_FROM_URL="${BOOTSTRAP_NODE_FROM_URL:-https://spr.codex.storage/${NETWORK}}"
+fi
+
+# Bootstrap node URL
 if [[ -n "${BOOTSTRAP_NODE_URL}" ]]; then
   BOOTSTRAP_NODE_URL="${BOOTSTRAP_NODE_URL}/api/codex/v1/spr"
   WAIT=${BOOTSTRAP_NODE_URL_WAIT:-300}
@@ -21,11 +26,53 @@ if [[ -n "${BOOTSTRAP_NODE_URL}" ]]; then
     # Check if exit code is 0 and returned value is not empty
     if [[ $? -eq 0 && -n "${SPR}" ]]; then
       export CODEX_BOOTSTRAP_NODE="${SPR}"
-      echo "Bootstrap node: CODEX_BOOTSTRAP_NODE=${CODEX_BOOTSTRAP_NODE}"
       break
     else
       # Sleep and check again
       echo "Can't get SPR from ${BOOTSTRAP_NODE_URL} - Retry in $SLEEP seconds / $((WAIT - SECONDS))"
+      sleep $SLEEP
+    fi
+  done
+fi
+
+# Bootstrap node from URL
+if [[ -n "${BOOTSTRAP_NODE_FROM_URL}" ]]; then
+  WAIT=${BOOTSTRAP_NODE_FROM_URL_WAIT:-300}
+  SECONDS=0
+  SLEEP=1
+  # Run and retry if fail
+  while (( SECONDS < WAIT )); do
+    SPR=($(curl -s -f -m 5 "${BOOTSTRAP_NODE_FROM_URL}"))
+    # Check if exit code is 0 and returned value is not empty
+    if [[ $? -eq 0 && -n "${SPR}" ]]; then
+      for node in "${SPR[@]}"; do
+        bootstrap+="--bootstrap-node=$node "
+      done
+      set -- "$@" ${bootstrap}
+      break
+    else
+      # Sleep and check again
+      echo "Can't get SPR from ${BOOTSTRAP_NODE_FROM_URL} - Retry in $SLEEP seconds / $((WAIT - SECONDS))"
+      sleep $SLEEP
+    fi
+  done
+fi
+
+# Marketplace address from URL
+if [[ -n "${MARKETPLACE_ADDRESS_FROM_URL}" ]]; then
+  WAIT=${MARKETPLACE_ADDRESS_FROM_URL_WAIT:-300}
+  SECONDS=0
+  SLEEP=1
+  # Run and retry if fail
+  while (( SECONDS < WAIT )); do
+    MARKETPLACE_ADDRESS=($(curl -s -f -m 5 "${MARKETPLACE_ADDRESS_FROM_URL}"))
+    # Check if exit code is 0 and returned value is not empty
+    if [[ $? -eq 0 && -n "${MARKETPLACE_ADDRESS}" ]]; then
+      export CODEX_MARKETPLACE_ADDRESS="${MARKETPLACE_ADDRESS}"
+      break
+    else
+      # Sleep and check again
+      echo "Can't get Marketplace address from ${MARKETPLACE_ADDRESS_FROM_URL} - Retry in $SLEEP seconds / $((WAIT - SECONDS))"
       sleep $SLEEP
     fi
   done
@@ -41,7 +88,6 @@ fi
 if [[ -z "${CODEX_NAT}" ]]; then
   if [[ "${NAT_IP_AUTO}" == "true" && -z "${NAT_PUBLIC_IP_AUTO}" ]]; then
     export CODEX_NAT="extip:$(hostname --ip-address)"
-    echo "Private: CODEX_NAT=${CODEX_NAT}"
   elif [[ -n "${NAT_PUBLIC_IP_AUTO}" ]]; then
     # Run for 60 seconds if fail
     WAIT=120
@@ -52,7 +98,6 @@ if [[ -z "${CODEX_NAT}" ]]; then
       # Check if exit code is 0 and returned value is not empty
       if [[ $? -eq 0 && -n "${IP}" ]]; then
         export CODEX_NAT="extip:${IP}"
-        echo "Public: CODEX_NAT=${CODEX_NAT}"
         break
       else
         # Sleep and check again
@@ -74,16 +119,13 @@ fi
 
 # If marketplace is enabled from the testing environment,
 # The file has to be written before Codex starts.
-for key in PRIV_KEY ETH_PRIVATE_KEY; do
-  keyfile="private.key"
-  if [[ -n "${!key}" ]]; then
-    [[ "${key}" == "PRIV_KEY" ]] && echo "PRIV_KEY variable is deprecated and will be removed in the next releases, please use ETH_PRIVATE_KEY instead!"
-    echo "${!key}" > "${keyfile}"
-    chmod 600 "${keyfile}"
-    export CODEX_ETH_PRIVATE_KEY="${keyfile}"
-    echo "Private key set"
-  fi
-done
+keyfile="private.key"
+if [[ -n "${ETH_PRIVATE_KEY}" ]]; then
+  echo "${ETH_PRIVATE_KEY}" > "${keyfile}"
+  chmod 600 "${keyfile}"
+  export CODEX_ETH_PRIVATE_KEY="${keyfile}"
+  echo "Private key set"
+fi
 
 # Circuit downloader
 # cirdl [circuitPath] [rpcEndpoint] [marketplaceAddress]
@@ -112,6 +154,12 @@ if [[ "$@" == *"prover"* ]]; then
   eval "${download}"
   [[ $? -ne 0 ]] && { echo "Failed to download circuit files"; exit 1; }
 fi
+
+# Show
+echo -e "\nCodex run parameters:"
+vars=$(env | grep "CODEX_" | grep -v -e "[0-9]_SERVICE_" -e "[0-9]_NODEPORT_")
+echo -e "${vars//CODEX_/   - CODEX_}"
+echo -e "   - $@\n"
 
 # Run
 echo "Run Codex node"

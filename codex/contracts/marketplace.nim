@@ -51,7 +51,6 @@ type
   Proofs_ProofNotMissing* = object of SolidityError
   Proofs_ProofNotRequired* = object of SolidityError
   Proofs_ProofAlreadyMarkedMissing* = object of SolidityError
-  Proofs_InvalidProbability* = object of SolidityError
   Periods_InvalidSecondsPerPeriod* = object of SolidityError
   SlotReservations_ReservationNotAllowed* = object of SolidityError
 
@@ -68,7 +67,9 @@ proc requestStorage*(
   errors: [
     Marketplace_InvalidClientAddress, Marketplace_RequestAlreadyExists,
     Marketplace_InvalidExpiry, Marketplace_InsufficientSlots,
-    Marketplace_InvalidMaxSlotLoss,
+    Marketplace_InvalidMaxSlotLoss, Marketplace_InsufficientDuration,
+    Marketplace_InsufficientProofProbability, Marketplace_InsufficientCollateral,
+    Marketplace_InsufficientReward, Marketplace_InvalidCid,
   ]
 .}
 
@@ -174,6 +175,17 @@ proc markProofAsMissing*(
     Marketplace_SlotNotAcceptingProofs, Marketplace_StartNotBeforeExpiry,
     Proofs_PeriodNotEnded, Proofs_ValidationTimedOut, Proofs_ProofNotMissing,
     Proofs_ProofNotRequired, Proofs_ProofAlreadyMarkedMissing,
+  ]
+.}
+
+proc canMarkProofAsMissing*(
+  marketplace: Marketplace, id: SlotId, period: uint64
+): Confirmable {.
+  contract,
+  errors: [
+    Marketplace_SlotNotAcceptingProofs, Proofs_PeriodNotEnded,
+    Proofs_ValidationTimedOut, Proofs_ProofNotMissing, Proofs_ProofNotRequired,
+    Proofs_ProofAlreadyMarkedMissing,
   ]
 .}
 

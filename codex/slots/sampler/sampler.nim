@@ -1,4 +1,4 @@
-## Nim-Codex
+## Logos Storage
 ## Copyright (c) 2023 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
@@ -48,12 +48,12 @@ func getCell*[T, H](
 
 proc getSample*[T, H](
     self: DataSampler[T, H], cellIdx: int, slotTreeCid: Cid, slotRoot: H
-): Future[?!Sample[H]] {.async.} =
+): Future[?!Sample[H]] {.async: (raises: [CancelledError]).} =
   let
     cellsPerBlock = self.builder.numBlockCells
     blkCellIdx = cellIdx.toCellInBlk(cellsPerBlock) # block cell index
     blkSlotIdx = cellIdx.toBlkInSlot(cellsPerBlock) # slot tree index
-    origBlockIdx = self.builder.slotIndicies(self.index)[blkSlotIdx]
+    origBlockIdx = self.builder.slotIndices(self.index)[blkSlotIdx]
       # convert to original dataset block index
 
   logScope:
@@ -81,7 +81,7 @@ proc getSample*[T, H](
 
 proc getProofInput*[T, H](
     self: DataSampler[T, H], entropy: ProofChallenge, nSamples: Natural
-): Future[?!ProofInputs[H]] {.async.} =
+): Future[?!ProofInputs[H]] {.async: (raises: [CancelledError]).} =
   ## Generate proofs as input to the proving circuit.
   ##
 

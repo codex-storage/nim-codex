@@ -9,7 +9,7 @@ import ./marketplace
 
 type Deployment* = ref object
   provider: Provider
-  config: CodexConf
+  marketplaceAddressOverride: ?Address
 
 const knownAddresses = {
   # Hardhat localhost network
@@ -18,9 +18,12 @@ const knownAddresses = {
   # Taiko Alpha-3 Testnet
   "167005":
     {"Marketplace": Address.init("0x948CF9291b77Bd7ad84781b9047129Addf1b894F")}.toTable,
-  # Codex Testnet - Feb 25 2025 07:24:19 AM (+00:00 UTC)
+  # Codex Testnet - Jun 19 2025 13:11:56 PM (+00:00 UTC)
   "789987":
-    {"Marketplace": Address.init("0xfFaF679D5Cbfdd5Dbc9Be61C616ed115DFb597ed")}.toTable,
+    {"Marketplace": Address.init("0x5378a4EA5dA2a548ce22630A3AE74b052000C62D")}.toTable,
+  # Linea (Status)
+  "1660990954":
+    {"Marketplace": Address.init("0x34F606C65869277f236ce07aBe9af0B8c88F486B")}.toTable,
 }.toTable
 
 proc getKnownAddress(T: type, chainId: UInt256): ?Address =
@@ -32,12 +35,16 @@ proc getKnownAddress(T: type, chainId: UInt256): ?Address =
 
   return knownAddresses[id].getOrDefault($T, Address.none)
 
-proc new*(_: type Deployment, provider: Provider, config: CodexConf): Deployment =
-  Deployment(provider: provider, config: config)
+proc new*(
+    _: type Deployment,
+    provider: Provider,
+    marketplaceAddressOverride: ?Address = none Address,
+): Deployment =
+  Deployment(provider: provider, marketplaceAddressOverride: marketplaceAddressOverride)
 
 proc address*(deployment: Deployment, contract: type): Future[?Address] {.async.} =
   when contract is Marketplace:
-    if address =? deployment.config.marketplaceAddress:
+    if address =? deployment.marketplaceAddressOverride:
       return some address
 
   let chainId = await deployment.provider.getChainId()

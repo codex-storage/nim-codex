@@ -22,7 +22,7 @@ import ./utils/exceptions
 ## Sales holds a list of available storage that it may sell.
 ##
 ## When storage is requested on the market that matches availability, the Sales
-## object will instruct the Codex node to persist the requested data. Once the
+## object will instruct the Logos Storage node to persist the requested data. Once the
 ## data has been persisted, it uploads a proof of storage to the market in an
 ## attempt to win a storage contract.
 ##
@@ -105,19 +105,15 @@ proc new*(
     subscriptions: @[],
   )
 
-proc remove(sales: Sales, agent: SalesAgent) {.async.} =
+proc remove(sales: Sales, agent: SalesAgent) {.async: (raises: []).} =
   await agent.stop()
+
   if sales.running:
     sales.agents.keepItIf(it != agent)
 
 proc cleanUp(
-    sales: Sales,
-    agent: SalesAgent,
-    returnBytes: bool,
-    reprocessSlot: bool,
-    returnedCollateral: ?UInt256,
-    processing: Future[void],
-) {.async.} =
+    sales: Sales, agent: SalesAgent, reprocessSlot: bool, returnedCollateral: ?UInt256
+) {.async: (raises: []).} =
   let data = agent.data
 
   logScope:
@@ -132,86 +128,69 @@ proc cleanUp(
   # if reservation for the SalesAgent was not created, then it means
   # that the cleanUp was called before the sales process really started, so
   # there are not really any bytes to be returned
-  if returnBytes and request =? data.request and reservation =? data.reservation:
+  if request =? data.request and reservation =? data.reservation:
     if returnErr =? (
-      await sales.context.reservations.returnBytesToAvailability(
+      await noCancel sales.context.reservations.returnBytesToAvailability(
         reservation.availabilityId, reservation.id, request.ask.slotSize
       )
     ).errorOption:
       error "failure returning bytes",
         error = returnErr.msg, bytes = request.ask.slotSize
 
-  # delete reservation and return reservation bytes back to the availability
-  if reservation =? data.reservation and
-      deleteErr =? (
-        await sales.context.reservations.deleteReservation(
-          reservation.id, reservation.availabilityId, returnedCollateral
-        )
-      ).errorOption:
-    error "failure deleting reservation", error = deleteErr.msg
-
-  if data.slotIndex > uint16.high.uint64:
-    error "Cannot cast slot index to uint16", slotIndex = data.slotIndex
-    return
+    # delete reservation and return reservation bytes back to the availability
+    if reservation =? data.reservation and
+        deleteErr =? (
+          await noCancel sales.context.reservations.deleteReservation(
+            reservation.id, reservation.availabilityId, returnedCollateral
+          )
+        ).errorOption:
+      error "failure deleting reservation", error = deleteErr.msg
 
   # Re-add items back into the queue to prevent small availabilities from
   # draining the queue. Seen items will be ordered last.
-  if reprocessSlot and request =? data.request:
-    try:
-      without collateral =?
-        await sales.context.market.slotCollateral(data.requestId, data.slotIndex), err:
-        error "Failed to re-add item back to the slot queue: unable to calculate collateral",
-          error = err.msg
-        return
+  if reprocessSlot and request =? data.request and var item =? agent.data.slotQueueItem:
+    let queue = sales.context.slotQueue
+    item.seen = true
+    trace "pushing ignored item to queue, marked as seen"
+    if err =? queue.push(item).errorOption:
+      error "failed to readd slot to queue", errorType = $(type err), error = err.msg
 
-      let queue = sales.context.slotQueue
-      var seenItem = SlotQueueItem.init(
-        data.requestId,
-        data.slotIndex.uint16,
-        data.ask,
-        request.expiry,
-        seen = true,
-        collateral = collateral,
-      )
-      trace "pushing ignored item to queue, marked as seen"
-      if err =? queue.push(seenItem).errorOption:
-        error "failed to readd slot to queue", errorType = $(type err), error = err.msg
-    except MarketError as e:
-      error "Failed to re-add item back to the slot queue.", error = e.msg
-      return
+  let fut = sales.remove(agent)
+  sales.trackedFutures.track(fut)
 
-  await sales.remove(agent)
-
-  # signal back to the slot queue to cycle a worker
-  if not processing.isNil and not processing.finished():
-    processing.complete()
-
-proc filled(
-    sales: Sales, request: StorageRequest, slotIndex: uint64, processing: Future[void]
-) =
+proc filled(sales: Sales, request: StorageRequest, slotIndex: uint64) =
   if onSale =? sales.context.onSale:
     onSale(request, slotIndex)
 
-  # signal back to the slot queue to cycle a worker
-  if not processing.isNil and not processing.finished():
-    processing.complete()
-
-proc processSlot(sales: Sales, item: SlotQueueItem, done: Future[void]) =
+proc processSlot(
+    sales: Sales, item: SlotQueueItem
+) {.async: (raises: [CancelledError]).} =
   debug "Processing slot from queue", requestId = item.requestId, slot = item.slotIndex
 
-  let agent =
-    newSalesAgent(sales.context, item.requestId, item.slotIndex, none StorageRequest)
+  let agent = newSalesAgent(
+    sales.context, item.requestId, item.slotIndex, none StorageRequest, some item
+  )
+
+  let completed = newAsyncEvent()
 
   agent.onCleanUp = proc(
-      returnBytes = false, reprocessSlot = false, returnedCollateral = UInt256.none
-  ) {.async.} =
-    await sales.cleanUp(agent, returnBytes, reprocessSlot, returnedCollateral, done)
+      reprocessSlot = false, returnedCollateral = UInt256.none
+  ) {.async: (raises: []).} =
+    trace "slot cleanup"
+    await sales.cleanUp(agent, reprocessSlot, returnedCollateral)
+    completed.fire()
 
   agent.onFilled = some proc(request: StorageRequest, slotIndex: uint64) =
-    sales.filled(request, slotIndex, done)
+    trace "slot filled"
+    sales.filled(request, slotIndex)
+    completed.fire()
 
   agent.start(SalePreparing())
   sales.agents.add agent
+
+  trace "waiting for slot processing to complete"
+  await completed.wait()
+  trace "slot processing completed"
 
 proc deleteInactiveReservations(sales: Sales, activeSlots: seq[Slot]) {.async.} =
   let reservations = sales.context.reservations
@@ -271,12 +250,9 @@ proc load*(sales: Sales) {.async.} =
       newSalesAgent(sales.context, slot.request.id, slot.slotIndex, some slot.request)
 
     agent.onCleanUp = proc(
-        returnBytes = false, reprocessSlot = false, returnedCollateral = UInt256.none
-    ) {.async.} =
-      # since workers are not being dispatched, this future has not been created
-      # by a worker. Create a dummy one here so we can call sales.cleanUp
-      let done: Future[void] = nil
-      await sales.cleanUp(agent, returnBytes, reprocessSlot, returnedCollateral, done)
+        reprocessSlot = false, returnedCollateral = UInt256.none
+    ) {.async: (raises: []).} =
+      await sales.cleanUp(agent, reprocessSlot, returnedCollateral)
 
     # There is no need to assign agent.onFilled as slots loaded from `mySlots`
     # are inherently already filled and so assigning agent.onFilled would be
@@ -285,7 +261,9 @@ proc load*(sales: Sales) {.async.} =
     agent.start(SaleUnknown())
     sales.agents.add agent
 
-proc OnAvailabilitySaved(sales: Sales, availability: Availability) {.async.} =
+proc OnAvailabilitySaved(
+    sales: Sales, availability: Availability
+) {.async: (raises: []).} =
   ## When availabilities are modified or added, the queue should be unpaused if
   ## it was paused and any slots in the queue should have their `seen` flag
   ## cleared.
@@ -374,13 +352,13 @@ proc onSlotFreed(sales: Sales, requestId: RequestId, slotIndex: uint64) =
 
       if err =? queue.push(slotQueueItem).errorOption:
         if err of SlotQueueItemExistsError:
-          error "Failed to push item to queue becaue it already exists",
+          error "Failed to push item to queue because it already exists",
             error = err.msgDetail
         elif err of QueueNotRunningError:
-          warn "Failed to push item to queue becaue queue is not running",
+          warn "Failed to push item to queue because queue is not running",
             error = err.msgDetail
-    except CatchableError as e:
-      warn "Failed to add slot to queue", error = e.msg
+    except CancelledError as e:
+      trace "sales.addSlotToQueue was cancelled"
 
   # We could get rid of this by adding the storage ask in the SlotFreed event,
   # so we would not need to call getRequest to get the collateralPerSlot.
@@ -525,16 +503,18 @@ proc startSlotQueue(sales: Sales) =
   let slotQueue = sales.context.slotQueue
   let reservations = sales.context.reservations
 
-  slotQueue.onProcessSlot = proc(
-      item: SlotQueueItem, done: Future[void]
-  ) {.async: (raises: []).} =
+  slotQueue.onProcessSlot = proc(item: SlotQueueItem) {.async: (raises: []).} =
     trace "processing slot queue item", reqId = item.requestId, slotIdx = item.slotIndex
-    sales.processSlot(item, done)
+    try:
+      await sales.processSlot(item)
+    except CancelledError:
+      discard
 
   slotQueue.start()
 
-  proc OnAvailabilitySaved(availability: Availability) {.async.} =
-    await sales.OnAvailabilitySaved(availability)
+  proc OnAvailabilitySaved(availability: Availability) {.async: (raises: []).} =
+    if availability.enabled:
+      await sales.OnAvailabilitySaved(availability)
 
   reservations.OnAvailabilitySaved = OnAvailabilitySaved
 

@@ -1,7 +1,6 @@
 import std/strformat
 import std/strutils
 import pkg/ethers
-import pkg/upraises
 import pkg/questionable
 import pkg/lrucache
 import ../utils/exceptions
@@ -23,6 +22,7 @@ type
     rewardRecipient: ?Address
     configuration: ?MarketplaceConfig
     requestCache: LruCache[string, StorageRequest]
+    allowanceLock: AsyncLock
 
   MarketSubscription = market.Subscription
   EventSubscription = ethers.Subscription
@@ -76,12 +76,30 @@ proc config(
 
   return resolvedConfig
 
-proc approveFunds(market: OnChainMarket, amount: UInt256) {.async.} =
+template withAllowanceLock*(market: OnChainMarket, body: untyped) =
+  if market.allowanceLock.isNil:
+    market.allowanceLock = newAsyncLock()
+  await market.allowanceLock.acquire()
+  try:
+    body
+  finally:
+    try:
+      market.allowanceLock.release()
+    except AsyncLockError as error:
+      raise newException(Defect, error.msg, error)
+
+proc approveFunds(
+    market: OnChainMarket, amount: UInt256
+) {.async: (raises: [CancelledError, MarketError]).} =
   debug "Approving tokens", amount
   convertEthersError("Failed to approve funds"):
     let tokenAddress = await market.contract.token()
     let token = Erc20Token.new(tokenAddress, market.signer)
-    discard await token.increaseAllowance(market.contract.address(), amount).confirm(1)
+    let owner = await market.signer.getAddress()
+    let spender = market.contract.address
+    market.withAllowanceLock:
+      let allowance = await token.allowance(owner, spender)
+      discard await token.approve(spender, allowance + amount).confirm(1)
 
 method loadConfig*(
     market: OnChainMarket
@@ -105,7 +123,9 @@ method getZkeyHash*(
   let config = await market.config()
   return some config.proofs.zkeyHash
 
-method getSigner*(market: OnChainMarket): Future[Address] {.async.} =
+method getSigner*(
+    market: OnChainMarket
+): Future[Address] {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError("Failed to get signer address"):
     return await market.signer.getAddress()
 
@@ -159,7 +179,9 @@ method mySlots*(market: OnChainMarket): Future[seq[SlotId]] {.async.} =
 
     return slots
 
-method requestStorage(market: OnChainMarket, request: StorageRequest) {.async.} =
+method requestStorage(
+    market: OnChainMarket, request: StorageRequest
+) {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError("Failed to request storage"):
     debug "Requesting storage"
     await market.approveFunds(request.totalPrice())
@@ -215,7 +237,7 @@ method requestExpiresAt*(
 
 method getHost(
     market: OnChainMarket, requestId: RequestId, slotIndex: uint64
-): Future[?Address] {.async.} =
+): Future[?Address] {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError("Failed to get slot's host"):
     let slotId = slotId(requestId, slotIndex)
     let address = await market.contract.getHost(slotId)
@@ -226,7 +248,7 @@ method getHost(
 
 method currentCollateral*(
     market: OnChainMarket, slotId: SlotId
-): Future[UInt256] {.async.} =
+): Future[UInt256] {.async: (raises: [MarketError, CancelledError]).} =
   convertEthersError("Failed to get slot's current collateral"):
     return await market.contract.currentCollateral(slotId)
 
@@ -243,7 +265,7 @@ method fillSlot(
     slotIndex: uint64,
     proof: Groth16Proof,
     collateral: UInt256,
-) {.async.} =
+) {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError("Failed to fill slot"):
     logScope:
       requestId
@@ -251,8 +273,18 @@ method fillSlot(
 
     try:
       await market.approveFunds(collateral)
-      trace "calling fillSlot on contract"
-      discard await market.contract.fillSlot(requestId, slotIndex, proof).confirm(1)
+
+      # Add 10% to gas estimate to deal with different evm code flow when we
+      # happen to be the last one to fill a slot in this request
+      trace "estimating gas for fillSlot"
+      let gas = await market.contract.estimateGas.fillSlot(requestId, slotIndex, proof)
+      let gasLimit = (gas * 110) div 100
+      let overrides = TransactionOverrides(gasLimit: some gasLimit)
+
+      trace "calling fillSlot on contract", estimatedGas = gas, gasLimit = gasLimit
+      discard await market.contract
+      .fillSlot(requestId, slotIndex, proof, overrides)
+      .confirm(1)
       trace "fillSlot transaction completed"
     except Marketplace_SlotNotFree as parent:
       raise newException(
@@ -260,26 +292,56 @@ method fillSlot(
         parent,
       )
 
-method freeSlot*(market: OnChainMarket, slotId: SlotId) {.async.} =
+method freeSlot*(
+    market: OnChainMarket, slotId: SlotId
+) {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError("Failed to free slot"):
-    var freeSlot: Future[Confirmable]
-    if rewardRecipient =? market.rewardRecipient:
-      # If --reward-recipient specified, use it as the reward recipient, and use
-      # the SP's address as the collateral recipient
-      let collateralRecipient = await market.getSigner()
-      freeSlot = market.contract.freeSlot(
-        slotId,
-        rewardRecipient, # --reward-recipient
-        collateralRecipient,
-      ) # SP's address
-    else:
-      # Otherwise, use the SP's address as both the reward and collateral
-      # recipient (the contract will use msg.sender for both)
-      freeSlot = market.contract.freeSlot(slotId)
+    try:
+      var freeSlot: Future[Confirmable]
+      if rewardRecipient =? market.rewardRecipient:
+        # If --reward-recipient specified, use it as the reward recipient, and use
+        # the SP's address as the collateral recipient
+        let collateralRecipient = await market.getSigner()
 
-    discard await freeSlot.confirm(1)
+        # Add 200% to gas estimate to deal with different evm code flow when we
+        # happen to be the one to make the request fail
+        let gas = await market.contract.estimateGas.freeSlot(
+          slotId, rewardRecipient, collateralRecipient
+        )
+        let gasLimit = gas * 3
+        let overrides = TransactionOverrides(gasLimit: some gasLimit)
 
-method withdrawFunds(market: OnChainMarket, requestId: RequestId) {.async.} =
+        trace "calling freeSlot on contract", estimatedGas = gas, gasLimit = gasLimit
+
+        freeSlot = market.contract.freeSlot(
+          slotId,
+          rewardRecipient, # --reward-recipient
+          collateralRecipient, # SP's address
+          overrides,
+        )
+      else:
+        # Otherwise, use the SP's address as both the reward and collateral
+        # recipient (the contract will use msg.sender for both)
+
+        # Add 200% to gas estimate to deal with different evm code flow when we
+        # happen to be the one to make the request fail
+        let gas = await market.contract.estimateGas.freeSlot(slotId)
+        let gasLimit = gas * 3
+        let overrides = TransactionOverrides(gasLimit: some (gasLimit))
+
+        trace "calling freeSlot on contract", estimatedGas = gas, gasLimit = gasLimit
+
+        freeSlot = market.contract.freeSlot(slotId, overrides)
+
+      discard await freeSlot.confirm(1)
+    except Marketplace_SlotIsFree as parent:
+      raise newException(
+        SlotStateMismatchError, "Failed to free slot, slot is already free", parent
+      )
+
+method withdrawFunds(
+    market: OnChainMarket, requestId: RequestId
+) {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError("Failed to withdraw funds"):
     discard await market.contract.withdrawFunds(requestId).confirm(1)
 
@@ -306,24 +368,38 @@ method getChallenge*(
     let overrides = CallOverrides(blockTag: some BlockTag.pending)
     return await market.contract.getChallenge(id, overrides)
 
-method submitProof*(market: OnChainMarket, id: SlotId, proof: Groth16Proof) {.async.} =
+method submitProof*(
+    market: OnChainMarket, id: SlotId, proof: Groth16Proof
+) {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError("Failed to submit proof"):
-    discard await market.contract.submitProof(id, proof).confirm(1)
+    try:
+      discard await market.contract.submitProof(id, proof).confirm(1)
+    except Proofs_InvalidProof as parent:
+      raise newException(
+        ProofInvalidError, "Failed to submit proof because the proof is invalid", parent
+      )
 
 method markProofAsMissing*(
     market: OnChainMarket, id: SlotId, period: Period
-) {.async.} =
+) {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError("Failed to mark proof as missing"):
-    discard await market.contract.markProofAsMissing(id, period).confirm(1)
+    # Add 50% to gas estimate to deal with different evm code flow when we
+    # happen to be the one to make the request fail
+    let gas = await market.contract.estimateGas.markProofAsMissing(id, period)
+    let gasLimit = (gas * 150) div 100
+    let overrides = TransactionOverrides(gasLimit: some gasLimit)
 
-method canProofBeMarkedAsMissing*(
+    trace "calling markProofAsMissing on contract",
+      estimatedGas = gas, gasLimit = gasLimit
+
+    discard await market.contract.markProofAsMissing(id, period, overrides).confirm(1)
+
+method canMarkProofAsMissing*(
     market: OnChainMarket, id: SlotId, period: Period
-): Future[bool] {.async.} =
-  let provider = market.contract.provider
-  let contractWithoutSigner = market.contract.connect(provider)
-  let overrides = CallOverrides(blockTag: some BlockTag.pending)
+): Future[bool] {.async: (raises: [CancelledError]).} =
   try:
-    discard await contractWithoutSigner.markProofAsMissing(id, period, overrides)
+    let overrides = CallOverrides(blockTag: some BlockTag.pending)
+    discard await market.contract.canMarkProofAsMissing(id, period, overrides)
     return true
   except EthersError as e:
     trace "Proof cannot be marked as missing", msg = e.msg
@@ -331,17 +407,19 @@ method canProofBeMarkedAsMissing*(
 
 method reserveSlot*(
     market: OnChainMarket, requestId: RequestId, slotIndex: uint64
-) {.async.} =
+) {.async: (raises: [CancelledError, MarketError]).} =
   convertEthersError("Failed to reserve slot"):
     try:
-      discard await market.contract
-      .reserveSlot(
-        requestId,
-        slotIndex,
-        # reserveSlot runs out of gas for unknown reason, but 100k gas covers it
-        TransactionOverrides(gasLimit: some 100000.u256),
-      )
-      .confirm(1)
+      # Add 25% to gas estimate to deal with different evm code flow when we
+      # happen to be the last one that is allowed to reserve the slot
+      let gas = await market.contract.estimateGas.reserveSlot(requestId, slotIndex)
+      let gasLimit = (gas * 125) div 100
+      let overrides = TransactionOverrides(gasLimit: some gasLimit)
+
+      trace "calling reserveSlot on contract", estimatedGas = gas, gasLimit = gasLimit
+
+      discard
+        await market.contract.reserveSlot(requestId, slotIndex, overrides).confirm(1)
     except SlotReservations_ReservationNotAllowed:
       raise newException(
         SlotReservationNotAllowedError,
@@ -357,7 +435,7 @@ method canReserveSlot*(
 method subscribeRequests*(
     market: OnChainMarket, callback: OnRequest
 ): Future[MarketSubscription] {.async.} =
-  proc onEvent(eventResult: ?!StorageRequested) {.upraises: [].} =
+  proc onEvent(eventResult: ?!StorageRequested) {.raises: [].} =
     without event =? eventResult, eventErr:
       error "There was an error in Request subscription", msg = eventErr.msg
       return
@@ -371,7 +449,7 @@ method subscribeRequests*(
 method subscribeSlotFilled*(
     market: OnChainMarket, callback: OnSlotFilled
 ): Future[MarketSubscription] {.async.} =
-  proc onEvent(eventResult: ?!SlotFilled) {.upraises: [].} =
+  proc onEvent(eventResult: ?!SlotFilled) {.raises: [].} =
     without event =? eventResult, eventErr:
       error "There was an error in SlotFilled subscription", msg = eventErr.msg
       return
@@ -398,7 +476,7 @@ method subscribeSlotFilled*(
 method subscribeSlotFreed*(
     market: OnChainMarket, callback: OnSlotFreed
 ): Future[MarketSubscription] {.async.} =
-  proc onEvent(eventResult: ?!SlotFreed) {.upraises: [].} =
+  proc onEvent(eventResult: ?!SlotFreed) {.raises: [].} =
     without event =? eventResult, eventErr:
       error "There was an error in SlotFreed subscription", msg = eventErr.msg
       return
@@ -412,7 +490,7 @@ method subscribeSlotFreed*(
 method subscribeSlotReservationsFull*(
     market: OnChainMarket, callback: OnSlotReservationsFull
 ): Future[MarketSubscription] {.async.} =
-  proc onEvent(eventResult: ?!SlotReservationsFull) {.upraises: [].} =
+  proc onEvent(eventResult: ?!SlotReservationsFull) {.raises: [].} =
     without event =? eventResult, eventErr:
       error "There was an error in SlotReservationsFull subscription",
         msg = eventErr.msg
@@ -427,7 +505,7 @@ method subscribeSlotReservationsFull*(
 method subscribeFulfillment(
     market: OnChainMarket, callback: OnFulfillment
 ): Future[MarketSubscription] {.async.} =
-  proc onEvent(eventResult: ?!RequestFulfilled) {.upraises: [].} =
+  proc onEvent(eventResult: ?!RequestFulfilled) {.raises: [].} =
     without event =? eventResult, eventErr:
       error "There was an error in RequestFulfillment subscription", msg = eventErr.msg
       return
@@ -441,7 +519,7 @@ method subscribeFulfillment(
 method subscribeFulfillment(
     market: OnChainMarket, requestId: RequestId, callback: OnFulfillment
 ): Future[MarketSubscription] {.async.} =
-  proc onEvent(eventResult: ?!RequestFulfilled) {.upraises: [].} =
+  proc onEvent(eventResult: ?!RequestFulfilled) {.raises: [].} =
     without event =? eventResult, eventErr:
       error "There was an error in RequestFulfillment subscription", msg = eventErr.msg
       return
@@ -456,7 +534,7 @@ method subscribeFulfillment(
 method subscribeRequestCancelled*(
     market: OnChainMarket, callback: OnRequestCancelled
 ): Future[MarketSubscription] {.async.} =
-  proc onEvent(eventResult: ?!RequestCancelled) {.upraises: [].} =
+  proc onEvent(eventResult: ?!RequestCancelled) {.raises: [].} =
     without event =? eventResult, eventErr:
       error "There was an error in RequestCancelled subscription", msg = eventErr.msg
       return
@@ -470,7 +548,7 @@ method subscribeRequestCancelled*(
 method subscribeRequestCancelled*(
     market: OnChainMarket, requestId: RequestId, callback: OnRequestCancelled
 ): Future[MarketSubscription] {.async.} =
-  proc onEvent(eventResult: ?!RequestCancelled) {.upraises: [].} =
+  proc onEvent(eventResult: ?!RequestCancelled) {.raises: [].} =
     without event =? eventResult, eventErr:
       error "There was an error in RequestCancelled subscription", msg = eventErr.msg
       return
@@ -485,7 +563,7 @@ method subscribeRequestCancelled*(
 method subscribeRequestFailed*(
     market: OnChainMarket, callback: OnRequestFailed
 ): Future[MarketSubscription] {.async.} =
-  proc onEvent(eventResult: ?!RequestFailed) {.upraises: [].} =
+  proc onEvent(eventResult: ?!RequestFailed) {.raises: [].} =
     without event =? eventResult, eventErr:
       error "There was an error in RequestFailed subscription", msg = eventErr.msg
       return
@@ -499,7 +577,7 @@ method subscribeRequestFailed*(
 method subscribeRequestFailed*(
     market: OnChainMarket, requestId: RequestId, callback: OnRequestFailed
 ): Future[MarketSubscription] {.async.} =
-  proc onEvent(eventResult: ?!RequestFailed) {.upraises: [].} =
+  proc onEvent(eventResult: ?!RequestFailed) {.raises: [].} =
     without event =? eventResult, eventErr:
       error "There was an error in RequestFailed subscription", msg = eventErr.msg
       return
@@ -514,7 +592,7 @@ method subscribeRequestFailed*(
 method subscribeProofSubmission*(
     market: OnChainMarket, callback: OnProofSubmitted
 ): Future[MarketSubscription] {.async.} =
-  proc onEvent(eventResult: ?!ProofSubmitted) {.upraises: [].} =
+  proc onEvent(eventResult: ?!ProofSubmitted) {.raises: [].} =
     without event =? eventResult, eventErr:
       error "There was an error in ProofSubmitted subscription", msg = eventErr.msg
       return

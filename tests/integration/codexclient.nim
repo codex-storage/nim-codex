@@ -1,4 +1,3 @@
-import std/httpclient
 import std/strutils
 
 from pkg/libp2p import Cid, `$`, init
@@ -16,6 +15,9 @@ export purchasing, httptable, httpclient
 type CodexClient* = ref object
   baseurl: string
   session: HttpSessionRef
+
+type HasBlockResponse = object
+  has: bool
 
 proc new*(_: type CodexClient, baseurl: string): CodexClient =
   CodexClient(session: HttpSessionRef.new(), baseurl: baseurl)
@@ -45,7 +47,7 @@ proc request(
   ).get
   .send()
 
-proc post(
+proc post*(
     self: CodexClient,
     url: string,
     body: string = "",
@@ -69,7 +71,7 @@ proc delete(
 .} =
   return self.request(MethodDelete, url, headers = headers)
 
-proc patch(
+proc patch*(
     self: CodexClient,
     url: string,
     body: string = "",
@@ -290,11 +292,13 @@ proc getSalesAgent*(
   except CatchableError as e:
     return failure e.msg
 
-proc postAvailability*(
+proc postAvailabilityRaw*(
     client: CodexClient,
     totalSize, duration: uint64,
     minPricePerBytePerSecond, totalCollateral: UInt256,
-): Future[?!Availability] {.async: (raises: [CancelledError, HttpError]).} =
+    enabled: ?bool = bool.none,
+    until: ?SecondsSince1970 = SecondsSince1970.none,
+): Future[HttpClientResponseRef] {.async: (raises: [CancelledError, HttpError]).} =
   ## Post sales availability endpoint
   ##
   let url = client.baseurl & "/sales/availability"
@@ -304,8 +308,27 @@ proc postAvailability*(
       "duration": duration,
       "minPricePerBytePerSecond": minPricePerBytePerSecond,
       "totalCollateral": totalCollateral,
+      "enabled": enabled,
+      "until": until,
     }
-  let response = await client.post(url, $json)
+  return await client.post(url, $json)
+
+proc postAvailability*(
+    client: CodexClient,
+    totalSize, duration: uint64,
+    minPricePerBytePerSecond, totalCollateral: UInt256,
+    enabled: ?bool = bool.none,
+    until: ?SecondsSince1970 = SecondsSince1970.none,
+): Future[?!Availability] {.async: (raises: [CancelledError, HttpError]).} =
+  let response = await client.postAvailabilityRaw(
+    totalSize = totalSize,
+    duration = duration,
+    minPricePerBytePerSecond = minPricePerBytePerSecond,
+    totalCollateral = totalCollateral,
+    enabled = enabled,
+    until = until,
+  )
+
   let body = await response.body
 
   doAssert response.status == 201,
@@ -317,6 +340,8 @@ proc patchAvailabilityRaw*(
     availabilityId: AvailabilityId,
     totalSize, freeSize, duration: ?uint64 = uint64.none,
     minPricePerBytePerSecond, totalCollateral: ?UInt256 = UInt256.none,
+    enabled: ?bool = bool.none,
+    until: ?SecondsSince1970 = SecondsSince1970.none,
 ): Future[HttpClientResponseRef] {.
     async: (raw: true, raises: [CancelledError, HttpError])
 .} =
@@ -342,6 +367,12 @@ proc patchAvailabilityRaw*(
   if totalCollateral =? totalCollateral:
     json["totalCollateral"] = %totalCollateral
 
+  if enabled =? enabled:
+    json["enabled"] = %enabled
+
+  if until =? until:
+    json["until"] = %until
+
   client.patch(url, $json)
 
 proc patchAvailability*(
@@ -349,6 +380,8 @@ proc patchAvailability*(
     availabilityId: AvailabilityId,
     totalSize, duration: ?uint64 = uint64.none,
     minPricePerBytePerSecond, totalCollateral: ?UInt256 = UInt256.none,
+    enabled: ?bool = bool.none,
+    until: ?SecondsSince1970 = SecondsSince1970.none,
 ): Future[void] {.async: (raises: [CancelledError, HttpError]).} =
   let response = await client.patchAvailabilityRaw(
     availabilityId,
@@ -356,8 +389,10 @@ proc patchAvailability*(
     duration = duration,
     minPricePerBytePerSecond = minPricePerBytePerSecond,
     totalCollateral = totalCollateral,
+    enabled = enabled,
+    until = until,
   )
-  doAssert response.status == 200, "expected 200 OK, got " & $response.status
+  doAssert response.status == 204, "expected No Content, got " & $response.status
 
 proc getAvailabilities*(
     client: CodexClient
@@ -389,3 +424,31 @@ proc requestId*(
     client: CodexClient, id: PurchaseId
 ): Future[?RequestId] {.async: (raises: [CancelledError, HttpError]).} =
   return (await client.getPurchase(id)).option .? requestId
+
+proc buildUrl*(client: CodexClient, path: string): string =
+  return client.baseurl & path
+
+proc getSlots*(
+    client: CodexClient
+): Future[?!seq[Slot]] {.async: (raises: [CancelledError, HttpError]).} =
+  let url = client.baseurl & "/sales/slots"
+  let body = await client.getContent(url)
+  seq[Slot].fromJson(body)
+
+proc hasBlock*(
+    client: CodexClient, cid: Cid
+): Future[?!bool] {.async: (raises: [CancelledError, HttpError]).} =
+  let url = client.baseurl & "/data/" & $cid & "/exists"
+  let body = await client.getContent(url)
+  let response = HasBlockResponse.fromJson(body)
+  if response.isErr:
+    return failure "Failed to parse has block response"
+  return response.get.has.success
+
+proc hasBlockRaw*(
+    client: CodexClient, cid: string
+): Future[HttpClientResponseRef] {.
+    async: (raw: true, raises: [CancelledError, HttpError])
+.} =
+  let url = client.baseurl & "/data/" & cid & "/exists"
+  return client.get(url)

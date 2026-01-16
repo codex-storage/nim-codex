@@ -1,6 +1,5 @@
 import std/sequtils
 
-import pkg/unittest2
 import pkg/poseidon2
 import pkg/poseidon2/io
 import pkg/questionable/results
@@ -9,9 +8,11 @@ import pkg/stew/byteutils
 import pkg/stew/arrayops
 
 import pkg/codex/merkletree
+import pkg/taskpools
 
 import ./generictreetests
 import ./helpers
+import ../../asynctest
 
 const data = [
   "0000000000000000000000000000001".toBytes,
@@ -36,13 +37,14 @@ suite "Test Poseidon2Tree":
     check:
       Poseidon2Tree.init(leaves = newSeq[Poseidon2Hash](0)).isErr
 
-  test "Init tree from poseidon2 leaves":
-    let tree = Poseidon2Tree.init(leaves = expectedLeaves).tryGet
+  test "Build tree from poseidon2 leaves":
+    var taskpool = Taskpool.new(numThreads = 2)
+    let tree = (await Poseidon2Tree.init(taskpool, leaves = expectedLeaves)).tryGet()
 
     check:
       tree.leaves == expectedLeaves
 
-  test "Init tree from byte leaves":
+  test "Build tree from byte leaves":
     let tree = Poseidon2Tree.init(
       leaves = expectedLeaves.mapIt(array[31, byte].initCopyFrom(it.toBytes))
     ).tryGet
@@ -50,7 +52,7 @@ suite "Test Poseidon2Tree":
     check:
       tree.leaves == expectedLeaves
 
-  test "Should build from nodes":
+  test "Build tree from nodes":
     let
       tree = Poseidon2Tree.init(leaves = expectedLeaves).tryGet
       fromNodes = Poseidon2Tree.fromNodes(
@@ -59,6 +61,29 @@ suite "Test Poseidon2Tree":
 
     check:
       tree == fromNodes
+
+  test "Build poseidon2 tree from poseidon2 leaves asynchronously":
+    var tp = Taskpool.new()
+    defer:
+      tp.shutdown()
+
+    let tree = (await Poseidon2Tree.init(tp, leaves = expectedLeaves)).tryGet()
+    check:
+      tree.leaves == expectedLeaves
+
+  test "Build poseidon2 tree from byte leaves asynchronously":
+    var tp = Taskpool.new()
+    defer:
+      tp.shutdown()
+
+    let tree = (
+      await Poseidon2Tree.init(
+        tp, leaves = expectedLeaves.mapIt(array[31, byte].initCopyFrom(it.toBytes))
+      )
+    ).tryGet()
+
+    check:
+      tree.leaves == expectedLeaves
 
 let
   compressor = proc(

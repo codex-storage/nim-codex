@@ -29,6 +29,7 @@ runs:
       shell: ${{ inputs.shell }} {0}
       run: |
         curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs/ | sh -s -- --default-toolchain=${{ inputs.rust_version }} -y
+        echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
 
     - name: APT (Linux amd64/arm64)
       if: inputs.os == 'linux' && (inputs.cpu == 'amd64' || inputs.cpu == 'arm64')
@@ -81,35 +82,42 @@ runs:
           mingw-w64-i686-ntldd-git
           mingw-w64-i686-rust
 
-    - name: MSYS2 (Windows All) - Update to gcc 14
-      if: inputs.os == 'windows'
-      shell: ${{ inputs.shell }} {0}
-      run: |
-        pacman -U --noconfirm https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-gcc-14.2.0-2-any.pkg.tar.zst https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-gcc-libs-14.2.0-2-any.pkg.tar.zst
-
     - name: Install gcc 14 on Linux
       # We don't want to install gcc 14 for coverage (Ubuntu 20.04)
-      if : ${{ inputs.os == 'linux' && inputs.coverage != 'true' }}
+      if: ${{ inputs.os == 'linux' && inputs.coverage != 'true' }}
       shell: ${{ inputs.shell }} {0}
       run: |
-        # Add GCC-14 to alternatives
-        sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 14
-        # Set GCC-14 as the default
-        sudo update-alternatives --set gcc /usr/bin/gcc-14
+        # Skip for older Ubuntu versions
+        if [[ $(lsb_release -r | awk -F '[^0-9]+' '{print $2}') -ge 24 ]]; then
+          # Install GCC-14
+          sudo apt-get update -qq
+          sudo apt-get install -yq gcc-14
+          # Add GCC-14 to alternatives
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 14
+          # Set GCC-14 as the default
+          sudo update-alternatives --set gcc /usr/bin/gcc-14
+        fi
 
     - name: Install ccache on Linux/Mac
       if: inputs.os == 'linux' || inputs.os == 'macos'
       uses: hendrikmuhs/ccache-action@v1.2
       with:
-        create-symlink: true
-        key: ${{ matrix.os }}-${{ matrix.builder }}-${{ matrix.cpu }}-${{ matrix.tests }}-${{ matrix.nim_version }}
+        create-symlink: false
+        key: ${{ inputs.os }}-${{ inputs.builder }}-${{ inputs.cpu }}-${{ inputs.tests }}-${{ inputs.nim_version }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}
         evict-old-files: 7d
+
+    - name: Add ccache to path on Linux/Mac
+      if: inputs.os == 'linux' || inputs.os == 'macos'
+      shell: ${{ inputs.shell }} {0}
+      run: |
+        echo "/usr/lib/ccache:/usr/local/opt/ccache/libexec" >> "$GITHUB_PATH"
+        echo "/usr/local/opt/ccache/libexec" >> "$GITHUB_PATH"
 
     - name: Install ccache on Windows
       if: inputs.os == 'windows'
       uses: hendrikmuhs/ccache-action@v1.2
       with:
-        key: ${{ matrix.os }}-${{ matrix.builder }}-${{ matrix.cpu }}-${{ matrix.tests }}-${{ matrix.nim_version }}
+        key: ${{ inputs.os }}-${{ inputs.builder }}-${{ inputs.cpu }}-${{ inputs.tests }}-${{ inputs.nim_version }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}
         evict-old-files: 7d
 
     - name: Enable ccache on Windows
@@ -117,11 +125,11 @@ runs:
       shell: ${{ inputs.shell }} {0}
       run: |
         CCACHE_DIR=$(dirname $(which ccache))/ccached
-        mkdir ${CCACHE_DIR}
-        ln -s $(which ccache) ${CCACHE_DIR}/gcc.exe
-        ln -s $(which ccache) ${CCACHE_DIR}/g++.exe
-        ln -s $(which ccache) ${CCACHE_DIR}/cc.exe
-        ln -s $(which ccache) ${CCACHE_DIR}/c++.exe
+        mkdir -p ${CCACHE_DIR}
+        ln -sf $(which ccache) ${CCACHE_DIR}/gcc.exe
+        ln -sf $(which ccache) ${CCACHE_DIR}/g++.exe
+        ln -sf $(which ccache) ${CCACHE_DIR}/cc.exe
+        ln -sf $(which ccache) ${CCACHE_DIR}/c++.exe
         echo "export PATH=${CCACHE_DIR}:\$PATH" >> $HOME/.bash_profile # prefix path in MSYS2
 
     - name: Derive environment variables
@@ -202,10 +210,10 @@ runs:
     - name: Restore Nim toolchain binaries from cache
       id: nim-cache
       uses: actions/cache@v4
-      if : ${{ inputs.coverage != 'true'  }}
+      if: ${{ inputs.coverage != 'true' }}
       with:
         path: NimBinaries
-        key: ${{ inputs.os }}-${{ inputs.cpu }}-nim-${{ inputs.nim_version }}-cache-${{ env.cache_nonce }}-${{ github.run_id }}
+        key: ${{ inputs.os }}-${{ inputs.cpu }}-nim-${{ inputs.nim_version }}-cache-${{ env.cache_nonce }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}
         restore-keys: ${{ inputs.os }}-${{ inputs.cpu }}-nim-${{ inputs.nim_version }}-cache-${{ env.cache_nonce }}
 
     - name: Set NIM_COMMIT
@@ -218,7 +226,7 @@ runs:
       run: |
         git config --global core.symlinks false
 
-    - name: Build Nim and Codex dependencies
+    - name: Build Nim and Logos Storage dependencies
       shell: ${{ inputs.shell }} {0}
       run: |
         which gcc

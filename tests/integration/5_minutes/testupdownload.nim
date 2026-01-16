@@ -1,6 +1,6 @@
 import pkg/codex/rest/json
-import ./twonodes
-import ../codex/examples
+import ../twonodes
+import ../../codex/examples
 import json
 from pkg/libp2p import Cid, `$`
 

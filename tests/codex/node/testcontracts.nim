@@ -56,12 +56,13 @@ asyncchecksuite "Test Node - Host contracts":
     verifiable: Manifest
     verifiableBlock: bt.Block
     protected: Manifest
+    taskPool: Taskpool
 
   setup:
     # Setup Host Contracts and dependencies
     market = MockMarket.new()
     sales = Sales.new(market, clock, localStore)
-
+    taskPool = Taskpool.new()
     node.contracts = (
       none ClientInteractions,
       some HostInteractions.new(clock, sales),
@@ -75,19 +76,22 @@ asyncchecksuite "Test Node - Host contracts":
     let
       manifestBlock =
         bt.Block.new(manifest.encode().tryGet(), codec = ManifestCodec).tryGet()
-      erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider, Taskpool.new)
+      erasure = Erasure.new(store, leoEncoderProvider, leoDecoderProvider, taskPool)
 
     manifestCid = manifestBlock.cid
 
     (await localStore.putBlock(manifestBlock)).tryGet()
 
     protected = (await erasure.encode(manifest, 3, 2)).tryGet()
-    builder = Poseidon2Builder.new(localStore, protected).tryGet()
+    builder = Poseidon2Builder.new(localStore, protected, taskPool).tryGet()
     verifiable = (await builder.buildManifest()).tryGet()
     verifiableBlock =
       bt.Block.new(verifiable.encode().tryGet(), codec = ManifestCodec).tryGet()
 
     (await localStore.putBlock(verifiableBlock)).tryGet()
+
+  teardown:
+    taskPool.shutdown()
 
   test "onExpiryUpdate callback is set":
     check sales.onExpiryUpdate.isSome
@@ -116,27 +120,28 @@ asyncchecksuite "Test Node - Host contracts":
     let onStore = !sales.onStore
     var request = StorageRequest.example
     request.content.cid = verifiableBlock.cid
-    request.expiry =
-      (getTime() + DefaultBlockTtl.toTimesDuration + 1.hours).toUnix.uint64
+    let expiry = (getTime() + DefaultBlockTtl.toTimesDuration + 1.hours).toUnix
     var fetchedBytes: uint = 0
 
-    let onBlocks = proc(blocks: seq[bt.Block]): Future[?!void] {.async.} =
+    let onBlocks = proc(
+        blocks: seq[bt.Block]
+    ): Future[?!void] {.async: (raises: [CancelledError]).} =
       for blk in blocks:
         fetchedBytes += blk.data.len.uint
       return success()
 
-    (await onStore(request, 1.uint64, onBlocks, isRepairing = false)).tryGet()
+    (await onStore(request, expiry, 1.uint64, onBlocks, isRepairing = false)).tryGet()
     check fetchedBytes == 12 * DefaultBlockSize.uint
 
-    let indexer = verifiable.protectedStrategy.init(
-      0, verifiable.numSlotBlocks() - 1, verifiable.numSlots
+    let indexer = verifiable.verifiableStrategy.init(
+      0, verifiable.blocksCount - 1, verifiable.numSlots
     )
 
-    for index in indexer.getIndicies(1):
+    for index in indexer.getIndices(1):
       let
         blk = (await localStore.getBlock(verifiable.treeCid, index)).tryGet
         key = (createBlockExpirationMetadataKey(blk.cid)).tryGet
         bytes = (await localStoreMetaDs.get(key)).tryGet
         blkMd = BlockMetadata.decode(bytes).tryGet
 
-      check blkMd.expiry == request.expiry.toSecondsSince1970
+      check blkMd.expiry == expiry

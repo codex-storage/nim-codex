@@ -47,7 +47,6 @@ suite "sales state 'filling'":
     let next = !(await state.run(agent))
     check next of SaleIgnored
     check SaleIgnored(next).reprocessSlot == false
-    check SaleIgnored(next).returnBytes
 
   test "run switches to errored with other error ":
     let error = newException(MarketError, "some error")

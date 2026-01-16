@@ -2,7 +2,6 @@ import pkg/chronos
 import pkg/questionable
 import pkg/questionable/results
 import pkg/stint
-import pkg/upraises
 import ../contracts/requests
 import ../errors
 import ../logutils
@@ -11,6 +10,7 @@ import ./statemachine
 import ./salescontext
 import ./salesdata
 import ./reservations
+import ./slotqueue
 
 export reservations
 
@@ -26,10 +26,10 @@ type
     onCleanUp*: OnCleanUp
     onFilled*: ?OnFilled
 
-  OnCleanUp* = proc(
-    returnBytes = false, reprocessSlot = false, returnedCollateral = UInt256.none
-  ): Future[void] {.gcsafe, upraises: [].}
-  OnFilled* = proc(request: StorageRequest, slotIndex: uint64) {.gcsafe, upraises: [].}
+  OnCleanUp* = proc(reprocessSlot = false, returnedCollateral = UInt256.none) {.
+    async: (raises: [])
+  .}
+  OnFilled* = proc(request: StorageRequest, slotIndex: uint64) {.gcsafe, raises: [].}
 
   SalesAgentError = object of CodexError
   AllSlotsFilledError* = object of SalesAgentError
@@ -42,10 +42,16 @@ proc newSalesAgent*(
     requestId: RequestId,
     slotIndex: uint64,
     request: ?StorageRequest,
+    slotQueueItem = SlotQueueItem.none,
 ): SalesAgent =
   var agent = SalesAgent.new()
   agent.context = context
-  agent.data = SalesData(requestId: requestId, slotIndex: slotIndex, request: request)
+  agent.data = SalesData(
+    requestId: requestId,
+    slotIndex: slotIndex,
+    request: request,
+    slotQueueItem: slotQueueItem,
+  )
   return agent
 
 proc retrieveRequest*(agent: SalesAgent) {.async.} =
@@ -106,14 +112,12 @@ proc subscribeCancellation(agent: SalesAgent) {.async.} =
 
 method onFulfilled*(
     agent: SalesAgent, requestId: RequestId
-) {.base, gcsafe, upraises: [].} =
+) {.base, gcsafe, raises: [].} =
   let cancelled = agent.data.cancelled
   if agent.data.requestId == requestId and not cancelled.isNil and not cancelled.finished:
     cancelled.cancelSoon()
 
-method onFailed*(
-    agent: SalesAgent, requestId: RequestId
-) {.base, gcsafe, upraises: [].} =
+method onFailed*(agent: SalesAgent, requestId: RequestId) {.base, gcsafe, raises: [].} =
   without request =? agent.data.request:
     return
   if agent.data.requestId == requestId:
@@ -121,7 +125,7 @@ method onFailed*(
 
 method onSlotFilled*(
     agent: SalesAgent, requestId: RequestId, slotIndex: uint64
-) {.base, gcsafe, upraises: [].} =
+) {.base, gcsafe, raises: [].} =
   if agent.data.requestId == requestId and agent.data.slotIndex == slotIndex:
     agent.schedule(slotFilledEvent(requestId, slotIndex))
 
@@ -132,7 +136,7 @@ proc subscribe*(agent: SalesAgent) {.async.} =
   await agent.subscribeCancellation()
   agent.subscribed = true
 
-proc unsubscribe*(agent: SalesAgent) {.async.} =
+proc unsubscribe*(agent: SalesAgent) {.async: (raises: []).} =
   if not agent.subscribed:
     return
 
@@ -143,6 +147,6 @@ proc unsubscribe*(agent: SalesAgent) {.async.} =
 
   agent.subscribed = false
 
-proc stop*(agent: SalesAgent) {.async.} =
+proc stop*(agent: SalesAgent) {.async: (raises: []).} =
   await Machine(agent).stop()
   await agent.unsubscribe()

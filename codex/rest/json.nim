@@ -17,7 +17,7 @@ type
     proofProbability* {.serialize.}: UInt256
     pricePerBytePerSecond* {.serialize.}: UInt256
     collateralPerByte* {.serialize.}: UInt256
-    expiry* {.serialize.}: ?uint64
+    expiry* {.serialize.}: uint64
     nodes* {.serialize.}: ?uint
     tolerance* {.serialize.}: ?uint
 
@@ -33,6 +33,8 @@ type
     minPricePerBytePerSecond* {.serialize.}: UInt256
     totalCollateral* {.serialize.}: UInt256
     freeSize* {.serialize.}: ?uint64
+    enabled* {.serialize.}: ?bool
+    until* {.serialize.}: ?SecondsSince1970
 
   RestSalesAgent* = object
     state* {.serialize.}: string

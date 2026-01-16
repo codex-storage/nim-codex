@@ -1,4 +1,4 @@
-## Nim-Codex
+## Logos Storage
 ## Copyright (c) 2023 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
@@ -11,6 +11,7 @@ import std/random
 import std/sequtils
 import pkg/chronos
 import pkg/questionable/results
+import pkg/libp2p
 import pkg/codex/blocktype as bt
 import pkg/codex/stores/repostore
 import pkg/codex/clock

@@ -15,8 +15,7 @@
 #
 # If NIM_COMMIT is set to "nimbusbuild", this will use the
 # version pinned by nimbus-build-system.
-#PINNED_NIM_VERSION := 38640664088251bbc88917b4bacfd86ec53014b8 # 1.6.21
-PINNED_NIM_VERSION := v2.0.14
+PINNED_NIM_VERSION := v2.2.4
 
 ifeq ($(NIM_COMMIT),)
 NIM_COMMIT := $(PINNED_NIM_VERSION)
@@ -94,10 +93,10 @@ else # "variables.mk" was included. Business as usual until the end of this file
 
 # default target, because it's the first one that doesn't start with '.'
 
-# Builds the codex binary
+# Builds the Logos Storage binary
 all: | build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
-		$(ENV_SCRIPT) nim codex $(NIM_PARAMS) build.nims
+		$(ENV_SCRIPT) nim storage $(NIM_PARAMS) build.nims
 
 # Build tools/cirdl
 cirdl: | deps
@@ -139,12 +138,26 @@ test: | build deps
 # Builds and runs the smart contract tests
 testContracts: | build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
-		$(ENV_SCRIPT) nim testContracts $(NIM_PARAMS) build.nims
+		$(ENV_SCRIPT) nim testContracts $(NIM_PARAMS) --define:ws_resubscribe=240 build.nims
+
+TEST_PARAMS :=
+ifdef DEBUG
+	TEST_PARAMS := $(TEST_PARAMS) -d:DebugTestHarness=$(DEBUG)
+  TEST_PARAMS := $(TEST_PARAMS) -d:NoCodexLogFilters=$(DEBUG)
+  TEST_PARAMS := $(TEST_PARAMS) -d:ShowContinuousStatusUpdates=$(DEBUG)
+  TEST_PARAMS := $(TEST_PARAMS) -d:DebugHardhat=$(DEBUG)
+endif
+ifdef TEST_TIMEOUT
+  TEST_PARAMS := $(TEST_PARAMS) -d:TestTimeout=$(TEST_TIMEOUT)
+endif
+ifdef PARALLEL
+  TEST_PARAMS := $(TEST_PARAMS) -d:EnableParallelTests=$(PARALLEL)
+endif
 
 # Builds and runs the integration tests
 testIntegration: | build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
-		$(ENV_SCRIPT) nim testIntegration $(NIM_PARAMS) build.nims
+		$(ENV_SCRIPT) nim testIntegration $(TEST_PARAMS) $(NIM_PARAMS) --define:ws_resubscribe=240 build.nims
 
 # Builds and runs all tests (except for Taiko L2 tests)
 testAll: | build deps
@@ -179,11 +192,11 @@ coverage:
 	$(MAKE) NIMFLAGS="$(NIMFLAGS) --lineDir:on --passC:-fprofile-arcs --passC:-ftest-coverage --passL:-fprofile-arcs --passL:-ftest-coverage" test
 	cd nimcache/release/testCodex && rm -f *.c
 	mkdir -p coverage
-	lcov --capture --directory nimcache/release/testCodex --output-file coverage/coverage.info
+	lcov --capture --keep-going --directory nimcache/release/testCodex --output-file coverage/coverage.info
 	shopt -s globstar && ls $$(pwd)/codex/{*,**/*}.nim
-	shopt -s globstar && lcov --extract coverage/coverage.info $$(pwd)/codex/{*,**/*}.nim --output-file coverage/coverage.f.info
+	shopt -s globstar && lcov --extract coverage/coverage.info --keep-going $$(pwd)/codex/{*,**/*}.nim --output-file coverage/coverage.f.info
 	echo -e $(BUILD_MSG) "coverage/report/index.html"
-	genhtml coverage/coverage.f.info --output-directory coverage/report
+	genhtml coverage/coverage.f.info --keep-going --output-directory coverage/report
 
 show-coverage:
 	if which open >/dev/null; then (echo -e "\e[92mOpening\e[39m HTML coverage report in browser..." && open coverage/report/index.html) || true; fi
@@ -233,6 +246,7 @@ format:
 	$(NPH) *.nim
 	$(NPH) codex/
 	$(NPH) tests/
+	$(NPH) library/
 
 clean-nph:
 	rm -f $(NPH)
@@ -243,4 +257,32 @@ print-nph-path:
 
 clean: | clean-nph
 
+################
+## C Bindings ##
+################
+.PHONY: libstorage
+
+STATIC ?= 0
+
+ifneq ($(strip $(STORAGE_LIB_PARAMS)),)
+NIM_PARAMS := $(NIM_PARAMS) $(STORAGE_LIB_PARAMS)
+endif
+
+libstorage:
+	$(MAKE) deps
+	rm -f build/libstorage*
+
+ifeq ($(STATIC), 1)
+		echo -e $(BUILD_MSG) "build/$@.a" && \
+		$(ENV_SCRIPT) nim libstorageStatic $(NIM_PARAMS) -d:LeopardCmakeFlags="\"-DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_BUILD_TYPE=Release\"" codex.nims
+else ifeq ($(detected_OS),Windows)
+		echo -e $(BUILD_MSG) "build/$@.dll" && \
+		$(ENV_SCRIPT) nim libstorageDynamic $(NIM_PARAMS) -d:LeopardCmakeFlags="\"-G \\\"MSYS Makefiles\\\" -DCMAKE_BUILD_TYPE=Release\"" codex.nims
+else ifeq ($(detected_OS),macOS)
+		echo -e $(BUILD_MSG) "build/$@.dylib" && \
+		$(ENV_SCRIPT) nim libstorageDynamic $(NIM_PARAMS) -d:LeopardCmakeFlags="\"-DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_BUILD_TYPE=Release\"" codex.nims
+else
+		echo -e $(BUILD_MSG) "build/$@.so" && \
+		$(ENV_SCRIPT) nim libstorageDynamic $(NIM_PARAMS) -d:LeopardCmakeFlags="\"-DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_BUILD_TYPE=Release\"" codex.nims
+endif
 endif # "variables.mk" was not included

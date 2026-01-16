@@ -1,4 +1,4 @@
-## Nim-Codex
+## Logos Storage
 ## Copyright (c) 2022 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
@@ -6,6 +6,8 @@
 ## at your option.
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
+
+{.push raises: [].}
 
 import pkg/chronos
 import pkg/libp2p/cid
@@ -81,16 +83,12 @@ proc advertiseBlock(b: Advertiser, cid: Cid) {.async: (raises: [CancelledError])
 proc advertiseLocalStoreLoop(b: Advertiser) {.async: (raises: []).} =
   try:
     while b.advertiserRunning:
-      try:
-        if cids =? await b.localStore.listBlocks(blockType = BlockType.Manifest):
-          trace "Advertiser begins iterating blocks..."
-          for c in cids:
-            if cid =? await c:
-              await b.advertiseBlock(cid)
-          trace "Advertiser iterating blocks finished."
-      except CatchableError as e:
-        error "Error in advertise local store loop", error = e.msgDetail
-        raiseAssert("Unexpected exception in advertiseLocalStoreLoop")
+      if cidsIter =? await b.localStore.listBlocks(blockType = BlockType.Manifest):
+        trace "Advertiser begins iterating blocks..."
+        for c in cidsIter:
+          if cid =? await c:
+            await b.advertiseBlock(cid)
+        trace "Advertiser iterating blocks finished."
 
       await sleepAsync(b.advertiseLocalStoreLoopSleep)
   except CancelledError:
@@ -126,15 +124,18 @@ proc start*(b: Advertiser) {.async: (raises: []).} =
 
   trace "Advertiser start"
 
-  proc onBlock(cid: Cid) {.async.} =
-    await b.advertiseBlock(cid)
+  # The advertiser is expected to be started only once.
+  if b.advertiserRunning:
+    raiseAssert "Advertiser can only be started once — this should not happen"
+
+  proc onBlock(cid: Cid) {.async: (raises: []).} =
+    try:
+      await b.advertiseBlock(cid)
+    except CancelledError:
+      trace "Cancelled advertise block", cid
 
   doAssert(b.localStore.onBlockStored.isNone())
   b.localStore.onBlockStored = onBlock.some
-
-  if b.advertiserRunning:
-    warn "Starting advertiser twice"
-    return
 
   b.advertiserRunning = true
   for i in 0 ..< b.concurrentAdvReqs:

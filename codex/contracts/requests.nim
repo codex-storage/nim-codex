@@ -2,14 +2,13 @@ import std/hashes
 import std/sequtils
 import std/typetraits
 import pkg/contractabi
-import pkg/nimcrypto
-import pkg/ethers/fields
+import pkg/nimcrypto/keccak
+import pkg/ethers/contracts/fields
 import pkg/questionable/results
 import pkg/stew/byteutils
 import pkg/libp2p/[cid, multicodec]
 import ../logutils
 import ../utils/json
-import ../clock
 from ../errors import mapFailure
 
 export contractabi

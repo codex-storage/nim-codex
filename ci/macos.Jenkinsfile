@@ -1,11 +1,15 @@
 #!/usr/bin/env groovy
-library 'status-jenkins-lib@v1.9.13'
+library 'status-jenkins-lib@v1.9.37'
 
 pipeline {
-  agent { label 'linux && x86_64 && nix-2.24' }
+  agent { label 'macos && aarch64 && nix' }
 
   options {
+    timestamps()
+    ansiColor('xterm')
+    timeout(time: 20, unit: 'MINUTES')
     disableConcurrentBuilds()
+    disableRestartFromStage()
     /* manage how many builds we keep */
     buildDiscarder(logRotator(
       numToKeepStr: '20',
@@ -25,13 +29,16 @@ pipeline {
     stage('Check') {
       steps {
         script {
-          sh './result/bin/codex --version'
+          sh './result/bin/storage --version'
         }
       }
     }
   }
 
   post {
-    cleanup { cleanWs() }
+    cleanup {
+      cleanWs()
+      dir(env.WORKSPACE_TMP) { deleteDir() }
+    }
   }
 }

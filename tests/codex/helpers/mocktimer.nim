@@ -1,4 +1,4 @@
-## Nim-Codex
+## Logos Storage
 ## Copyright (c) 2023 Status Research & Development GmbH
 ## Licensed under either of
 ##  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
@@ -26,7 +26,7 @@ method start*(mockTimer: MockTimer, callback: timer.TimerCallback, interval: Dur
   mockTimer.mockInterval = interval
   inc mockTimer.startCalled
 
-method stop*(mockTimer: MockTimer) {.async.} =
+method stop*(mockTimer: MockTimer) {.async: (raises: []).} =
   inc mockTimer.stopCalled
 
 method invokeCallback*(mockTimer: MockTimer) {.async, base.} =

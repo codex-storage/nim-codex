@@ -14,7 +14,7 @@ logScope:
 
 type SaleIgnored* = ref object of SaleState
   reprocessSlot*: bool # readd slot to queue with `seen` flag
-  returnBytes*: bool # return unreleased bytes from Reservation to Availability
+  returnsCollateral*: bool # returns collateral when a reservation was created
 
 method `$`*(state: SaleIgnored): string =
   "SaleIgnored"
@@ -23,11 +23,26 @@ method run*(
     state: SaleIgnored, machine: Machine
 ): Future[?State] {.async: (raises: []).} =
   let agent = SalesAgent(machine)
+  let data = agent.data
+  let market = agent.context.market
+
+  without request =? data.request:
+    raiseAssert "no sale request"
+
+  var returnedCollateral = UInt256.none
 
   try:
+    if state.returnsCollateral:
+      # The returnedCollateral is needed because a reservation could
+      # be created and the collateral assigned to that reservation.
+      # The returnedCollateral will be used in the cleanup function
+      # and be passed to the deleteReservation function.
+      let slot = Slot(request: request, slotIndex: data.slotIndex)
+      returnedCollateral = request.ask.collateralPerSlot.some
+
     if onCleanUp =? agent.onCleanUp:
       await onCleanUp(
-        reprocessSlot = state.reprocessSlot, returnBytes = state.returnBytes
+        reprocessSlot = state.reprocessSlot, returnedCollateral = returnedCollateral
       )
   except CancelledError as e:
     trace "SaleIgnored.run was cancelled", error = e.msgDetail

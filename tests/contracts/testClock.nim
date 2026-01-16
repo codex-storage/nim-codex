@@ -23,6 +23,10 @@ ethersuite "On-Chain Clock":
     let future = (getTime() + 42.years).toUnix
     discard await ethProvider.send("evm_setNextBlockTimestamp", @[%future])
     discard await ethProvider.send("evm_mine")
+
+    # Ensure that state updates are sync with WS
+    discard await ethProvider.getBlock(BlockTag.latest)
+
     check eventually clock.now() == future
 
   test "can wait until a certain time is reached by the chain":
