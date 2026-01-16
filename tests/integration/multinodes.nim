@@ -68,8 +68,8 @@ proc sanitize(pathSegment: string): string =
 proc getTempDirName*(starttime: string, role: Role, roleIdx: int): string =
   getTempDir() / "Storage" / sanitize($starttime) / sanitize($role & "_" & $roleIdx)
 
-template multinodesuite*(name: string, body: untyped) =
-  asyncchecksuite name:
+template multinodesuite*(suiteName: string, body: untyped) =
+  asyncchecksuite suiteName:
     var running {.inject, used.}: seq[RunningNode]
     var bootstrapNodes: seq[string]
     let starttime = now().format("yyyy-MM-dd'_'HH:mm:ss")

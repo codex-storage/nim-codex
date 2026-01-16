@@ -75,7 +75,7 @@ proc apiUrl*(node: CodexProcess): string {.raises: [CodexProcessError].} =
   without apiBindAddress =? config.apiBindAddress:
     raise
       newException(CodexProcessError, "REST API not started: --api-bindaddr not set")
-  return "http://" & apiBindAddress & ":" & $config.apiPort & "/api/sgitorage/v1"
+  return "http://" & apiBindAddress & ":" & $config.apiPort & "/api/storage/v1"
 
 proc logFile*(node: CodexProcess): ?string {.raises: [CodexProcessError].} =
   node.config.logFile
