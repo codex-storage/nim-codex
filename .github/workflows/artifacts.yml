@@ -1,0 +1,125 @@
+name: Libstorage artifacts
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ${{ matrix.target.os }}
+    strategy:
+      matrix:
+        target:
+          - os: ubuntu-latest
+            cpu: amd64
+            lib_ext: so
+
+          - os: ubuntu-24.04-arm
+            cpu: arm64
+            lib_ext: so
+
+          - os: macos-latest
+            lib_ext: dylib
+            cpu: arm64
+
+          - os: windows-latest
+            cpu: amd64
+            lib_ext: dll
+
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Rust 1.85.0
+        if: matrix.target.os != 'windows-latest'
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.85.0
+
+      - name: MSYS2 (Windows amd64)
+        if: matrix.target.os == 'windows-latest' && matrix.target.cpu == 'amd64'
+        uses: msys2/setup-msys2@v2
+        with:
+          path-type: inherit
+          msystem: UCRT64
+          install: >-
+            base-devel
+            git
+            mingw-w64-ucrt-x86_64-toolchain
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-ntldd-git
+            mingw-w64-ucrt-x86_64-rust
+        run: |
+          pacman -Sy --noconfirm make
+          git config --global core.symlinks false
+
+      - name: Build libstorage (Linux)
+        if: matrix.target.lib_ext == 'so'
+        run: |
+          make -j${ncpu} update
+          make -j${ncpu} libstorage
+
+      - name: Build libstorage (MacOS)
+        if: matrix.target.os == 'macos-latest'
+        run: |
+          make -j${ncpu} update
+          STORAGE_LIB_PARAMS="--passL:\"-Wl,-install_name,@rpath/libstorage.dylib\"" make -j${ncpu} libstorage
+
+      - name: Build libstorage (Windows)
+        if: matrix.target.os == 'windows-latest'
+        shell: msys2 {0}
+        run: |
+          make -j${ncpu} update
+          make -j${ncpu} libstorage
+
+      - name: Package artifacts Linux
+        if: matrix.target.os == 'ubuntu-latest' || matrix.target.os == 'ubuntu-24.04-arm'
+        run: |
+          sudo apt-get update && sudo apt-get install -y zip
+          ZIPFILE=storage-linux-${{ matrix.target.cpu }}.zip
+          zip -j $ZIPFILE ./build/libstorage.${{ matrix.target.lib_ext }} ./library/libstorage.h
+          echo "ZIPFILE=$ZIPFILE" >> $GITHUB_ENV
+
+      - name: Package artifacts MacOS
+        if: matrix.target.os == 'macos-latest'
+        run: |
+          ZIPFILE=storage-macos-${{ matrix.target.cpu }}.zip
+          zip -j $ZIPFILE ./build/libstorage.${{ matrix.target.lib_ext }} ./library/libstorage.h
+          echo "ZIPFILE=$ZIPFILE" >> $GITHUB_ENV
+
+      - name: Package artifacts (Windows)
+        if: matrix.target.os == 'windows-latest'
+        shell: msys2 {0}
+        run: |
+          ZIPFILE=storage-windows-${{ matrix.target.cpu }}.zip
+          (cd ./build && 7z a -tzip "${GITHUB_WORKSPACE}/${ZIPFILE}" libstorage.dll)
+          (cd ./library && 7z a -tzip "${GITHUB_WORKSPACE}/${ZIPFILE}" libstorage.h)
+          echo "ZIPFILE=$ZIPFILE" >> $GITHUB_ENV
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ZIPFILE }}
+          path: ${{ env.ZIPFILE }}
+          if-no-files-found: error
+
+  publish-release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@v4
+      - name: Download artifacts
+        uses: actions/download-artifact@v5
+        with:
+          path: dist
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/**
+          draft: true

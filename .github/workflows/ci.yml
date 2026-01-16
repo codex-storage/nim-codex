@@ -85,3 +85,29 @@ jobs:
           name: codecov-umbrella
           token: ${{ secrets.CODECOV_TOKEN }}
           verbose: true
+
+  cbinding:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Setup Nimbus Build System
+        uses: ./.github/actions/nimbus-build-system
+        with:
+          os: linux
+          nim_version: ${{ env.nim_version }}
+
+      - name: C Binding build
+        run: |
+            make -j${ncpu} update
+            make -j${ncpu} libstorage
+
+      - name: C Binding test
+        run: |
+          cd examples/c
+          gcc -o storage storage.c -L../../build -lstorage -Wl,-rpath,../../ -pthread
+          LD_LIBRARY_PATH=../../build ./storage
