@@ -63,27 +63,28 @@ jobs:
             mingw-w64-ucrt-x86_64-cmake
             mingw-w64-ucrt-x86_64-ntldd-git
             mingw-w64-ucrt-x86_64-rust
+        run: |
+          pacman -Sy --noconfirm make
+          git config --global core.symlinks false
 
       - name: Build libstorage (Linux)
         if: matrix.target.lib_ext == 'so' && steps.cache-libstorage.outputs.cache-hit != 'true'
         run: |
-          make update
-          make libstorage
+          make -j${ncpu} update
+          make -j${ncpu} libstorage
 
       - name: Build libstorage (MacOS)
         if: matrix.target.os == 'macos-latest' && steps.cache-libstorage.outputs.cache-hit != 'true'
         run: |
-          make update
-          STORAGE_LIB_PARAMS="--passL:\"-Wl,-install_name,@rpath/libstorage.dylib\"" make libstorage
+          make -j${ncpu} update
+          STORAGE_LIB_PARAMS="--passL:\"-Wl,-install_name,@rpath/libstorage.dylib\"" make -j${ncpu} libstorage
 
       - name: Build libstorage (Windows)
         if: matrix.target.os == 'windows-latest' && steps.cache-libstorage.outputs.cache-hit != 'true'
         shell: msys2 {0}
         run: |
-          pacman -Sy --noconfirm make
-          git config --global core.symlinks false
-          make update
-          make libstorage
+          make -j${ncpu} update
+          make -j${ncpu} libstorage
 
       - name: Package artifacts Linux
         if: matrix.target.os == 'ubuntu-latest' || matrix.target.os == 'ubuntu-24.04-arm'
