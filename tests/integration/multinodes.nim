@@ -77,8 +77,8 @@ proc sanitize(pathSegment: string): string =
 proc getTempDirName*(starttime: string, role: Role, roleIdx: int): string =
   getTempDir() / "Storage" / sanitize($starttime) / sanitize($role & "_" & $roleIdx)
 
-template multinodesuite*(name: string, body: untyped) =
-  asyncchecksuite name:
+template multinodesuite*(suiteName: string, body: untyped) =
+  asyncchecksuite suiteName:
     # Following the problem described here:
     # https://github.com/NomicFoundation/hardhat/issues/2053
     # It may be desirable to use http RPC provider.
