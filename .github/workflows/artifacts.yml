@@ -1,4 +1,4 @@
-name: Artifacts
+name: Libstorage artifacts
 
 on:
   push:
