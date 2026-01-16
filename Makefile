@@ -240,15 +240,15 @@ libstorage:
 
 ifeq ($(STATIC), 1)
 		echo -e $(BUILD_MSG) "build/$@.a" && \
-		$(ENV_SCRIPT) nim libstorageStatic $(NIM_PARAMS) -DCMAKE_BUILD_TYPE=Release\"" codex.nims
+		$(ENV_SCRIPT) nim libstorageStatic $(NIM_PARAMS) codex.nims
 else ifeq ($(detected_OS),Windows)
 		echo -e $(BUILD_MSG) "build/$@.dll" && \
-		$(ENV_SCRIPT) nim libstorageDynamic $(NIM_PARAMS) \\\"MSYS Makefiles\\\" -DCMAKE_BUILD_TYPE=Release\"" codex.nims
+		$(ENV_SCRIPT) nim libstorageDynamic $(NIM_PARAMS) codex.nims
 else ifeq ($(detected_OS),macOS)
 		echo -e $(BUILD_MSG) "build/$@.dylib" && \
-		$(ENV_SCRIPT) nim libstorageDynamic $(NIM_PARAMS) -DCMAKE_BUILD_TYPE=Release\"" codex.nims
+		$(ENV_SCRIPT) nim libstorageDynamic $(NIM_PARAMS) codex.nims
 else
 		echo -e $(BUILD_MSG) "build/$@.so" && \
-		$(ENV_SCRIPT) nim libstorageDynamic $(NIM_PARAMS) -DCMAKE_BUILD_TYPE=Release\"" codex.nims
+		$(ENV_SCRIPT) nim libstorageDynamic $(NIM_PARAMS) codex.nims
 endif
 endif # "variables.mk" was not included
