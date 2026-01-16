@@ -79,7 +79,8 @@ proc ethAccount*(node: CodexProcess): Address {.raises: [CodexProcessError].} =
 proc apiUrl*(node: CodexProcess): string {.raises: [CodexProcessError].} =
   let config = node.config
   without apiBindAddress =? config.apiBindAddress:
-    raise newException(CodexProcessError, "REST API not started: --api-bindaddr not set")
+    raise
+      newException(CodexProcessError, "REST API not started: --api-bindaddr not set")
   return "http://" & apiBindAddress & ":" & $config.apiPort & "/api/storage/v1"
 
 proc logFile*(node: CodexProcess): ?string {.raises: [CodexProcessError].} =
