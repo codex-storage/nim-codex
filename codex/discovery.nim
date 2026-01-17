@@ -217,13 +217,20 @@ proc stop*(d: Discovery) {.async: (raises: []).} =
   try:
     await noCancel d.protocol.closeWait()
     d.isStarted = false
+    trace "Discovery stopped"
   except CatchableError as exc:
     error "Error stopping discovery", exc = exc.msg
 
 proc close*(d: Discovery) {.async: (raises: []).} =
+  if d.store.isNil:
+    warn "Discovery store is nil, skipping close"
+    return
+
   let res = await noCancel d.store.close()
   if res.isErr:
     error "Error closing discovery store", error = res.error().msg
+  else:
+    trace "Discovery store closed"
 
 proc new*(
     T: type Discovery,
