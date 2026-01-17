@@ -929,7 +929,7 @@ int main(void)
 
     free(cid);
 
-    if (update_log_level(storage_ctx, "INFO") != RET_OK)
+    if (update_log_level(storage_ctx, "TRACE") != RET_OK)
     {
         fprintf(stderr, "update log level failed\n");
         return RET_ERR;
