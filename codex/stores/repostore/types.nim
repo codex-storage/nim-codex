@@ -49,7 +49,7 @@ type
 
   LeafMetadata* {.serialize.} = object
     blkCid*: Cid
-    proof*: CodexProof
+    proof*: StorageMerkleProof
 
   BlockExpiration* {.serialize.} = object
     cid*: Cid

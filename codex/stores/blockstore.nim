@@ -80,7 +80,7 @@ method getBlocks*(
 
 method getBlockAndProof*(
     self: BlockStore, treeCid: Cid, index: Natural
-): Future[?!(Block, CodexProof)] {.base, async: (raises: [CancelledError]), gcsafe.} =
+): Future[?!(Block, StorageMerkleProof)] {.base, async: (raises: [CancelledError]), gcsafe.} =
   ## Get a block and associated inclusion proof by Cid of a merkle tree and an index of a leaf in a tree
   ##
 
@@ -95,7 +95,7 @@ method putBlock*(
   raiseAssert("putBlock not implemented!")
 
 method putCidAndProof*(
-    self: BlockStore, treeCid: Cid, index: Natural, blockCid: Cid, proof: CodexProof
+    self: BlockStore, treeCid: Cid, index: Natural, blockCid: Cid, proof: StorageMerkleProof
 ): Future[?!void] {.base, async: (raises: [CancelledError]), gcsafe.} =
   ## Put a block proof to the blockstore
   ##
@@ -104,7 +104,7 @@ method putCidAndProof*(
 
 method getCidAndProof*(
     self: BlockStore, treeCid: Cid, index: Natural
-): Future[?!(Cid, CodexProof)] {.base, async: (raises: [CancelledError]), gcsafe.} =
+): Future[?!(Cid, StorageMerkleProof)] {.base, async: (raises: [CancelledError]), gcsafe.} =
   ## Get a block proof from the blockstore
   ##
 

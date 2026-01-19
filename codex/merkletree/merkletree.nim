@@ -43,20 +43,20 @@ type
   ByteTree* = MerkleTree[ByteHash, ByteTreeKey]
   ByteProof* = MerkleProof[ByteHash, ByteTreeKey]
 
-  CodexTree* = ref object of ByteTree
+  StorageMerkleTree* = ref object of ByteTree
     mcodec*: MultiCodec
 
-  CodexProof* = ref object of ByteProof
+  StorageMerkleProof* = ref object of ByteProof
     mcodec*: MultiCodec
 
-func getProof*(self: CodexTree, index: int): ?!CodexProof =
-  var proof = CodexProof(mcodec: self.mcodec)
+func getProof*(self: StorageMerkleTree, index: int): ?!StorageMerkleProof =
+  var proof = StorageMerkleProof(mcodec: self.mcodec)
 
   ?self.getProof(index, proof)
 
   success proof
 
-func verify*(self: CodexProof, leaf: MultiHash, root: MultiHash): ?!bool =
+func verify*(self: StorageMerkleProof, leaf: MultiHash, root: MultiHash): ?!bool =
   ## Verify hash
   ##
 
@@ -72,10 +72,10 @@ func verify*(self: CodexProof, leaf: MultiHash, root: MultiHash): ?!bool =
 
   self.verify(leafBytes, rootBytes)
 
-func verify*(self: CodexProof, leaf: Cid, root: Cid): ?!bool =
+func verify*(self: StorageMerkleProof, leaf: Cid, root: Cid): ?!bool =
   self.verify(?leaf.mhash.mapFailure, ?leaf.mhash.mapFailure)
 
-proc rootCid*(self: CodexTree, version = CIDv1, dataCodec = DatasetRootCodec): ?!Cid =
+proc rootCid*(self: StorageMerkleTree, version = CIDv1, dataCodec = DatasetRootCodec): ?!Cid =
   if (?self.root).len == 0:
     return failure "Empty root"
 
@@ -84,7 +84,7 @@ proc rootCid*(self: CodexTree, version = CIDv1, dataCodec = DatasetRootCodec): ?
   Cid.init(version, DatasetRootCodec, mhash).mapFailure
 
 func getLeafCid*(
-    self: CodexTree, i: Natural, version = CIDv1, dataCodec = BlockCodec
+    self: StorageMerkleTree, i: Natural, version = CIDv1, dataCodec = BlockCodec
 ): ?!Cid =
   if i >= self.leavesCount:
     return failure "Invalid leaf index " & $i
@@ -95,17 +95,17 @@ func getLeafCid*(
 
   Cid.init(version, dataCodec, mhash).mapFailure
 
-proc `$`*(self: CodexTree): string =
+proc `$`*(self: StorageMerkleTree): string =
   let root =
     if self.root.isOk:
       byteutils.toHex(self.root.get)
     else:
       "none"
-  "CodexTree(" & " root: " & root & ", leavesCount: " & $self.leavesCount & ", levels: " &
+  "StorageMerkleTree(" & " root: " & root & ", leavesCount: " & $self.leavesCount & ", levels: " &
     $self.levels & ", mcodec: " & $self.mcodec & " )"
 
-proc `$`*(self: CodexProof): string =
-  "CodexProof(" & " nleaves: " & $self.nleaves & ", index: " & $self.index & ", path: " &
+proc `$`*(self: StorageMerkleProof): string =
+  "StorageMerkleProof(" & " nleaves: " & $self.nleaves & ", index: " & $self.index & ", path: " &
     $self.path.mapIt(byteutils.toHex(it)) & ", mcodec: " & $self.mcodec & " )"
 
 func compress*(x, y: openArray[byte], key: ByteTreeKey, codec: MultiCodec): ?!ByteHash =
@@ -115,7 +115,7 @@ func compress*(x, y: openArray[byte], key: ByteTreeKey, codec: MultiCodec): ?!By
   let digest = ?MultiHash.digest(codec, input).mapFailure
   success digest.digestBytes
 
-func initTree(mcodec: MultiCodec, leaves: openArray[ByteHash]): ?!CodexTree =
+func initTree(mcodec: MultiCodec, leaves: openArray[ByteHash]): ?!StorageMerkleTree =
   if leaves.len == 0:
     return failure "Empty leaves"
 
@@ -128,28 +128,28 @@ func initTree(mcodec: MultiCodec, leaves: openArray[ByteHash]): ?!CodexTree =
   if digestSize != leaves[0].len:
     return failure "Invalid hash length"
 
-  var self = CodexTree(mcodec: mcodec)
+  var self = StorageMerkleTree(mcodec: mcodec)
   ?self.prepare(compressor, Zero, leaves)
   success self
 
 func init*(
-    _: type CodexTree, mcodec: MultiCodec = Sha256HashCodec, leaves: openArray[ByteHash]
-): ?!CodexTree =
+    _: type StorageMerkleTree, mcodec: MultiCodec = Sha256HashCodec, leaves: openArray[ByteHash]
+): ?!StorageMerkleTree =
   let tree = ?initTree(mcodec, leaves)
   ?tree.compute()
   success tree
 
 proc init*(
-    _: type CodexTree,
+    _: type StorageMerkleTree,
     tp: Taskpool,
     mcodec: MultiCodec = Sha256HashCodec,
     leaves: seq[ByteHash],
-): Future[?!CodexTree] {.async: (raises: [CancelledError]).} =
+): Future[?!StorageMerkleTree] {.async: (raises: [CancelledError]).} =
   let tree = ?initTree(mcodec, leaves)
   ?await tree.compute(tp)
   success tree
 
-func init*(_: type CodexTree, leaves: openArray[MultiHash]): ?!CodexTree =
+func init*(_: type StorageMerkleTree, leaves: openArray[MultiHash]): ?!StorageMerkleTree =
   if leaves.len == 0:
     return failure "Empty leaves"
 
@@ -157,11 +157,11 @@ func init*(_: type CodexTree, leaves: openArray[MultiHash]): ?!CodexTree =
     mcodec = leaves[0].mcodec
     leaves = leaves.mapIt(it.digestBytes)
 
-  CodexTree.init(mcodec, leaves)
+  StorageMerkleTree.init(mcodec, leaves)
 
 proc init*(
-    _: type CodexTree, tp: Taskpool, leaves: seq[MultiHash]
-): Future[?!CodexTree] {.async: (raises: [CancelledError]).} =
+    _: type StorageMerkleTree, tp: Taskpool, leaves: seq[MultiHash]
+): Future[?!StorageMerkleTree] {.async: (raises: [CancelledError]).} =
   if leaves.len == 0:
     return failure "Empty leaves"
 
@@ -169,9 +169,9 @@ proc init*(
     mcodec = leaves[0].mcodec
     leaves = leaves.mapIt(it.digestBytes)
 
-  await CodexTree.init(tp, mcodec, leaves)
+  await StorageMerkleTree.init(tp, mcodec, leaves)
 
-func init*(_: type CodexTree, leaves: openArray[Cid]): ?!CodexTree =
+func init*(_: type StorageMerkleTree, leaves: openArray[Cid]): ?!StorageMerkleTree =
   if leaves.len == 0:
     return failure "Empty leaves"
 
@@ -179,11 +179,11 @@ func init*(_: type CodexTree, leaves: openArray[Cid]): ?!CodexTree =
     mcodec = (?leaves[0].mhash.mapFailure).mcodec
     leaves = leaves.mapIt((?it.mhash.mapFailure).digestBytes)
 
-  CodexTree.init(mcodec, leaves)
+  StorageMerkleTree.init(mcodec, leaves)
 
 proc init*(
-    _: type CodexTree, tp: Taskpool, leaves: seq[Cid]
-): Future[?!CodexTree] {.async: (raises: [CancelledError]).} =
+    _: type StorageMerkleTree, tp: Taskpool, leaves: seq[Cid]
+): Future[?!StorageMerkleTree] {.async: (raises: [CancelledError]).} =
   if leaves.len == 0:
     return failure("Empty leaves")
 
@@ -191,14 +191,14 @@ proc init*(
     mcodec = (?leaves[0].mhash.mapFailure).mcodec
     leaves = leaves.mapIt((?it.mhash.mapFailure).digestBytes)
 
-  await CodexTree.init(tp, mcodec, leaves)
+  await StorageMerkleTree.init(tp, mcodec, leaves)
 
 proc fromNodes*(
-    _: type CodexTree,
+    _: type StorageMerkleTree,
     mcodec: MultiCodec = Sha256HashCodec,
     nodes: openArray[ByteHash],
     nleaves: int,
-): ?!CodexTree =
+): ?!StorageMerkleTree =
   if nodes.len == 0:
     return failure "Empty nodes"
 
@@ -211,7 +211,7 @@ proc fromNodes*(
   if digestSize != nodes[0].len:
     return failure "Invalid hash length"
 
-  var self = CodexTree(mcodec: mcodec)
+  var self = StorageMerkleTree(mcodec: mcodec)
   ?self.fromNodes(compressor, Zero, nodes, nleaves)
 
   let
@@ -224,12 +224,12 @@ proc fromNodes*(
   success self
 
 func init*(
-    _: type CodexProof,
+    _: type StorageMerkleProof,
     mcodec: MultiCodec = Sha256HashCodec,
     index: int,
     nleaves: int,
     nodes: openArray[ByteHash],
-): ?!CodexProof =
+): ?!StorageMerkleProof =
   if nodes.len == 0:
     return failure "Empty nodes"
 
@@ -239,7 +239,7 @@ func init*(
     compressor = proc(x, y: seq[byte], key: ByteTreeKey): ?!seq[byte] {.noSideEffect.} =
       compress(x, y, key, mcodec)
 
-  success CodexProof(
+  success StorageMerkleProof(
     compress: compressor,
     zero: Zero,
     mcodec: mcodec,

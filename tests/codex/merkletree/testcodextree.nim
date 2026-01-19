@@ -32,23 +32,23 @@ const
   ]
   sha256 = Sha256HashCodec
 
-suite "Test CodexTree":
+suite "Test StorageMerkleTree":
   test "Cannot init tree without any multihash leaves":
     check:
-      CodexTree.init(leaves = newSeq[MultiHash]()).isErr
+      StorageMerkleTree.init(leaves = newSeq[MultiHash]()).isErr
 
   test "Cannot init tree without any cid leaves":
     check:
-      CodexTree.init(leaves = newSeq[Cid]()).isErr
+      StorageMerkleTree.init(leaves = newSeq[Cid]()).isErr
 
   test "Cannot init tree without any byte leaves":
     check:
-      CodexTree.init(sha256, leaves = newSeq[ByteHash]()).isErr
+      StorageMerkleTree.init(sha256, leaves = newSeq[ByteHash]()).isErr
 
   test "Should build tree from multihash leaves":
     var
       expectedLeaves = data.mapIt(MultiHash.digest($sha256, it).tryGet())
-      tree = CodexTree.init(leaves = expectedLeaves)
+      tree = StorageMerkleTree.init(leaves = expectedLeaves)
 
     check:
       tree.isOk
@@ -62,7 +62,7 @@ suite "Test CodexTree":
 
     let expectedLeaves = data.mapIt(MultiHash.digest($sha256, it).tryGet())
 
-    let tree = (await CodexTree.init(tp, leaves = expectedLeaves))
+    let tree = (await StorageMerkleTree.init(tp, leaves = expectedLeaves))
     check:
       tree.isOk
       tree.get().leaves == expectedLeaves.mapIt(it.digestBytes)
@@ -73,7 +73,7 @@ suite "Test CodexTree":
       Cid.init(CidVersion.CIDv1, BlockCodec, MultiHash.digest($sha256, it).tryGet).tryGet
     )
 
-    let tree = CodexTree.init(leaves = expectedLeaves)
+    let tree = StorageMerkleTree.init(leaves = expectedLeaves)
 
     check:
       tree.isOk
@@ -89,7 +89,7 @@ suite "Test CodexTree":
       Cid.init(CidVersion.CIDv1, BlockCodec, MultiHash.digest($sha256, it).tryGet).tryGet
     )
 
-    let tree = (await CodexTree.init(tp, leaves = expectedLeaves))
+    let tree = (await StorageMerkleTree.init(tp, leaves = expectedLeaves))
 
     check:
       tree.isOk
@@ -106,8 +106,8 @@ suite "Test CodexTree":
     )
 
     let
-      atree = (await CodexTree.init(tp, leaves = expectedLeaves))
-      stree = CodexTree.init(leaves = expectedLeaves)
+      atree = (await StorageMerkleTree.init(tp, leaves = expectedLeaves))
+      stree = StorageMerkleTree.init(leaves = expectedLeaves)
 
     check:
       toSeq(atree.get().nodes) == toSeq(stree.get().nodes)
@@ -115,15 +115,15 @@ suite "Test CodexTree":
 
     # Single-leaf trees have their root separately computed
     let
-      atree1 = (await CodexTree.init(tp, leaves = expectedLeaves[0 .. 0]))
-      stree1 = CodexTree.init(leaves = expectedLeaves[0 .. 0])
+      atree1 = (await StorageMerkleTree.init(tp, leaves = expectedLeaves[0 .. 0]))
+      stree1 = StorageMerkleTree.init(leaves = expectedLeaves[0 .. 0])
 
     check:
       toSeq(atree.get().nodes) == toSeq(stree.get().nodes)
       atree.get().root == stree.get().root
 
   test "Should build from raw digestbytes (should not hash leaves)":
-    let tree = CodexTree.init(sha256, leaves = data).tryGet
+    let tree = StorageMerkleTree.init(sha256, leaves = data).tryGet
 
     check:
       tree.mcodec == sha256
@@ -134,7 +134,7 @@ suite "Test CodexTree":
     defer:
       tp.shutdown()
 
-    let tree = (await CodexTree.init(tp, sha256, leaves = @data))
+    let tree = (await StorageMerkleTree.init(tp, sha256, leaves = @data))
 
     check:
       tree.isOk
@@ -143,8 +143,8 @@ suite "Test CodexTree":
 
   test "Should build from nodes":
     let
-      tree = CodexTree.init(sha256, leaves = data).tryGet
-      fromNodes = CodexTree.fromNodes(
+      tree = StorageMerkleTree.init(sha256, leaves = data).tryGet
+      fromNodes = StorageMerkleTree.fromNodes(
         nodes = toSeq(tree.nodes), nleaves = tree.leavesCount
       ).tryGet
 
@@ -158,7 +158,7 @@ let
   compress = proc(x, y: seq[byte], key: ByteTreeKey): seq[byte] =
     compress(x, y, key, sha256).tryGet
 
-  makeTree = proc(data: seq[seq[byte]]): CodexTree =
-    CodexTree.init(sha256, leaves = data).tryGet
+  makeTree = proc(data: seq[seq[byte]]): StorageMerkleTree =
+    StorageMerkleTree.init(sha256, leaves = data).tryGet
 
-testGenericTree("CodexTree", @data, zero, compress, makeTree)
+testGenericTree("StorageMerkleTree", @data, zero, compress, makeTree)

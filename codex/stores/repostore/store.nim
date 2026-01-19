@@ -82,7 +82,7 @@ method getBlock*(
 
 method getBlockAndProof*(
     self: RepoStore, treeCid: Cid, index: Natural
-): Future[?!(Block, CodexProof)] {.async: (raises: [CancelledError]).} =
+): Future[?!(Block, StorageMerkleProof)] {.async: (raises: [CancelledError]).} =
   without leafMd =? await self.getLeafMetadata(treeCid, index), err:
     return failure(err)
 
@@ -136,7 +136,7 @@ method ensureExpiry*(
   await self.ensureExpiry(leafMd.blkCid, expiry)
 
 method putCidAndProof*(
-    self: RepoStore, treeCid: Cid, index: Natural, blkCid: Cid, proof: CodexProof
+    self: RepoStore, treeCid: Cid, index: Natural, blkCid: Cid, proof: StorageMerkleProof
 ): Future[?!void] {.async: (raises: [CancelledError]).} =
   ## Put a block to the blockstore
   ##
@@ -163,7 +163,7 @@ method putCidAndProof*(
 
 method getCidAndProof*(
     self: RepoStore, treeCid: Cid, index: Natural
-): Future[?!(Cid, CodexProof)] {.async: (raises: [CancelledError]).} =
+): Future[?!(Cid, StorageMerkleProof)] {.async: (raises: [CancelledError]).} =
   without leafMd =? await self.getLeafMetadata(treeCid, index), err:
     return failure(err)
 

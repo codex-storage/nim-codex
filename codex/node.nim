@@ -445,7 +445,7 @@ proc store*(
   finally:
     await stream.close()
 
-  without tree =? (await CodexTree.init(self.taskPool, cids)), err:
+  without tree =? (await StorageMerkleTree.init(self.taskPool, cids)), err:
     return failure(err)
 
   without treeCid =? tree.rootCid(CIDv1, dataCodec), err:

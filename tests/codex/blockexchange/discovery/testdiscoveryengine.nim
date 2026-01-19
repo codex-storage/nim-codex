@@ -27,7 +27,7 @@ asyncchecksuite "Test Discovery Engine":
   var
     blocks: seq[bt.Block]
     manifest: Manifest
-    tree: CodexTree
+    tree: StorageMerkleTree
     manifestBlock: bt.Block
     switch: Switch
     peerStore: PeerCtxStore
