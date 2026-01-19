@@ -43,6 +43,7 @@ type
     blk*: Block
     address*: BlockAddress
     proof*: ?StorageMerkleProof # Present only if `address.leaf` is true
+    proof*: ?StorageMerkleProof # Present only if `address.leaf` is true
 
   BlockPresenceType* = enum
     Have = 0

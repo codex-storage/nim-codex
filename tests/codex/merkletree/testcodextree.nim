@@ -35,13 +35,16 @@ suite "Test StorageMerkleTree":
   test "Cannot init tree without any multihash leaves":
     check:
       StorageMerkleTree.init(leaves = newSeq[MultiHash]()).isErr
+      StorageMerkleTree.init(leaves = newSeq[MultiHash]()).isErr
 
   test "Cannot init tree without any cid leaves":
     check:
       StorageMerkleTree.init(leaves = newSeq[Cid]()).isErr
+      StorageMerkleTree.init(leaves = newSeq[Cid]()).isErr
 
   test "Cannot init tree without any byte leaves":
     check:
+      StorageMerkleTree.init(sha256, leaves = newSeq[ByteHash]()).isErr
       StorageMerkleTree.init(sha256, leaves = newSeq[ByteHash]()).isErr
 
   test "Should build tree from multihash leaves":
