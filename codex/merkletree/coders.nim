@@ -15,10 +15,9 @@ import pkg/questionable/results
 import pkg/stew/byteutils
 import pkg/serde/json
 
-import ../../units
-import ../../errors
-
-import ./codex
+import ../units
+import ../errors
+import ./merkletree
 
 const MaxMerkleTreeSize = 100.MiBs.uint
 const MaxMerkleProofSize = 1.MiBs.uint

@@ -1,4 +1,4 @@
 import ./merkletree/merkletree
-import ./merkletree/codex
+import ./merkletree/coders
 
-export codex, merkletree
+export merkletree, coders
