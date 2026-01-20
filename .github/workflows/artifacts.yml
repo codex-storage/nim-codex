@@ -46,6 +46,10 @@ jobs:
             mingw-w64-ucrt-x86_64-toolchain
             mingw-w64-ucrt-x86_64-cmake
             mingw-w64-ucrt-x86_64-ntldd-git
+
+      - name: MSYS2 post-setup
+        if: matrix.target.os == 'windows-latest' && matrix.target.cpu == 'amd64'
+        shell: msys2 {0}
         run: |
           pacman -Sy --noconfirm make
           git config --global core.symlinks false
