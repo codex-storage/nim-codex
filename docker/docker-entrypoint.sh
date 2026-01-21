@@ -58,25 +58,6 @@ if [[ -n "${BOOTSTRAP_NODE_FROM_URL}" ]]; then
   done
 fi
 
-# Marketplace address from URL
-if [[ -n "${MARKETPLACE_ADDRESS_FROM_URL}" ]]; then
-  WAIT=${MARKETPLACE_ADDRESS_FROM_URL_WAIT:-300}
-  SECONDS=0
-  SLEEP=1
-  # Run and retry if fail
-  while (( SECONDS < WAIT )); do
-    MARKETPLACE_ADDRESS=($(curl -s -f -m 5 "${MARKETPLACE_ADDRESS_FROM_URL}"))
-    # Check if exit code is 0 and returned value is not empty
-    if [[ $? -eq 0 && -n "${MARKETPLACE_ADDRESS}" ]]; then
-      export CODEX_MARKETPLACE_ADDRESS="${MARKETPLACE_ADDRESS}"
-      break
-    else
-      # Sleep and check again
-      echo "Can't get Marketplace address from ${MARKETPLACE_ADDRESS_FROM_URL} - Retry in $SLEEP seconds / $((WAIT - SECONDS))"
-      sleep $SLEEP
-    fi
-  done
-fi
 
 # Stop Codex run if unable to get SPR
 if [[ -n "${BOOTSTRAP_NODE_URL}" && -z "${CODEX_BOOTSTRAP_NODE}" ]]; then
@@ -115,44 +96,6 @@ if [[ "${NAT_IP_AUTO}" == "true" && -z "${CODEX_NAT}" ]]; then
 elif [[ -n "${NAT_PUBLIC_IP_AUTO}" && -z "${CODEX_NAT}" ]]; then
   echo "Can't get Public IP in $WAIT seconds - Stop Codex run"
   exit 1
-fi
-
-# If marketplace is enabled from the testing environment,
-# The file has to be written before Codex starts.
-keyfile="private.key"
-if [[ -n "${ETH_PRIVATE_KEY}" ]]; then
-  echo "${ETH_PRIVATE_KEY}" > "${keyfile}"
-  chmod 600 "${keyfile}"
-  export CODEX_ETH_PRIVATE_KEY="${keyfile}"
-  echo "Private key set"
-fi
-
-# Circuit downloader
-# cirdl [circuitPath] [rpcEndpoint] [marketplaceAddress]
-if [[ "$@" == *"prover"* ]]; then
-  echo "Prover is enabled - Run Circuit downloader"
-
-  # Set variables required by cirdl from command line arguments when passed
-  for arg in data-dir circuit-dir eth-provider marketplace-address; do
-    arg_value=$(grep -o "${arg}=[^ ,]\+" <<< $@ | awk -F '=' '{print $2}')
-    if [[ -n "${arg_value}" ]]; then
-      var_name=$(tr '[:lower:]' '[:upper:]' <<< "CODEX_${arg//-/_}")
-      export "${var_name}"="${arg_value}"
-    fi
-  done
-
-  # Set circuit dir from CODEX_CIRCUIT_DIR variables if set
-  if [[ -z "${CODEX_CIRCUIT_DIR}" ]]; then
-    export CODEX_CIRCUIT_DIR="${CODEX_DATA_DIR}/circuits"
-  fi
-
-  # Download circuit
-  mkdir -p "${CODEX_CIRCUIT_DIR}"
-  chmod 700 "${CODEX_CIRCUIT_DIR}"
-  download="cirdl ${CODEX_CIRCUIT_DIR} ${CODEX_ETH_PROVIDER} ${CODEX_MARKETPLACE_ADDRESS}"
-  echo "${download}"
-  eval "${download}"
-  [[ $? -ne 0 ]] && { echo "Failed to download circuit files"; exit 1; }
 fi
 
 # Show

@@ -66,9 +66,6 @@ task storage, "build logos storage binary":
     outname = "storage",
     params = "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE"
 
-task toolsCirdl, "build tools/cirdl binary":
-  buildBinary "tools/cirdl/cirdl"
-
 task testStorage, "Build & run Logos Storage tests":
   test "testCodex", outName = "testStorage"
 

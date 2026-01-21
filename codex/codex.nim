@@ -100,7 +100,6 @@ proc stop*(s: CodexServer) {.async.} =
     @[
       s.codexNode.switch.stop(),
       s.codexNode.stop(),
-      s.codexNode.discovery.stop(),
       s.repoStore.stop(),
       s.maintenance.stop(),
     ]
