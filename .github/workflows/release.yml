@@ -154,100 +154,100 @@ jobs:
           if-no-files-found: error
 
   # Release
-  release:
-    runs-on: ubuntu-latest
-    needs: build
-    if: success() || failure()
-    steps:
-      - name: Release - Download binaries
-        uses: actions/download-artifact@v4
-        with:
-          pattern: release*
-          merge-multiple: true
-          path: /tmp/release
+  # release:
+  #   runs-on: ubuntu-latest
+  #   needs: build
+  #   if: success() || failure()
+  #   steps:
+  #     - name: Release - Download binaries
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         pattern: release*
+  #         merge-multiple: true
+  #         path: /tmp/release
 
-      - name: Release - Compress and checksum
-        run: |
-          cd /tmp/release
-          checksum() {
-            arc="${1}"
-            sha256sum "${arc}" >"${arc}.sha256"
-          }
+  #     - name: Release - Compress and checksum
+  #       run: |
+  #         cd /tmp/release
+  #         checksum() {
+  #           arc="${1}"
+  #           sha256sum "${arc}" >"${arc}.sha256"
+  #         }
 
-          # Compress and prepare
-          for file in ${{ env.storage_binary_base }}*; do
-            if [[ "${file}" == *".exe"* ]]; then
+  #         # Compress and prepare
+  #         for file in ${{ env.storage_binary_base }}*; do
+  #           if [[ "${file}" == *".exe"* ]]; then
 
-              # Windows - binary only
-              arc="${file%.*}.zip"
-              zip "${arc}" "${file}"
-              checksum "${arc}"
+  #             # Windows - binary only
+  #             arc="${file%.*}.zip"
+  #             zip "${arc}" "${file}"
+  #             checksum "${arc}"
 
-              # Windows - binary and libs
-              arc="${file%.*}-libs.zip"
-              zip "${arc}" "${file}" ${{ env.windows_libs }}
-              rm -f "${file}"
-              checksum "${arc}"
-            else
+  #             # Windows - binary and libs
+  #             arc="${file%.*}-libs.zip"
+  #             zip "${arc}" "${file}" ${{ env.windows_libs }}
+  #             rm -f "${file}"
+  #             checksum "${arc}"
+  #           else
 
-              # Linux/macOS
-              arc="${file}.tar.gz"
-              chmod 755 "${file}"
-              tar cfz "${arc}" "${file}"
-              rm -f "${file}"
-              checksum "${arc}"
-            fi
-          done
-          rm -f ${{ env.windows_libs }}
+  #             # Linux/macOS
+  #             arc="${file}.tar.gz"
+  #             chmod 755 "${file}"
+  #             tar cfz "${arc}" "${file}"
+  #             rm -f "${file}"
+  #             checksum "${arc}"
+  #           fi
+  #         done
+  #         rm -f ${{ env.windows_libs }}
 
-      - name: Release - Upload compressed artifacts and checksums
-        uses: actions/upload-artifact@v4
-        with:
-          name: archives-and-checksums
-          path: /tmp/release/
-          retention-days: 30
+  #     - name: Release - Upload compressed artifacts and checksums
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: archives-and-checksums
+  #         path: /tmp/release/
+  #         retention-days: 30
 
-      - name: Release - Upload to the cloud
-        env:
-          s3_endpoint: ${{ secrets.S3_ENDPOINT }}
-          s3_bucket: ${{ secrets.S3_BUCKET }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
-        run: |
-          # Variables
-          branch="${GITHUB_REF_NAME/\//-}"
-          folder="/tmp/release"
+  #     - name: Release - Upload to the cloud
+  #       env:
+  #         s3_endpoint: ${{ secrets.S3_ENDPOINT }}
+  #         s3_bucket: ${{ secrets.S3_BUCKET }}
+  #         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  #         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  #         AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+  #       run: |
+  #         # Variables
+  #         branch="${GITHUB_REF_NAME/\//-}"
+  #         folder="/tmp/release"
 
-          # Tagged releases
-          if [[ "${{ github.ref }}" == *"refs/tags/"* ]]; then
-            aws s3 cp --recursive "${folder}" s3://${{ env.s3_bucket }}/releases/${branch} --endpoint-url ${{ env.s3_endpoint }}
-            echo "${branch}" >  "${folder}"/latest
-            aws s3 cp "${folder}"/latest s3://${{ env.s3_bucket }}/releases/latest --endpoint-url ${{ env.s3_endpoint }}
-            rm -f "${folder}"/latest
+  #         # Tagged releases
+  #         if [[ "${{ github.ref }}" == *"refs/tags/"* ]]; then
+  #           aws s3 cp --recursive "${folder}" s3://${{ env.s3_bucket }}/releases/${branch} --endpoint-url ${{ env.s3_endpoint }}
+  #           echo "${branch}" >  "${folder}"/latest
+  #           aws s3 cp "${folder}"/latest s3://${{ env.s3_bucket }}/releases/latest --endpoint-url ${{ env.s3_endpoint }}
+  #           rm -f "${folder}"/latest
 
-          # master branch
-          elif [[ "${branch}" == "${{ github.event.repository.default_branch }}" ]]; then
-            aws s3 cp --recursive "${folder}" s3://${{ env.s3_bucket }}/${branch} --endpoint-url ${{ env.s3_endpoint }}
+  #         # master branch
+  #         elif [[ "${branch}" == "${{ github.event.repository.default_branch }}" ]]; then
+  #           aws s3 cp --recursive "${folder}" s3://${{ env.s3_bucket }}/${branch} --endpoint-url ${{ env.s3_endpoint }}
 
-          # Custom branch
-          else
-            aws s3 cp --recursive "${folder}" s3://${{ env.s3_bucket }}/branches/${branch} --endpoint-url ${{ env.s3_endpoint }}
-          fi
+  #         # Custom branch
+  #         else
+  #           aws s3 cp --recursive "${folder}" s3://${{ env.s3_bucket }}/branches/${branch} --endpoint-url ${{ env.s3_endpoint }}
+  #         fi
 
-      - name: Release
-        uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
-        with:
-          files: |
-            /tmp/release/*
-          make_latest: true
+  #     - name: Release
+  #       uses: softprops/action-gh-release@v2
+  #       if: startsWith(github.ref, 'refs/tags/')
+  #       with:
+  #         files: |
+  #           /tmp/release/*
+  #         make_latest: true
 
-      - name: Generate Python SDK
-        uses: peter-evans/repository-dispatch@v3
-        if: startsWith(github.ref, 'refs/tags/')
-        with:
-          token: ${{ secrets.DISPATCH_PAT }}
-          repository: logos-storage/logos-storage-py-api-client
-          event-type: generate
-          client-payload: '{"openapi_url": "https://raw.githubusercontent.com/logos-storage/logos-storage-nim/${{ github.ref }}/openapi.yaml"}'
+  #     - name: Generate Python SDK
+  #       uses: peter-evans/repository-dispatch@v3
+  #       if: startsWith(github.ref, 'refs/tags/')
+  #       with:
+  #         token: ${{ secrets.DISPATCH_PAT }}
+  #         repository: logos-storage/logos-storage-py-api-client
+  #         event-type: generate
+  #         client-payload: '{"openapi_url": "https://raw.githubusercontent.com/logos-storage/logos-storage-nim/${{ github.ref }}/openapi.yaml"}'
