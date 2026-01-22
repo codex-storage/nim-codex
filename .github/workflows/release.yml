@@ -166,6 +166,12 @@ jobs:
           merge-multiple: true
           path: /tmp/release
 
+      - name: Release - Download artifacts
+        uses: actions/download-artifact@v5
+        with:
+          pattern: libstorage*
+          path: /tmp/release
+
       - name: Release - Compress and checksum
         run: |
           cd /tmp/release
