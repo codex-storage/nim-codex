@@ -64,10 +64,6 @@ on:
         required: false
         type: string
         default: false
-      contract_image:
-        description: Specifies compatible smart contract image
-        required: false
-        type: string
     outputs:
       codex_image:
         description: Logos Storage Docker image tag
@@ -85,7 +81,6 @@ env:
   TAG_STABLE: ${{ inputs.tag_stable }}
   TAG_SHA: ${{ inputs.tag_sha }}
   TAG_SUFFIX: ${{ inputs.tag_suffix }}
-  CONTRACT_IMAGE: ${{ inputs.contract_image }}
   # Tests
   TESTS_SOURCE: logos-storage/logos-storage-nim-cs-dist-tests
   TESTS_BRANCH: master
@@ -135,19 +130,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Docker - Variables
-        run: |
-          # Create contract label for compatible contract image if specified
-          if [[ -n "${{ env.CONTRACT_IMAGE }}" ]]; then
-            echo "CONTRACT_LABEL=storage.codex.nim-codex.blockchain-image=${{ env.CONTRACT_IMAGE }}" >> $GITHUB_ENV
-          fi
-
       - name: Docker - Meta
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.DOCKER_REPO }}
-          labels: ${{ env.CONTRACT_LABEL }}
 
       - name: Docker - Set up Buildx
         uses: docker/setup-buildx-action@v3
@@ -219,11 +206,6 @@ jobs:
           else
             echo "TAG_RAW=false" >> $GITHUB_ENV
           fi
-          
-          # Create contract label for compatible contract image if specified
-          if [[ -n "${{ env.CONTRACT_IMAGE }}" ]]; then
-            echo "CONTRACT_LABEL=storage.codex.nim-codex.blockchain-image=${{ env.CONTRACT_IMAGE }}" >> $GITHUB_ENV
-          fi
 
       - name: Docker - Download digests
         uses: actions/download-artifact@v4
@@ -240,7 +222,6 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.DOCKER_REPO }}
-          labels: ${{ env.CONTRACT_LABEL }}
           flavor: |
             latest=${{ env.TAG_LATEST }}
             suffix=${{ env.TAG_SUFFIX }},onlatest=true
