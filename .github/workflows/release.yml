@@ -80,7 +80,7 @@ jobs:
         run: |
           make NIMFLAGS="--out:${{ env.build_dir }}/${{ env.storage_binary }} ${{ env.nim_flags }}"
 
-     - name: Release - Build libstorage (Linux)
+      - name: Release - Build libstorage (Linux)
         if: matrix.os == 'linux'
         run: |
           make -j${ncpu} update
