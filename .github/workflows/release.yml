@@ -80,6 +80,25 @@ jobs:
         run: |
           make NIMFLAGS="--out:${{ env.build_dir }}/${{ env.storage_binary }} ${{ env.nim_flags }}"
 
+     - name: Release - Build libstorage (Linux)
+        if: matrix.os == 'linux'
+        run: |
+          make -j${ncpu} update
+          make -j${ncpu} libstorage
+
+      - name: Release - Build libstorage (MacOS)
+        if: matrix.os == 'macos'
+        run: |
+          make -j${ncpu} update
+          STORAGE_LIB_PARAMS="--passL:\"-Wl,-install_name,@rpath/libstorage.dylib\"" make -j${ncpu} libstorage
+
+      - name: Release - Build libstorage (Windows)
+        if: matrix.os == 'windows'
+        shell: msys2 {0}
+        run: |
+          make -j${ncpu} update
+          make -j${ncpu} libstorage
+
       - name: Release - Libraries
         run: |
           if [[ "${{ matrix.os }}" == "windows" ]]; then
@@ -102,6 +121,37 @@ jobs:
           name: release-${{ matrix.os }}-libs
           path: ${{ env.build_dir }}/*.dll
           retention-days: 30
+
+      - name: Release -Package artifacts Linux
+        if: matrix.os == 'linux'
+        run: |
+          sudo apt-get update && sudo apt-get install -y zip
+          ZIPFILE=storage-linux-${{ matrix.cpu }}.zip
+          zip -j $ZIPFILE ./build/libstorage.so ./library/libstorage.h
+          echo "ZIPFILE=$ZIPFILE" >> $GITHUB_ENV
+
+      - name: Package artifacts MacOS
+        if: matrix.os == 'macos'
+        run: |
+          ZIPFILE=storage-macos-${{ matrix.cpu }}.zip
+          zip -j $ZIPFILE ./build/libstorage.dylib ./library/libstorage.h
+          echo "ZIPFILE=$ZIPFILE" >> $GITHUB_ENV
+
+      - name: Release - Package artifacts (Windows)
+        if: matrix.os == 'windows'
+        shell: msys2 {0}
+        run: |
+          ZIPFILE=storage-windows-${{ matrix.cpu }}.zip
+          (cd ./build && 7z a -tzip "${GITHUB_WORKSPACE}/${ZIPFILE}" libstorage.dll)
+          (cd ./library && 7z a -tzip "${GITHUB_WORKSPACE}/${ZIPFILE}" libstorage.h)
+          echo "ZIPFILE=$ZIPFILE" >> $GITHUB_ENV
+
+      - name: Release - Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ZIPFILE }}
+          path: ${{ env.ZIPFILE }}
+          if-no-files-found: error
 
   # Release
   release:
