@@ -1,17 +1,17 @@
-# Codex Docker Image
+# Logos Storage Docker Image
 
- Codex provides pre-built docker images and they are stored in the [codexstorage/nim-codex](https://hub.docker.com/repository/docker/codexstorage/nim-codex) repository.
+ Logos Storage provides pre-built docker images and they are stored in the [logos-storage/logos-storage-nim](https://hub.docker.com/repository/docker/logos-storage/logos-storage-nim) repository.
 
 
 ## Run
 
- We can run Codex Docker image using CLI
+ We can run Logos Storage Docker image using CLI
  ```shell
  # Default run
- docker run --rm codexstorage/nim-codex
+ docker run --rm logos-storage/logos-storage-nim
 
  # Mount local datadir
- docker run -v ./datadir:/datadir --rm codexstorage/nim-codex codex --data-dir=/datadir
+ docker run -v ./datadir:/datadir --rm logos-storage/logos-storage-nim storage --data-dir=/datadir
  ```
 
  And Docker Compose
@@ -23,15 +23,15 @@
 
 ## Arguments
 
- Docker image is based on the [codex.Dockerfile](codex.Dockerfile) and there is
+ Docker image is based on the [storage.Dockerfile](storage.Dockerfile) and there is
   ```
   ENTRYPOINT ["/docker-entrypoint.sh"]
-  CMD ["codex"]
+  CMD ["storage"]
   ```
 
  It means that at the image run it will just run `codex` application without any arguments and we can pass them as a regular arguments, by overriding command
  ```shell
- docker run codexstorage/nim-codex codex --api-bindaddr=0.0.0.0 --api-port=8080
+ docker run logos-storage/logos-storage-nim codex --api-bindaddr=0.0.0.0 --api-port=8080
  ```
 
 
@@ -42,7 +42,7 @@
  We also added a temporary environment variable `NAT_IP_AUTO` to the entrypoint which is set as `false` for releases and ` true` for regular builds. That approach is useful for Dist-Tests.
  ```shell
  # Disable NAT_IP_AUTO for regular builds
- docker run -e NAT_IP_AUTO=false codexstorage/nim-codex
+ docker run -e NAT_IP_AUTO=false logos-storage/logos-storage-nim
  ```
 
 

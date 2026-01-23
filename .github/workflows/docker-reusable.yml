@@ -5,12 +5,12 @@ on:
   workflow_call:
     inputs:
       docker_file:
-        default: docker/codex.Dockerfile
+        default: docker/storage.Dockerfile
         description: Dockerfile
         required: false
         type: string
       docker_repo:
-        default: codexstorage/nim-codex
+        default: logos-storage/logos-storage-nim
         description: DockerHub repository
         required: false
         type: string
@@ -65,9 +65,9 @@ on:
         type: string
         default: false
     outputs:
-      codex_image:
+      logos_storage_image:
         description: Logos Storage Docker image tag
-        value: ${{ jobs.publish.outputs.codex_image }}
+        value: ${{ jobs.publish.outputs.logos_storage_image }}
 
 
 env:
@@ -181,7 +181,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.meta.outputs.version }}
-      codex_image: ${{ steps.image_tag.outputs.codex_image }}
+      logos_storage_image: ${{ steps.image_tag.outputs.logos_storage_image }}
     needs: [build, compute]
     steps:
       - name: Docker - Variables
@@ -245,10 +245,10 @@ jobs:
 
       - name: Docker - Image tag
         id: image_tag
-        run: echo "codex_image=${{ env.DOCKER_REPO }}:${{ steps.meta.outputs.version }}" >> "$GITHUB_OUTPUT"
+        run: echo "logos_storage_image=${{ env.DOCKER_REPO }}:${{ steps.meta.outputs.version }}" >> "$GITHUB_OUTPUT"
 
       - name: Docker - Inspect image
-        run: docker buildx imagetools inspect ${{ steps.image_tag.outputs.codex_image }}
+        run: docker buildx imagetools inspect ${{ steps.image_tag.outputs.logos_storage_image }}
 
 
   # Compute Tests inputs
@@ -261,13 +261,13 @@ jobs:
       source: ${{ steps.compute.outputs.source }}
       branch: ${{ env.TESTS_BRANCH }}
       workflow_source: ${{ env.TESTS_SOURCE }}
-      codexdockerimage: ${{ steps.compute.outputs.codexdockerimage }}
+      storagedockerimage: ${{ steps.compute.outputs.storagedockerimage }}
     steps:
       - name: Compute Tests inputs
         id: compute
         run: |
           echo "source=${{ format('{0}/{1}', github.server_url, env.TESTS_SOURCE) }}" >> "$GITHUB_OUTPUT"
-          echo "codexdockerimage=${{ inputs.docker_repo }}:${{ needs.publish.outputs.version }}" >> "$GITHUB_OUTPUT"
+          echo "storagedockerimage=${{ inputs.docker_repo }}:${{ needs.publish.outputs.version }}" >> "$GITHUB_OUTPUT"
 
 
   # Compute Continuous Tests inputs
@@ -301,7 +301,7 @@ jobs:
     with:
       source: ${{ needs.compute-tests-inputs.outputs.source }}
       branch: ${{ needs.compute-tests-inputs.outputs.branch }}
-      codexdockerimage: ${{ needs.compute-tests-inputs.outputs.codexdockerimage }}
+      storagedockerimage: ${{ needs.compute-tests-inputs.outputs.storagedockerimage }}
       nameprefix: ${{ needs.compute-continuous-tests-inputs.outputs.nameprefix }}-${{ matrix.tests }}-${{ needs.compute-continuous-tests-inputs.outputs.continuous_tests_duration }}
       tests_filter: ${{ matrix.tests }}
       tests_target_duration: ${{ needs.compute-tests-inputs.outputs.continuous_tests_duration }}
@@ -318,6 +318,6 @@ jobs:
     with:
       source: ${{ needs.compute-tests-inputs.outputs.source }}
       branch: ${{ needs.compute-tests-inputs.outputs.branch }}
-      codexdockerimage: ${{ needs.compute-tests-inputs.outputs.codexdockerimage }}
+      storagedockerimage: ${{ needs.compute-tests-inputs.outputs.storagedockerimage }}
       workflow_source: ${{ needs.compute-tests-inputs.outputs.workflow_source }}
     secrets: inherit
