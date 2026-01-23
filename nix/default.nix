@@ -12,9 +12,6 @@
   ],
   # Perform 2-stage bootstrap instead of 3-stage to save time.
   quickAndDirty ? true,
-  circomCompatPkg ? (
-    builtins.getFlake "github:logos-storage/circom-compat-ffi"
-  ).packages.${builtins.currentSystem}.default
 }:
 
 assert pkgs.lib.assertMsg ((src.submodules or true) == true)
@@ -47,14 +44,10 @@ in stdenv.mkDerivation rec {
   nativeBuildInputs = let
     # Fix for Nim compiler calling 'git rev-parse' and 'lsb_release'.
     fakeGit = writeScriptBin "git" "echo ${version}";
-    # Fix for the nim-circom-compat-ffi package that is built with cargo.
-    fakeCargo = writeScriptBin "cargo" "echo ${version}";
   in with pkgs; [
     cmake
     which
-    circomCompatPkg
     fakeGit
-    fakeCargo
   ] ++ lib.optionals stdenv.isLinux [
     lsb-release
   ] ++ lib.optionals stdenv.isDarwin [
