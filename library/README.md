@@ -507,4 +507,4 @@ A Go wrapper is available [here](https://github.com/logos-storage/logos-storage-
 
 ## Rust Wrapper
 
-A Rust wrapper is available [here](https://github.com/nipsysdev/codex-rust-bindings).
+A Rust wrapper is available [here](https://github.com/nipsysdev/storage-rust-bindings).
