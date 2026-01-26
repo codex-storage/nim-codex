@@ -58,20 +58,6 @@ unit_test () {
   job
 }
 
-# outputs a contract test job
-contract_test () {
-  job_tests="contract"
-  job_includes=""
-  job
-}
-
-# outputs a tools test job
-tools_test () {
-  job_tests="tools"
-  job_includes=""
-  job
-}
-
 # finds all files named test*.nim in the specified directory
 find_tests () {
   local dir=$1
@@ -126,9 +112,7 @@ integration_test () {
 # outputs jobs for all test types
 all_tests () {
   unit_test
-  contract_test
   integration_test
-  tools_test
 }
 
 # outputs jobs for the specified operating systems and all test types
