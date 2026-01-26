@@ -10,7 +10,7 @@ on:
         required: false
         type: string
       docker_repo:
-        default: logos-storage/logos-storage-nim
+        default: logosstorage/logos-storage-nim
         description: DockerHub repository
         required: false
         type: string

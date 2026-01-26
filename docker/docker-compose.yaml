@@ -1,6 +1,6 @@
 services:
   storage-node1:
-    image: logos-storage/logos-storage-nim:latest
+    image: logosstorage/logos-storage-nim:latest
     environment:
       - STORAGE_LOG_LEVEL=${STORAGE_LOG_LEVEL:-TRACE}
       - STORAGE_METRICS=${STORAGE_METRICS:-false}
