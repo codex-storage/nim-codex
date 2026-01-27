@@ -79,7 +79,7 @@ jobs:
             macos*)   os_name="darwin"  ;;
             windows*) os_name="windows" ;;
           esac
-          storage_binary="${{ env.storage_binary_base }}-${{ env.VERSION }}-${os_name}-${{ matrix.cpu }}"
+          storage_binary="${{ env.storage_binary_base }}-${os_name}-${{ matrix.cpu }}-${{ env.VERSION }}"
           if [[ ${os_name} == "windows" ]]; then
             storage_binary="${storage_binary}.exe"
           fi
