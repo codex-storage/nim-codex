@@ -14,7 +14,7 @@ on:
       - '!.github/workflows/docker.yml'
       - '!.github/workflows/docker-reusable.yml'
       - 'docker/**'
-      - '!docker/codex.Dockerfile'
+      - '!docker/storage.Dockerfile'
       - '!docker/docker-entrypoint.sh'
   workflow_dispatch:
 

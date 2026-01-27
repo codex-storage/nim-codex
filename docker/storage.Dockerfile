@@ -5,7 +5,7 @@ ARG BUILD_HOME=/src
 ARG MAKE_PARALLEL=${MAKE_PARALLEL:-4}
 ARG NIMFLAGS="${NIMFLAGS:-"-d:disableMarchNative"}"
 ARG USE_LIBBACKTRACE=${USE_LIBBACKTRACE:-1}
-ARG APP_HOME=/codex
+ARG APP_HOME=/logosstorage
 ARG NAT_IP_AUTO=${NAT_IP_AUTO:-false}
 
 # Build
@@ -38,4 +38,4 @@ COPY --from=builder --chmod=0755 ${BUILD_HOME}/docker/docker-entrypoint.sh /
 RUN apt-get update && apt-get install -y libgomp1 curl jq && rm -rf /var/lib/apt/lists/*
 ENV NAT_IP_AUTO=${NAT_IP_AUTO}
 ENTRYPOINT ["/docker-entrypoint.sh"]
-CMD ["codex"]
+CMD ["storage"]
