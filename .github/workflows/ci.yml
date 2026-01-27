@@ -48,7 +48,7 @@ jobs:
       - name: Check `nph` formatting
         uses: arnetheduck/nph-action@v1
         with:
-          version: 0.6.1
+          version: prerelease
           options: "codex/ tests/"
           fail: true
           suggest: true
