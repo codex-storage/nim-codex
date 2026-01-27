@@ -126,14 +126,14 @@ jobs:
         if: matrix.os == 'linux'
         run: |
           sudo apt-get update && sudo apt-get install -y zip
-          ZIPFILE=storage-linux-${{ matrix.cpu }}.zip
+          ZIPFILE=libstorage-linux-${{ matrix.cpu }}.zip
           zip -j $ZIPFILE ./build/libstorage.so ./library/libstorage.h
           echo "ZIPFILE=$ZIPFILE" >> $GITHUB_ENV
 
       - name: Package artifacts MacOS
         if: matrix.os == 'macos'
         run: |
-          ZIPFILE=storage-macos-${{ matrix.cpu }}.zip
+          ZIPFILE=libstorage-macos-${{ matrix.cpu }}.zip
           zip -j $ZIPFILE ./build/libstorage.dylib ./library/libstorage.h
           echo "ZIPFILE=$ZIPFILE" >> $GITHUB_ENV
 
@@ -141,7 +141,7 @@ jobs:
         if: matrix.os == 'windows'
         shell: msys2 {0}
         run: |
-          ZIPFILE=storage-windows-${{ matrix.cpu }}.zip
+          ZIPFILE=libstorage-windows-${{ matrix.cpu }}.zip
           (cd ./build && 7z a -tzip "${GITHUB_WORKSPACE}/${ZIPFILE}" libstorage.dll)
           (cd ./library && 7z a -tzip "${GITHUB_WORKSPACE}/${ZIPFILE}" libstorage.h)
           echo "ZIPFILE=$ZIPFILE" >> $GITHUB_ENV
