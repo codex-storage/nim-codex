@@ -8,7 +8,8 @@ import pkg/codex/rng
 
 import ./randomchunker
 
-type TestDataset* = tuple[blocks: seq[Block], tree: StorageMerkleTree, manifest: Manifest]
+type TestDataset* =
+  tuple[blocks: seq[Block], tree: StorageMerkleTree, manifest: Manifest]
 
 proc makeRandomBlock*(size: NBytes): Block =
   let bytes = newSeqWith(size.int, rand(uint8))

@@ -33,7 +33,11 @@ declareGauge(codex_repostore_bytes_used, "codex repostore bytes used")
 declareGauge(codex_repostore_bytes_reserved, "codex repostore bytes reserved")
 
 proc putLeafMetadata*(
-    self: RepoStore, treeCid: Cid, index: Natural, blkCid: Cid, proof: StorageMerkleProof
+    self: RepoStore,
+    treeCid: Cid,
+    index: Natural,
+    blkCid: Cid,
+    proof: StorageMerkleProof,
 ): Future[?!StoreResultKind] {.async: (raises: [CancelledError]).} =
   without key =? createBlockCidAndProofMetadataKey(treeCid, index), err:
     return failure(err)

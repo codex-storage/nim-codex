@@ -226,7 +226,11 @@ method putBlock*(
   return success()
 
 method putCidAndProof*(
-    self: CacheStore, treeCid: Cid, index: Natural, blockCid: Cid, proof: StorageMerkleProof
+    self: CacheStore,
+    treeCid: Cid,
+    index: Natural,
+    blockCid: Cid,
+    proof: StorageMerkleProof,
 ): Future[?!void] {.async: (raises: [CancelledError]).} =
   self.cidAndProofCache[(treeCid, index)] = (blockCid, proof)
   success()

@@ -853,7 +853,8 @@ proc localLookup(
     )
   else:
     (await self.localStore.getBlock(address)).map(
-      (blk: Block) => BlockDelivery(address: address, blk: blk, proof: StorageMerkleProof.none)
+      (blk: Block) =>
+        BlockDelivery(address: address, blk: blk, proof: StorageMerkleProof.none)
     )
 
 iterator splitBatches[T](sequence: seq[T], batchSize: int): seq[T] =

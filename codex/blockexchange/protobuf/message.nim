@@ -201,7 +201,8 @@ proc decode*(_: type BlockDelivery, pb: ProtoBuffer): ProtoResult[BlockDelivery]
   if value.address.leaf:
     var proofBuf = newSeq[byte]()
     if ?pb.getField(4, proofBuf):
-      let proof = ?StorageMerkleProof.decode(proofBuf).mapErr(x => ProtoError.IncorrectBlob)
+      let proof =
+        ?StorageMerkleProof.decode(proofBuf).mapErr(x => ProtoError.IncorrectBlob)
       value.proof = proof.some
     else:
       value.proof = StorageMerkleProof.none

@@ -26,7 +26,6 @@ import ../codextypes
 
 from ../utils/digest import digestBytes
 
-
 export merkletree
 
 logScope:
@@ -75,7 +74,9 @@ func verify*(self: StorageMerkleProof, leaf: MultiHash, root: MultiHash): ?!bool
 func verify*(self: StorageMerkleProof, leaf: Cid, root: Cid): ?!bool =
   self.verify(?leaf.mhash.mapFailure, ?leaf.mhash.mapFailure)
 
-proc rootCid*(self: StorageMerkleTree, version = CIDv1, dataCodec = DatasetRootCodec): ?!Cid =
+proc rootCid*(
+    self: StorageMerkleTree, version = CIDv1, dataCodec = DatasetRootCodec
+): ?!Cid =
   if (?self.root).len == 0:
     return failure "Empty root"
 
@@ -101,12 +102,13 @@ proc `$`*(self: StorageMerkleTree): string =
       byteutils.toHex(self.root.get)
     else:
       "none"
-  "StorageMerkleTree(" & " root: " & root & ", leavesCount: " & $self.leavesCount & ", levels: " &
-    $self.levels & ", mcodec: " & $self.mcodec & " )"
+  "StorageMerkleTree(" & " root: " & root & ", leavesCount: " & $self.leavesCount &
+    ", levels: " & $self.levels & ", mcodec: " & $self.mcodec & " )"
 
 proc `$`*(self: StorageMerkleProof): string =
-  "StorageMerkleProof(" & " nleaves: " & $self.nleaves & ", index: " & $self.index & ", path: " &
-    $self.path.mapIt(byteutils.toHex(it)) & ", mcodec: " & $self.mcodec & " )"
+  "StorageMerkleProof(" & " nleaves: " & $self.nleaves & ", index: " & $self.index &
+    ", path: " & $self.path.mapIt(byteutils.toHex(it)) & ", mcodec: " & $self.mcodec &
+    " )"
 
 func compress*(x, y: openArray[byte], key: ByteTreeKey, codec: MultiCodec): ?!ByteHash =
   ## Compress two hashes
@@ -133,7 +135,9 @@ func initTree(mcodec: MultiCodec, leaves: openArray[ByteHash]): ?!StorageMerkleT
   success self
 
 func init*(
-    _: type StorageMerkleTree, mcodec: MultiCodec = Sha256HashCodec, leaves: openArray[ByteHash]
+    _: type StorageMerkleTree,
+    mcodec: MultiCodec = Sha256HashCodec,
+    leaves: openArray[ByteHash],
 ): ?!StorageMerkleTree =
   let tree = ?initTree(mcodec, leaves)
   ?tree.compute()
@@ -149,7 +153,9 @@ proc init*(
   ?await tree.compute(tp)
   success tree
 
-func init*(_: type StorageMerkleTree, leaves: openArray[MultiHash]): ?!StorageMerkleTree =
+func init*(
+    _: type StorageMerkleTree, leaves: openArray[MultiHash]
+): ?!StorageMerkleTree =
   if leaves.len == 0:
     return failure "Empty leaves"
 

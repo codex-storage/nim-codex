@@ -136,7 +136,11 @@ method ensureExpiry*(
   await self.ensureExpiry(leafMd.blkCid, expiry)
 
 method putCidAndProof*(
-    self: RepoStore, treeCid: Cid, index: Natural, blkCid: Cid, proof: StorageMerkleProof
+    self: RepoStore,
+    treeCid: Cid,
+    index: Natural,
+    blkCid: Cid,
+    proof: StorageMerkleProof,
 ): Future[?!void] {.async: (raises: [CancelledError]).} =
   ## Put a block to the blockstore
   ##

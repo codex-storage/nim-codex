@@ -104,7 +104,11 @@ method putBlock*(
   return success()
 
 method putCidAndProof*(
-    self: NetworkStore, treeCid: Cid, index: Natural, blockCid: Cid, proof: StorageMerkleProof
+    self: NetworkStore,
+    treeCid: Cid,
+    index: Natural,
+    blockCid: Cid,
+    proof: StorageMerkleProof,
 ): Future[?!void] {.async: (raw: true, raises: [CancelledError]).} =
   self.localStore.putCidAndProof(treeCid, index, blockCid, proof)
 
