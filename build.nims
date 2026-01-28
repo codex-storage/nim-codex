@@ -62,15 +62,15 @@ proc test(name: string, outName = name, srcDir = "tests/", params = "", lang = "
   exec "build/" & outName
 
 task storage, "build logos storage binary":
-  buildBinary "codex",
+  buildBinary "storage",
     outname = "storage",
     params = "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE"
 
 task testStorage, "Build & run Logos Storage tests":
-  test "testCodex", outName = "testStorage"
+  test "testStorage", outName = "testStorage"
 
 task testIntegration, "Run integration tests":
-  buildBinary "codex",
+  buildBinary "storage",
     outName = "storage",
     params = "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE"
   test "testIntegration"
@@ -110,7 +110,7 @@ task coverage, "generates code coverage report":
     echo "  *****************************************************************"
 
   var nimSrcs = " "
-  for f in walkDirRec("codex", {pcFile}):
+  for f in walkDirRec("storage", {pcFile}):
     if f.endswith(".nim"):
       nimSrcs.add " " & f.absolutePath.quoteShell()
 

@@ -93,11 +93,11 @@ else:
 --warningAsError:
   "ProveField:on"
 --define:
-  "libp2p_multicodec_exts:../../../codex/multicodec_exts.nim"
+  "libp2p_multicodec_exts:../../../storage/multicodec_exts.nim"
 --define:
-  "libp2p_multihash_exts:../../../codex/multihash_exts.nim"
+  "libp2p_multihash_exts:../../../storage/multihash_exts.nim"
 --define:
-  "libp2p_contentids_exts:../../../codex/contentids_exts.nim"
+  "libp2p_contentids_exts:../../../storage/contentids_exts.nim"
 
 when (NimMajor, NimMinor) >= (1, 4):
   --warning:
@@ -142,8 +142,8 @@ switch("warning", "LockLevel:off")
 
 switch("define", "libp2p_pki_schemes=secp256k1")
 #TODO this infects everything in this folder, ideally it would only
-# apply to codex.nim, but since codex.nims is used for other purpose
-# we can't use it. And codex.cfg doesn't work
+# apply to storage.nim, but since storage.nims is used for other purpose
+# we can't use it. And storage.cfg doesn't work
 switch("define", "chronicles_sinks=textlines[dynamic],json[dynamic],textlines[dynamic]")
 
 # Workaround for assembler incompatibility between constantine and secp256k1
