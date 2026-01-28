@@ -170,6 +170,16 @@ jobs:
     needs: build
     if: success() || failure()
     steps:
+      - name: Set version variable
+        shell: bash
+        run: |
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            echo "VERSION=${{ github.ref_name }}" >> $GITHUB_ENV
+            echo "TAGGED_RELEASE=true" >> $GITHUB_ENV
+          else
+            echo "VERSION=${GITHUB_SHA::7}" >> $GITHUB_ENV
+            echo "TAGGED_RELEASE=false" >> $GITHUB_ENV
+          fi
       - name: Release - Download binaries
         uses: actions/download-artifact@v4
         with:
