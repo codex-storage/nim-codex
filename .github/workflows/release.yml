@@ -12,6 +12,7 @@ env:
   cache_nonce: 0 # Allows for easily busting actions/cache caches
   nim_version: pinned
   storage_binary_base: logos-storage
+  c_bindings_lib_name: libstorage
   build_dir: build
   nim_flags: ''
   windows_libs: 'libstdc++-6.dll libgomp-1.dll libgcc_s_seh-1.dll libwinpthread-1.dll'
@@ -49,7 +50,7 @@ jobs:
     runs-on: ${{ matrix.builder }}
     timeout-minutes: 80
     steps:
-      - name: Set version variable
+      - name: Set conditional env variables
         shell: bash
         run: |
           if [[ "${{ github.ref_type }}" == "tag" ]]; then
@@ -59,12 +60,12 @@ jobs:
             echo "VERSION=${GITHUB_SHA::7}" >> $GITHUB_ENV
             echo "TAGGED_RELEASE=false" >> $GITHUB_ENV
           fi
-      - name: Release - Checkout sources
+      - name: Checkout sources
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: Release - Setup Nimbus Build System
+      - name: Setup Nimbus Build System
         uses: ./.github/actions/nimbus-build-system
         with:
           os: ${{ matrix.os }}
@@ -72,7 +73,7 @@ jobs:
           shell: ${{ matrix.shell }}
           nim_version: ${{ matrix.nim_version }}
 
-      - name: Release - Compute binary name
+      - name: Compute binary name
         run: |
           case ${{ matrix.os }} in
             linux*)   os_name="linux"   ;;
@@ -85,30 +86,30 @@ jobs:
           fi
           echo "storage_binary=${storage_binary}" >>$GITHUB_ENV
 
-      - name: Release - Build
+      - name: Build Logos Storage binary
         run: |
           make NIMFLAGS="--out:${{ env.build_dir }}/${{ env.storage_binary }} ${{ env.nim_flags }}"
 
-      - name: Release - Build libstorage (Linux)
+      - name: Build ${{ env.c_bindings_lib_name }} (Linux)
         if: matrix.os == 'linux'
         run: |
           make -j${ncpu} update
           make -j${ncpu} libstorage
 
-      - name: Release - Build libstorage (MacOS)
+      - name: Build ${{ env.c_bindings_lib_name }} (MacOS)
         if: matrix.os == 'macos'
         run: |
           make -j${ncpu} update
-          STORAGE_LIB_PARAMS="--passL:\"-Wl,-install_name,@rpath/libstorage.dylib\"" make -j${ncpu} libstorage
+          STORAGE_LIB_PARAMS="--passL:\"-Wl,-install_name,@rpath/${{ env.c_bindings_lib_name }}.dylib\"" make -j${ncpu} libstorage
 
-      - name: Release - Build libstorage (Windows)
+      - name: Build ${{ env.c_bindings_lib_name }} (Windows)
         if: matrix.os == 'windows'
         shell: msys2 {0}
         run: |
           make -j${ncpu} update
           make -j${ncpu} libstorage
 
-      - name: Release - Libraries
+      - name: Copy Windows dlls to build dir (Windows)
         run: |
           if [[ "${{ matrix.os }}" == "windows" ]]; then
             for lib in ${{ env.windows_libs }}; do
@@ -116,14 +117,14 @@ jobs:
             done
           fi
 
-      - name: Release - Upload Logos Storage build artifacts
+      - name: Upload Logos Storage binary to workflow artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.storage_binary }}
           path: ${{ env.build_dir }}/${{ env.storage_binary_base }}*
           retention-days: 30
 
-      - name: Release - Upload Windows libs
+      - name: Upload Windows dlls to workflow artifacts
         if: matrix.os == 'windows'
         uses: actions/upload-artifact@v4
         with:
@@ -131,30 +132,28 @@ jobs:
           path: ${{ env.build_dir }}/*.dll
           retention-days: 30
 
-      - name: Release - Package artifacts Linux
+      - name: Package ${{ env.c_bindings_lib_name }} Linux
         if: matrix.os == 'linux'
         run: |
           sudo apt-get update && sudo apt-get install -y zip
-          github_ref_name="${GITHUB_REF_NAME/\//-}"
-          ZIPFILE=libstorage-linux-${{ matrix.cpu }}-${{ env.VERSION }}
-          zip -j $ZIPFILE ./build/libstorage.so ./library/libstorage.h
+          ZIPFILE=${{ env.c_bindings_lib_name }}-linux-${{ matrix.cpu }}-${{ env.VERSION }}
+          zip -j $ZIPFILE ./build/${{ env.c_bindings_lib_name }}.so ./library/${{ env.c_bindings_lib_name }}.h
           echo "ZIPFILE=$ZIPFILE" >> $GITHUB_ENV
 
-      - name: Package artifacts MacOS
+      - name: Package ${{ env.c_bindings_lib_name }} MacOS
         if: matrix.os == 'macos'
         run: |
-          github_ref_name="${GITHUB_REF_NAME/\//-}"
-          ZIPFILE=libstorage-macos-${{ matrix.cpu }}-${{ env.VERSION }}
-          zip -j $ZIPFILE ./build/libstorage.dylib ./library/libstorage.h
+          ZIPFILE=${{ env.c_bindings_lib_name }}-macos-${{ matrix.cpu }}-${{ env.VERSION }}
+          zip -j $ZIPFILE ./build/${{ env.c_bindings_lib_name }}.dylib ./library/${{ env.c_bindings_lib_name }}.h
           echo "ZIPFILE=$ZIPFILE" >> $GITHUB_ENV
 
-      - name: Release - Package artifacts (Windows)
+      - name: Package ${{ env.c_bindings_lib_name }} (Windows)
         if: matrix.os == 'windows'
         shell: msys2 {0}
         run: |
-          ZIPFILE=libstorage-windows-${{ matrix.cpu }}-${{ env.VERSION }}
-          (cd ./build && 7z a -tzip "${GITHUB_WORKSPACE}/${ZIPFILE}" libstorage.dll)
-          (cd ./library && 7z a -tzip "${GITHUB_WORKSPACE}/${ZIPFILE}" libstorage.h)
+          ZIPFILE=${{ env.c_bindings_lib_name }}-windows-${{ matrix.cpu }}-${{ env.VERSION }}
+          (cd ./build && 7z a -tzip "${GITHUB_WORKSPACE}/${ZIPFILE}" ${{ env.c_bindings_lib_name }}.dll)
+          (cd ./library && 7z a -tzip "${GITHUB_WORKSPACE}/${ZIPFILE}" ${{ env.c_bindings_lib_name }}.h)
           echo "ZIPFILE=$ZIPFILE" >> $GITHUB_ENV
 
       - name: Release - Upload artifacts
