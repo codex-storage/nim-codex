@@ -1,17 +1,17 @@
 {
   pkgs ? import <nixpkgs> { },
   src ? ../.,
-  targets ? ["all"],
+  # Nimbus-build-system package.
+  nim ? null,
   # Options: 0,1,2
   verbosity ? 1,
-  commit ? builtins.substring 0 7 (src.rev or "dirty"),
+  # Make targets
+  targets ? ["all"],
   # These are the only platforms tested in CI and considered stable.
   stableSystems ? [
     "x86_64-linux" "aarch64-linux"
     "x86_64-darwin" "aarch64-darwin"
   ],
-  # Perform 2-stage bootstrap instead of 3-stage to save time.
-  quickAndDirty ? true,
 }:
 
 assert pkgs.lib.assertMsg ((src.submodules or true) == true)
@@ -20,70 +20,48 @@ assert pkgs.lib.assertMsg ((src.submodules or true) == true)
 let
   inherit (pkgs) lib writeScriptBin callPackage;
 
-  revision = lib.substring 0 8 (src.rev or "dirty");
 
   tools = callPackage ./tools.nix {};
+
+  version = tools.findKeyValue "version = \"([0-9]+\.[0-9]+\.[0-9]+)\"" ../codex.nimble;
+  revision = lib.substring 0 8 (src.rev or src.dirtyRev or "00000000");
 
   # Pin GCC/CLang versions
   stdenv = if pkgs.stdenv.isLinux then pkgs.gcc13Stdenv else pkgs.clang16Stdenv;
 
-in stdenv.mkDerivation rec {
-  pname = "storage";
-
-  version = "${tools.findKeyValue "version = \"([0-9]+\.[0-9]+\.[0-9]+)\"" ../codex.nimble}-${revision}";
+in stdenv.mkDerivation {
+  pname = "logos-storage-nim";
+  version = "${version}-${revision}";
 
   inherit src;
 
-  # Dependencies that should exist in the runtime environment.
-  buildInputs = with pkgs; [
-    openssl
-    gmp
+    # Disable CPU optimizations that make binary not portable.
+  env = {
+    NIMFLAGS = "-d:disableMarchNative";
+  };
+
+  makeFlags = targets ++ [
+    "V=${toString verbosity}"
+    # Built from nimbus-build-system via flake.
+    "USE_SYSTEM_NIM=1"
   ];
+
+  # Dependencies that should exist in the runtime environment.
+  buildInputs = with pkgs; [ openssl gmp ];
 
   # Dependencies that should only exist in the build environment.
   nativeBuildInputs = let
     # Fix for Nim compiler calling 'git rev-parse' and 'lsb_release'.
     fakeGit = writeScriptBin "git" "echo ${version}";
-  in with pkgs; [
-    cmake
-    which
-    fakeGit
-  ] ++ lib.optionals stdenv.isLinux [
-    lsb-release
-  ] ++ lib.optionals stdenv.isDarwin [
-    darwin.cctools
-  ];
-
-  # Disable CPU optimizations that make binary not portable.
-  NIMFLAGS = "-d:disableMarchNative -d:git_revision_override=${revision}";
-
-  makeFlags = targets ++ [
-    "V=${toString verbosity}"
-    "QUICK_AND_DIRTY_COMPILER=${if quickAndDirty then "1" else "0"}"
-    "QUICK_AND_DIRTY_NIMBLE=${if quickAndDirty then "1" else "0"}"
-  ];
-
-  # FIXME: Remove once permanent fix is applied to NBS:
-  patchPhase = ''
-    substituteInPlace vendor/nimbus-build-system/scripts/build_nim.sh \
-      --replace-fail '"''${NIX_BUILD_TOP}" != "/build"' '-z $${NIX_BUILD_TOP}'
-  '';
+  in with pkgs; [ nim cmake which fakeGit ]
+    ++ lib.optionals stdenv.isLinux [ lsb-release ]
+    ++ lib.optionals stdenv.isDarwin [ darwin.cctools ];
 
   configurePhase = ''
     # Avoid Nim cache permission errors.
     export XDG_CACHE_HOME=$TMPDIR
     patchShebangs . vendor/nimbus-build-system > /dev/null
     make nimbus-build-system-paths
-  '';
-
-  preBuild = ''
-    pushd vendor/nimbus-build-system/vendor/Nim
-    mkdir dist
-    cp -r ${callPackage ./nimble.nix {}}    dist/nimble
-    cp -r ${callPackage ./checksums.nix {}} dist/checksums
-    cp -r ${callPackage ./csources.nix {}}  csources_v2
-    chmod 777 -R dist/nimble csources_v2
-    popd
   '';
 
   installPhase = ''
