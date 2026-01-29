@@ -81,10 +81,12 @@ jobs:
             windows*) os_name="windows" ;;
           esac
           storage_binary="${{ env.storage_binary_base }}-${os_name}-${{ matrix.cpu }}-${{ env.VERSION }}"
+          c_bindings_lib="${{ env.c_bindings_lib_name }}-${os_name}-${{ matrix.cpu }}-${{ env.VERSION }}"
           if [[ ${os_name} == "windows" ]]; then
             storage_binary="${storage_binary}.exe"
           fi
           echo "storage_binary=${storage_binary}" >>$GITHUB_ENV
+          echo "c_bindings_lib=${c_bindings_lib}" >>$GITHUB_ENV
 
       - name: Build Logos Storage binary
         run: |
@@ -136,25 +138,19 @@ jobs:
         if: matrix.os == 'linux'
         run: |
           sudo apt-get update && sudo apt-get install -y zip
-          ZIPFILE=${{ env.c_bindings_lib_name }}-linux-${{ matrix.cpu }}-${{ env.VERSION }}
-          zip -j $ZIPFILE ./build/${{ env.c_bindings_lib_name }}.so ./library/${{ env.c_bindings_lib_name }}.h
-          echo "ZIPFILE=$ZIPFILE" >> $GITHUB_ENV
-
+          zip -j ${{env.c_bindings_lib}} ./build/${{ env.c_bindings_lib_name }}.so ./library/${{ env.c_bindings_lib_name }}.h
+          
       - name: Package ${{ env.c_bindings_lib_name }} MacOS
         if: matrix.os == 'macos'
         run: |
-          ZIPFILE=${{ env.c_bindings_lib_name }}-macos-${{ matrix.cpu }}-${{ env.VERSION }}
-          zip -j $ZIPFILE ./build/${{ env.c_bindings_lib_name }}.dylib ./library/${{ env.c_bindings_lib_name }}.h
-          echo "ZIPFILE=$ZIPFILE" >> $GITHUB_ENV
+          zip -j ${{env.c_bindings_lib}} ./build/${{ env.c_bindings_lib_name }}.dylib ./library/${{ env.c_bindings_lib_name }}.h
 
       - name: Package ${{ env.c_bindings_lib_name }} (Windows)
         if: matrix.os == 'windows'
         shell: msys2 {0}
         run: |
-          ZIPFILE=${{ env.c_bindings_lib_name }}-windows-${{ matrix.cpu }}-${{ env.VERSION }}
-          (cd ./build && 7z a -tzip "${GITHUB_WORKSPACE}/${ZIPFILE}" ${{ env.c_bindings_lib_name }}.dll)
-          (cd ./library && 7z a -tzip "${GITHUB_WORKSPACE}/${ZIPFILE}" ${{ env.c_bindings_lib_name }}.h)
-          echo "ZIPFILE=$ZIPFILE" >> $GITHUB_ENV
+          (cd ./build && 7z a -tzip "${GITHUB_WORKSPACE}/${{env.c_bindings_lib}}" ${{ env.c_bindings_lib_name }}.dll)
+          (cd ./library && 7z a -tzip "${GITHUB_WORKSPACE}/${{env.c_bindings_lib}}" ${{ env.c_bindings_lib_name }}.h)
 
       - name: Release - Upload artifacts
         uses: actions/upload-artifact@v4
