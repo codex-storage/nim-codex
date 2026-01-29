@@ -39,10 +39,10 @@ import ./coders
 import ./json
 
 logScope:
-  topics = "codex restapi"
+  topics = "storage restapi"
 
-declareCounter(codex_api_uploads, "codex API uploads")
-declareCounter(codex_api_downloads, "codex API downloads")
+declareCounter(storage_api_uploads, "storage API uploads")
+declareCounter(storage_api_downloads, "storage API downloads")
 
 proc validate(pattern: string, value: string): int {.gcsafe, raises: [Defect].} =
   0
@@ -50,7 +50,7 @@ proc validate(pattern: string, value: string): int {.gcsafe, raises: [Defect].} 
 proc formatManifest(cid: Cid, manifest: Manifest): RestContent =
   return RestContent.init(cid, manifest)
 
-proc formatManifestBlocks(node: CodexNodeRef): Future[JsonNode] {.async.} =
+proc formatManifestBlocks(node: StorageNodeRef): Future[JsonNode] {.async.} =
   var content: seq[RestContent]
 
   proc addManifest(cid: Cid, manifest: Manifest) =
@@ -67,7 +67,7 @@ proc isPending(resp: HttpResponseRef): bool =
   return resp.getResponseState() == HttpResponseState.Empty
 
 proc retrieveCid(
-    node: CodexNodeRef, cid: Cid, local: bool = true, resp: HttpResponseRef
+    node: StorageNodeRef, cid: Cid, local: bool = true, resp: HttpResponseRef
 ): Future[void] {.async: (raises: [CancelledError, HttpWriteError]).} =
   ## Download a file from the node in a streaming
   ## manner
@@ -131,7 +131,7 @@ proc retrieveCid(
 
       await resp.send(addr buff[0], buff.len)
     await resp.finish()
-    codex_api_downloads.inc()
+    storage_api_downloads.inc()
   except CancelledError as exc:
     raise exc
   except LPStreamError as exc:
@@ -173,7 +173,7 @@ proc getFilenameFromContentDisposition(contentDisposition: string): ?string =
   let filename = parts[1].strip()
   return filename[0 ..^ 2].some
 
-proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRouter) =
+proc initDataApi(node: StorageNodeRef, repoStore: RepoStore, router: var RestRouter) =
   let allowedOrigin = router.allowedOrigin # prevents capture inside of api defintion
 
   router.api(MethodOptions, "/api/storage/v1/data") do(
@@ -238,7 +238,7 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
         error "Error uploading file", exc = error.msg
         return RestApiResponse.error(Http500, error.msg)
 
-      codex_api_uploads.inc()
+      storage_api_uploads.inc()
       trace "Uploaded file", cid
       return RestApiResponse.response($cid)
     except CancelledError:
@@ -383,7 +383,7 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
     )
     return RestApiResponse.response($json, contentType = "application/json")
 
-proc initNodeApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
+proc initNodeApi(node: StorageNodeRef, conf: StorageConf, router: var RestRouter) =
   let allowedOrigin = router.allowedOrigin
 
   ## various node management api's
@@ -465,7 +465,7 @@ proc initNodeApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
       return
         RestApiResponse.error(Http500, "Unknown error dialling peer", headers = headers)
 
-proc initDebugApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
+proc initDebugApi(node: StorageNodeRef, conf: StorageConf, router: var RestRouter) =
   let allowedOrigin = router.allowedOrigin
 
   router.api(MethodGet, "/api/storage/v1/debug/info") do() -> RestApiResponse:
@@ -476,16 +476,20 @@ proc initDebugApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
     try:
       let table = RestRoutingTable.init(node.discovery.protocol.routingTable)
 
-      let json = %*{
-        "id": $node.switch.peerInfo.peerId,
-        "addrs": node.switch.peerInfo.addrs.mapIt($it),
-        "repo": $conf.dataDir,
-        "spr":
-          if node.discovery.dhtRecord.isSome: node.discovery.dhtRecord.get.toURI else: "",
-        "announceAddresses": node.discovery.announceAddrs,
-        "table": table,
-        "storage": {"version": $codexVersion, "revision": $codexRevision},
-      }
+      let json =
+        %*{
+          "id": $node.switch.peerInfo.peerId,
+          "addrs": node.switch.peerInfo.addrs.mapIt($it),
+          "repo": $conf.dataDir,
+          "spr":
+            if node.discovery.dhtRecord.isSome:
+              node.discovery.dhtRecord.get.toURI
+            else:
+              "",
+          "announceAddresses": node.discovery.announceAddrs,
+          "table": table,
+          "storage": {"version": $storageVersion, "revision": $storageRevision},
+        }
 
       # return pretty json for human readability
       return RestApiResponse.response(
@@ -542,8 +546,8 @@ proc initDebugApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
         return RestApiResponse.error(Http500, headers = headers)
 
 proc initRestApi*(
-    node: CodexNodeRef,
-    conf: CodexConf,
+    node: StorageNodeRef,
+    conf: StorageConf,
     repoStore: RepoStore,
     corsAllowedOrigin: ?string,
 ): RestRouter =

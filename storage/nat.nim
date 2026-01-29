@@ -412,7 +412,7 @@ proc nattedAddress*(
       if ipPart.isSome and port.isSome:
         # Try to setup NAT mapping for the address
         let (newIP, tcp, udp) =
-          setupAddress(natConfig, ipPart.get, port.get, udpPort, "codex")
+          setupAddress(natConfig, ipPart.get, port.get, udpPort, "storage")
         if newIP.isSome:
           # NAT mapping successful - add discovery address with mapped UDP port
           discoveryAddrs.add(getMultiAddrWithIPAndUDPPort(newIP.get, udp.get))

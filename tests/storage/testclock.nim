@@ -1,6 +1,6 @@
 import pkg/unittest2
 
-import codex/clock
+import storage/clock
 import ./helpers
 
 suite "Clock":

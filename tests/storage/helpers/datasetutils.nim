@@ -1,10 +1,10 @@
 import std/random
 
 import pkg/chronos
-import pkg/codex/blocktype as bt
-import pkg/codex/merkletree
-import pkg/codex/manifest
-import pkg/codex/rng
+import pkg/storage/blocktype as bt
+import pkg/storage/merkletree
+import pkg/storage/manifest
+import pkg/storage/rng
 
 import ./randomchunker
 

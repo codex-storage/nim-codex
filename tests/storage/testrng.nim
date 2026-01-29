@@ -2,7 +2,7 @@ import std/unittest
 import std/sequtils
 import std/sets
 
-import ../../codex/rng
+import ../../storage/rng
 
 suite "Random Number Generator (RNG)":
   let rng = Rng.instance()

@@ -24,7 +24,7 @@ import ../logutils
 import ../systemclock
 
 logScope:
-  topics = "codex maintenance"
+  topics = "storage maintenance"
 
 const
   DefaultBlockInterval* = 10.minutes

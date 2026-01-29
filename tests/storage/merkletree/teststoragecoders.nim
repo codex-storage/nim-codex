@@ -3,7 +3,7 @@ import pkg/unittest2
 import pkg/questionable/results
 import pkg/stew/byteutils
 
-import pkg/codex/merkletree
+import pkg/storage/merkletree
 import ./helpers
 
 const data = [

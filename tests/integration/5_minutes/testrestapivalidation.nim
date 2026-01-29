@@ -1,18 +1,18 @@
 import std/times
-import pkg/codex/conf
+import pkg/storage/conf
 import pkg/stint
 from pkg/libp2p import Cid, `$`
 import ../../asynctest
 import ../../checktest
 import ../../examples
-import ../../codex/examples
-import ../codexconfig
-import ../codexclient
+import ../../storage/examples
+import ../storageconfig
+import ../storageclient
 import ../multinodes
 
 multinodesuite "Rest API validation":
-  let config = NodeConfigs(clients: CodexConfigs.init(nodes = 1).some)
-  var client: CodexClient
+  let config = NodeConfigs(clients: StorageConfigs.init(nodes = 1).some)
+  var client: StorageClient
 
   setup:
     client = clients()[0].client

@@ -4,8 +4,8 @@ import std/algorithm
 import pkg/chronos
 import pkg/stew/byteutils
 
-import pkg/codex/blocktype as bt
-import pkg/codex/blockexchange
+import pkg/storage/blocktype as bt
+import pkg/storage/blockexchange
 
 import ../helpers
 import ../../asynctest

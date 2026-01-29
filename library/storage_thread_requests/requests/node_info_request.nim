@@ -5,11 +5,11 @@ import chronos
 import chronicles
 import confutils
 import codexdht/discv5/spr
-import ../../../codex/conf
-import ../../../codex/rest/json
-import ../../../codex/node
+import ../../../storage/conf
+import ../../../storage/rest/json
+import ../../../storage/node
 
-from ../../../codex/codex import CodexServer, config, node
+from ../../../storage/storage import StorageServer, config, node
 
 logScope:
   topics = "libstorage libstorageinfo"
@@ -31,12 +31,12 @@ proc destroyShared(self: ptr NodeInfoRequest) =
   deallocShared(self)
 
 proc getRepo(
-    storage: ptr CodexServer
+    storage: ptr StorageServer
 ): Future[Result[string, string]] {.async: (raises: []).} =
   return ok($(storage[].config.dataDir))
 
 proc getSpr(
-    storage: ptr CodexServer
+    storage: ptr StorageServer
 ): Future[Result[string, string]] {.async: (raises: []).} =
   let spr = storage[].node.discovery.dhtRecord
   if spr.isNone:
@@ -45,12 +45,12 @@ proc getSpr(
   return ok(spr.get.toURI)
 
 proc getPeerId(
-    storage: ptr CodexServer
+    storage: ptr StorageServer
 ): Future[Result[string, string]] {.async: (raises: []).} =
   return ok($storage[].node.switch.peerInfo.peerId)
 
 proc process*(
-    self: ptr NodeInfoRequest, storage: ptr CodexServer
+    self: ptr NodeInfoRequest, storage: ptr StorageServer
 ): Future[Result[string, string]] {.async: (raises: []).} =
   defer:
     destroyShared(self)

@@ -1,2 +1,2 @@
 const CodecExts =
-  [("codex-manifest", 0xCD01), ("codex-block", 0xCD02), ("codex-root", 0xCD03)]
+  [("storage-manifest", 0xCD01), ("storage-block", 0xCD02), ("storage-root", 0xCD03)]

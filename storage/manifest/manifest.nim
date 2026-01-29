@@ -71,7 +71,7 @@ func mimetype*(self: Manifest): ?string =
 ############################################################
 
 func isManifest*(cid: Cid): ?!bool =
-  success (ManifestCodec == ?cid.contentType().mapFailure(CodexError))
+  success (ManifestCodec == ?cid.contentType().mapFailure(StorageError))
 
 func isManifest*(mc: MultiCodec): ?!bool =
   success mc == ManifestCodec

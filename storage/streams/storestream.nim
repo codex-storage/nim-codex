@@ -25,7 +25,7 @@ import ./seekablestream
 export stores, blocktype, manifest, chronos
 
 logScope:
-  topics = "codex storestream"
+  topics = "storage storestream"
 
 const StoreStreamTrackerName* = "StoreStream"
 

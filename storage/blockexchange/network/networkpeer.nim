@@ -19,7 +19,7 @@ import ../../logutils
 import ../../utils/trackedfutures
 
 logScope:
-  topics = "codex blockexcnetworkpeer"
+  topics = "storage blockexcnetworkpeer"
 
 const DefaultYieldInterval = 50.millis
 

@@ -3,8 +3,8 @@ import std/strutils
 import pkg/chronos
 import pkg/stew/byteutils
 import pkg/questionable/results
-import pkg/codex/stores/cachestore
-import pkg/codex/chunker
+import pkg/storage/stores/cachestore
+import pkg/storage/chunker
 
 import ./commonstoretests
 

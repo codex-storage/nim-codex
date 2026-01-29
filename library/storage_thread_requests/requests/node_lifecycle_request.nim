@@ -17,12 +17,12 @@ import libp2p
 import json_serialization
 import json_serialization/std/[options, net]
 import ../../alloc
-import ../../../codex/conf
-import ../../../codex/utils
-import ../../../codex/utils/[keyutils, fileutils]
-import ../../../codex/units
+import ../../../storage/conf
+import ../../../storage/utils
+import ../../../storage/utils/[keyutils, fileutils]
+import ../../../storage/units
 
-from ../../../codex/codex import CodexServer, new, start, stop, close
+from ../../../storage/storage import StorageServer, new, start, stop, close
 
 logScope:
   topics = "libstorage libstoragelifecycle"
@@ -89,16 +89,16 @@ proc destroyShared(self: ptr NodeLifecycleRequest) =
 
 proc createStorage(
     configJson: cstring
-): Future[Result[CodexServer, string]] {.async: (raises: []).} =
-  var conf: CodexConf
+): Future[Result[StorageServer, string]] {.async: (raises: []).} =
+  var conf: StorageConf
 
   try:
-    conf = CodexConf.load(
-      version = codexFullVersion,
+    conf = StorageConf.load(
+      version = storageFullVersion,
       envVarsPrefix = "storage",
       cmdLine = @[],
       secondarySources = proc(
-          config: CodexConf, sources: auto
+          config: StorageConf, sources: auto
       ) {.gcsafe, raises: [ConfigurationError].} =
         if configJson.len > 0:
           sources.addConfigFileContent(Json, $(configJson))
@@ -149,14 +149,14 @@ proc createStorage(
 
   let server =
     try:
-      CodexServer.new(conf, pk)
+      StorageServer.new(conf, pk)
     except Exception as exc:
       return err("Failed to create Storage: " & exc.msg)
 
   return ok(server)
 
 proc process*(
-    self: ptr NodeLifecycleRequest, storage: ptr CodexServer
+    self: ptr NodeLifecycleRequest, storage: ptr StorageServer
 ): Future[Result[string, string]] {.async: (raises: []).} =
   defer:
     destroyShared(self)

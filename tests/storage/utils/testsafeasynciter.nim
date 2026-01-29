@@ -1,8 +1,8 @@
 import std/sugar
 import pkg/questionable
 import pkg/chronos
-import pkg/codex/utils/iter
-import pkg/codex/utils/safeasynciter
+import pkg/storage/utils/iter
+import pkg/storage/utils/safeasynciter
 
 import ../../asynctest
 import ../helpers

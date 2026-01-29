@@ -9,7 +9,7 @@ multinodesuite "Node block expiration tests":
 
   test "node retains not-expired file",
     NodeConfigs(
-      clients: CodexConfigs
+      clients: StorageConfigs
         .init(nodes = 1)
         .withBlockTtl(0, 10)
         .withBlockMaintenanceInterval(0, 1).some
@@ -29,7 +29,7 @@ multinodesuite "Node block expiration tests":
 
   test "node deletes expired file",
     NodeConfigs(
-      clients: CodexConfigs
+      clients: StorageConfigs
         .init(nodes = 1)
         .withBlockTtl(0, 1)
         .withBlockMaintenanceInterval(0, 1).some

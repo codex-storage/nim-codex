@@ -5,11 +5,11 @@ import std/importutils
 import pkg/chronos
 import pkg/stew/byteutils
 
-import pkg/codex/stores
-import pkg/codex/blockexchange
-import pkg/codex/chunker
-import pkg/codex/discovery
-import pkg/codex/blocktype as bt
+import pkg/storage/stores
+import pkg/storage/blockexchange
+import pkg/storage/chunker
+import pkg/storage/discovery
+import pkg/storage/blocktype as bt
 
 import ../../../asynctest
 import ../../examples

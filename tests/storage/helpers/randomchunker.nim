@@ -2,8 +2,8 @@ import std/sequtils
 
 import pkg/chronos
 
-import pkg/codex/chunker
-import pkg/codex/rng
+import pkg/storage/chunker
+import pkg/storage/rng
 
 export chunker
 

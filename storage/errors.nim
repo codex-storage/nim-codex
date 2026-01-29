@@ -20,8 +20,8 @@ import pkg/questionable/results
 export results
 
 type
-  CodexError* = object of CatchableError # base codex error
-  CodexResult*[T] = Result[T, ref CodexError]
+  StorageError* = object of CatchableError # base Storage error
+  StorageResult*[T] = Result[T, ref StorageError]
 
   FinishedFailed*[T] = tuple[success: seq[Future[T]], failure: seq[Future[T]]]
 
@@ -37,7 +37,7 @@ template mapFailure*[T, V, E](
   )
 
 template mapFailure*[T, V](exp: Result[T, V]): Result[T, ref CatchableError] =
-  mapFailure(exp, CodexError)
+  mapFailure(exp, StorageError)
 
 # TODO: using a template here, causes bad codegen
 func toFailure*[T](exp: Option[T]): Result[T, ref CatchableError] {.inline.} =

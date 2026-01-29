@@ -3,10 +3,10 @@ import std/tables
 
 import pkg/chronos
 
-import pkg/codex/rng
-import pkg/codex/chunker
-import pkg/codex/blocktype as bt
-import pkg/codex/blockexchange
+import pkg/storage/rng
+import pkg/storage/chunker
+import pkg/storage/blocktype as bt
+import pkg/storage/blockexchange
 
 import ../../asynctest
 import ../examples

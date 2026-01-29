@@ -22,14 +22,14 @@ import ../../blocktype
 import ../../logutils
 
 logScope:
-  topics = "codex pendingblocks"
+  topics = "storage pendingblocks"
 
 declareGauge(
-  codex_block_exchange_pending_block_requests,
-  "codex blockexchange pending block requests",
+  storage_block_exchange_pending_block_requests,
+  "storage blockexchange pending block requests",
 )
 declareGauge(
-  codex_block_exchange_retrieval_time_us, "codex blockexchange block retrieval time us"
+  storage_block_exchange_retrieval_time_us, "storage blockexchange block retrieval time us"
 )
 
 const
@@ -53,7 +53,7 @@ type
     lastInclusion*: Moment # time at which we last included a block into our wantlist
 
 proc updatePendingBlockGauge(p: PendingBlocksManager) =
-  codex_block_exchange_pending_block_requests.set(p.blocks.len.int64)
+  storage_block_exchange_pending_block_requests.set(p.blocks.len.int64)
 
 proc getWantHandle*(
     self: PendingBlocksManager, address: BlockAddress, requested: ?PeerId = PeerId.none
@@ -123,7 +123,7 @@ proc resolve*(
 
         blockReq.handle.complete(bd.blk)
 
-        codex_block_exchange_retrieval_time_us.set(retrievalDurationUs)
+        storage_block_exchange_retrieval_time_us.set(retrievalDurationUs)
       else:
         trace "Block handle already finished", address = bd.address
 

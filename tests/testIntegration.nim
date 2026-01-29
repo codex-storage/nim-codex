@@ -4,8 +4,8 @@ import ./imports
 
 ## Limit which integration tests to run by setting the
 ## environment variable during compilation. For example:
-## CODEX_INTEGRATION_TEST_INCLUDES="testFoo.nim,testBar.nim"
-const includes = getEnv("CODEX_INTEGRATION_TEST_INCLUDES")
+## STORAGE_INTEGRATION_TEST_INCLUDES="testFoo.nim,testBar.nim"
+const includes = getEnv("STORAGE_INTEGRATION_TEST_INCLUDES")
 
 when includes != "":
   # import only the specified tests

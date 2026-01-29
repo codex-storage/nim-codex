@@ -1,8 +1,8 @@
 import pkg/chronos
 import pkg/results
 
-import pkg/codex/utils/asyncheapqueue
-import pkg/codex/rng
+import pkg/storage/utils/asyncheapqueue
+import pkg/storage/rng
 
 import ../asynctest
 import ./helpers

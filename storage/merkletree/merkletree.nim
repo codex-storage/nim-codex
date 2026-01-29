@@ -22,14 +22,14 @@ import pkg/merkletree
 import ../utils
 import ../rng
 import ../errors
-import ../codextypes
+import ../storagetypes
 
 from ../utils/digest import digestBytes
 
 export merkletree
 
 logScope:
-  topics = "codex merkletree"
+  topics = "storage merkletree"
 
 type
   ByteTreeKey* {.pure.} = enum

@@ -1,6 +1,6 @@
 import pkg/questionable
 import pkg/chronos
-import pkg/codex/utils/asynciter
+import pkg/storage/utils/asynciter
 
 import ../../asynctest
 import ../helpers

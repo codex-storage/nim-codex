@@ -1,2 +1,2 @@
 const ContentIdsExts =
-  [multiCodec("codex-root"), multiCodec("codex-manifest"), multiCodec("codex-block")]
+  [multiCodec("storage-root"), multiCodec("storage-manifest"), multiCodec("storage-block")]

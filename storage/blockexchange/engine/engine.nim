@@ -44,39 +44,39 @@ import ./pendingblocks
 export peers, pendingblocks, discovery
 
 logScope:
-  topics = "codex blockexcengine"
+  topics = "storage blockexcengine"
 
 declareCounter(
-  codex_block_exchange_want_have_lists_sent, "codex blockexchange wantHave lists sent"
+  storage_block_exchange_want_have_lists_sent, "storage blockexchange wantHave lists sent"
 )
 declareCounter(
-  codex_block_exchange_want_have_lists_received,
-  "codex blockexchange wantHave lists received",
+  storage_block_exchange_want_have_lists_received,
+  "storage blockexchange wantHave lists received",
 )
 declareCounter(
-  codex_block_exchange_want_block_lists_sent, "codex blockexchange wantBlock lists sent"
+  storage_block_exchange_want_block_lists_sent, "storage blockexchange wantBlock lists sent"
 )
 declareCounter(
-  codex_block_exchange_want_block_lists_received,
-  "codex blockexchange wantBlock lists received",
+  storage_block_exchange_want_block_lists_received,
+  "storage blockexchange wantBlock lists received",
 )
-declareCounter(codex_block_exchange_blocks_sent, "codex blockexchange blocks sent")
+declareCounter(storage_block_exchange_blocks_sent, "storage blockexchange blocks sent")
 declareCounter(
-  codex_block_exchange_blocks_received, "codex blockexchange blocks received"
-)
-declareCounter(
-  codex_block_exchange_spurious_blocks_received,
-  "codex blockexchange unrequested/duplicate blocks received",
+  storage_block_exchange_blocks_received, "storage blockexchange blocks received"
 )
 declareCounter(
-  codex_block_exchange_discovery_requests_total,
+  storage_block_exchange_spurious_blocks_received,
+  "storage blockexchange unrequested/duplicate blocks received",
+)
+declareCounter(
+  storage_block_exchange_discovery_requests_total,
   "Total number of peer discovery requests sent",
 )
 declareCounter(
-  codex_block_exchange_peer_timeouts_total, "Total number of peer activity timeouts"
+  storage_block_exchange_peer_timeouts_total, "Total number of peer activity timeouts"
 )
 declareCounter(
-  codex_block_exchange_requests_failed_total,
+  storage_block_exchange_requests_failed_total,
   "Total number of block requests that failed after exhausting retries",
 )
 
@@ -166,7 +166,7 @@ proc sendWantHave(
     let toAsk = addresses.filterIt(it notin p.peerHave)
     trace "Sending wantHave request", toAsk, peer = p.id
     await self.network.request.sendWantList(p.id, toAsk, wantType = WantType.WantHave)
-    codex_block_exchange_want_have_lists_sent.inc()
+    storage_block_exchange_want_have_lists_sent.inc()
 
 proc sendWantBlock(
     self: BlockExcEngine, addresses: seq[BlockAddress], blockPeer: BlockExcPeerCtx
@@ -175,7 +175,7 @@ proc sendWantBlock(
   await self.network.request.sendWantList(
     blockPeer.id, addresses, wantType = WantType.WantBlock
   ) # we want this remote to send us a block
-  codex_block_exchange_want_block_lists_sent.inc()
+  storage_block_exchange_want_block_lists_sent.inc()
 
 proc sendBatchedWantList(
     self: BlockExcEngine,
@@ -297,7 +297,7 @@ proc refreshBlockKnowledge(self: BlockExcEngine) {.async: (raises: [CancelledErr
 proc searchForNewPeers(self: BlockExcEngine, cid: Cid) =
   if self.lastDiscRequest + DiscoveryRateLimit < Moment.now():
     trace "Searching for new peers for", cid = cid
-    codex_block_exchange_discovery_requests_total.inc()
+    storage_block_exchange_discovery_requests_total.inc()
     self.lastDiscRequest = Moment.now() # always refresh before calling await!
     self.discovery.queueFindBlocksReq(@[cid])
   else:
@@ -333,7 +333,7 @@ proc downloadInternal(
 
       if self.pendingBlocks.retriesExhausted(address):
         trace "Error retries exhausted"
-        codex_block_exchange_requests_failed_total.inc()
+        storage_block_exchange_requests_failed_total.inc()
         handle.fail(newException(RetriesExhaustedError, "Error retries exhausted"))
         break
 
@@ -415,7 +415,7 @@ proc downloadInternal(
       else:
         # If the peer timed out, retries immediately.
         trace "Peer timed out during block request", peer = scheduledPeer.id
-        codex_block_exchange_peer_timeouts_total.inc()
+        storage_block_exchange_peer_timeouts_total.inc()
         await self.network.dropPeer(scheduledPeer.id)
         # Evicts peer immediately or we may end up picking it again in the
         # next retry.
@@ -426,7 +426,7 @@ proc downloadInternal(
       await handle.cancelAndWait()
   except RetriesExhaustedError as exc:
     warn "Retries exhausted for block", address, exc = exc.msg
-    codex_block_exchange_requests_failed_total.inc()
+    storage_block_exchange_requests_failed_total.inc()
     if not handle.finished:
       handle.fail(exc)
   finally:
@@ -690,7 +690,7 @@ proc blocksDeliveryHandler*(
       # Unknown peers and unrequested blocks are dropped with a warning.
       if not allowSpurious and (peerCtx == nil or not peerCtx.blockReceived(bd.address)):
         warn "Dropping unrequested or duplicate block received from peer"
-        codex_block_exchange_spurious_blocks_received.inc()
+        storage_block_exchange_spurious_blocks_received.inc()
         continue
 
       if err =? self.validateBlockDelivery(bd).errorOption:
@@ -729,7 +729,7 @@ proc blocksDeliveryHandler*(
         discard
       lastIdle = Moment.now()
 
-  codex_block_exchange_blocks_received.inc(validatedBlocksDelivery.len.int64)
+  storage_block_exchange_blocks_received.inc(validatedBlocksDelivery.len.int64)
 
   if err =? catch(await self.resolveBlocks(validatedBlocksDelivery)).errorOption:
     warn "Error resolving blocks", err = err.msg
@@ -789,11 +789,11 @@ proc wantListHandler*(
                 BlockPresence(address: e.address, `type`: BlockPresenceType.DontHave)
               )
 
-          codex_block_exchange_want_have_lists_received.inc()
+          storage_block_exchange_want_have_lists_received.inc()
         of WantType.WantBlock:
           peerCtx.wantedBlocks.incl(e.address)
           schedulePeer = true
-          codex_block_exchange_want_block_lists_received.inc()
+          storage_block_exchange_want_block_lists_received.inc()
       else: # Updating existing entry in peer wants
         # peer doesn't want this block anymore
         if e.cancel:
@@ -903,7 +903,7 @@ proc taskHandler*(
         continue
 
       await self.network.request.sendBlocksDelivery(peerCtx.id, blockDeliveries)
-      codex_block_exchange_blocks_sent.inc(blockDeliveries.len.int64)
+      storage_block_exchange_blocks_sent.inc(blockDeliveries.len.int64)
       # Drops the batch from the peer's set of wanted blocks; i.e. assumes that after
       # we send the blocks, then the peer no longer wants them, so we don't need to
       # re-send them. Note that the send might still fail down the line and we will

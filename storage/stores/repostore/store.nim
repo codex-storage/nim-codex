@@ -32,7 +32,7 @@ import ../../utils
 export blocktype, cid
 
 logScope:
-  topics = "codex repostore"
+  topics = "storage repostore"
 
 ###########################################################
 # BlockStore API
@@ -323,9 +323,9 @@ method listBlocks*(
 
   let key =
     case blockType
-    of BlockType.Manifest: CodexManifestKey
-    of BlockType.Block: CodexBlocksKey
-    of BlockType.Both: CodexRepoKey
+    of BlockType.Manifest: StorageManifestKey
+    of BlockType.Block: StorageBlocksKey
+    of BlockType.Both: StorageRepoKey
 
   let query = Query.init(key, value = false)
   without queryIter =? (await self.repoDs.query(query)), err:
@@ -444,7 +444,7 @@ proc release*(
 
 proc start*(
     self: RepoStore
-): Future[void] {.async: (raises: [CancelledError, CodexError]).} =
+): Future[void] {.async: (raises: [CancelledError, StorageError]).} =
   ## Start repo
   ##
   if self.started:
@@ -453,10 +453,10 @@ proc start*(
 
   trace "Starting rep"
   if err =? (await self.updateTotalBlocksCount()).errorOption:
-    raise newException(CodexError, err.msg)
+    raise newException(StorageError, err.msg)
 
   if err =? (await self.updateQuotaUsage()).errorOption:
-    raise newException(CodexError, err.msg)
+    raise newException(StorageError, err.msg)
 
   self.started = true
 

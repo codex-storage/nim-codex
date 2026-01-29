@@ -15,7 +15,7 @@ import ../logutils
 export lpstream, chronos, logutils
 
 logScope:
-  topics = "codex seekablestream"
+  topics = "storage seekablestream"
 
 type SeekableStream* = ref object of LPStream
   offset*: int

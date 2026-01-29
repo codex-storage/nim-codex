@@ -25,7 +25,7 @@ const
   DefaultQuotaBytes* = 20.GiBs
 
 type
-  QuotaNotEnoughError* = object of CodexError
+  QuotaNotEnoughError* = object of StorageError
 
   RepoStore* = ref object of BlockStore
     postFixLen*: int

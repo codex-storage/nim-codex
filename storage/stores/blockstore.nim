@@ -22,7 +22,7 @@ import ../utils
 export blocktype
 
 type
-  BlockNotFoundError* = object of CodexError
+  BlockNotFoundError* = object of StorageError
 
   BlockType* {.pure.} = enum
     Manifest

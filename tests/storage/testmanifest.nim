@@ -1,10 +1,10 @@
 import pkg/chronos
 import pkg/questionable/results
-import pkg/codex/chunker
-import pkg/codex/blocktype as bt
-import pkg/codex/manifest
+import pkg/storage/chunker
+import pkg/storage/blocktype as bt
+import pkg/storage/manifest
 
-import pkg/codex/merkletree
+import pkg/storage/merkletree
 
 import ../asynctest
 import ./helpers

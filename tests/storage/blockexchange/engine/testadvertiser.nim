@@ -2,12 +2,12 @@ import pkg/chronos
 import pkg/libp2p/routing_record
 import pkg/codexdht/discv5/protocol as discv5
 
-import pkg/codex/blockexchange
-import pkg/codex/stores
-import pkg/codex/chunker
-import pkg/codex/discovery
-import pkg/codex/blocktype as bt
-import pkg/codex/manifest
+import pkg/storage/blockexchange
+import pkg/storage/stores
+import pkg/storage/chunker
+import pkg/storage/discovery
+import pkg/storage/blocktype as bt
+import pkg/storage/manifest
 
 import ../../../asynctest
 import ../../helpers

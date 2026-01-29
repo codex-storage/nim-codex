@@ -3,13 +3,13 @@ import std/sugar
 import pkg/chronos
 import pkg/libp2p/cid
 
-import pkg/codex/codextypes
-import pkg/codex/stores
-import pkg/codex/merkletree
-import pkg/codex/manifest
-import pkg/codex/blocktype as bt
-import pkg/codex/chunker
-import pkg/codex/rng
+import pkg/storage/storagetypes
+import pkg/storage/stores
+import pkg/storage/merkletree
+import pkg/storage/manifest
+import pkg/storage/blocktype as bt
+import pkg/storage/chunker
+import pkg/storage/rng
 import pkg/taskpools
 
 import ../helpers

@@ -1,4 +1,4 @@
-import pkg/codex/streams/storestream
+import pkg/storage/streams/storestream
 import pkg/unittest2
 
 # From lip2p/tests/helpers

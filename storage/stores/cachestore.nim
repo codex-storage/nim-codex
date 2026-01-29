@@ -30,7 +30,7 @@ import ../clock
 export blockstore
 
 logScope:
-  topics = "codex cachestore"
+  topics = "storage cachestore"
 
 type
   CacheStore* = ref object of BlockStore
@@ -40,7 +40,7 @@ type
     cidAndProofCache: LruCache[(Cid, Natural), (Cid, StorageMerkleProof)]
     cidAndProofCache: LruCache[(Cid, Natural), (Cid, StorageMerkleProof)]
 
-  InvalidBlockSize* = object of CodexError
+  InvalidBlockSize* = object of StorageError
 
 const DefaultCacheSize*: NBytes = 5.MiBs
 

@@ -27,10 +27,10 @@ import ./networkpeer
 export networkpeer
 
 logScope:
-  topics = "codex blockexcnetwork"
+  topics = "storage blockexcnetwork"
 
 const
-  Codec* = "/codex/blockexc/1.0.0"
+  Codec* = "/storage/blockexc/1.0.0"
   DefaultMaxInflight* = 100
 
 type

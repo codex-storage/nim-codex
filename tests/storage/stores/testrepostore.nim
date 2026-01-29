@@ -9,14 +9,14 @@ import pkg/chronos
 import pkg/stew/byteutils
 import pkg/datastore
 
-import pkg/codex/stores/cachestore
-import pkg/codex/chunker
-import pkg/codex/stores
-import pkg/codex/stores/repostore/operations
-import pkg/codex/blocktype as bt
-import pkg/codex/clock
-import pkg/codex/utils/safeasynciter
-import pkg/codex/merkletree
+import pkg/storage/stores/cachestore
+import pkg/storage/chunker
+import pkg/storage/stores
+import pkg/storage/stores/repostore/operations
+import pkg/storage/blocktype as bt
+import pkg/storage/clock
+import pkg/storage/utils/safeasynciter
+import pkg/storage/merkletree
 
 import ../../asynctest
 import ../helpers

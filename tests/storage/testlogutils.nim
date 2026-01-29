@@ -2,11 +2,11 @@ import std/options
 import std/strutils
 
 import pkg/unittest2
-import pkg/codex/blocktype
-import pkg/codex/conf
-import pkg/codex/logutils
-import pkg/codex/units
-import pkg/codex/utils/json
+import pkg/storage/blocktype
+import pkg/storage/conf
+import pkg/storage/logutils
+import pkg/storage/units
+import pkg/storage/utils/json
 import pkg/libp2p/cid
 import pkg/libp2p/multiaddress
 import pkg/questionable

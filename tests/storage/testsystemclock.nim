@@ -1,7 +1,7 @@
 import std/times
 
 import pkg/unittest2
-import pkg/codex/systemclock
+import pkg/storage/systemclock
 import ./helpers
 
 suite "SystemClock":

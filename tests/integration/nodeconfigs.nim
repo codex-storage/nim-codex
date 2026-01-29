@@ -1,5 +1,5 @@
 import pkg/questionable
-import ./codexconfig
+import ./storageconfig
 
 type NodeConfigs* = object
-  clients*: ?CodexConfigs
+  clients*: ?StorageConfigs

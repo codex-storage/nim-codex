@@ -16,7 +16,7 @@ import taskpools/channels_spsc_single
 import ./ffi_types
 import ./storage_thread_requests/[storage_thread_request]
 
-from ../codex/codex import CodexServer
+from ../storage/storage import StorageServer
 
 logScope:
   topics = "libstorage"
@@ -124,7 +124,7 @@ proc sendRequestToStorageThread*(
   ok()
 
 proc runStorage(ctx: ptr StorageContext) {.async: (raises: []).} =
-  var storage: CodexServer
+  var storage: StorageServer
 
   while true:
     try:

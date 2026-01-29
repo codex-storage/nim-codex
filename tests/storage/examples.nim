@@ -2,11 +2,11 @@ import std/random
 import std/sequtils
 import pkg/libp2p
 import pkg/stint
-import pkg/codex/rng
-import pkg/codex/stores
-import pkg/codex/blocktype as bt
-import pkg/codex/merkletree
-import pkg/codex/manifest
+import pkg/storage/rng
+import pkg/storage/stores
+import pkg/storage/blocktype as bt
+import pkg/storage/merkletree
+import pkg/storage/manifest
 import ../examples
 
 export examples

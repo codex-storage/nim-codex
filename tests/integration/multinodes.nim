@@ -4,20 +4,20 @@ import std/sequtils
 import std/strutils
 import std/sugar
 import std/times
-import pkg/codex/conf
-import pkg/codex/logutils
+import pkg/storage/conf
+import pkg/storage/logutils
 import pkg/chronos/transports/stream
 import pkg/questionable
-import ./codexconfig
-import ./codexprocess
+import ./storageconfig
+import ./storageprocess
 import ./nodeconfigs
 import ./utils
 import ../asynctest
 import ../checktest
 
 export asynctest
-export codexprocess
-export codexconfig
+export storageprocess
+export storageconfig
 export nodeconfigs
 
 {.push raises: [].}
@@ -34,12 +34,12 @@ type
   SuiteTimeoutError = object of MultiNodeSuiteError
 
 const HardhatPort {.intdefine.}: int = 8545
-const CodexApiPort {.intdefine.}: int = 8080
-const CodexDiscPort {.intdefine.}: int = 8090
+const StorageApiPort {.intdefine.}: int = 8080
+const StorageDiscPort {.intdefine.}: int = 8090
 const TestId {.strdefine.}: string = "TestId"
-const CodexLogToFile {.booldefine.}: bool = false
-const CodexLogLevel {.strdefine.}: string = ""
-const CodexLogsDir {.strdefine.}: string = ""
+const StorageLogToFile {.booldefine.}: bool = false
+const StorageLogLevel {.strdefine.}: string = ""
+const StorageLogsDir {.strdefine.}: string = ""
 
 proc raiseMultiNodeSuiteError(
     msg: string, parent: ref CatchableError = nil
@@ -77,9 +77,9 @@ template multinodesuite*(suiteName: string, body: untyped) =
     var nodeConfigs: NodeConfigs
     var snapshot: JsonNode
     var lastUsedHardhatPort = HardhatPort
-    var lastUsedCodexApiPort = CodexApiPort
-    var lastUsedCodexDiscPort = CodexDiscPort
-    var codexPortLock: AsyncLock
+    var lastUsedStorageApiPort = StorageApiPort
+    var lastUsedStorageDiscPort = StorageDiscPort
+    var storagePortLock: AsyncLock
 
     template test(tname, startNodeConfigs, tbody) =
       currentTestName = tname
@@ -91,18 +91,18 @@ template multinodesuite*(suiteName: string, body: untyped) =
       let parts = url.split(':')
       url = @[parts[0], parts[1], $port].join(":")
 
-    proc newCodexProcess(
-        roleIdx: int, conf: CodexConfig, role: Role
+    proc newStorageProcess(
+        roleIdx: int, conf: StorageConfig, role: Role
     ): Future[NodeProcess] {.async: (raises: [MultiNodeSuiteError, CancelledError]).} =
       let nodeIdx = running.len
       var config = conf
       let datadir = getDataDir(TestId, currentTestName, $starttime, $role, some roleIdx)
 
       try:
-        if config.logFile.isSome or CodexLogToFile:
+        if config.logFile.isSome or StorageLogToFile:
           try:
             let updatedLogFile = getLogFile(
-              CodexLogsDir, starttime, suiteName, currentTestName, $role, some roleIdx
+              StorageLogsDir, starttime, suiteName, currentTestName, $role, some roleIdx
             )
             config.withLogFile(updatedLogFile)
           except IOError as e:
@@ -118,17 +118,17 @@ template multinodesuite*(suiteName: string, body: untyped) =
               e,
             )
 
-        when CodexLogLevel != "":
-          config.addCliOption("--log-level", CodexLogLevel)
+        when StorageLogLevel != "":
+          config.addCliOption("--log-level", StorageLogLevel)
 
         var apiPort, discPort: int
-        withLock(codexPortLock):
-          apiPort = await nextFreePort(lastUsedCodexApiPort + nodeIdx)
-          discPort = await nextFreePort(lastUsedCodexDiscPort + nodeIdx)
+        withLock(storagePortLock):
+          apiPort = await nextFreePort(lastUsedStorageApiPort + nodeIdx)
+          discPort = await nextFreePort(lastUsedStorageDiscPort + nodeIdx)
           config.addCliOption("--api-port", $apiPort)
           config.addCliOption("--disc-port", $discPort)
-          lastUsedCodexApiPort = apiPort
-          lastUsedCodexDiscPort = discPort
+          lastUsedStorageApiPort = apiPort
+          lastUsedStorageDiscPort = discPort
 
         for bootstrapNode in bootstrapNodes:
           config.addCliOption("--bootstrap-node", bootstrapNode)
@@ -136,30 +136,30 @@ template multinodesuite*(suiteName: string, body: untyped) =
         config.addCliOption("--data-dir", datadir)
         config.addCliOption("--nat", "none")
         config.addCliOption("--listen-addrs", "/ip4/127.0.0.1/tcp/0")
-      except CodexConfigError as e:
+      except StorageConfigError as e:
         raiseMultiNodeSuiteError "invalid cli option, error: " & e.msg
 
       try:
-        let node = await CodexProcess.startNode(
+        let node = await StorageProcess.startNode(
           config.cliArgs, config.debugEnabled, $role & $roleIdx
         )
         await node.waitUntilStarted()
         trace "node started", nodeName = $role & $roleIdx
         return node
-      except CodexConfigError as e:
+      except StorageConfigError as e:
         raiseMultiNodeSuiteError "failed to get cli args from config: " & e.msg, e
       except NodeProcessError as e:
         raiseMultiNodeSuiteError "node not started, error: " & e.msg, e
 
-    proc clients(): seq[CodexProcess] {.used.} =
+    proc clients(): seq[StorageProcess] {.used.} =
       return collect:
         for r in running:
           if r.role == Role.Client:
-            CodexProcess(r.node)
+            StorageProcess(r.node)
 
-    proc startClientNode(conf: CodexConfig): Future[NodeProcess] {.async.} =
+    proc startClientNode(conf: StorageConfig): Future[NodeProcess] {.async.} =
       let clientIdx = clients().len
-      return await newCodexProcess(clientIdx, conf, Role.Client)
+      return await newStorageProcess(clientIdx, conf, Role.Client)
 
     proc teardownImpl() {.async.} =
       for nodes in @[clients()]:
@@ -167,7 +167,7 @@ template multinodesuite*(suiteName: string, body: untyped) =
           await node.stop() # also stops rest client
           try:
             node.removeDataDir()
-          except CodexProcessError as e:
+          except StorageProcessError as e:
             error "Failed to remove data dir during teardown", error = e.msg
 
       running = @[]
@@ -191,7 +191,7 @@ template multinodesuite*(suiteName: string, body: untyped) =
         quit(1)
 
     proc updateBootstrapNodes(
-        node: CodexProcess
+        node: StorageProcess
     ): Future[void] {.async: (raises: [MultiNodeSuiteError]).} =
       try:
         without ninfo =? await node.client.info():
@@ -206,9 +206,9 @@ template multinodesuite*(suiteName: string, body: untyped) =
       # When this file is run with `-d:chronicles_sinks=textlines[file]`, we
       # need to set the log file path at runtime, otherwise chronicles didn't seem to
       # create a log file even when using an absolute path
-      when defaultChroniclesStream.outputs is (FileOutput,) and CodexLogsDir.len > 0:
+      when defaultChroniclesStream.outputs is (FileOutput,) and StorageLogsDir.len > 0:
         let logFile =
-          CodexLogsDir / sanitize(getAppFilename().extractFilename & ".chronicles.log")
+          StorageLogsDir / sanitize(getAppFilename().extractFilename & ".chronicles.log")
         let success = defaultChroniclesStream.outputs[0].open(logFile, fmAppend)
         doAssert success, "Failed to open log file: " & logFile
 
@@ -219,7 +219,7 @@ template multinodesuite*(suiteName: string, body: untyped) =
           for config in clients.configs:
             let node = await startClientNode(config)
             running.add RunningNode(role: Role.Client, node: node)
-            await CodexProcess(node).updateBootstrapNodes()
+            await StorageProcess(node).updateBootstrapNodes()
 
     teardown:
       await teardownImpl()

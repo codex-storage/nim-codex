@@ -1,4 +1,4 @@
-import pkg/codex/merkletree
+import pkg/storage/merkletree
 import ../helpers
 
 export merkletree, helpers

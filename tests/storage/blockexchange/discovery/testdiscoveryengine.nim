@@ -3,14 +3,14 @@ import std/tables
 
 import pkg/chronos
 
-import pkg/codex/rng
-import pkg/codex/stores
-import pkg/codex/blockexchange
-import pkg/codex/chunker
-import pkg/codex/blocktype as bt
-import pkg/codex/blockexchange/engine
-import pkg/codex/manifest
-import pkg/codex/merkletree
+import pkg/storage/rng
+import pkg/storage/stores
+import pkg/storage/blockexchange
+import pkg/storage/chunker
+import pkg/storage/blocktype as bt
+import pkg/storage/blockexchange/engine
+import pkg/storage/manifest
+import pkg/storage/merkletree
 
 import ../../../asynctest
 import ../../helpers

@@ -6,18 +6,18 @@ import pkg/taskpools
 import pkg/libp2p
 import pkg/libp2p/errors
 
-import pkg/codex/discovery
-import pkg/codex/stores
-import pkg/codex/blocktype as bt
-import pkg/codex/blockexchange
-import pkg/codex/systemclock
-import pkg/codex/nat
-import pkg/codex/utils/natutils
-import pkg/codex/utils/safeasynciter
-import pkg/codex/merkletree
-import pkg/codex/manifest
+import pkg/storage/discovery
+import pkg/storage/stores
+import pkg/storage/blocktype as bt
+import pkg/storage/blockexchange
+import pkg/storage/systemclock
+import pkg/storage/nat
+import pkg/storage/utils/natutils
+import pkg/storage/utils/safeasynciter
+import pkg/storage/merkletree
+import pkg/storage/manifest
 
-import pkg/codex/node
+import pkg/storage/node
 
 import ./datasetutils
 import ./mockdiscovery
@@ -49,7 +49,7 @@ type
     discovery*: DiscoveryEngine
     engine*: BlockExcEngine
     networkStore*: NetworkStore
-    node*: CodexNodeRef = nil
+    node*: StorageNodeRef = nil
     tempDbs*: seq[TempLevelDb] = @[]
 
   NodesCluster* = ref object
@@ -85,7 +85,7 @@ converter toTuple*(
 converter toComponents*(cluster: NodesCluster): seq[NodesComponents] =
   cluster.components
 
-proc nodes*(cluster: NodesCluster): seq[CodexNodeRef] =
+proc nodes*(cluster: NodesCluster): seq[StorageNodeRef] =
   cluster.components.filterIt(it.node != nil).mapIt(it.node)
 
 proc localStores*(cluster: NodesCluster): seq[BlockStore] =
@@ -209,7 +209,7 @@ proc generateNodes*(
 
     let node =
       if config.createFullNode:
-        let fullNode = CodexNodeRef.new(
+        let fullNode = StorageNodeRef.new(
           switch = switch,
           networkStore = networkStore,
           engine = engine,
@@ -321,7 +321,7 @@ proc linearTopology*(nodes: seq[NodesComponents]) {.async.} =
 proc downloadDataset*(
     node: NodesComponents, dataset: TestDataset
 ): Future[void] {.async.} =
-  # This is the same as fetchBatched, but we don't construct CodexNodes so I can't use
+  # This is the same as fetchBatched, but we don't construct StorageNodes so I can't use
   # it here.
   let requestAddresses = collect:
     for i in 0 ..< dataset.manifest.blocksCount:

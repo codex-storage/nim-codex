@@ -14,19 +14,19 @@ import pkg/taskpools
 
 import pkg/codexdht/discv5/protocol as discv5
 
-import pkg/codex/logutils
-import pkg/codex/stores
-import pkg/codex/clock
-import pkg/codex/systemclock
-import pkg/codex/blockexchange
-import pkg/codex/chunker
-import pkg/codex/manifest
-import pkg/codex/discovery
-import pkg/codex/merkletree
-import pkg/codex/blocktype as bt
-import pkg/codex/rng
+import pkg/storage/logutils
+import pkg/storage/stores
+import pkg/storage/clock
+import pkg/storage/systemclock
+import pkg/storage/blockexchange
+import pkg/storage/chunker
+import pkg/storage/manifest
+import pkg/storage/discovery
+import pkg/storage/merkletree
+import pkg/storage/blocktype as bt
+import pkg/storage/rng
 
-import pkg/codex/node {.all.}
+import pkg/storage/node {.all.}
 
 import ../../asynctest
 import ../examples
@@ -36,7 +36,7 @@ import ../slots/helpers
 
 import ./helpers
 
-privateAccess(CodexNodeRef) # enable access to private fields
+privateAccess(StorageNodeRef) # enable access to private fields
 
 asyncchecksuite "Test Node - Basic":
   setupAndTearDown()

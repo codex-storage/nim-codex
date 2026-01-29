@@ -7,12 +7,12 @@ import pkg/libp2p
 import std/os
 import std/strformat
 import std/strutils
-import codex/conf
-import codex/utils/exceptions
-import codex/utils/trackedfutures
-import ./codexclient
+import storage/conf
+import storage/utils/exceptions
+import storage/utils/trackedfutures
+import ./storageclient
 
-export codexclient
+export storageclient
 export chronicles
 
 {.push raises: [].}

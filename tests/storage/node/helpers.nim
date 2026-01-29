@@ -3,9 +3,9 @@ import std/times
 
 import pkg/libp2p
 import pkg/chronos
-import pkg/codex/codextypes
-import pkg/codex/chunker
-import pkg/codex/stores
+import pkg/storage/storagetypes
+import pkg/storage/chunker
+import pkg/storage/stores
 import pkg/taskpools
 
 import ../../asynctest
@@ -71,7 +71,7 @@ template setupAndTearDown*() {.dirty.} =
     localStoreMetaDs: Datastore
     engine: BlockExcEngine
     store: NetworkStore
-    node: CodexNodeRef
+    node: StorageNodeRef
     blockDiscovery: Discovery
     peerStore: PeerCtxStore
     pendingBlocks: PendingBlocksManager
@@ -110,7 +110,7 @@ template setupAndTearDown*() {.dirty.} =
       localStore, network, discovery, advertiser, peerStore, pendingBlocks
     )
     store = NetworkStore.new(engine, localStore)
-    node = CodexNodeRef.new(
+    node = StorageNodeRef.new(
       switch = switch,
       networkStore = store,
       engine = engine,

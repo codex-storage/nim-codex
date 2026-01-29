@@ -5,8 +5,8 @@ import std/strutils
 import std/sugar
 import std/tables
 from pkg/chronicles import LogLevel
-import pkg/codex/conf
-import pkg/codex/units
+import pkg/storage/conf
+import pkg/storage/units
 import pkg/confutils
 import pkg/confutils/defs
 import libp2p except setup
@@ -17,39 +17,39 @@ export clioption
 export confutils
 
 type
-  CodexConfigs* = object
-    configs*: seq[CodexConfig]
+  StorageConfigs* = object
+    configs*: seq[StorageConfig]
 
-  CodexConfig* = object
+  StorageConfig* = object
     cliOptions: Table[StartUpCmd, Table[string, CliOption]]
     debugEnabled*: bool
 
-  CodexConfigError* = object of CatchableError
+  StorageConfigError* = object of CatchableError
 
-proc cliArgs*(config: CodexConfig): seq[string] {.gcsafe, raises: [CodexConfigError].}
+proc cliArgs*(config: StorageConfig): seq[string] {.gcsafe, raises: [StorageConfigError].}
 
-proc raiseCodexConfigError(msg: string) {.raises: [CodexConfigError].} =
-  raise newException(CodexConfigError, msg)
+proc raiseStorageConfigError(msg: string) {.raises: [StorageConfigError].} =
+  raise newException(StorageConfigError, msg)
 
 template convertError(body) =
   try:
     body
   except CatchableError as e:
-    raiseCodexConfigError e.msg
+    raiseStorageConfigError e.msg
 
-proc init*(_: type CodexConfigs, nodes = 1): CodexConfigs {.raises: [].} =
-  CodexConfigs(configs: newSeq[CodexConfig](nodes))
+proc init*(_: type StorageConfigs, nodes = 1): StorageConfigs {.raises: [].} =
+  StorageConfigs(configs: newSeq[StorageConfig](nodes))
 
-func nodes*(self: CodexConfigs): int =
+func nodes*(self: StorageConfigs): int =
   self.configs.len
 
-proc checkBounds(self: CodexConfigs, idx: int) {.raises: [CodexConfigError].} =
+proc checkBounds(self: StorageConfigs, idx: int) {.raises: [StorageConfigError].} =
   if idx notin 0 ..< self.configs.len:
-    raiseCodexConfigError "index must be in bounds of the number of nodes"
+    raiseStorageConfigError "index must be in bounds of the number of nodes"
 
 proc buildConfig(
-    config: CodexConfig, msg: string
-): CodexConf {.raises: [CodexConfigError].} =
+    config: StorageConfig, msg: string
+): StorageConf {.raises: [StorageConfigError].} =
   proc postFix(msg: string): string =
     if msg.len > 0:
       ": " & msg
@@ -57,38 +57,38 @@ proc buildConfig(
       ""
 
   try:
-    return CodexConf.load(cmdLine = config.cliArgs, quitOnFailure = false)
+    return StorageConf.load(cmdLine = config.cliArgs, quitOnFailure = false)
   except ConfigurationError as e:
-    raiseCodexConfigError msg & e.msg.postFix
+    raiseStorageConfigError msg & e.msg.postFix
   except Exception as e:
     ## TODO: remove once proper exception handling added to nim-confutils
-    raiseCodexConfigError msg & e.msg.postFix
+    raiseStorageConfigError msg & e.msg.postFix
 
 proc addCliOption*(
-    config: var CodexConfig, group = StartUpCmd.noCmd, cliOption: CliOption
-) {.raises: [CodexConfigError].} =
+    config: var StorageConfig, group = StartUpCmd.noCmd, cliOption: CliOption
+) {.raises: [StorageConfigError].} =
   var options = config.cliOptions.getOrDefault(group)
   options[cliOption.key] = cliOption # overwrite if already exists
   config.cliOptions[group] = options
   discard config.buildConfig("Invalid cli arg " & $cliOption)
 
 proc addCliOption*(
-    config: var CodexConfig, group = StartUpCmd.noCmd, key: string, value = ""
-) {.raises: [CodexConfigError].} =
+    config: var StorageConfig, group = StartUpCmd.noCmd, key: string, value = ""
+) {.raises: [StorageConfigError].} =
   config.addCliOption(group, CliOption(key: key, value: value))
 
 proc addCliOption*(
-    config: var CodexConfig, cliOption: CliOption
-) {.raises: [CodexConfigError].} =
+    config: var StorageConfig, cliOption: CliOption
+) {.raises: [StorageConfigError].} =
   config.addCliOption(StartUpCmd.noCmd, cliOption)
 
 proc addCliOption*(
-    config: var CodexConfig, key: string, value = ""
-) {.raises: [CodexConfigError].} =
+    config: var StorageConfig, key: string, value = ""
+) {.raises: [StorageConfigError].} =
   config.addCliOption(StartUpCmd.noCmd, CliOption(key: key, value: value))
 
-proc cliArgs*(config: CodexConfig): seq[string] {.gcsafe, raises: [CodexConfigError].} =
-  ## converts CodexConfig cli options and command groups in a sequence of args
+proc cliArgs*(config: StorageConfig): seq[string] {.gcsafe, raises: [StorageConfigError].} =
+  ## converts StorageConfig cli options and command groups in a sequence of args
   ## and filters out cli options by node index if provided in the CliOption
   var args: seq[string] = @[]
 
@@ -102,18 +102,18 @@ proc cliArgs*(config: CodexConfig): seq[string] {.gcsafe, raises: [CodexConfigEr
 
     return args
 
-proc logFile*(config: CodexConfig): ?string {.raises: [CodexConfigError].} =
-  let built = config.buildConfig("Invalid codex config cli params")
+proc logFile*(config: StorageConfig): ?string {.raises: [StorageConfigError].} =
+  let built = config.buildConfig("Invalid storage config cli params")
   built.logFile
 
-proc logLevel*(config: CodexConfig): LogLevel {.raises: [CodexConfigError].} =
+proc logLevel*(config: StorageConfig): LogLevel {.raises: [StorageConfigError].} =
   convertError:
-    let built = config.buildConfig("Invalid codex config cli params")
+    let built = config.buildConfig("Invalid storage config cli params")
     return parseEnum[LogLevel](built.logLevel.toUpperAscii)
 
 proc debug*(
-    self: CodexConfigs, idx: int, enabled = true
-): CodexConfigs {.raises: [CodexConfigError].} =
+    self: StorageConfigs, idx: int, enabled = true
+): StorageConfigs {.raises: [StorageConfigError].} =
   ## output log in stdout for a specific node in the group
 
   self.checkBounds idx
@@ -122,7 +122,7 @@ proc debug*(
   startConfig.configs[idx].debugEnabled = enabled
   return startConfig
 
-proc debug*(self: CodexConfigs, enabled = true): CodexConfigs {.raises: [].} =
+proc debug*(self: StorageConfigs, enabled = true): StorageConfigs {.raises: [].} =
   ## output log in stdout for all nodes in group
   var startConfig = self
   for config in startConfig.configs.mitems:
@@ -130,15 +130,15 @@ proc debug*(self: CodexConfigs, enabled = true): CodexConfigs {.raises: [].} =
   return startConfig
 
 proc withLogFile*(
-    self: CodexConfigs, idx: int
-): CodexConfigs {.raises: [CodexConfigError].} =
+    self: StorageConfigs, idx: int
+): StorageConfigs {.raises: [StorageConfigError].} =
   self.checkBounds idx
 
   var startConfig = self
   startConfig.configs[idx].addCliOption("--log-file", "<updated_in_test>")
   return startConfig
 
-proc withLogFile*(self: CodexConfigs): CodexConfigs {.raises: [CodexConfigError].} =
+proc withLogFile*(self: StorageConfigs): StorageConfigs {.raises: [StorageConfigError].} =
   ## typically called from test, sets config such that a log file should be
   ## created
   var startConfig = self
@@ -147,9 +147,9 @@ proc withLogFile*(self: CodexConfigs): CodexConfigs {.raises: [CodexConfigError]
   return startConfig
 
 proc withLogFile*(
-    self: var CodexConfig, logFile: string
-) {.raises: [CodexConfigError].} =
-  #: CodexConfigs =
+    self: var StorageConfig, logFile: string
+) {.raises: [StorageConfigError].} =
+  #: StorageConfigs =
   ## typically called internally from the test suite, sets a log file path to
   ## be created during the test run, for a specified node in the group
   # var config = self
@@ -157,15 +157,15 @@ proc withLogFile*(
   # return startConfig
 
 proc withLogLevel*(
-    self: CodexConfig, level: LogLevel | string
-): CodexConfig {.raises: [CodexConfigError].} =
+    self: StorageConfig, level: LogLevel | string
+): StorageConfig {.raises: [StorageConfigError].} =
   var config = self
   config.addCliOption("--log-level", $level)
   return config
 
 proc withLogLevel*(
-    self: CodexConfigs, idx: int, level: LogLevel | string
-): CodexConfigs {.raises: [CodexConfigError].} =
+    self: StorageConfigs, idx: int, level: LogLevel | string
+): StorageConfigs {.raises: [StorageConfigError].} =
   self.checkBounds idx
 
   var startConfig = self
@@ -173,23 +173,23 @@ proc withLogLevel*(
   return startConfig
 
 proc withLogLevel*(
-    self: CodexConfigs, level: LogLevel | string
-): CodexConfigs {.raises: [CodexConfigError].} =
+    self: StorageConfigs, level: LogLevel | string
+): StorageConfigs {.raises: [StorageConfigError].} =
   var startConfig = self
   for config in startConfig.configs.mitems:
     config.addCliOption("--log-level", $level)
   return startConfig
 
 proc withBlockTtl*(
-    self: CodexConfig, ttl: int
-): CodexConfig {.raises: [CodexConfigError].} =
+    self: StorageConfig, ttl: int
+): StorageConfig {.raises: [StorageConfigError].} =
   var config = self
   config.addCliOption("--block-ttl", $ttl)
   return config
 
 proc withBlockTtl*(
-    self: CodexConfigs, idx: int, ttl: int
-): CodexConfigs {.raises: [CodexConfigError].} =
+    self: StorageConfigs, idx: int, ttl: int
+): StorageConfigs {.raises: [StorageConfigError].} =
   self.checkBounds idx
 
   var startConfig = self
@@ -197,23 +197,23 @@ proc withBlockTtl*(
   return startConfig
 
 proc withBlockTtl*(
-    self: CodexConfigs, ttl: int
-): CodexConfigs {.raises: [CodexConfigError].} =
+    self: StorageConfigs, ttl: int
+): StorageConfigs {.raises: [StorageConfigError].} =
   var startConfig = self
   for config in startConfig.configs.mitems:
     config.addCliOption("--block-ttl", $ttl)
   return startConfig
 
 proc withBlockMaintenanceInterval*(
-    self: CodexConfig, interval: int
-): CodexConfig {.raises: [CodexConfigError].} =
+    self: StorageConfig, interval: int
+): StorageConfig {.raises: [StorageConfigError].} =
   var config = self
   config.addCliOption("--block-mi", $interval)
   return config
 
 proc withBlockMaintenanceInterval*(
-    self: CodexConfigs, idx: int, interval: int
-): CodexConfigs {.raises: [CodexConfigError].} =
+    self: StorageConfigs, idx: int, interval: int
+): StorageConfigs {.raises: [StorageConfigError].} =
   self.checkBounds idx
 
   var startConfig = self
@@ -221,26 +221,26 @@ proc withBlockMaintenanceInterval*(
   return startConfig
 
 proc withBlockMaintenanceInterval*(
-    self: CodexConfigs, interval: int
-): CodexConfigs {.raises: [CodexConfigError].} =
+    self: StorageConfigs, interval: int
+): StorageConfigs {.raises: [StorageConfigError].} =
   var startConfig = self
   for config in startConfig.configs.mitems:
     config.addCliOption("--block-mi", $interval)
   return startConfig
 
 proc logLevelWithTopics(
-    config: CodexConfig, topics: varargs[string]
-): string {.raises: [CodexConfigError].} =
+    config: StorageConfig, topics: varargs[string]
+): string {.raises: [StorageConfigError].} =
   convertError:
     var logLevel = LogLevel.INFO
-    let built = config.buildConfig("Invalid codex config cli params")
+    let built = config.buildConfig("Invalid storage config cli params")
     logLevel = parseEnum[LogLevel](built.logLevel.toUpperAscii)
     let level = $logLevel & ";TRACE: " & topics.join(",")
     return level
 
 proc withLogTopics*(
-    self: CodexConfigs, idx: int, topics: varargs[string]
-): CodexConfigs {.raises: [CodexConfigError].} =
+    self: StorageConfigs, idx: int, topics: varargs[string]
+): StorageConfigs {.raises: [StorageConfigError].} =
   self.checkBounds idx
 
   convertError:
@@ -250,8 +250,8 @@ proc withLogTopics*(
     return startConfig.withLogLevel(idx, level)
 
 proc withLogTopics*(
-    self: CodexConfigs, topics: varargs[string]
-): CodexConfigs {.raises: [CodexConfigError].} =
+    self: StorageConfigs, topics: varargs[string]
+): StorageConfigs {.raises: [StorageConfigError].} =
   var startConfig = self
   for config in startConfig.configs.mitems:
     let level = config.logLevelWithTopics(topics)
@@ -259,8 +259,8 @@ proc withLogTopics*(
   return startConfig
 
 proc withStorageQuota*(
-    self: CodexConfigs, idx: int, quota: NBytes
-): CodexConfigs {.raises: [CodexConfigError].} =
+    self: StorageConfigs, idx: int, quota: NBytes
+): StorageConfigs {.raises: [StorageConfigError].} =
   self.checkBounds idx
 
   var startConfig = self
@@ -268,8 +268,8 @@ proc withStorageQuota*(
   return startConfig
 
 proc withStorageQuota*(
-    self: CodexConfigs, quota: NBytes
-): CodexConfigs {.raises: [CodexConfigError].} =
+    self: StorageConfigs, quota: NBytes
+): StorageConfigs {.raises: [StorageConfigError].} =
   var startConfig = self
   for config in startConfig.configs.mitems:
     config.addCliOption("--storage-quota", $quota)

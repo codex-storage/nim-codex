@@ -35,7 +35,7 @@ import pkg/questionable
 import pkg/questionable/results
 import pkg/stew/base64
 
-import ./codextypes
+import ./storagetypes
 import ./discovery
 import ./logutils
 import ./stores
@@ -46,7 +46,7 @@ import ./utils/natutils
 
 from ./blockexchange/engine/pendingblocks import DefaultBlockRetries
 
-export units, net, codextypes, logutils, completeCmdArg, parseCmdArg, NatConfig
+export units, net, storagetypes, logutils, completeCmdArg, parseCmdArg, NatConfig
 
 export
   DefaultQuotaBytes, DefaultBlockTtl, DefaultBlockInterval, DefaultNumBlocksPerInterval,
@@ -90,7 +90,7 @@ type
     repoSQLite = "sqlite"
     repoLevelDb = "leveldb"
 
-  CodexConf* = object
+  StorageConf* = object
     configFile* {.
       desc: "Loads the configuration from a TOML file",
       defaultValueDesc: "none",
@@ -277,19 +277,19 @@ type
       desc: "Logs to file", defaultValue: string.none, name: "log-file", hidden
     .}: Option[string]
 
-func defaultAddress*(conf: CodexConf): IpAddress =
+func defaultAddress*(conf: StorageConf): IpAddress =
   result = static parseIpAddress("127.0.0.1")
 
 func defaultNatConfig*(): NatConfig =
   result = NatConfig(hasExtIp: false, nat: NatStrategy.NatAny)
 
-proc getCodexVersion(): string =
+proc getStorageVersion(): string =
   let tag = strip(staticExec("git describe --tags --abbrev=0"))
   if tag.isEmptyOrWhitespace:
     return "untagged build"
   return tag
 
-proc getCodexRevision(): string =
+proc getStorageRevision(): string =
   # using a slice in a static context breaks nimsuggest for some reason
   var res = strip(staticExec("git rev-parse --short HEAD"))
   return res
@@ -298,12 +298,12 @@ proc getNimBanner(): string =
   staticExec("nim --version | grep Version")
 
 const
-  codexVersion* = getCodexVersion()
-  codexRevision* = getCodexRevision()
+  storageVersion* = getStorageVersion()
+  storageRevision* = getStorageRevision()
   nimBanner* = getNimBanner()
 
-  codexFullVersion* =
-    "Storage version:  " & codexVersion & "\p" & "Storage revision: " & codexRevision &
+  storageFullVersion* =
+    "Storage version:  " & storageVersion & "\p" & "Storage revision: " & storageRevision &
     "\p"
 
 proc parseCmdArg*(
@@ -533,7 +533,7 @@ proc updateLogLevel*(logLevel: string) {.raises: [ValueError].} =
       if not setTopicState(topicName, settings.state, settings.logLevel):
         warn "Unrecognized logging topic", topic = topicName
 
-proc setupLogging*(conf: CodexConf) =
+proc setupLogging*(conf: StorageConf) =
   when defaultChroniclesStream.outputs.type.arity != 3:
     warn "Logging configuration options not enabled in the current build"
   else:
@@ -597,7 +597,7 @@ proc setupLogging*(conf: CodexConf) =
     else:
       defaultChroniclesStream.outputs[0].writer = writer
 
-proc setupMetrics*(config: CodexConf) =
+proc setupMetrics*(config: StorageConf) =
   if config.metricsEnabled:
     let metricsAddress = config.metricsAddress
     notice "Starting metrics HTTP server",

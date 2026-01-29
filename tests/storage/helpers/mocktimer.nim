@@ -9,7 +9,7 @@
 
 import pkg/chronos
 
-import codex/utils/timer
+import storage/utils/timer
 
 type MockTimer* = ref object of Timer
   startCalled*: int

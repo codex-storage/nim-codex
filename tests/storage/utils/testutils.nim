@@ -1,6 +1,6 @@
 import pkg/unittest2
 
-import pkg/codex/utils
+import pkg/storage/utils
 
 suite "findIt":
   setup:

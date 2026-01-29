@@ -18,36 +18,36 @@ import pkg/confutils/toml/std/uri as confTomlUri
 import pkg/toml_serialization
 import pkg/libp2p
 
-import ./codex/conf
-import ./codex/codex
-import ./codex/logutils
-import ./codex/units
-import ./codex/utils/keyutils
-import ./codex/codextypes
+import ./storage/conf
+import ./storage/storage
+import ./storage/logutils
+import ./storage/units
+import ./storage/utils/keyutils
+import ./storage/storagetypes
 
-export codex, conf, libp2p, chronos, logutils
+export storage, conf, libp2p, chronos, logutils
 
 when isMainModule:
   import std/os
   import pkg/confutils/defs
-  import ./codex/utils/fileutils
+  import ./storage/utils/fileutils
 
   logScope:
-    topics = "codex"
+    topics = "storage"
 
   when defined(posix):
     import system/ansi_c
 
-  type CodexStatus {.pure.} = enum
+  type StorageStatus {.pure.} = enum
     Stopped
     Stopping
     Running
 
-  let config = CodexConf.load(
-    version = codexFullVersion,
+  let config = StorageConf.load(
+    version = storageFullVersion,
     envVarsPrefix = "storage",
     secondarySources = proc(
-        config: CodexConf, sources: auto
+        config: StorageConf, sources: auto
     ) {.gcsafe, raises: [ConfigurationError].} =
       if configFile =? config.configFile:
         sources.addConfigFile(Toml, configFile)
@@ -81,7 +81,7 @@ when isMainModule:
   trace "Repo dir initialized", dir = config.dataDir / "repo"
 
   var
-    state: CodexStatus
+    state: StorageStatus
     shutdown: Future[void]
 
   let
@@ -94,7 +94,7 @@ when isMainModule:
     privateKey = setupKey(keyPath).expect("Should setup private key!")
     server =
       try:
-        CodexServer.new(config, privateKey)
+        StorageServer.new(config, privateKey)
       except Exception as exc:
         error "Failed to start Logos Storage", msg = exc.msg
         quit QuitFailure
@@ -102,7 +102,7 @@ when isMainModule:
   ## Ctrl+C handling
   proc doShutdown() =
     shutdown = server.shutdown()
-    state = CodexStatus.Stopping
+    state = StorageStatus.Stopping
 
     notice "Stopping Logos Storage"
 
@@ -142,8 +142,8 @@ when isMainModule:
     #   had a chance to start (currently you'll get a SISGSEV if you try to).
     quit QuitFailure
 
-  state = CodexStatus.Running
-  while state == CodexStatus.Running:
+  state = StorageStatus.Running
+  while state == StorageStatus.Running:
     try:
       # poll chronos
       chronos.poll()

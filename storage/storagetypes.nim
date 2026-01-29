@@ -30,11 +30,11 @@ const
   # hashes
   Sha256HashCodec* = multiCodec("sha2-256")
 
-  ManifestCodec* = multiCodec("codex-manifest")
-  DatasetRootCodec* = multiCodec("codex-root")
-  BlockCodec* = multiCodec("codex-block")
+  ManifestCodec* = multiCodec("storage-manifest")
+  DatasetRootCodec* = multiCodec("storage-root")
+  BlockCodec* = multiCodec("storage-block")
 
-  CodexPrimitivesCodecs* = [ManifestCodec, DatasetRootCodec, BlockCodec]
+  StoragePrimitivesCodecs* = [ManifestCodec, DatasetRootCodec, BlockCodec]
 
 proc initEmptyCidTable(): ?!Table[(CidVersion, MultiCodec, MultiCodec), Cid] =
   ## Initialize padding blocks table

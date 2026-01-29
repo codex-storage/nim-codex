@@ -12,9 +12,9 @@ import std/sequtils
 import pkg/chronos
 import pkg/questionable/results
 import pkg/libp2p
-import pkg/codex/blocktype as bt
-import pkg/codex/stores/repostore
-import pkg/codex/clock
+import pkg/storage/blocktype as bt
+import pkg/storage/stores/repostore
+import pkg/storage/clock
 
 import ../../asynctest
 import ../helpers/mocktimer
@@ -22,8 +22,8 @@ import ../helpers/mockrepostore
 import ../helpers/mockclock
 import ../examples
 
-import codex/namespaces
-import codex/stores/keyutils
+import storage/namespaces
+import storage/stores/keyutils
 
 proc createManifestCid(): ?!Cid =
   let
@@ -49,7 +49,7 @@ suite "KeyUtils":
 
     check:
       namespaces.len == 4
-      namespaces[0].value == CodexRepoNamespace
+      namespaces[0].value == StorageRepoNamespace
       namespaces[1].value == "blocks"
       namespaces[2].value == expectedPrefix
       namespaces[3].value == expectedPostfix
@@ -65,7 +65,7 @@ suite "KeyUtils":
 
     check:
       namespaces.len == 4
-      namespaces[0].value == CodexRepoNamespace
+      namespaces[0].value == StorageRepoNamespace
       namespaces[1].value == "manifests"
       namespaces[2].value == expectedPrefix
       namespaces[3].value == expectedPostfix
@@ -78,7 +78,7 @@ suite "KeyUtils":
 
     check:
       namespaces.len == 3
-      namespaces[0].value == CodexMetaNamespace
+      namespaces[0].value == StorageMetaNamespace
       namespaces[1].value == "ttl"
       namespaces[2].value == $cid
 
@@ -88,6 +88,6 @@ suite "KeyUtils":
 
     check:
       namespaces.len == 3
-      namespaces[0].value == CodexMetaNamespace
+      namespaces[0].value == StorageMetaNamespace
       namespaces[1].value == "ttl"
       namespaces[2].value == "*"

@@ -4,27 +4,27 @@ from pkg/libp2p import Cid, `$`, init
 import pkg/stint
 import pkg/questionable/results
 import pkg/chronos/apps/http/[httpserver, shttpserver, httpclient, httptable]
-import pkg/codex/logutils
-import pkg/codex/rest/json
-import pkg/codex/errors
+import pkg/storage/logutils
+import pkg/storage/rest/json
+import pkg/storage/errors
 
 export httptable, httpclient
 
-type CodexClient* = ref object
+type StorageClient* = ref object
   baseurl: string
   session: HttpSessionRef
 
 type HasBlockResponse = object
   has: bool
 
-proc new*(_: type CodexClient, baseurl: string): CodexClient =
-  CodexClient(session: HttpSessionRef.new(), baseurl: baseurl)
+proc new*(_: type StorageClient, baseurl: string): StorageClient =
+  StorageClient(session: HttpSessionRef.new(), baseurl: baseurl)
 
-proc close*(self: CodexClient): Future[void] {.async: (raises: []).} =
+proc close*(self: StorageClient): Future[void] {.async: (raises: []).} =
   await self.session.closeWait()
 
 proc request(
-    self: CodexClient,
+    self: StorageClient,
     httpMethod: httputils.HttpMethod,
     url: string,
     body: openArray[char] = [],
@@ -46,7 +46,7 @@ proc request(
     .send()
 
 proc post*(
-    self: CodexClient,
+    self: StorageClient,
     url: string,
     body: string = "",
     headers: seq[HttpHeaderTuple] = @[],
@@ -56,21 +56,21 @@ proc post*(
   return self.request(MethodPost, url, headers = headers, body = body)
 
 proc get(
-    self: CodexClient, url: string, headers: seq[HttpHeaderTuple] = @[]
+    self: StorageClient, url: string, headers: seq[HttpHeaderTuple] = @[]
 ): Future[HttpClientResponseRef] {.
     async: (raw: true, raises: [CancelledError, HttpError])
 .} =
   return self.request(MethodGet, url, headers = headers)
 
 proc delete(
-    self: CodexClient, url: string, headers: seq[HttpHeaderTuple] = @[]
+    self: StorageClient, url: string, headers: seq[HttpHeaderTuple] = @[]
 ): Future[HttpClientResponseRef] {.
     async: (raw: true, raises: [CancelledError, HttpError])
 .} =
   return self.request(MethodDelete, url, headers = headers)
 
 proc patch*(
-    self: CodexClient,
+    self: StorageClient,
     url: string,
     body: string = "",
     headers: seq[HttpHeaderTuple] = @[],
@@ -85,19 +85,19 @@ proc body*(
   return bytesToString (await response.getBodyBytes())
 
 proc getContent(
-    client: CodexClient, url: string, headers: seq[HttpHeaderTuple] = @[]
+    client: StorageClient, url: string, headers: seq[HttpHeaderTuple] = @[]
 ): Future[string] {.async: (raises: [CancelledError, HttpError]).} =
   let response = await client.get(url, headers)
   return await response.body
 
 proc info*(
-    client: CodexClient
+    client: StorageClient
 ): Future[?!JsonNode] {.async: (raises: [CancelledError, HttpError]).} =
   let response = await client.get(client.baseurl & "/debug/info")
   return JsonNode.parse(await response.body)
 
 proc setLogLevel*(
-    client: CodexClient, level: string
+    client: StorageClient, level: string
 ): Future[void] {.async: (raises: [CancelledError, HttpError]).} =
   let
     url = client.baseurl & "/debug/chronicles/loglevel?level=" & level
@@ -106,26 +106,26 @@ proc setLogLevel*(
   assert response.status == 200
 
 proc uploadRaw*(
-    client: CodexClient, contents: string, headers: seq[HttpHeaderTuple] = @[]
+    client: StorageClient, contents: string, headers: seq[HttpHeaderTuple] = @[]
 ): Future[HttpClientResponseRef] {.
     async: (raw: true, raises: [CancelledError, HttpError])
 .} =
   return client.post(client.baseurl & "/data", body = contents, headers = headers)
 
 proc upload*(
-    client: CodexClient, contents: string
+    client: StorageClient, contents: string
 ): Future[?!Cid] {.async: (raises: [CancelledError, HttpError]).} =
   let response = await client.uploadRaw(contents)
   assert response.status == 200
   Cid.init(await response.body).mapFailure
 
 proc upload*(
-    client: CodexClient, bytes: seq[byte]
+    client: StorageClient, bytes: seq[byte]
 ): Future[?!Cid] {.async: (raw: true).} =
   return client.upload(string.fromBytes(bytes))
 
 proc downloadRaw*(
-    client: CodexClient, cid: string, local = false
+    client: StorageClient, cid: string, local = false
 ): Future[HttpClientResponseRef] {.
     async: (raw: true, raises: [CancelledError, HttpError])
 .} =
@@ -133,7 +133,7 @@ proc downloadRaw*(
     client.get(client.baseurl & "/data/" & cid & (if local: "" else: "/network/stream"))
 
 proc downloadBytes*(
-    client: CodexClient, cid: Cid, local = false
+    client: StorageClient, cid: Cid, local = false
 ): Future[?!seq[byte]] {.async: (raises: [CancelledError, HttpError]).} =
   let response = await client.downloadRaw($cid, local = local)
 
@@ -143,14 +143,14 @@ proc downloadBytes*(
   success await response.getBodyBytes()
 
 proc download*(
-    client: CodexClient, cid: Cid, local = false
+    client: StorageClient, cid: Cid, local = false
 ): Future[?!string] {.async: (raises: [CancelledError, HttpError]).} =
   without response =? await client.downloadBytes(cid, local = local), err:
     return failure(err)
   return success bytesToString(response)
 
 proc downloadNoStream*(
-    client: CodexClient, cid: Cid
+    client: StorageClient, cid: Cid
 ): Future[?!string] {.async: (raises: [CancelledError, HttpError]).} =
   let response = await client.post(client.baseurl & "/data/" & $cid & "/network")
 
@@ -160,7 +160,7 @@ proc downloadNoStream*(
   success await response.body
 
 proc downloadManifestOnly*(
-    client: CodexClient, cid: Cid
+    client: StorageClient, cid: Cid
 ): Future[?!string] {.async: (raises: [CancelledError, HttpError]).} =
   let response =
     await client.get(client.baseurl & "/data/" & $cid & "/network/manifest")
@@ -171,14 +171,14 @@ proc downloadManifestOnly*(
   success await response.body
 
 proc deleteRaw*(
-    client: CodexClient, cid: string
+    client: StorageClient, cid: string
 ): Future[HttpClientResponseRef] {.
     async: (raw: true, raises: [CancelledError, HttpError])
 .} =
   return client.delete(client.baseurl & "/data/" & cid)
 
 proc delete*(
-    client: CodexClient, cid: Cid
+    client: StorageClient, cid: Cid
 ): Future[?!void] {.async: (raises: [CancelledError, HttpError]).} =
   let response = await client.deleteRaw($cid)
 
@@ -188,14 +188,14 @@ proc delete*(
   success()
 
 proc listRaw*(
-    client: CodexClient
+    client: StorageClient
 ): Future[HttpClientResponseRef] {.
     async: (raw: true, raises: [CancelledError, HttpError])
 .} =
   return client.get(client.baseurl & "/data")
 
 proc list*(
-    client: CodexClient
+    client: StorageClient
 ): Future[?!RestContentList] {.async: (raises: [CancelledError, HttpError]).} =
   let response = await client.listRaw()
 
@@ -205,7 +205,7 @@ proc list*(
   RestContentList.fromJson(await response.body)
 
 proc space*(
-    client: CodexClient
+    client: StorageClient
 ): Future[?!RestRepoStore] {.async: (raises: [CancelledError, HttpError]).} =
   let url = client.baseurl & "/space"
   let response = await client.get(url)
@@ -215,11 +215,11 @@ proc space*(
 
   RestRepoStore.fromJson(await response.body)
 
-proc buildUrl*(client: CodexClient, path: string): string =
+proc buildUrl*(client: StorageClient, path: string): string =
   return client.baseurl & path
 
 proc hasBlock*(
-    client: CodexClient, cid: Cid
+    client: StorageClient, cid: Cid
 ): Future[?!bool] {.async: (raises: [CancelledError, HttpError]).} =
   let url = client.baseurl & "/data/" & $cid & "/exists"
   let body = await client.getContent(url)
@@ -229,7 +229,7 @@ proc hasBlock*(
   return response.get.has.success
 
 proc hasBlockRaw*(
-    client: CodexClient, cid: string
+    client: StorageClient, cid: string
 ): Future[HttpClientResponseRef] {.
     async: (raw: true, raises: [CancelledError, HttpError])
 .} =

@@ -25,7 +25,7 @@ import ./blockstore
 export blockstore, blockexchange, asyncheapqueue
 
 logScope:
-  topics = "codex networkstore"
+  topics = "storage networkstore"
 
 type NetworkStore* = ref object of BlockStore
   engine*: BlockExcEngine # blockexc decision engine

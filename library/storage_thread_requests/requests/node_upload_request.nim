@@ -24,11 +24,11 @@ import questionable/results
 import faststreams/inputs
 import libp2p/stream/[bufferstream, lpstream]
 import ../../alloc
-import ../../../codex/units
-import ../../../codex/codextypes
+import ../../../storage/units
+import ../../../storage/storagetypes
 
-from ../../../codex/codex import CodexServer, node
-from ../../../codex/node import store
+from ../../../storage/storage import StorageServer, node
+from ../../../storage/node import store
 from libp2p import Cid, `$`
 
 logScope:
@@ -86,7 +86,7 @@ proc destroyShared(self: ptr NodeUploadRequest) =
   deallocShared(self)
 
 proc init(
-    storage: ptr CodexServer, filepath: cstring = "", chunkSize: csize_t = 0
+    storage: ptr StorageServer, filepath: cstring = "", chunkSize: csize_t = 0
 ): Future[Result[string, string]] {.async: (raises: []).} =
   ## Init a new session upload and return its ID.
   ## The session contains the future corresponding to the
@@ -156,7 +156,7 @@ proc init(
   return ok(sessionId)
 
 proc chunk(
-    storage: ptr CodexServer, sessionId: cstring, chunk: seq[byte]
+    storage: ptr StorageServer, sessionId: cstring, chunk: seq[byte]
 ): Future[Result[string, string]] {.async: (raises: []).} =
   ## Upload a chunk of data to the session identified by sessionId.
   ## The chunk is pushed to the BufferStream of the session.
@@ -205,7 +205,7 @@ proc chunk(
   return ok("")
 
 proc finalize(
-    storage: ptr CodexServer, sessionId: cstring
+    storage: ptr StorageServer, sessionId: cstring
 ): Future[Result[string, string]] {.async: (raises: []).} =
   ## Finalize the upload session identified by sessionId.
   ## This closes the BufferStream and waits for the `node.store` future
@@ -242,7 +242,7 @@ proc finalize(
       session.fut.cancelSoon()
 
 proc cancel(
-    storage: ptr CodexServer, sessionId: cstring
+    storage: ptr StorageServer, sessionId: cstring
 ): Future[Result[string, string]] {.async: (raises: []).} =
   ## Cancel the upload session identified by sessionId.
   ## This cancels the `node.store` future and removes the session
@@ -293,7 +293,7 @@ proc streamFile(
     return err("Failed to stream the file: " & $e.msg)
 
 proc file(
-    storage: ptr CodexServer, sessionId: cstring, onProgress: OnProgressHandler
+    storage: ptr StorageServer, sessionId: cstring, onProgress: OnProgressHandler
 ): Future[Result[string, string]] {.async: (raises: []).} =
   ## Starts the file upload for the session identified by sessionId.
   ## Will call finalize when done and return the CID of the uploaded file.
@@ -333,7 +333,7 @@ proc file(
 
 proc process*(
     self: ptr NodeUploadRequest,
-    storage: ptr CodexServer,
+    storage: ptr StorageServer,
     onUploadProgress: OnProgressHandler = nil,
 ): Future[Result[string, string]] {.async: (raises: []).} =
   defer:

@@ -3,13 +3,13 @@ import std/sequtils
 import pkg/chronos
 import pkg/libp2p
 import pkg/libp2p/varint
-import pkg/codex/blocktype
-import pkg/codex/stores
-import pkg/codex/manifest
-import pkg/codex/merkletree
-import pkg/codex/blockexchange
-import pkg/codex/rng
-import pkg/codex/utils
+import pkg/storage/blocktype
+import pkg/storage/stores
+import pkg/storage/manifest
+import pkg/storage/merkletree
+import pkg/storage/blockexchange
+import pkg/storage/rng
+import pkg/storage/utils
 
 import ./helpers/nodeutils
 import ./helpers/datasetutils

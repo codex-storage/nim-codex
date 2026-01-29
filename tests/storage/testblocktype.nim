@@ -1,7 +1,7 @@
 import pkg/unittest2
 import pkg/libp2p/cid
 
-import pkg/codex/blocktype
+import pkg/storage/blocktype
 
 import ./examples
 

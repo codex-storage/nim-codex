@@ -45,7 +45,7 @@ import ./utils/trackedfutures
 export logutils
 
 logScope:
-  topics = "codex node"
+  topics = "storage node"
 
 const
   DefaultFetchBatch = 1024
@@ -53,7 +53,7 @@ const
   BatchRefillThreshold = 0.75 # Refill when 75% of window completes
 
 type
-  CodexNode* = object
+  StorageNode* = object
     switch: Switch
     networkId: PeerId
     networkStore: NetworkStore
@@ -63,27 +63,27 @@ type
     taskPool: Taskpool
     trackedFutures: TrackedFutures
 
-  CodexNodeRef* = ref CodexNode
+  StorageNodeRef* = ref StorageNode
 
   OnManifest* = proc(cid: Cid, manifest: Manifest): void {.gcsafe, raises: [].}
   BatchProc* =
     proc(blocks: seq[bt.Block]): Future[?!void] {.async: (raises: [CancelledError]).}
   OnBlockStoredProc = proc(chunk: seq[byte]): void {.gcsafe, raises: [].}
 
-func switch*(self: CodexNodeRef): Switch =
+func switch*(self: StorageNodeRef): Switch =
   return self.switch
 
-func blockStore*(self: CodexNodeRef): BlockStore =
+func blockStore*(self: StorageNodeRef): BlockStore =
   return self.networkStore
 
-func engine*(self: CodexNodeRef): BlockExcEngine =
+func engine*(self: StorageNodeRef): BlockExcEngine =
   return self.engine
 
-func discovery*(self: CodexNodeRef): Discovery =
+func discovery*(self: StorageNodeRef): Discovery =
   return self.discovery
 
 proc storeManifest*(
-    self: CodexNodeRef, manifest: Manifest
+    self: StorageNodeRef, manifest: Manifest
 ): Future[?!bt.Block] {.async.} =
   without encodedVerifiable =? manifest.encode(), err:
     trace "Unable to encode manifest"
@@ -100,7 +100,7 @@ proc storeManifest*(
   success blk
 
 proc fetchManifest*(
-    self: CodexNodeRef, cid: Cid
+    self: StorageNodeRef, cid: Cid
 ): Future[?!Manifest] {.async: (raises: [CancelledError]).} =
   ## Fetch and decode a manifest block
   ##
@@ -124,18 +124,18 @@ proc fetchManifest*(
 
   return manifest.success
 
-proc findPeer*(self: CodexNodeRef, peerId: PeerId): Future[?PeerRecord] {.async.} =
-  ## Find peer using the discovery service from the given CodexNode
+proc findPeer*(self: StorageNodeRef, peerId: PeerId): Future[?PeerRecord] {.async.} =
+  ## Find peer using the discovery service from the given StorageNode
   ##
   return await self.discovery.findPeer(peerId)
 
 proc connect*(
-    self: CodexNodeRef, peerId: PeerId, addrs: seq[MultiAddress]
+    self: StorageNodeRef, peerId: PeerId, addrs: seq[MultiAddress]
 ): Future[void] =
   self.switch.connect(peerId, addrs)
 
 proc updateExpiry*(
-    self: CodexNodeRef, manifestCid: Cid, expiry: SecondsSince1970
+    self: StorageNodeRef, manifestCid: Cid, expiry: SecondsSince1970
 ): Future[?!void] {.async: (raises: [CancelledError]).} =
   without manifest =? await self.fetchManifest(manifestCid), error:
     trace "Unable to fetch manifest for cid", manifestCid
@@ -158,7 +158,7 @@ proc updateExpiry*(
   return success()
 
 proc fetchBatched*(
-    self: CodexNodeRef,
+    self: StorageNodeRef,
     cid: Cid,
     iter: Iter[int],
     batchSize = DefaultFetchBatch,
@@ -233,7 +233,7 @@ proc fetchBatched*(
   success()
 
 proc fetchBatched*(
-    self: CodexNodeRef,
+    self: StorageNodeRef,
     manifest: Manifest,
     batchSize = DefaultFetchBatch,
     onBatch: BatchProc = nil,
@@ -249,7 +249,7 @@ proc fetchBatched*(
   self.fetchBatched(manifest.treeCid, iter, batchSize, onBatch, fetchLocal)
 
 proc fetchDatasetAsync*(
-    self: CodexNodeRef, manifest: Manifest, fetchLocal = true
+    self: StorageNodeRef, manifest: Manifest, fetchLocal = true
 ): Future[void] {.async: (raises: []).} =
   ## Asynchronously fetch a dataset in the background.
   ## This task will be tracked and cleaned up on node shutdown.
@@ -264,14 +264,14 @@ proc fetchDatasetAsync*(
   except CancelledError as exc:
     trace "Cancelled fetching blocks", exc = exc.msg
 
-proc fetchDatasetAsyncTask*(self: CodexNodeRef, manifest: Manifest) =
+proc fetchDatasetAsyncTask*(self: StorageNodeRef, manifest: Manifest) =
   ## Start fetching a dataset in the background.
   ## The task will be tracked and cleaned up on node shutdown.
   ##
   self.trackedFutures.track(self.fetchDatasetAsync(manifest, fetchLocal = false))
 
 proc streamSingleBlock(
-    self: CodexNodeRef, cid: Cid
+    self: StorageNodeRef, cid: Cid
 ): Future[?!LPStream] {.async: (raises: [CancelledError]).} =
   ## Streams the contents of a single block.
   ##
@@ -296,7 +296,7 @@ proc streamSingleBlock(
   LPStream(stream).success
 
 proc streamEntireDataset(
-    self: CodexNodeRef, manifest: Manifest, manifestCid: Cid
+    self: StorageNodeRef, manifest: Manifest, manifestCid: Cid
 ): Future[?!LPStream] {.async: (raises: [CancelledError]).} =
   ## Streams the contents of the entire dataset described by the manifest.
   ##
@@ -324,7 +324,7 @@ proc streamEntireDataset(
   stream.success
 
 proc retrieve*(
-    self: CodexNodeRef, cid: Cid, local: bool = true
+    self: StorageNodeRef, cid: Cid, local: bool = true
 ): Future[?!LPStream] {.async: (raises: [CancelledError]).} =
   ## Retrieve by Cid a single block or an entire dataset described by manifest
   ##
@@ -340,7 +340,7 @@ proc retrieve*(
 
   await self.streamEntireDataset(manifest, cid)
 
-proc deleteSingleBlock(self: CodexNodeRef, cid: Cid): Future[?!void] {.async.} =
+proc deleteSingleBlock(self: StorageNodeRef, cid: Cid): Future[?!void] {.async.} =
   if err =? (await self.networkStore.delBlock(cid)).errorOption:
     error "Error deleting block", cid, err = err.msg
     return failure(err)
@@ -348,7 +348,7 @@ proc deleteSingleBlock(self: CodexNodeRef, cid: Cid): Future[?!void] {.async.} =
   trace "Deleted block", cid
   return success()
 
-proc deleteEntireDataset(self: CodexNodeRef, cid: Cid): Future[?!void] {.async.} =
+proc deleteEntireDataset(self: StorageNodeRef, cid: Cid): Future[?!void] {.async.} =
   # Deletion is a strictly local operation
   var store = self.networkStore.localStore
 
@@ -382,7 +382,7 @@ proc deleteEntireDataset(self: CodexNodeRef, cid: Cid): Future[?!void] {.async.}
   success()
 
 proc delete*(
-    self: CodexNodeRef, cid: Cid
+    self: StorageNodeRef, cid: Cid
 ): Future[?!void] {.async: (raises: [CatchableError]).} =
   ## Deletes a whole dataset, if Cid is a Manifest Cid, or a single block, if Cid a block Cid,
   ## from the underlying block store. This is a strictly local operation.
@@ -400,7 +400,7 @@ proc delete*(
   await self.deleteEntireDataset(cid)
 
 proc store*(
-    self: CodexNodeRef,
+    self: StorageNodeRef,
     stream: LPStream,
     filename: ?string = string.none,
     mimetype: ?string = string.none,
@@ -484,7 +484,7 @@ proc store*(
 
   return manifestBlk.cid.success
 
-proc iterateManifests*(self: CodexNodeRef, onManifest: OnManifest) {.async.} =
+proc iterateManifests*(self: StorageNodeRef, onManifest: OnManifest) {.async.} =
   without cidsIter =? await self.networkStore.listBlocks(BlockType.Manifest):
     warn "Failed to listBlocks"
     return
@@ -502,11 +502,11 @@ proc iterateManifests*(self: CodexNodeRef, onManifest: OnManifest) {.async.} =
       onManifest(cid, manifest)
 
 proc onExpiryUpdate(
-    self: CodexNodeRef, rootCid: Cid, expiry: SecondsSince1970
+    self: StorageNodeRef, rootCid: Cid, expiry: SecondsSince1970
 ): Future[?!void] {.async: (raises: [CancelledError]).} =
   return await self.updateExpiry(rootCid, expiry)
 
-proc start*(self: CodexNodeRef) {.async.} =
+proc start*(self: StorageNodeRef) {.async.} =
   if not self.engine.isNil:
     await self.engine.start()
 
@@ -519,7 +519,7 @@ proc start*(self: CodexNodeRef) {.async.} =
   self.networkId = self.switch.peerInfo.peerId
   notice "Started Storage node", id = self.networkId, addrs = self.switch.peerInfo.addrs
 
-proc stop*(self: CodexNodeRef) {.async.} =
+proc stop*(self: StorageNodeRef) {.async.} =
   trace "Stopping node"
 
   await self.trackedFutures.cancelTracked()
@@ -533,22 +533,22 @@ proc stop*(self: CodexNodeRef) {.async.} =
   if not self.clock.isNil:
     await self.clock.stop()
 
-proc close*(self: CodexNodeRef) {.async.} =
+proc close*(self: StorageNodeRef) {.async.} =
   if not self.networkStore.isNil:
     await self.networkStore.close
 
 proc new*(
-    T: type CodexNodeRef,
+    T: type StorageNodeRef,
     switch: Switch,
     networkStore: NetworkStore,
     engine: BlockExcEngine,
     discovery: Discovery,
     taskpool: Taskpool,
-): CodexNodeRef =
-  ## Create new instance of a Codex self, call `start` to run it
+): StorageNodeRef =
+  ## Create new instance of a Storage self, call `start` to run it
   ##
 
-  CodexNodeRef(
+  StorageNodeRef(
     switch: switch,
     networkStore: networkStore,
     engine: engine,
@@ -558,7 +558,7 @@ proc new*(
   )
 
 proc hasLocalBlock*(
-    self: CodexNodeRef, cid: Cid
+    self: StorageNodeRef, cid: Cid
 ): Future[bool] {.async: (raises: [CancelledError]).} =
   ## Returns true if the given Cid is present in the local store
 

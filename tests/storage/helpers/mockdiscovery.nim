@@ -10,7 +10,7 @@
 import pkg/chronos
 import pkg/libp2p
 import pkg/questionable
-import pkg/codex/discovery
+import pkg/storage/discovery
 import pkg/contractabi/address as ca
 
 type MockDiscovery* = ref object of Discovery

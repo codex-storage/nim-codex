@@ -35,35 +35,35 @@ import ./discovery
 import ./systemclock
 import ./utils/addrutils
 import ./namespaces
-import ./codextypes
+import ./storagetypes
 import ./logutils
 import ./nat
 
 logScope:
-  topics = "codex node"
+  topics = "storage node"
 
 type
-  CodexServer* = ref object
-    config: CodexConf
+  StorageServer* = ref object
+    config: StorageConf
     restServer: RestServerRef
-    codexNode: CodexNodeRef
+    storageNode: StorageNodeRef
     repoStore: RepoStore
     maintenance: BlockMaintainer
     taskpool: Taskpool
     isStarted: bool
 
-  CodexPrivateKey* = libp2p.PrivateKey # alias
+  StoragePrivateKey* = libp2p.PrivateKey # alias
 
-func config*(self: CodexServer): CodexConf =
+func config*(self: StorageServer): StorageConf =
   return self.config
 
-func node*(self: CodexServer): CodexNodeRef =
-  return self.codexNode
+func node*(self: StorageServer): StorageNodeRef =
+  return self.storageNode
 
-func repoStore*(self: CodexServer): RepoStore =
+func repoStore*(self: StorageServer): RepoStore =
   return self.repoStore
 
-proc start*(s: CodexServer) {.async.} =
+proc start*(s: StorageServer) {.async.} =
   if s.isStarted:
     warn "Storage server already started, skipping"
     return
@@ -73,35 +73,36 @@ proc start*(s: CodexServer) {.async.} =
 
   s.maintenance.start()
 
-  await s.codexNode.switch.start()
+  await s.storageNode.switch.start()
 
   let (announceAddrs, discoveryAddrs) = nattedAddress(
-    s.config.nat, s.codexNode.switch.peerInfo.addrs, s.config.discoveryPort
+    s.config.nat, s.storageNode.switch.peerInfo.addrs, s.config.discoveryPort
   )
 
-  s.codexNode.discovery.updateAnnounceRecord(announceAddrs)
-  s.codexNode.discovery.updateDhtRecord(discoveryAddrs)
+  s.storageNode.discovery.updateAnnounceRecord(announceAddrs)
+  s.storageNode.discovery.updateDhtRecord(discoveryAddrs)
 
-  await s.codexNode.start()
+  await s.storageNode.start()
 
   if s.restServer != nil:
     s.restServer.start()
 
   s.isStarted = true
 
-proc stop*(s: CodexServer) {.async.} =
+proc stop*(s: StorageServer) {.async.} =
   if not s.isStarted:
     warn "Storage is not started"
     return
 
   notice "Stopping Storage node"
 
-  var futures = @[
-    s.codexNode.switch.stop(),
-    s.codexNode.stop(),
-    s.repoStore.stop(),
-    s.maintenance.stop(),
-  ]
+  var futures =
+    @[
+      s.storageNode.switch.stop(),
+      s.storageNode.stop(),
+      s.repoStore.stop(),
+      s.maintenance.stop(),
+    ]
 
   if s.restServer != nil:
     futures.add(s.restServer.stop())
@@ -114,9 +115,9 @@ proc stop*(s: CodexServer) {.async.} =
     error "Failed to stop Storage node", failures = res.failure.len
     raiseAssert "Failed to stop Storage node"
 
-proc close*(s: CodexServer) {.async.} =
+proc close*(s: StorageServer) {.async.} =
   var futures =
-    @[s.codexNode.close(), s.repoStore.close(), s.codexNode.discovery.close()]
+    @[s.storageNode.close(), s.repoStore.close(), s.storageNode.discovery.close()]
 
   let res = await noCancel allFinishedFailed[void](futures)
 
@@ -131,14 +132,14 @@ proc close*(s: CodexServer) {.async.} =
     error "Failed to close Storage node", failures = res.failure.len
     raiseAssert "Failed to close Storage node"
 
-proc shutdown*(server: CodexServer) {.async.} =
+proc shutdown*(server: StorageServer) {.async.} =
   await server.stop()
   await server.close()
 
 proc new*(
-    T: type CodexServer, config: CodexConf, privateKey: CodexPrivateKey
-): CodexServer =
-  ## create CodexServer including setting up datastore, repostore, etc
+    T: type StorageServer, config: StorageConf, privateKey: StoragePrivateKey
+): StorageServer =
+  ## create StorageServer including setting up datastore, repostore, etc
   let switch = SwitchBuilder
     .new()
     .withPrivateKey(privateKey)
@@ -169,7 +170,7 @@ proc new*(
     cache = CacheStore.new(cacheSize = config.cacheSize)
     ## Is unused?
 
-  let discoveryDir = config.dataDir / CodexDhtNamespace
+  let discoveryDir = config.dataDir / StorageDhtNamespace
 
   if io2.createPath(discoveryDir).isErr:
     trace "Unable to create discovery directory for block store",
@@ -178,7 +179,7 @@ proc new*(
       msg: "Unable to create discovery directory for block store: " & discoveryDir
     )
 
-  let providersPath = config.dataDir / CodexDhtProvidersNamespace
+  let providersPath = config.dataDir / StorageDhtProvidersNamespace
   let discoveryStoreRes = LevelDbDatastore.new(providersPath)
   if discoveryStoreRes.isErr:
     error "Failed to initialize discovery datastore",
@@ -221,7 +222,7 @@ proc new*(
 
     repoStore = RepoStore.new(
       repoDs = repoData,
-      metaDs = LevelDbDatastore.new(config.dataDir / CodexMetaNamespace).expect(
+      metaDs = LevelDbDatastore.new(config.dataDir / StorageMetaNamespace).expect(
           "Should create metadata store!"
         ),
       quotaMaxBytes = config.storageQuota,
@@ -244,7 +245,7 @@ proc new*(
     )
     store = NetworkStore.new(engine, repoStore)
 
-    codexNode = CodexNodeRef.new(
+    storageNode = StorageNodeRef.new(
       switch = switch,
       networkStore = store,
       engine = engine,
@@ -257,7 +258,7 @@ proc new*(
   if config.apiBindAddress.isSome:
     restServer = RestServerRef
       .new(
-        codexNode.initRestApi(config, repoStore, config.apiCorsAllowedOrigin),
+        storageNode.initRestApi(config, repoStore, config.apiCorsAllowedOrigin),
         initTAddress(config.apiBindAddress.get(), config.apiPort),
         bufferSize = (1024 * 64),
         maxRequestBodySize = int.high,
@@ -266,9 +267,9 @@ proc new*(
 
   switch.mount(network)
 
-  CodexServer(
+  StorageServer(
     config: config,
-    codexNode: codexNode,
+    storageNode: storageNode,
     restServer: restServer,
     repoStore: repoStore,
     maintenance: maintenance,

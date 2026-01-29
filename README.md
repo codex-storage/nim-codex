@@ -11,12 +11,12 @@
 [![Docker](https://github.com/logos-storage/logos-storage-nim/actions/workflows/docker.yml/badge.svg?branch=master)](https://github.com/logos-storage/logos-storage-nim/actions/workflows/docker.yml?query=branch%3Amaster)
 [![Codecov](https://codecov.io/gh/logos-storage/logos-storage-nim/branch/master/graph/badge.svg?token=XFmCyPSNzW)](https://codecov.io/gh/logos-storage/logos-storage-nim)
 [![Discord](https://img.shields.io/discord/895609329053474826)](https://discord.gg/CaJTh24ddQ)
-![Docker Pulls](https://img.shields.io/docker/pulls/codexstorage/nim-codex)
+![Docker Pulls](https://img.shields.io/docker/pulls/logosstorage/logos-storage-nim)
 
 
 ## Build and Run
 
-For detailed instructions on preparing to build logos-storagenim see [*Build Logos Storage*](https://docs.codex.storage/learn/build).
+For detailed instructions on preparing to build logos-storage-nim see [*Build Logos Storage*](https://docs.codex.storage/learn/build).
 
 To build the project, clone it and run:
 

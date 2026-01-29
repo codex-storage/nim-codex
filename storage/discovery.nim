@@ -32,7 +32,7 @@ export discv5
 # much more elegantly.
 
 logScope:
-  topics = "codex discovery"
+  topics = "storage discovery"
 
 type Discovery* = ref object of RootObj
   protocol*: discv5.Protocol # dht protocol

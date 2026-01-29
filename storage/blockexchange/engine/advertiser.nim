@@ -28,9 +28,9 @@ import ../../logutils
 import ../../manifest
 
 logScope:
-  topics = "codex discoveryengine advertiser"
+  topics = "storage discoveryengine advertiser"
 
-declareGauge(codex_inflight_advertise, "inflight advertise requests")
+declareGauge(storage_inflight_advertise, "inflight advertise requests")
 
 const
   DefaultConcurrentAdvertRequests = 10
@@ -106,11 +106,11 @@ proc processQueueLoop(b: Advertiser) {.async: (raises: []).} =
 
       let request = b.discovery.provide(cid)
       b.inFlightAdvReqs[cid] = request
-      codex_inflight_advertise.set(b.inFlightAdvReqs.len.int64)
+      storage_inflight_advertise.set(b.inFlightAdvReqs.len.int64)
 
       defer:
         b.inFlightAdvReqs.del(cid)
-        codex_inflight_advertise.set(b.inFlightAdvReqs.len.int64)
+        storage_inflight_advertise.set(b.inFlightAdvReqs.len.int64)
 
       await request
   except CancelledError:

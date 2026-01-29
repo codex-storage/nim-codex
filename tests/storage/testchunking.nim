@@ -1,6 +1,6 @@
 import pkg/stew/byteutils
-import pkg/codex/chunker
-import pkg/codex/logutils
+import pkg/storage/chunker
+import pkg/storage/logutils
 import pkg/chronos
 
 import ../asynctest

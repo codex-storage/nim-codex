@@ -13,9 +13,9 @@ import pkg/libp2p
 import pkg/questionable
 import pkg/questionable/results
 
-import pkg/codex/stores/repostore
-import pkg/codex/utils/asynciter
-import pkg/codex/utils/safeasynciter
+import pkg/storage/stores/repostore
+import pkg/storage/utils/asynciter
+import pkg/storage/utils/safeasynciter
 
 type MockRepoStore* = ref object of RepoStore
   delBlockCids*: seq[Cid]

@@ -26,11 +26,11 @@ import ../../logutils
 import ../../merkletree
 
 logScope:
-  topics = "codex repostore"
+  topics = "storage repostore"
 
-declareGauge(codex_repostore_blocks, "codex repostore blocks")
-declareGauge(codex_repostore_bytes_used, "codex repostore bytes used")
-declareGauge(codex_repostore_bytes_reserved, "codex repostore bytes reserved")
+declareGauge(storage_repostore_blocks, "storage repostore blocks")
+declareGauge(storage_repostore_bytes_used, "storage repostore bytes used")
+declareGauge(storage_repostore_bytes_reserved, "storage repostore bytes reserved")
 
 proc putLeafMetadata*(
     self: RepoStore,
@@ -90,7 +90,7 @@ proc updateTotalBlocksCount*(
     self: RepoStore, plusCount: Natural = 0, minusCount: Natural = 0
 ): Future[?!void] {.async: (raises: [CancelledError]).} =
   await self.metaDs.modify(
-    CodexTotalBlocksKey,
+    StorageTotalBlocksKey,
     proc(maybeCurrCount: ?Natural): Future[?Natural] {.async.} =
       let count: Natural =
         if currCount =? maybeCurrCount:
@@ -99,7 +99,7 @@ proc updateTotalBlocksCount*(
           plusCount - minusCount
 
       self.totalBlocks = count
-      codex_repostore_blocks.set(count.int64)
+      storage_repostore_blocks.set(count.int64)
       count.some,
   )
 
@@ -132,8 +132,8 @@ proc updateQuotaUsage*(
         )
       else:
         self.quotaUsage = usage
-        codex_repostore_bytes_used.set(usage.used.int64)
-        codex_repostore_bytes_reserved.set(usage.reserved.int64)
+        storage_repostore_bytes_used.set(usage.used.int64)
+        storage_repostore_bytes_reserved.set(usage.reserved.int64)
         return usage.some,
   )
 

@@ -25,9 +25,9 @@ import ./utils
 import ./errors
 import ./logutils
 import ./utils/json
-import ./codextypes
+import ./storagetypes
 
-export errors, logutils, units, codextypes
+export errors, logutils, units, storagetypes
 
 type
   Block* = ref object of RootObj

@@ -14,12 +14,12 @@ import chronicles
 import libp2p/stream/[lpstream]
 import serde/json as serde
 import ../../alloc
-import ../../../codex/units
-import ../../../codex/manifest
-import ../../../codex/stores/repostore
+import ../../../storage/units
+import ../../../storage/manifest
+import ../../../storage/stores/repostore
 
-from ../../../codex/codex import CodexServer, node, repoStore
-from ../../../codex/node import
+from ../../../storage/storage import StorageServer, node, repoStore
+from ../../../storage/node import
   iterateManifests, fetchManifest, fetchDatasetAsyncTask, delete, hasLocalBlock
 from libp2p import Cid, init, `$`
 
@@ -61,7 +61,7 @@ type ManifestWithCid = object
   manifest {.serialize.}: Manifest
 
 proc list(
-    storage: ptr CodexServer
+    storage: ptr StorageServer
 ): Future[Result[string, string]] {.async: (raises: []).} =
   var manifests = newSeq[ManifestWithCid]()
   proc onManifest(cid: Cid, manifest: Manifest) {.raises: [], gcsafe.} =
@@ -78,7 +78,7 @@ proc list(
   return ok(serde.toJson(manifests))
 
 proc delete(
-    storage: ptr CodexServer, cCid: cstring
+    storage: ptr StorageServer, cCid: cstring
 ): Future[Result[string, string]] {.async: (raises: []).} =
   let cid = Cid.init($cCid)
   if cid.isErr:
@@ -97,7 +97,7 @@ proc delete(
   return ok("")
 
 proc fetch(
-    storage: ptr CodexServer, cCid: cstring
+    storage: ptr StorageServer, cCid: cstring
 ): Future[Result[string, string]] {.async: (raises: []).} =
   let cid = Cid.init($cCid)
   if cid.isErr:
@@ -116,7 +116,7 @@ proc fetch(
     return err("Failed to fetch the data: download cancelled.")
 
 proc space(
-    storage: ptr CodexServer
+    storage: ptr StorageServer
 ): Future[Result[string, string]] {.async: (raises: []).} =
   let repoStore = storage[].repoStore
   let space = StorageSpace(
@@ -128,7 +128,7 @@ proc space(
   return ok(serde.toJson(space))
 
 proc exists(
-    storage: ptr CodexServer, cCid: cstring
+    storage: ptr StorageServer, cCid: cstring
 ): Future[Result[string, string]] {.async: (raises: []).} =
   let cid = Cid.init($cCid)
   if cid.isErr:
@@ -142,7 +142,7 @@ proc exists(
     return err("Failed to check the data existence: operation cancelled.")
 
 proc process*(
-    self: ptr NodeStorageRequest, storage: ptr CodexServer
+    self: ptr NodeStorageRequest, storage: ptr StorageServer
 ): Future[Result[string, string]] {.async: (raises: []).} =
   defer:
     destroyShared(self)

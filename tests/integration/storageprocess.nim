@@ -7,94 +7,94 @@ import pkg/libp2p
 import std/os
 import std/strutils
 import std/times
-import codex/conf
-import ./codexclient
+import storage/conf
+import ./storageclient
 import ./nodeprocess
 
-export codexclient
+export storageclient
 export chronicles
 export nodeprocess
 
 {.push raises: [].}
 
 logScope:
-  topics = "integration testing codex process"
+  topics = "integration testing storage process"
 
 type
-  CodexProcess* = ref object of NodeProcess
-    client: ?CodexClient
+  StorageProcess* = ref object of NodeProcess
+    client: ?StorageClient
 
-  CodexProcessError* = object of NodeProcessError
+  StorageProcessError* = object of NodeProcessError
 
-proc raiseCodexProcessError(
+proc raiseStorageProcessError(
     msg: string, parent: ref CatchableError
-) {.raises: [CodexProcessError].} =
-  raise newException(CodexProcessError, msg & ": " & parent.msg, parent)
+) {.raises: [StorageProcessError].} =
+  raise newException(StorageProcessError, msg & ": " & parent.msg, parent)
 
 template convertError(msg, body: typed) =
   # Don't use this in an async proc, unless body does not raise CancelledError
   try:
     body
   except CatchableError as parent:
-    raiseCodexProcessError(msg, parent)
+    raiseStorageProcessError(msg, parent)
 
-method workingDir(node: CodexProcess): string =
+method workingDir(node: StorageProcess): string =
   return currentSourcePath() / ".." / ".." / ".."
 
-method executable(node: CodexProcess): string =
+method executable(node: StorageProcess): string =
   return "build" / "storage"
 
-method startedOutput(node: CodexProcess): string =
+method startedOutput(node: StorageProcess): string =
   return "REST service started"
 
-method processOptions(node: CodexProcess): set[AsyncProcessOption] =
+method processOptions(node: StorageProcess): set[AsyncProcessOption] =
   return {AsyncProcessOption.StdErrToStdOut}
 
-method outputLineEndings(node: CodexProcess): string =
+method outputLineEndings(node: StorageProcess): string =
   return "\n"
 
-method onOutputLineCaptured(node: CodexProcess, line: string) =
+method onOutputLineCaptured(node: StorageProcess, line: string) =
   discard
 
-proc config(node: CodexProcess): CodexConf {.raises: [CodexProcessError].} =
+proc config(node: StorageProcess): StorageConf {.raises: [StorageProcessError].} =
   # cannot use convertError here as it uses typed parameters which forces type
   # resolution, while confutils.load uses untyped parameters and expects type
   # resolution not to happen yet. In other words, it won't compile.
   try:
-    return CodexConf.load(
+    return StorageConf.load(
       cmdLine = node.arguments, quitOnFailure = false, secondarySources = nil
     )
   except ConfigurationError as parent:
-    raiseCodexProcessError "Failed to load node arguments into CodexConf", parent
+    raiseStorageProcessError "Failed to load node arguments into StorageConf", parent
 
-proc dataDir(node: CodexProcess): string {.raises: [CodexProcessError].} =
+proc dataDir(node: StorageProcess): string {.raises: [StorageProcessError].} =
   return node.config.dataDir.string
 
-proc apiUrl*(node: CodexProcess): string {.raises: [CodexProcessError].} =
+proc apiUrl*(node: StorageProcess): string {.raises: [StorageProcessError].} =
   let config = node.config
   without apiBindAddress =? config.apiBindAddress:
     raise
-      newException(CodexProcessError, "REST API not started: --api-bindaddr not set")
+      newException(StorageProcessError, "REST API not started: --api-bindaddr not set")
   return "http://" & apiBindAddress & ":" & $config.apiPort & "/api/storage/v1"
 
-proc logFile*(node: CodexProcess): ?string {.raises: [CodexProcessError].} =
+proc logFile*(node: StorageProcess): ?string {.raises: [StorageProcessError].} =
   node.config.logFile
 
-proc client*(node: CodexProcess): CodexClient {.raises: [CodexProcessError].} =
+proc client*(node: StorageProcess): StorageClient {.raises: [StorageProcessError].} =
   if client =? node.client:
     return client
-  let client = CodexClient.new(node.apiUrl)
+  let client = StorageClient.new(node.apiUrl)
   node.client = some client
   return client
 
-proc updateLogFile(node: CodexProcess, newLogFile: string) =
+proc updateLogFile(node: StorageProcess, newLogFile: string) =
   for arg in node.arguments.mitems:
     if arg.startsWith("--log-file="):
       arg = "--log-file=" & newLogFile
       break
 
-method restart*(node: CodexProcess) {.async.} =
-  trace "restarting codex"
+method restart*(node: StorageProcess) {.async.} =
+  trace "restarting storage"
   await node.stop()
   if logFile =? node.logFile:
     # chronicles truncates the existing log file on start, so changed the log
@@ -104,13 +104,13 @@ method restart*(node: CodexProcess) {.async.} =
     )
   await node.start()
   await node.waitUntilStarted()
-  trace "codex process restarted"
+  trace "storage process restarted"
 
-method stop*(node: CodexProcess) {.async: (raises: []).} =
+method stop*(node: StorageProcess) {.async: (raises: []).} =
   logScope:
     nodeName = node.name
 
-  trace "stopping codex client"
+  trace "stopping storage client"
   await procCall NodeProcess(node).stop()
 
   if not node.process.isNil:
@@ -120,8 +120,8 @@ method stop*(node: CodexProcess) {.async: (raises: []).} =
 
   if client =? node.client:
     await client.close()
-    node.client = none CodexClient
+    node.client = none StorageClient
 
-method removeDataDir*(node: CodexProcess) {.raises: [CodexProcessError].} =
-  convertError("failed to remove codex node data directory"):
+method removeDataDir*(node: StorageProcess) {.raises: [StorageProcessError].} =
+  convertError("failed to remove storage node data directory"):
     removeDir(node.dataDir)

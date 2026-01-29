@@ -1,7 +1,7 @@
 import std/os
 
 import pkg/unittest2
-import pkg/codex/utils/keyutils
+import pkg/storage/utils/keyutils
 
 import ../helpers
 
@@ -9,7 +9,7 @@ when defined(windows):
   import stew/windows/acl
 
 suite "keyutils":
-  let path = getTempDir() / "CodexTest"
+  let path = getTempDir() / "StorageTest"
 
   setup:
     os.createDir(path)
