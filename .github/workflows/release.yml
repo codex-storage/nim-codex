@@ -245,6 +245,7 @@ jobs:
           # Variables
           branch="${GITHUB_REF_NAME/\//-}"
           folder="/tmp/release"
+          # Some bogus change
 
           # Tagged releases
           if [[ "${{ env.TAGGED_RELEASE }}" == "true" ]]; then
