@@ -234,6 +234,8 @@ ifneq ($(strip $(STORAGE_LIB_PARAMS)),)
 NIM_PARAMS := $(NIM_PARAMS) $(STORAGE_LIB_PARAMS)
 endif
 
+TARGET_OS ?= $(detected_OS)
+
 libstorage:
 	$(MAKE) deps
 	rm -f build/libstorage*
@@ -241,10 +243,10 @@ libstorage:
 ifeq ($(STATIC), 1)
 		echo -e $(BUILD_MSG) "build/$@.a" && \
 		$(ENV_SCRIPT) nim libstorageStatic $(NIM_PARAMS) codex.nims
-else ifeq ($(detected_OS),Windows)
+else ifeq ($(TARGET_OS),Windows)
 		echo -e $(BUILD_MSG) "build/$@.dll" && \
 		$(ENV_SCRIPT) nim libstorageDynamic $(NIM_PARAMS) codex.nims
-else ifeq ($(detected_OS),macOS)
+else ifeq ($(TARGET_OS),macOS)
 		echo -e $(BUILD_MSG) "build/$@.dylib" && \
 		$(ENV_SCRIPT) nim libstorageDynamic $(NIM_PARAMS) codex.nims
 else

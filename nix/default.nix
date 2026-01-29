@@ -70,6 +70,7 @@ in stdenv.mkDerivation rec {
     "V=${toString verbosity}"
     "QUICK_AND_DIRTY_COMPILER=${if quickAndDirty then "1" else "0"}"
     "QUICK_AND_DIRTY_NIMBLE=${if quickAndDirty then "1" else "0"}"
+    "TARGET_OS=${if stdenv.hostPlatform.isDarwin then "macOS" else "Linux"}"
   ];
 
   # FIXME: Remove once permanent fix is applied to NBS:
