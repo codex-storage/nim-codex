@@ -136,7 +136,7 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -y zip
           github_ref_name="${GITHUB_REF_NAME/\//-}"
-          ZIPFILE=libstorage-linux-${{ matrix.cpu }}-${{ env.VERSION }}.zip
+          ZIPFILE=libstorage-linux-${{ matrix.cpu }}-${{ env.VERSION }}
           zip -j $ZIPFILE ./build/libstorage.so ./library/libstorage.h
           echo "ZIPFILE=$ZIPFILE" >> $GITHUB_ENV
 
@@ -144,7 +144,7 @@ jobs:
         if: matrix.os == 'macos'
         run: |
           github_ref_name="${GITHUB_REF_NAME/\//-}"
-          ZIPFILE=libstorage-macos-${{ matrix.cpu }}-${{ env.VERSION }}.zip
+          ZIPFILE=libstorage-macos-${{ matrix.cpu }}-${{ env.VERSION }}
           zip -j $ZIPFILE ./build/libstorage.dylib ./library/libstorage.h
           echo "ZIPFILE=$ZIPFILE" >> $GITHUB_ENV
 
@@ -152,7 +152,7 @@ jobs:
         if: matrix.os == 'windows'
         shell: msys2 {0}
         run: |
-          ZIPFILE=libstorage-windows-${{ matrix.cpu }}-${{ env.VERSION }}.zip
+          ZIPFILE=libstorage-windows-${{ matrix.cpu }}-${{ env.VERSION }}
           (cd ./build && 7z a -tzip "${GITHUB_WORKSPACE}/${ZIPFILE}" libstorage.dll)
           (cd ./library && 7z a -tzip "${GITHUB_WORKSPACE}/${ZIPFILE}" libstorage.h)
           echo "ZIPFILE=$ZIPFILE" >> $GITHUB_ENV
@@ -160,7 +160,7 @@ jobs:
       - name: Release - Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.ZIPFILE }}
+          name: ${{ env.ZIPFILE }}.zip
           path: ${{ env.ZIPFILE }}
           if-no-files-found: error
 
