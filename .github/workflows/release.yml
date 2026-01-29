@@ -130,7 +130,7 @@ jobs:
         if: matrix.os == 'windows'
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.storage_binary }}-dlls
+          name: ${{ env.storage_binary }}-${{ matrix.cpu }}-dlls
           path: ${{ env.build_dir }}/*.dll
           retention-days: 30
 
