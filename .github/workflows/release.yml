@@ -139,7 +139,7 @@ jobs:
           ZIPFILE=libstorage-linux-${{ matrix.cpu }}-${{ env.VERSION }}.zip
           zip -j $ZIPFILE ./build/libstorage.so ./library/libstorage.h
           echo "ZIPFILE=$ZIPFILE" >> $GITHUB_ENV
-          
+
       - name: Package artifacts MacOS
         if: matrix.os == 'macos'
         run: |
@@ -264,7 +264,7 @@ jobs:
 
       - name: Release
         uses: softprops/action-gh-release@v2
-        if: env.TAGGED_RELEASE
+        if: env.TAGGED_RELEASE == 'true'
         with:
           files: |
             /tmp/release/*
@@ -272,7 +272,7 @@ jobs:
 
       - name: Generate Python SDK
         uses: peter-evans/repository-dispatch@v3
-        if: env.TAGGED_RELEASE
+        if: env.TAGGED_RELEASE == 'true'
         with:
           token: ${{ secrets.DISPATCH_PAT }}
           repository: logos-storage/logos-storage-py-api-client
