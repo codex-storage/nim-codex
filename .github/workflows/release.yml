@@ -152,11 +152,11 @@ jobs:
           (cd ./build && 7z a -tzip "${GITHUB_WORKSPACE}/${{env.c_bindings_lib}}" ${{ env.c_bindings_lib_name }}.dll)
           (cd ./library && 7z a -tzip "${GITHUB_WORKSPACE}/${{env.c_bindings_lib}}" ${{ env.c_bindings_lib_name }}.h)
 
-      - name: Release - Upload artifacts
+      - name: Upload ${{ env.c_bindings_lib_name }} to workflow artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.ZIPFILE }}
-          path: ${{ env.ZIPFILE }}
+          name: ${{env.c_bindings_lib}}
+          path: ${{env.c_bindings_lib}}.*
           if-no-files-found: error
 
   # Release
