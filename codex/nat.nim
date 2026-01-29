@@ -244,15 +244,12 @@ proc repeatPortMapping(args: PortMappingArgs) {.thread, raises: [ValueError].} =
   let ipres = getExternalIP(strategy, quiet = true)
   if ipres.isSome:
     while natClosed.load() == false:
-      let
-        # we're being silly here with this channel polling because we can't
-        # select on Nim channels like on Go ones
-        currTime = now()
+      let currTime = now()
       if currTime >= (lastUpdate + interval):
         discard doPortMapping(strategy, tcpPort, udpPort, description)
         lastUpdate = currTime
 
-        sleep(sleepDuration)
+      sleep(sleepDuration)
 
 proc stopNatThreads() {.noconv.} =
   # stop the thread
