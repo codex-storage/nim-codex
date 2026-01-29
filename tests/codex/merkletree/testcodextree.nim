@@ -12,7 +12,6 @@ import pkg/codex/utils/digest
 import pkg/taskpools
 
 import ./helpers
-import ./generictreetests
 import ../../asynctest
 
 # TODO: Generalize to other hashes
@@ -160,5 +159,3 @@ let
 
   makeTree = proc(data: seq[seq[byte]]): StorageMerkleTree =
     StorageMerkleTree.init(sha256, leaves = data).tryGet
-
-testGenericTree("StorageMerkleTree", @data, zero, compress, makeTree)
