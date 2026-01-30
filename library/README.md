@@ -16,7 +16,7 @@ sequenceDiagram
     participant C as C API (libstorage.h)
     participant Ctx as StorageContext
     participant Thr as Worker Thread
-    participant Eng as CodexServer
+    participant Eng as StorageServer
 
     App->>Go: Start
     Go->>C: storage_start_node

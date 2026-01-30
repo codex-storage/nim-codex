@@ -37,7 +37,7 @@
 
 ## Environment variables
 
- We can configure Codex using [Environment variables](../README#environment-variables) and [docker-compose.yaml](docker-compose.yaml) file can be useful as an example.
+ We can configure Logos Storage using [Environment variables](../README#environment-variables) and [docker-compose.yaml](docker-compose.yaml) file can be useful as an example.
 
  We also added a temporary environment variable `NAT_IP_AUTO` to the entrypoint which is set as `false` for releases and ` true` for regular builds. That approach is useful for Dist-Tests.
  ```shell
@@ -51,7 +51,7 @@
  2. The docker image can then be minified using [slim](https://github.com/slimtoolkit/slim). Install slim on your path and then run:
     ```shell
     slim # brings up interactive prompt
-    >>> build --target status-im/codexsetup --http-probe-off true
+    >>> build --target status-im/logosstoragesetup --http-probe-off true
     ```
- 3. This should output an image with name `status-im/codexsetup.slim`
+ 3. This should output an image with name `status-im/logosstoragesetup.slim`
  4. We can then bring up the image using `docker-compose up -d`.

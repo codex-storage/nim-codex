@@ -1,6 +1,6 @@
-# Logos Storage Decentralized Engine
+# Logos Storage Filesharing Client
 
-> The Logos Storage project aims to create a decentralized engine that allows persisting data in p2p networks.
+> The Logos Storage project aims to create a filesharing client that allows sharing data privately in p2p networks.
 
 > WARNING: This project is under active development and is considered pre-alpha.
 
@@ -16,12 +16,12 @@
 
 ## Build and Run
 
-For detailed instructions on preparing to build logos-storage-nim see [*Build Logos Storage*](https://docs.codex.storage/learn/build).
-
 To build the project, clone it and run:
 
 ```bash
 make update && make
+# Tip: use -j{ncpu} to for parallel execution, eg:
+# make -j12 update && make -j12
 ```
 
 The executable will be placed under the `build` directory under the project root.
@@ -41,12 +41,7 @@ It is possible to configure a Logos Storage node in several ways:
 
 The order of priority is the same as above: CLI options --> Environment variables --> Configuration file.
 
-Please check [documentation](https://docs.codex.storage/learn/run#configuration) for more information.
-
-## Guides
-
-To get acquainted with Logos Storage, consider:
-* running the simple [Logos Storage Two-Client Test](https://docs.codex.storage/learn/local-two-client-test) for a start, and;
+Please check `build/storage --help` for more information.
 
 ## API
 
@@ -54,8 +49,9 @@ The client exposes a REST API that can be used to interact with the clients. Ove
 
 ## Bindings
 
-Logos Storage provides a C API that can be wrapped by other languages. The bindings is located in the `library` folder.
-Currently, only a Go binding is included.
+Logos Storage provides a C API that can be wrapped by other languages. The C API bindings are located in the `library` folder.
+
+Currently, only Go bindings are provided in this repo. However, Rust bindings for Logos Storage can be found at https://github.com/nipsysdev/storage-rust-bindings.
 
 ### Build the C library
 
@@ -71,7 +67,8 @@ See https://github.com/logos-storage/logos-storage-go-bindings-example.
 
 ### Static vs Dynamic build
 
-By default, Logos Storage builds a dynamic library (`libstorage.so`), which you can load at runtime.
+By default, Logos Storage builds a dynamic library (`libstorage.so`/`libstorage.dylib`/`libstroage.dll`), which you can load at runtime.
+
 If you prefer a static library (`libstorage.a`), set the `STATIC` flag:
 
 ```bash

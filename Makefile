@@ -267,15 +267,15 @@ libstorage:
 
 ifeq ($(STATIC), 1)
 		echo -e $(BUILD_MSG) "build/$@.a" && \
-		$(ENV_SCRIPT) nim libstorageStatic $(NIM_PARAMS) $(LIBSTORAGE_PARAMS) codex.nims
+		$(ENV_SCRIPT) nim libstorageStatic $(NIM_PARAMS) $(LIBSTORAGE_PARAMS) storage.nims
 else ifeq ($(detected_OS),Windows)
 		echo -e $(BUILD_MSG) "build/$@.dll" && \
-		$(ENV_SCRIPT) nim libstorageDynamic $(NIM_PARAMS) $(LIBSTORAGE_PARAMS) codex.nims
+		$(ENV_SCRIPT) nim libstorageDynamic $(NIM_PARAMS) $(LIBSTORAGE_PARAMS) storage.nims
 else ifeq ($(detected_OS),macOS)
 		echo -e $(BUILD_MSG) "build/$@.dylib" && \
-		$(ENV_SCRIPT) nim libstorageDynamic $(NIM_PARAMS) $(LIBSTORAGE_PARAMS) codex.nims
+		$(ENV_SCRIPT) nim libstorageDynamic $(NIM_PARAMS) $(LIBSTORAGE_PARAMS) storage.nims
 else
 		echo -e $(BUILD_MSG) "build/$@.so" && \
-		$(ENV_SCRIPT) nim libstorageDynamic $(NIM_PARAMS) $(LIBSTORAGE_PARAMS) codex.nims
+		$(ENV_SCRIPT) nim libstorageDynamic $(NIM_PARAMS) $(LIBSTORAGE_PARAMS) storage.nims
 endif
 endif # "variables.mk" was not included
