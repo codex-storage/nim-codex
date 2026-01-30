@@ -205,8 +205,8 @@ jobs:
               zip "${arc}" "${file}"
               checksum "${arc}"
 
-              # Windows - binary and libs
-              arc="${file%.*}-libs.zip"
+              # Windows - binary and dlls
+              arc="${file%.*}-dlls.zip"
               zip "${arc}" "${file}" ${{ env.windows_libs }}
               rm -f "${file}"
               checksum "${arc}"
