@@ -185,7 +185,7 @@ jobs:
       - name: Release - Download artifacts
         uses: actions/download-artifact@v5
         with:
-          pattern: libstorage*
+          pattern: ${{ env.c_bindings_lib_base }}*
           path: /tmp/release
 
       - name: Release - Compress and checksum
