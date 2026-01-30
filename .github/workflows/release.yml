@@ -111,6 +111,13 @@ jobs:
           make -j${ncpu} update
           make -j${ncpu} libstorage
 
+      - name: Upload Logos Storage binary to workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.storage_binary }}
+          path: ${{ env.build_dir }}/${{ env.storage_binary_base }}*
+          retention-days: 30
+
       - name: Copy Windows dlls to build dir (Windows)
         run: |
           if [[ "${{ matrix.os }}" == "windows" ]]; then
@@ -118,13 +125,6 @@ jobs:
               cp -v "${MINGW_PREFIX}/bin/${lib}" "${{ env.build_dir }}"
             done
           fi
-
-      - name: Upload Logos Storage binary to workflow artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ env.storage_binary }}
-          path: ${{ env.build_dir }}/${{ env.storage_binary_base }}*
-          retention-days: 30
 
       - name: Upload Windows dlls to workflow artifacts
         if: matrix.os == 'windows'
@@ -221,41 +221,6 @@ jobs:
             fi
           done
           rm -f ${{ env.windows_libs }}
-
-      - name: Upload compressed workflow artifacts and checksums
-        uses: actions/upload-artifact@v4
-        with:
-          name: archives-and-checksums
-          path: /tmp/release/
-          retention-days: 30
-
-      - name: Upload workflow artifacts to AWS
-        env:
-          s3_endpoint: ${{ secrets.S3_ENDPOINT }}
-          s3_bucket: ${{ secrets.S3_BUCKET }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
-        run: |
-          # Variables
-          branch="${GITHUB_REF_NAME/\//-}"
-          folder="/tmp/release"
-
-          # Tagged releases
-          if [[ "${{ env.TAGGED_RELEASE }}" == "true" ]]; then
-            aws s3 cp --recursive "${folder}" s3://${{ env.s3_bucket }}/releases/${{ env.VERSION }} --endpoint-url ${{ env.s3_endpoint }}
-            echo "${{ env.VERSION }}" >  "${folder}"/latest
-            aws s3 cp "${folder}"/latest s3://${{ env.s3_bucket }}/releases/latest --endpoint-url ${{ env.s3_endpoint }}
-            rm -f "${folder}"/latest
-
-          # master branch
-          elif [[ "${branch}" == "${{ github.event.repository.default_branch }}" ]]; then
-            aws s3 cp --recursive "${folder}" s3://${{ env.s3_bucket }}/${branch} --endpoint-url ${{ env.s3_endpoint }}
-
-          # Custom branch
-          else
-            aws s3 cp --recursive "${folder}" s3://${{ env.s3_bucket }}/branches/${branch} --endpoint-url ${{ env.s3_endpoint }}
-          fi
 
       - name: Create GH release
         uses: softprops/action-gh-release@v2
