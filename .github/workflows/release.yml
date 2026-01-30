@@ -188,7 +188,7 @@ jobs:
           pattern: ${{ env.c_bindings_lib_base }}-*
           path: /tmp/release
 
-      - name: Compress workflow artifcats and create checksum for each
+      - name: Compress workflow artifacts and create checksum for each
         run: |
           cd /tmp/release
           checksum() {
@@ -197,7 +197,8 @@ jobs:
           }
 
           # Compress and prepare
-          for file in ${{ env.storage_binary_base }}* ${{ env.c_bindings_lib_base }}*; do
+          for file in ${{ env.storage_binary_base }}* ${{ env.c_bindings_lib_base }}-*; do
+            echo "Compressing and checksumming file: ${file}"
             if [[ "${file}" == *".exe"* ]]; then
 
               # Windows - binary only
