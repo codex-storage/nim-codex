@@ -208,7 +208,7 @@ jobs:
               # Windows - binary and dlls
               arc="${file%.*}-dlls.zip"
               zip "${arc}" "${file}" ${{ env.windows_libs }}
-              rm -f "${file}"
+              rm -rf "${file}"
               checksum "${arc}"
             else
 
@@ -216,7 +216,7 @@ jobs:
               arc="${file}.tar.gz"
               chmod 755 "${file}"
               tar cfz "${arc}" "${file}"
-              rm -f "${file}"
+              rm -rf "${file}"
               checksum "${arc}"
             fi
           done
