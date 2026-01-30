@@ -185,7 +185,7 @@ jobs:
       - name: Download ${{ env.c_bindings_lib_base }} from workflow artifacts into temp folder
         uses: actions/download-artifact@v5
         with:
-          pattern: ${{ env.c_bindings_lib_base }}*
+          pattern: ${{ env.c_bindings_lib_base }}-*
           path: /tmp/release
 
       - name: Compress workflow artifcats and create checksum for each
