@@ -197,7 +197,7 @@ jobs:
           }
 
           # Compress and prepare
-          for file in ${{ env.storage_binary_base }}*; do
+          for file in ${{ env.storage_binary_base }}* ${{ env.c_bindings_lib_base }}*; do
             if [[ "${file}" == *".exe"* ]]; then
 
               # Windows - binary only
