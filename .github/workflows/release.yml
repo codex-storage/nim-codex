@@ -165,7 +165,7 @@ jobs:
     needs: build
     if: success() || failure()
     steps:
-      - name: Set version variable
+      - name: Set conditional env variables
         shell: bash
         run: |
           if [[ "${{ github.ref_type }}" == "tag" ]]; then
@@ -175,20 +175,20 @@ jobs:
             echo "VERSION=${GITHUB_SHA::7}" >> $GITHUB_ENV
             echo "TAGGED_RELEASE=false" >> $GITHUB_ENV
           fi
-      - name: Release - Download binaries
+      - name: Download binaries from workflow artifacts into temp folder
         uses: actions/download-artifact@v4
         with:
           pattern: ${{ env.storage_binary_base }}*
           merge-multiple: true
           path: /tmp/release
 
-      - name: Release - Download artifacts
+      - name: Download ${{ env.c_bindings_lib_base }} from workflow artifacts into temp folder
         uses: actions/download-artifact@v5
         with:
           pattern: ${{ env.c_bindings_lib_base }}*
           path: /tmp/release
 
-      - name: Release - Compress and checksum
+      - name: Compress workflow artifcats and create checksum for each
         run: |
           cd /tmp/release
           checksum() {
@@ -222,14 +222,14 @@ jobs:
           done
           rm -f ${{ env.windows_libs }}
 
-      - name: Release - Upload compressed artifacts and checksums
+      - name: Upload compressed workflow artifacts and checksums
         uses: actions/upload-artifact@v4
         with:
           name: archives-and-checksums
           path: /tmp/release/
           retention-days: 30
 
-      - name: Release - Upload to the cloud
+      - name: Upload workflow artifacts to AWS
         env:
           s3_endpoint: ${{ secrets.S3_ENDPOINT }}
           s3_bucket: ${{ secrets.S3_BUCKET }}
@@ -257,7 +257,7 @@ jobs:
             aws s3 cp --recursive "${folder}" s3://${{ env.s3_bucket }}/branches/${branch} --endpoint-url ${{ env.s3_endpoint }}
           fi
 
-      - name: Release
+      - name: Create GH release
         uses: softprops/action-gh-release@v2
         if: env.TAGGED_RELEASE == 'true'
         with:
