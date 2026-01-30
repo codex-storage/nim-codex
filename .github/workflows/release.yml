@@ -243,8 +243,8 @@ jobs:
 
           # Tagged releases
           if [[ "${{ env.TAGGED_RELEASE }}" == "true" ]]; then
-            aws s3 cp --recursive "${folder}" s3://${{ env.s3_bucket }}/releases/${branch} --endpoint-url ${{ env.s3_endpoint }}
-            echo "${branch}" >  "${folder}"/latest
+            aws s3 cp --recursive "${folder}" s3://${{ env.s3_bucket }}/releases/${{ env.VERSION }} --endpoint-url ${{ env.s3_endpoint }}
+            echo "${{ env.VERSION }}" >  "${folder}"/latest
             aws s3 cp "${folder}"/latest s3://${{ env.s3_bucket }}/releases/latest --endpoint-url ${{ env.s3_endpoint }}
             rm -f "${folder}"/latest
 
