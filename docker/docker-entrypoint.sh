@@ -63,7 +63,7 @@ fi
 # Parameters
 if [[ -z "${STORAGE_NAT}" ]]; then
   if [[ "${NAT_IP_AUTO}" == "true" && -z "${NAT_PUBLIC_IP_AUTO}" ]]; then
-    export STORAGE_NAT="extip:$(hostname --ip-address)"
+    export STORAGE_NAT="extip:$(hostname --ip-address | grep --color=never -oE '([0-9]{1,3}\.){3}[0-9]{1,3}')"
   elif [[ -n "${NAT_PUBLIC_IP_AUTO}" ]]; then
     # Run for 60 seconds if fail
     WAIT=120
