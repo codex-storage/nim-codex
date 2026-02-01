@@ -228,7 +228,7 @@ jobs:
         if: env.TAGGED_RELEASE == 'true'
         with:
           files: |
-            /tmp/release/*
+            /tmp/release/*-*
           make_latest: true
 
       - name: Generate Python SDK
