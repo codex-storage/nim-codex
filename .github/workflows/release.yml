@@ -187,7 +187,8 @@ jobs:
       - name: Download ${{ env.c_bindings_lib_base }} from workflow artifacts into temp folder
         uses: actions/download-artifact@v5
         with:
-          pattern: ${{ env.c_bindings_lib_base }}-*
+          pattern: ${{ env.c_bindings_lib_base }}*
+          merge-multiple: true
           path: /tmp/release
 
       - name: Create GH release
@@ -195,7 +196,7 @@ jobs:
         if: env.TAGGED_RELEASE == 'true'
         with:
           files: |
-            /tmp/release/*-*
+            /tmp/release
           make_latest: true
 
       - name: Generate Python SDK
