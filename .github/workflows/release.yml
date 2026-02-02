@@ -123,14 +123,14 @@ jobs:
           for lib in ${{ env.windows_libs }}; do
             cp -v "${MINGW_PREFIX}/bin/${lib}" "${{ env.build_dir }}/dlls"
           done
-          cd ./${{ env.build_dir }}/dlls && 7z a -tzip "${{ env.storage_binary_base }}-windows-${{ matrix.cpu }}-${{ env.VERSION }}-dlls.zip" ${{ env.c_bindings_lib_base }}.dll
+          7z a -tzip "${{ env.build_dir }}/${{ env.storage_binary }}-dlls.zip" ${{ env.build_dir }}/dlls/*.dll
 
       - name: Upload Windows dlls to workflow artifacts
         if: matrix.os == 'windows'
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.storage_binary_base }}-windows-${{ matrix.cpu }}-${{ env.VERSION }}-dlls.zip
-          path: ${{ env.storage_binary_base }}-windows-${{ matrix.cpu }}-${{ env.VERSION }}-dlls.zip
+          name: ${{ env.storage_binary }}-dlls.zip
+          path: ${{ env.build_dir }}/${{ env.storage_binary }}-dlls.zip
           retention-days: 30
 
       - name: Build ${{ env.c_bindings_lib_base }} (Linux)
