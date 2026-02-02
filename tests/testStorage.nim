@@ -1,6 +1,6 @@
 import std/os
 import ./imports
 
-importTests(currentSourcePath().parentDir() / "codex")
+importTests(currentSourcePath().parentDir() / "storage")
 
 {.warning[UnusedImport]: off.}
