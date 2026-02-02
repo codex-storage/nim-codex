@@ -111,7 +111,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.storage_binary_base }}-windows-${{ matrix.cpu }}-${{ env.VERSION }}-dlls
-          path: ${{ env.build_dir }}/dlls/*
+          path: ${{ env.build_dir }}/dlls/*.dll
           retention-days: 30
 
       - name: Build ${{ env.c_bindings_lib_base }} (Linux)
