@@ -96,18 +96,18 @@ jobs:
         if: matrix.os == 'linux'
         run: |
           sudo apt-get update && sudo apt-get install -y zip
-          cd ./build && zip -j "${PWD}/../${{env.storage_binary}}.zip" ${{ env.storage_binary_base }}
+          cd ./build && zip -j "${PWD}/../${{env.storage_binary}}.zip" ./*
           
       - name: Package ${{ env.storage_binary_base }} MacOS (compress and preserve perms)
         if: matrix.os == 'macos'
         run: |
-          cd ./build && zip -j "${PWD}/../${{env.storage_binary}}.zip" ${{ env.storage_binary_base }}
+          cd ./build && zip -j "${PWD}/../${{env.storage_binary}}.zip" ./*
 
       - name: Package ${{ env.storage_binary_base }} Windows (compress and preserve perms)
         if: matrix.os == 'windows'
         shell: msys2 {0}
         run: |
-          cd ./build && 7z a -tzip "${PWD}/../${{env.storage_binary}}.zip" ${{ env.storage_binary_base }}
+          cd ./build && 7z a -tzip "${PWD}/../${{env.storage_binary}}.zip" ./*
 
       - name: Upload Logos Storage binary to workflow artifacts
         uses: actions/upload-artifact@v4
