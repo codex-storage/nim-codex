@@ -92,6 +92,28 @@ jobs:
         run: |
           make NIMFLAGS="--out:${{ env.build_dir }}/${{ env.storage_binary }} ${{ env.nim_flags }}"
 
+      - name: Upload Logos Storage binary to workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.storage_binary }}
+          path: ${{ env.build_dir }}/${{ env.storage_binary_base }}*
+          retention-days: 30
+
+      - name: Copy Windows dlls to build dir (Windows)
+        if: matrix.os == 'windows'
+        run: |
+          for lib in ${{ env.windows_libs }}; do
+            cp -v "${MINGW_PREFIX}/bin/${lib}" "${{ env.build_dir }}/dlls"
+          done
+
+      - name: Upload Windows dlls to workflow artifacts
+        if: matrix.os == 'windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.storage_binary_base }}-windows-${{ matrix.cpu }}-${{ env.VERSION }}-dlls
+          path: ${{ env.build_dir }}/dlls/*
+          retention-days: 30
+
       - name: Build ${{ env.c_bindings_lib_base }} (Linux)
         if: matrix.os == 'linux'
         run: |
@@ -111,39 +133,19 @@ jobs:
           make -j${ncpu} update
           make -j${ncpu} libstorage
 
-      - name: Copy Windows dlls to build dir (Windows)
-        run: |
-          if [[ "${{ matrix.os }}" == "windows" ]]; then
-            for lib in ${{ env.windows_libs }}; do
-              cp -v "${MINGW_PREFIX}/bin/${lib}" "${{ env.build_dir }}"
-            done
-          fi
-      
-      - name: Upload Logos Storage binary to workflow artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ env.storage_binary }}
-          path: ${{ env.build_dir }}/${{ env.storage_binary_base }}*
-          retention-days: 30
-
-      - name: Upload Windows dlls to workflow artifacts
-        if: matrix.os == 'windows'
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ env.storage_binary_base }}-windows-${{ matrix.cpu }}-${{ env.VERSION }}-dlls
-          path: ${{ env.build_dir }}/*.dll
-          retention-days: 30
-
       - name: Package ${{ env.c_bindings_lib_base }} Linux
         if: matrix.os == 'linux'
         run: |
           sudo apt-get update && sudo apt-get install -y zip
-          zip -j ${{env.c_bindings_lib}} ./build/${{ env.c_bindings_lib_base }}.so ./library/${{ env.c_bindings_lib_base }}.h
+          cd ./build && zip -j "${PWD}/../${{env.c_bindings_lib}}.zip" ${{ env.c_bindings_lib_base }}.so
+          cd ../library && zip -j "${PWD}/../${{env.c_bindings_lib}}.zip" ${{ env.c_bindings_lib_base }}.h
+          cd .. && ls -l ${{env.c_bindings_lib}}.zip
           
       - name: Package ${{ env.c_bindings_lib_base }} MacOS
         if: matrix.os == 'macos'
         run: |
-          zip -j ${{env.c_bindings_lib}} ./build/${{ env.c_bindings_lib_base }}.dylib ./library/${{ env.c_bindings_lib_base }}.h
+          cd ./build && zip -j "${PWD}/../${{env.c_bindings_lib}}.zip" ${{ env.c_bindings_lib_base }}.dylib
+          cd ../library && zip -j "${PWD}/../${{env.c_bindings_lib}}.zip" ${{ env.c_bindings_lib_base }}.h
 
       - name: Package ${{ env.c_bindings_lib_base }} (Windows)
         if: matrix.os == 'windows'
@@ -156,7 +158,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{env.c_bindings_lib}}
-          path: ${{env.c_bindings_lib}}
+          path: ${{env.c_bindings_lib}}*
           if-no-files-found: error
 
   # Release
@@ -187,41 +189,6 @@ jobs:
         with:
           pattern: ${{ env.c_bindings_lib_base }}-*
           path: /tmp/release
-
-      - name: Compress workflow artifacts and create checksum for each
-        run: |
-          cd /tmp/release
-          checksum() {
-            arc="${1}"
-            sha256sum "${arc}" >"${arc}.sha256"
-          }
-
-          # Compress and prepare
-          for file in ${{ env.storage_binary_base }}* ${{ env.c_bindings_lib_base }}-*; do
-            echo "Compressing and checksumming file: ${file}"
-            if [[ "${file}" == *".exe"* ]]; then
-
-              # Windows - binary only
-              arc="${file%.*}.zip"
-              zip "${arc}" "${file}"
-              checksum "${arc}"
-
-              # Windows - binary and dlls
-              arc="${file%.*}-dlls.zip"
-              zip "${arc}" "${file}" ${{ env.windows_libs }}
-              rm -rf "${file}"
-              checksum "${arc}"
-            else
-
-              # Linux/macOS
-              arc="${file}.tar.gz"
-              chmod 755 "${file}"
-              tar cfz "${arc}" "${file}"
-              rm -rf "${file}"
-              checksum "${arc}"
-            fi
-          done
-          rm -f ${{ env.windows_libs }}
 
       - name: Create GH release
         uses: softprops/action-gh-release@v2
