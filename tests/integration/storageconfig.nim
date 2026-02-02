@@ -26,7 +26,9 @@ type
 
   StorageConfigError* = object of CatchableError
 
-proc cliArgs*(config: StorageConfig): seq[string] {.gcsafe, raises: [StorageConfigError].}
+proc cliArgs*(
+  config: StorageConfig
+): seq[string] {.gcsafe, raises: [StorageConfigError].}
 
 proc raiseStorageConfigError(msg: string) {.raises: [StorageConfigError].} =
   raise newException(StorageConfigError, msg)
@@ -87,7 +89,9 @@ proc addCliOption*(
 ) {.raises: [StorageConfigError].} =
   config.addCliOption(StartUpCmd.noCmd, CliOption(key: key, value: value))
 
-proc cliArgs*(config: StorageConfig): seq[string] {.gcsafe, raises: [StorageConfigError].} =
+proc cliArgs*(
+    config: StorageConfig
+): seq[string] {.gcsafe, raises: [StorageConfigError].} =
   ## converts StorageConfig cli options and command groups in a sequence of args
   ## and filters out cli options by node index if provided in the CliOption
   var args: seq[string] = @[]
@@ -138,7 +142,9 @@ proc withLogFile*(
   startConfig.configs[idx].addCliOption("--log-file", "<updated_in_test>")
   return startConfig
 
-proc withLogFile*(self: StorageConfigs): StorageConfigs {.raises: [StorageConfigError].} =
+proc withLogFile*(
+    self: StorageConfigs
+): StorageConfigs {.raises: [StorageConfigError].} =
   ## typically called from test, sets config such that a log file should be
   ## created
   var startConfig = self

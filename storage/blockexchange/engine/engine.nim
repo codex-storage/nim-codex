@@ -47,14 +47,16 @@ logScope:
   topics = "storage blockexcengine"
 
 declareCounter(
-  storage_block_exchange_want_have_lists_sent, "storage blockexchange wantHave lists sent"
+  storage_block_exchange_want_have_lists_sent,
+  "storage blockexchange wantHave lists sent",
 )
 declareCounter(
   storage_block_exchange_want_have_lists_received,
   "storage blockexchange wantHave lists received",
 )
 declareCounter(
-  storage_block_exchange_want_block_lists_sent, "storage blockexchange wantBlock lists sent"
+  storage_block_exchange_want_block_lists_sent,
+  "storage blockexchange wantBlock lists sent",
 )
 declareCounter(
   storage_block_exchange_want_block_lists_received,

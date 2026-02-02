@@ -29,7 +29,8 @@ declareGauge(
   "storage blockexchange pending block requests",
 )
 declareGauge(
-  storage_block_exchange_retrieval_time_us, "storage blockexchange block retrieval time us"
+  storage_block_exchange_retrieval_time_us,
+  "storage blockexchange block retrieval time us",
 )
 
 const

@@ -208,7 +208,9 @@ template multinodesuite*(suiteName: string, body: untyped) =
       # create a log file even when using an absolute path
       when defaultChroniclesStream.outputs is (FileOutput,) and StorageLogsDir.len > 0:
         let logFile =
-          StorageLogsDir / sanitize(getAppFilename().extractFilename & ".chronicles.log")
+          StorageLogsDir / sanitize(
+            getAppFilename().extractFilename & ".chronicles.log"
+          )
         let success = defaultChroniclesStream.outputs[0].open(logFile, fmAppend)
         doAssert success, "Failed to open log file: " & logFile
 
