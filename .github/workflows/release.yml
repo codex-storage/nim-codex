@@ -156,21 +156,21 @@ jobs:
         if: matrix.os == 'linux'
         run: |
           sudo apt-get update && sudo apt-get install -y zip
-          cd ./build && zip -j "${PWD}/../${{env.c_bindings_lib}}.zip" ${{ env.c_bindings_lib_base }}.so
-          cd ../library && zip -j "${PWD}/../${{env.c_bindings_lib}}.zip" ${{ env.c_bindings_lib_base }}.h
+          zip -j "${{ env.build_dir }}/${{ env.c_bindings_lib }}.zip" ${{ env.build_dir }}/${{ env.c_bindings_lib_base }}.so
+          zip -j "${{ env.build_dir }}/${{ env.c_bindings_lib }}.zip" library/${{ env.c_bindings_lib_base }}.h
           
       - name: Package ${{ env.c_bindings_lib_base }} MacOS
         if: matrix.os == 'macos'
         run: |
-          cd ./build && zip -j "${PWD}/../${{env.c_bindings_lib}}.zip" ${{ env.c_bindings_lib_base }}.dylib
-          cd ../library && zip -j "${PWD}/../${{env.c_bindings_lib}}.zip" ${{ env.c_bindings_lib_base }}.h
+          zip -j "${{ env.build_dir }}/${{ env.c_bindings_lib }}.zip" ${{ env.build_dir }}/${{ env.c_bindings_lib_base }}.dylib
+          zip -j "${{ env.build_dir }}/${{ env.c_bindings_lib }}.zip" library/${{ env.c_bindings_lib_base }}.h
 
       - name: Package ${{ env.c_bindings_lib_base }} (Windows)
         if: matrix.os == 'windows'
         shell: msys2 {0}
         run: |
-          cd ./build && 7z a -tzip "${PWD}/../${{env.c_bindings_lib}}.zip" ${{ env.c_bindings_lib_base }}.dll
-          cd ../library && 7z a -tzip "${GITHUB_WORKSPACE}/${{env.c_bindings_lib}}.zip" ${{ env.c_bindings_lib_base }}.h
+          7z a -tzip "${{ env.build_dir }}/${{ env.c_bindings_lib }}.zip" ${{ env.build_dir }}/${{ env.c_bindings_lib_base }}.dll
+          7z a -tzip "${{ env.build_dir }}/${{ env.c_bindings_lib }}.zip" library/${{ env.c_bindings_lib_base }}.h
 
       - name: Upload ${{ env.c_bindings_lib_base }} to workflow artifacts
         uses: actions/upload-artifact@v4
