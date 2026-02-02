@@ -96,18 +96,18 @@ jobs:
         if: matrix.os == 'linux'
         run: |
           sudo apt-get update && sudo apt-get install -y zip
-          cd ./build && zip -j "${{env.storage_binary}}.zip" ./*
+          zip -j "${{ env.build_dir }}/${{env.storage_binary}}.zip" ./${{ env.build_dir }}/*
           
       - name: Package ${{ env.storage_binary_base }} MacOS (compress and preserve perms)
         if: matrix.os == 'macos'
         run: |
-          cd ./build && zip -j "${{env.storage_binary}}.zip" ./*
+          zip -j "${{ env.build_dir }}/${{env.storage_binary}}.zip" ./${{ env.build_dir }}/*
 
       - name: Package ${{ env.storage_binary_base }} Windows (compress and preserve perms)
         if: matrix.os == 'windows'
         shell: msys2 {0}
         run: |
-          cd ./build && 7z a -tzip "${{env.storage_binary}}.zip" ./*
+          7z a -tzip "${{ env.build_dir }}/${{env.storage_binary}}.zip" ./${{ env.build_dir }}/*
 
       - name: Upload Logos Storage binary to workflow artifacts
         uses: actions/upload-artifact@v4
@@ -123,7 +123,7 @@ jobs:
           for lib in ${{ env.windows_libs }}; do
             cp -v "${MINGW_PREFIX}/bin/${lib}" "${{ env.build_dir }}/dlls"
           done
-          7z a -tzip "${{ env.build_dir }}/${{ env.storage_binary }}-dlls.zip" ${{ env.build_dir }}/dlls/*.dll
+          7z a -tzip "${{ env.build_dir }}/${{ env.storage_binary }}-dlls.zip" ./${{ env.build_dir }}/dlls/*.dll
 
       - name: Upload Windows dlls to workflow artifacts
         if: matrix.os == 'windows'
@@ -169,8 +169,8 @@ jobs:
         if: matrix.os == 'windows'
         shell: msys2 {0}
         run: |
-          7z a -tzip "${{ env.build_dir }}/${{ env.c_bindings_lib }}.zip" ${{ env.build_dir }}/${{ env.c_bindings_lib_base }}.dll
-          7z a -tzip "${{ env.build_dir }}/${{ env.c_bindings_lib }}.zip" library/${{ env.c_bindings_lib_base }}.h
+          7z a -tzip "${{ env.build_dir }}/${{ env.c_bindings_lib }}.zip" ./${{ env.build_dir }}/${{ env.c_bindings_lib_base }}.dll
+          7z a -tzip "${{ env.build_dir }}/${{ env.c_bindings_lib }}.zip" ./library/${{ env.c_bindings_lib_base }}.h
 
       - name: Upload ${{ env.c_bindings_lib_base }} to workflow artifacts
         uses: actions/upload-artifact@v4
