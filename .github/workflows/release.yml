@@ -102,6 +102,7 @@ jobs:
       - name: Copy Windows dlls to build dir (Windows)
         if: matrix.os == 'windows'
         run: |
+          mkdir -p "${{ env.build_dir }}/dlls"
           for lib in ${{ env.windows_libs }}; do
             cp -v "${MINGW_PREFIX}/bin/${lib}" "${{ env.build_dir }}/dlls"
           done
@@ -139,7 +140,6 @@ jobs:
           sudo apt-get update && sudo apt-get install -y zip
           cd ./build && zip -j "${PWD}/../${{env.c_bindings_lib}}.zip" ${{ env.c_bindings_lib_base }}.so
           cd ../library && zip -j "${PWD}/../${{env.c_bindings_lib}}.zip" ${{ env.c_bindings_lib_base }}.h
-          cd .. && ls -l ${{env.c_bindings_lib}}.zip
           
       - name: Package ${{ env.c_bindings_lib_base }} MacOS
         if: matrix.os == 'macos'
