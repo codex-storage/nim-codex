@@ -25,7 +25,7 @@ asyncchecksuite "Block Advertising and Discovery":
   var
     blocks: seq[bt.Block]
     manifest: Manifest
-    tree: CodexTree
+    tree: StorageMerkleTree
     manifestBlock: bt.Block
     switch: Switch
     peerStore: PeerCtxStore
@@ -158,7 +158,7 @@ asyncchecksuite "E2E - Multiple Nodes Discovery":
     blockexc: seq[NetworkStore]
     manifests: seq[Manifest]
     mBlocks: seq[bt.Block]
-    trees: seq[CodexTree]
+    trees: seq[StorageMerkleTree]
 
   setup:
     for _ in 0 ..< 4:

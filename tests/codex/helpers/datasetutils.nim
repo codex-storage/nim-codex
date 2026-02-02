@@ -8,7 +8,8 @@ import pkg/codex/rng
 
 import ./randomchunker
 
-type TestDataset* = tuple[blocks: seq[Block], tree: CodexTree, manifest: Manifest]
+type TestDataset* =
+  tuple[blocks: seq[Block], tree: StorageMerkleTree, manifest: Manifest]
 
 proc makeRandomBlock*(size: NBytes): Block =
   let bytes = newSeqWith(size.int, rand(uint8))
@@ -34,7 +35,7 @@ proc makeDataset*(blocks: seq[Block]): ?!TestDataset =
   let
     datasetSize = blocks.mapIt(it.data.len).foldl(a + b)
     blockSize = blocks.mapIt(it.data.len).foldl(max(a, b))
-    tree = ?CodexTree.init(blocks.mapIt(it.cid))
+    tree = ?StorageMerkleTree.init(blocks.mapIt(it.cid))
     treeCid = ?tree.rootCid
     manifest = Manifest.new(
       treeCid = treeCid,

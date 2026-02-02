@@ -848,12 +848,13 @@ proc localLookup(
 ): Future[?!BlockDelivery] {.async: (raises: [CancelledError]).} =
   if address.leaf:
     (await self.localStore.getBlockAndProof(address.treeCid, address.index)).map(
-      (blkAndProof: (Block, CodexProof)) =>
+      (blkAndProof: (Block, StorageMerkleProof)) =>
         BlockDelivery(address: address, blk: blkAndProof[0], proof: blkAndProof[1].some)
     )
   else:
     (await self.localStore.getBlock(address)).map(
-      (blk: Block) => BlockDelivery(address: address, blk: blk, proof: CodexProof.none)
+      (blk: Block) =>
+        BlockDelivery(address: address, blk: blk, proof: StorageMerkleProof.none)
     )
 
 iterator splitBatches[T](sequence: seq[T], batchSize: int): seq[T] =
