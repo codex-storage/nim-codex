@@ -92,27 +92,45 @@ jobs:
         run: |
           make NIMFLAGS="--out:${{ env.build_dir }}/${{ env.storage_binary }} ${{ env.nim_flags }}"
 
+      - name: Package ${{ env.storage_binary_base }} Linux (compress and preserve perms)
+        if: matrix.os == 'linux'
+        run: |
+          sudo apt-get update && sudo apt-get install -y zip
+          cd ./build && zip -j "${PWD}/../${{env.storage_binary}}.zip" ${{ env.storage_binary_base }}
+          
+      - name: Package ${{ env.storage_binary_base }} MacOS (compress and preserve perms)
+        if: matrix.os == 'macos'
+        run: |
+          cd ./build && zip -j "${PWD}/../${{env.storage_binary}}.zip" ${{ env.storage_binary_base }}
+
+      - name: Package ${{ env.storage_binary_base }} Windows (compress and preserve perms)
+        if: matrix.os == 'windows'
+        shell: msys2 {0}
+        run: |
+          cd ./build && 7z a -tzip "${PWD}/../${{env.storage_binary}}.zip" ${{ env.storage_binary_base }}
+
       - name: Upload Logos Storage binary to workflow artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.storage_binary }}
-          path: ${{ env.build_dir }}/${{ env.storage_binary_base }}*
+          name: ${{ env.storage_binary }}.zip
+          path: ${{ env.build_dir }}/${{ env.storage_binary }}.zip
           retention-days: 30
 
-      - name: Copy Windows dlls to build dir (Windows)
+      - name: Copy and zip Windows dlls to build/dlls dir (Windows)
         if: matrix.os == 'windows'
         run: |
           mkdir -p "${{ env.build_dir }}/dlls"
           for lib in ${{ env.windows_libs }}; do
             cp -v "${MINGW_PREFIX}/bin/${lib}" "${{ env.build_dir }}/dlls"
           done
+          cd ./${{ env.build_dir }}/dlls && 7z a -tzip "${{ env.storage_binary_base }}-windows-${{ matrix.cpu }}-${{ env.VERSION }}-dlls.zip" ${{ env.c_bindings_lib_base }}.dll)
 
       - name: Upload Windows dlls to workflow artifacts
         if: matrix.os == 'windows'
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.storage_binary_base }}-windows-${{ matrix.cpu }}-${{ env.VERSION }}-dlls
-          path: ${{ env.build_dir }}/dlls/*.dll
+          name: ${{ env.storage_binary_base }}-windows-${{ matrix.cpu }}-${{ env.VERSION }}-dlls.zip
+          path: ${{ env.storage_binary_base }}-windows-${{ matrix.cpu }}-${{ env.VERSION }}-dlls.zip
           retention-days: 30
 
       - name: Build ${{ env.c_bindings_lib_base }} (Linux)
@@ -151,14 +169,14 @@ jobs:
         if: matrix.os == 'windows'
         shell: msys2 {0}
         run: |
-          (cd ./build && 7z a -tzip "${GITHUB_WORKSPACE}/${{env.c_bindings_lib}}" ${{ env.c_bindings_lib_base }}.dll)
-          (cd ./library && 7z a -tzip "${GITHUB_WORKSPACE}/${{env.c_bindings_lib}}" ${{ env.c_bindings_lib_base }}.h)
+          cd ./build && 7z a -tzip "${PWD}/../${{env.c_bindings_lib}}.zip" ${{ env.c_bindings_lib_base }}.dll
+          cd ../library && 7z a -tzip "${GITHUB_WORKSPACE}/${{env.c_bindings_lib}}.zip" ${{ env.c_bindings_lib_base }}.h
 
       - name: Upload ${{ env.c_bindings_lib_base }} to workflow artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{env.c_bindings_lib}}
-          path: ${{env.c_bindings_lib}}*
+          name: ${{ env.c_bindings_lib }}.zip
+          path: ${{ env.build_dir }}/${{ env.c_bindings_lib }}.zip
           if-no-files-found: error
 
   # Release
@@ -196,7 +214,7 @@ jobs:
         if: env.TAGGED_RELEASE == 'true'
         with:
           files: |
-            /tmp/release/*
+            /tmp/release/*-*
           make_latest: true
 
       - name: Generate Python SDK
