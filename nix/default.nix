@@ -30,7 +30,7 @@ let
 in stdenv.mkDerivation rec {
   pname = "storage";
 
-  version = "${tools.findKeyValue "version = \"([0-9]+\.[0-9]+\.[0-9]+)\"" ../codex.nimble}-${revision}";
+  version = "${tools.findKeyValue "version = \"([0-9]+\.[0-9]+\.[0-9]+)\"" ../storage.nimble}-${revision}";
 
   inherit src;
 
