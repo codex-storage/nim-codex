@@ -43,18 +43,13 @@ type
   ByteProof* = MerkleProof[ByteHash, ByteTreeKey]
 
   StorageMerkleTree* = ref object of ByteTree
-  StorageMerkleTree* = ref object of ByteTree
     mcodec*: MultiCodec
 
-  StorageMerkleProof* = ref object of ByteProof
   StorageMerkleProof* = ref object of ByteProof
     mcodec*: MultiCodec
 
 func getProof*(self: StorageMerkleTree, index: int): ?!StorageMerkleProof =
   var proof = StorageMerkleProof(mcodec: self.mcodec)
-func getProof*(self: StorageMerkleTree, index: int): ?!StorageMerkleProof =
-  var proof = StorageMerkleProof(mcodec: self.mcodec)
-
   ?self.getProof(index, proof)
 
   success proof

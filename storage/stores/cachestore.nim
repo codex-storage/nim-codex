@@ -38,7 +38,6 @@ type
     size*: NBytes
     cache: LruCache[Cid, Block]
     cidAndProofCache: LruCache[(Cid, Natural), (Cid, StorageMerkleProof)]
-    cidAndProofCache: LruCache[(Cid, Natural), (Cid, StorageMerkleProof)]
 
   InvalidBlockSize* = object of StorageError
 

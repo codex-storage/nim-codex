@@ -851,7 +851,6 @@ proc localLookup(
   if address.leaf:
     (await self.localStore.getBlockAndProof(address.treeCid, address.index)).map(
       (blkAndProof: (Block, StorageMerkleProof)) =>
-        (blkAndProof: (Block, StorageMerkleProof)) =>
         BlockDelivery(address: address, blk: blkAndProof[0], proof: blkAndProof[1].some)
     )
   else:
