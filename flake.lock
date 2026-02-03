@@ -1,32 +1,12 @@
 {
   "nodes": {
-    "circom-compat": {
-      "inputs": {
-        "nixpkgs": [
-          "nixpkgs"
-        ]
-      },
-      "locked": {
-        "lastModified": 1736521871,
-        "narHash": "sha256-d34XNLg9NGPEOARHW+BIOAWalkHdEUAwsv3mpLZQxds=",
-        "owner": "logos-storage",
-        "repo": "circom-compat-ffi",
-        "rev": "8cd4ed44fdafe59d4ec1184420639cae4c4dbab9",
-        "type": "github"
-      },
-      "original": {
-        "owner": "logos-storage",
-        "repo": "circom-compat-ffi",
-        "type": "github"
-      }
-    },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1736200483,
-        "narHash": "sha256-JO+lFN2HsCwSLMUWXHeOad6QUxOuwe9UOAF/iSl1J4I=",
+        "lastModified": 1751274312,
+        "narHash": "sha256-/bVBlRpECLVzjV19t5KMdMFWSwKLtb5RyXdjz3LJT+g=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "3f0a8ac25fb674611b98089ca3a5dd6480175751",
+        "rev": "50ab793786d9de88ee30ec4e4c24fb4236fc2674",
         "type": "github"
       },
       "original": {
@@ -38,7 +18,6 @@
     },
     "root": {
       "inputs": {
-        "circom-compat": "circom-compat",
         "nixpkgs": "nixpkgs"
       }
     }
