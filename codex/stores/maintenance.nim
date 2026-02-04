@@ -100,12 +100,13 @@ proc runBlockCheck(
     trace "Cycle completed"
 
 proc start*(self: BlockMaintainer) =
-  proc onTimer(): Future[void] {.async: (raises: []).} =
+  proc onTimer(): Future[void] {.async: (raises: [CancelledError]).} =
     try:
       await self.runBlockCheck()
     except CancelledError as err:
       trace "Running block check in block maintenance timer callback cancelled: ",
         err = err.msg
+      raise err
 
   self.timer.start(onTimer, self.interval)
 
