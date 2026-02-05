@@ -274,11 +274,12 @@ proc storage_destroy(
   initializeLibrary()
   checkLibstorageParams(ctx, callback, userData)
 
-  let res = storage_context.destroyStorageContext(ctx)
-  if res.isErr:
-    return RET_ERR
+  let
+    res = storage_context.destroyStorageContext(ctx)
+    ret = if res.isErr: RET_ERR else: RET_OK
 
-  return RET_OK
+  callback(ret, nil, 0, userData)
+  return ret
 
 proc storage_upload_init(
     ctx: ptr StorageContext,
