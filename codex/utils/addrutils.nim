@@ -87,3 +87,18 @@ proc getAddressAndPort*(
     (ip: ip, port: port)
   except Exception:
     (ip: none(IpAddress), port: none(Port))
+
+proc toBootstrapAddr*(spr: SignedPeerRecord): (PeerId, seq[MultiAddress]) =
+  ## Convert SignedPeerRecord to bootstrap address tuple
+  ##
+
+  (spr.data.peerId, spr.data.addresses)
+
+proc toBootstrapAddrs*(sprs: openArray[SignedPeerRecord]): seq[(PeerId, seq[MultiAddress])] =
+  ## Convert seq[SignedPeerRecord] to seq of bootstrap address tuples
+  ##
+  var res = newSeqUninit[(PeerId, seq[MultiAddress])]( sprs.len )
+  for spr in sprs:
+    res.add spr.toBootstrapAddr
+
+  return res

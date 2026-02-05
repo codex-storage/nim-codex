@@ -14,7 +14,7 @@ import std/net
 import std/sequtils
 
 import pkg/chronos
-import pkg/libp2p/[cid, multicodec, routing_record, signed_envelope]
+import pkg/libp2p/[cid, multicodec, routing_record, signed_envelope, protocols/kademlia]
 import pkg/questionable
 import pkg/questionable/results
 import pkg/contractabi/address as ca
@@ -24,6 +24,7 @@ from pkg/nimcrypto import keccak256
 import ./rng
 import ./errors
 import ./logutils
+import ./utils/addrutils
 
 export discv5
 
@@ -35,7 +36,7 @@ logScope:
   topics = "codex discovery"
 
 type Discovery* = ref object of RootObj
-  protocol*: discv5.Protocol # dht protocol
+  protocol*: KadDHT # dht protocol
   key: PrivateKey # private key
   peerId: PeerId # the peer id of the local node
   announceAddrs*: seq[MultiAddress] # addresses announced as part of the provider records
@@ -234,7 +235,7 @@ proc close*(d: Discovery) {.async: (raises: []).} =
 
 proc new*(
     T: type Discovery,
-    key: PrivateKey,
+    switch: Switch,
     bindIp = IPv4_any(),
     bindPort = 0.Port,
     announceAddrs: openArray[MultiAddress],
@@ -243,6 +244,8 @@ proc new*(
 ): Discovery =
   ## Create a new Discovery node instance for the given key and datastore
   ##
+
+  let key = switch.peerInfo.privateKey
 
   var self = Discovery(
     key: key, peerId: PeerId.init(key).expect("Should construct PeerId"), store: store
@@ -259,15 +262,12 @@ proc new*(
   )
   # --------------------------------------------------------------------------
 
-  self.protocol = newProtocol(
-    key,
-    bindIp = bindIp,
-    bindPort = bindPort,
-    record = self.providerRecord.get,
-    bootstrapRecords = bootstrapNodes,
-    rng = Rng.instance(),
-    providers = ProvidersManager.new(store),
-    config = discoveryConfig,
+  # TODO: not sure why updateAnnounceRecord comes before initializing the dht
+  self.protocol = KadDHT.new(
+    switch = switch,
+    bootstrapNodes = bootstrapNodes.toBootstrapAddrs(),
+    config = KadDHTConfig.new(),
+    client = false
   )
 
   self

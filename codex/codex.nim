@@ -190,7 +190,7 @@ proc new*(
       Datastore(discoveryStoreRes.expect("Should create discovery datastore!"))
 
     discovery = Discovery.new(
-      switch.peerInfo.privateKey,
+      switch = switch,
       announceAddrs = config.listenAddrs,
       bindPort = config.discoveryPort,
       bootstrapNodes = config.bootstrapNodes,
