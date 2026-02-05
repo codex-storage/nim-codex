@@ -17,7 +17,7 @@ import pkg/chronos
 import ../logutils
 
 type
-  TimerCallback* = proc(): Future[void] {.async: (raises: []).}
+  TimerCallback* = proc(): Future[void] {.async: (raises: [CancelledError]).}
   Timer* = ref object of RootObj
     callback: TimerCallback
     interval: Duration
