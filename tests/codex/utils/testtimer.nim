@@ -21,11 +21,11 @@ asyncchecksuite "Timer":
   var numbersState = 0
   var lettersState = 'a'
 
-  proc numbersCallback(): Future[void] {.async: (raises: []).} =
+  proc numbersCallback(): Future[void] {.async: (raises: [CancelledError]).} =
     output &= $numbersState
     inc numbersState
 
-  proc lettersCallback(): Future[void] {.async: (raises: []).} =
+  proc lettersCallback(): Future[void] {.async: (raises: [CancelledError]).} =
     output &= $lettersState
     inc lettersState
 
