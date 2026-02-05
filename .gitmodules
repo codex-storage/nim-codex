@@ -207,3 +207,6 @@
 	url = https://github.com/vacp2p/nim-ngtcp2.git
 	ignore = untracked
 	branch = main
+[submodule "vendor/nim-merkletree"]
+	path = vendor/nim-merkletree
+	url = https://github.com/logos-storage/nim-merkletree

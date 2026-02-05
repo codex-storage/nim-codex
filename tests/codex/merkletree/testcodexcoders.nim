@@ -21,16 +21,16 @@ const data = [
 suite "merkletree - coders":
   test "encoding and decoding a tree yields the same tree":
     let
-      tree = CodexTree.init(Sha256HashCodec, data).tryGet()
+      tree = StorageMerkleTree.init(Sha256HashCodec, data).tryGet()
       encodedBytes = tree.encode()
-      decodedTree = CodexTree.decode(encodedBytes).tryGet()
+      decodedTree = StorageMerkleTree.decode(encodedBytes).tryGet()
 
     check:
       tree == decodedTree
 
   test "encoding and decoding a proof yields the same proof":
     let
-      tree = CodexTree.init(Sha256HashCodec, data).tryGet()
+      tree = StorageMerkleTree.init(Sha256HashCodec, data).tryGet()
       proof = tree.getProof(4).tryGet()
 
     check:
@@ -38,7 +38,7 @@ suite "merkletree - coders":
 
     let
       encodedBytes = proof.encode()
-      decodedProof = CodexProof.decode(encodedBytes).tryGet()
+      decodedProof = StorageMerkleProof.decode(encodedBytes).tryGet()
 
     check:
       proof == decodedProof

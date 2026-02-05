@@ -46,7 +46,7 @@ proc makeManifest*(
     hcodec = Sha256HashCodec,
     dataCodec = BlockCodec,
 ): Future[?!Manifest] {.async.} =
-  without tree =? CodexTree.init(cids), err:
+  without tree =? StorageMerkleTree.init(cids), err:
     return failure(err)
 
   without treeCid =? tree.rootCid(CIDv1, dataCodec), err:

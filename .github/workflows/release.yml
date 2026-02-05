@@ -12,6 +12,7 @@ env:
   cache_nonce: 0 # Allows for easily busting actions/cache caches
   nim_version: pinned
   storage_binary_base: logos-storage
+  c_bindings_lib_base: libstorage
   build_dir: build
   nim_flags: ''
   windows_libs: 'libstdc++-6.dll libgomp-1.dll libgcc_s_seh-1.dll libwinpthread-1.dll'
@@ -49,7 +50,7 @@ jobs:
     runs-on: ${{ matrix.builder }}
     timeout-minutes: 80
     steps:
-      - name: Set version variable
+      - name: Set conditional env variables
         shell: bash
         run: |
           if [[ "${{ github.ref_type }}" == "tag" ]]; then
@@ -59,12 +60,12 @@ jobs:
             echo "VERSION=${GITHUB_SHA::7}" >> $GITHUB_ENV
             echo "TAGGED_RELEASE=false" >> $GITHUB_ENV
           fi
-      - name: Release - Checkout sources
+      - name: Checkout sources
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: Release - Setup Nimbus Build System
+      - name: Setup Nimbus Build System
         uses: ./.github/actions/nimbus-build-system
         with:
           os: ${{ matrix.os }}
@@ -72,7 +73,7 @@ jobs:
           shell: ${{ matrix.shell }}
           nim_version: ${{ matrix.nim_version }}
 
-      - name: Release - Compute binary name
+      - name: Compute binary name
         run: |
           case ${{ matrix.os }} in
             linux*)   os_name="linux"   ;;
@@ -80,88 +81,102 @@ jobs:
             windows*) os_name="windows" ;;
           esac
           storage_binary="${{ env.storage_binary_base }}-${os_name}-${{ matrix.cpu }}-${{ env.VERSION }}"
+          c_bindings_lib="${{ env.c_bindings_lib_base }}-${os_name}-${{ matrix.cpu }}-${{ env.VERSION }}"
           if [[ ${os_name} == "windows" ]]; then
             storage_binary="${storage_binary}.exe"
           fi
           echo "storage_binary=${storage_binary}" >>$GITHUB_ENV
+          echo "c_bindings_lib=${c_bindings_lib}" >>$GITHUB_ENV
 
-      - name: Release - Build
+      - name: Build Logos Storage binary
         run: |
           make NIMFLAGS="--out:${{ env.build_dir }}/${{ env.storage_binary }} ${{ env.nim_flags }}"
 
-      - name: Release - Build libstorage (Linux)
-        if: matrix.os == 'linux'
-        run: |
-          make -j${ncpu} update
-          make -j${ncpu} libstorage
-
-      - name: Release - Build libstorage (MacOS)
-        if: matrix.os == 'macos'
-        run: |
-          make -j${ncpu} update
-          STORAGE_LIB_PARAMS="--passL:\"-Wl,-install_name,@rpath/libstorage.dylib\"" make -j${ncpu} libstorage
-
-      - name: Release - Build libstorage (Windows)
-        if: matrix.os == 'windows'
-        shell: msys2 {0}
-        run: |
-          make -j${ncpu} update
-          make -j${ncpu} libstorage
-
-      - name: Release - Libraries
-        run: |
-          if [[ "${{ matrix.os }}" == "windows" ]]; then
-            for lib in ${{ env.windows_libs }}; do
-              cp -v "${MINGW_PREFIX}/bin/${lib}" "${{ env.build_dir }}"
-            done
-          fi
-
-      - name: Release - Upload Logos Storage build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ env.storage_binary }}
-          path: ${{ env.build_dir }}/${{ env.storage_binary_base }}*
-          retention-days: 30
-
-      - name: Release - Upload Windows libs
-        if: matrix.os == 'windows'
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ env.storage_binary }}-dlls
-          path: ${{ env.build_dir }}/*.dll
-          retention-days: 30
-
-      - name: Release - Package artifacts Linux
+      - name: Package ${{ env.storage_binary_base }} Linux (compress and preserve perms)
         if: matrix.os == 'linux'
         run: |
           sudo apt-get update && sudo apt-get install -y zip
-          github_ref_name="${GITHUB_REF_NAME/\//-}"
-          ZIPFILE=libstorage-linux-${{ matrix.cpu }}-${{ env.VERSION }}.zip
-          zip -j $ZIPFILE ./build/libstorage.so ./library/libstorage.h
-          echo "ZIPFILE=$ZIPFILE" >> $GITHUB_ENV
+          zip -j "${{ env.build_dir }}/${{env.storage_binary}}.zip" ./${{ env.build_dir }}/*
           
-      - name: Package artifacts MacOS
+      - name: Package ${{ env.storage_binary_base }} MacOS (compress and preserve perms)
         if: matrix.os == 'macos'
         run: |
-          github_ref_name="${GITHUB_REF_NAME/\//-}"
-          ZIPFILE=libstorage-macos-${{ matrix.cpu }}-${{ env.VERSION }}.zip
-          zip -j $ZIPFILE ./build/libstorage.dylib ./library/libstorage.h
-          echo "ZIPFILE=$ZIPFILE" >> $GITHUB_ENV
+          zip -j "${{ env.build_dir }}/${{env.storage_binary}}.zip" ./${{ env.build_dir }}/*
 
-      - name: Release - Package artifacts (Windows)
+      - name: Package ${{ env.storage_binary_base }} Windows (compress and preserve perms)
         if: matrix.os == 'windows'
         shell: msys2 {0}
         run: |
-          ZIPFILE=libstorage-windows-${{ matrix.cpu }}-${{ env.VERSION }}.zip
-          (cd ./build && 7z a -tzip "${GITHUB_WORKSPACE}/${ZIPFILE}" libstorage.dll)
-          (cd ./library && 7z a -tzip "${GITHUB_WORKSPACE}/${ZIPFILE}" libstorage.h)
-          echo "ZIPFILE=$ZIPFILE" >> $GITHUB_ENV
+          7z a -tzip "${{ env.build_dir }}/${{env.storage_binary}}.zip" ./${{ env.build_dir }}/*
 
-      - name: Release - Upload artifacts
+      - name: Upload Logos Storage binary to workflow artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.ZIPFILE }}
-          path: ${{ env.ZIPFILE }}
+          name: ${{ env.storage_binary }}.zip
+          path: ${{ env.build_dir }}/${{ env.storage_binary }}.zip
+          retention-days: 30
+
+      - name: Copy and zip Windows dlls to build/dlls dir (Windows)
+        if: matrix.os == 'windows'
+        run: |
+          mkdir -p "${{ env.build_dir }}/dlls"
+          for lib in ${{ env.windows_libs }}; do
+            cp -v "${MINGW_PREFIX}/bin/${lib}" "${{ env.build_dir }}/dlls"
+          done
+          7z a -tzip "${{ env.build_dir }}/${{ env.storage_binary }}-dlls.zip" ./${{ env.build_dir }}/dlls/*.dll
+
+      - name: Upload Windows dlls to workflow artifacts
+        if: matrix.os == 'windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.storage_binary }}-dlls.zip
+          path: ${{ env.build_dir }}/${{ env.storage_binary }}-dlls.zip
+          retention-days: 30
+
+      - name: Build ${{ env.c_bindings_lib_base }} (Linux)
+        if: matrix.os == 'linux'
+        run: |
+          make -j${ncpu} update
+          make -j${ncpu} libstorage
+
+      - name: Build ${{ env.c_bindings_lib_base }} (MacOS)
+        if: matrix.os == 'macos'
+        run: |
+          make -j${ncpu} update
+          STORAGE_LIB_PARAMS="--passL:\"-Wl,-install_name,@rpath/${{ env.c_bindings_lib_base }}.dylib\"" make -j${ncpu} libstorage
+
+      - name: Build ${{ env.c_bindings_lib_base }} (Windows)
+        if: matrix.os == 'windows'
+        shell: msys2 {0}
+        run: |
+          make -j${ncpu} update
+          make -j${ncpu} libstorage
+
+      - name: Package ${{ env.c_bindings_lib_base }} Linux
+        if: matrix.os == 'linux'
+        run: |
+          sudo apt-get update && sudo apt-get install -y zip
+          zip -j "${{ env.build_dir }}/${{ env.c_bindings_lib }}.zip" ${{ env.build_dir }}/${{ env.c_bindings_lib_base }}.so
+          zip -j "${{ env.build_dir }}/${{ env.c_bindings_lib }}.zip" library/${{ env.c_bindings_lib_base }}.h
+          
+      - name: Package ${{ env.c_bindings_lib_base }} MacOS
+        if: matrix.os == 'macos'
+        run: |
+          zip -j "${{ env.build_dir }}/${{ env.c_bindings_lib }}.zip" ${{ env.build_dir }}/${{ env.c_bindings_lib_base }}.dylib
+          zip -j "${{ env.build_dir }}/${{ env.c_bindings_lib }}.zip" library/${{ env.c_bindings_lib_base }}.h
+
+      - name: Package ${{ env.c_bindings_lib_base }} (Windows)
+        if: matrix.os == 'windows'
+        shell: msys2 {0}
+        run: |
+          7z a -tzip "${{ env.build_dir }}/${{ env.c_bindings_lib }}.zip" ./${{ env.build_dir }}/${{ env.c_bindings_lib_base }}.dll
+          7z a -tzip "${{ env.build_dir }}/${{ env.c_bindings_lib }}.zip" ./library/${{ env.c_bindings_lib_base }}.h
+
+      - name: Upload ${{ env.c_bindings_lib_base }} to workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.c_bindings_lib }}.zip
+          path: ${{ env.build_dir }}/${{ env.c_bindings_lib }}.zip
           if-no-files-found: error
 
   # Release
@@ -170,7 +185,7 @@ jobs:
     needs: build
     if: success() || failure()
     steps:
-      - name: Set version variable
+      - name: Set conditional env variables
         shell: bash
         run: |
           if [[ "${{ github.ref_type }}" == "tag" ]]; then
@@ -180,99 +195,31 @@ jobs:
             echo "VERSION=${GITHUB_SHA::7}" >> $GITHUB_ENV
             echo "TAGGED_RELEASE=false" >> $GITHUB_ENV
           fi
-      - name: Release - Download binaries
+      - name: Download binaries from workflow artifacts into temp folder
         uses: actions/download-artifact@v4
         with:
           pattern: ${{ env.storage_binary_base }}*
           merge-multiple: true
           path: /tmp/release
 
-      - name: Release - Download artifacts
+      - name: Download ${{ env.c_bindings_lib_base }} from workflow artifacts into temp folder
         uses: actions/download-artifact@v5
         with:
-          pattern: libstorage*
+          pattern: ${{ env.c_bindings_lib_base }}*
+          merge-multiple: true
           path: /tmp/release
 
-      - name: Release - Compress and checksum
-        run: |
-          cd /tmp/release
-          checksum() {
-            arc="${1}"
-            sha256sum "${arc}" >"${arc}.sha256"
-          }
-
-          # Compress and prepare
-          for file in ${{ env.storage_binary_base }}*; do
-            if [[ "${file}" == *".exe"* ]]; then
-
-              # Windows - binary only
-              arc="${file%.*}.zip"
-              zip "${arc}" "${file}"
-              checksum "${arc}"
-
-              # Windows - binary and libs
-              arc="${file%.*}-libs.zip"
-              zip "${arc}" "${file}" ${{ env.windows_libs }}
-              rm -f "${file}"
-              checksum "${arc}"
-            else
-
-              # Linux/macOS
-              arc="${file}.tar.gz"
-              chmod 755 "${file}"
-              tar cfz "${arc}" "${file}"
-              rm -f "${file}"
-              checksum "${arc}"
-            fi
-          done
-          rm -f ${{ env.windows_libs }}
-
-      - name: Release - Upload compressed artifacts and checksums
-        uses: actions/upload-artifact@v4
-        with:
-          name: archives-and-checksums
-          path: /tmp/release/
-          retention-days: 30
-
-      - name: Release - Upload to the cloud
-        env:
-          s3_endpoint: ${{ secrets.S3_ENDPOINT }}
-          s3_bucket: ${{ secrets.S3_BUCKET }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
-        run: |
-          # Variables
-          branch="${GITHUB_REF_NAME/\//-}"
-          folder="/tmp/release"
-
-          # Tagged releases
-          if [[ "${{ env.TAGGED_RELEASE }}" == "true" ]]; then
-            aws s3 cp --recursive "${folder}" s3://${{ env.s3_bucket }}/releases/${branch} --endpoint-url ${{ env.s3_endpoint }}
-            echo "${branch}" >  "${folder}"/latest
-            aws s3 cp "${folder}"/latest s3://${{ env.s3_bucket }}/releases/latest --endpoint-url ${{ env.s3_endpoint }}
-            rm -f "${folder}"/latest
-
-          # master branch
-          elif [[ "${branch}" == "${{ github.event.repository.default_branch }}" ]]; then
-            aws s3 cp --recursive "${folder}" s3://${{ env.s3_bucket }}/${branch} --endpoint-url ${{ env.s3_endpoint }}
-
-          # Custom branch
-          else
-            aws s3 cp --recursive "${folder}" s3://${{ env.s3_bucket }}/branches/${branch} --endpoint-url ${{ env.s3_endpoint }}
-          fi
-
-      - name: Release
+      - name: Create GH release
         uses: softprops/action-gh-release@v2
-        if: env.TAGGED_RELEASE
+        if: env.TAGGED_RELEASE == 'true'
         with:
           files: |
-            /tmp/release/*
+            /tmp/release/*-*
           make_latest: true
 
       - name: Generate Python SDK
         uses: peter-evans/repository-dispatch@v3
-        if: env.TAGGED_RELEASE
+        if: env.TAGGED_RELEASE == 'true'
         with:
           token: ${{ secrets.DISPATCH_PAT }}
           repository: logos-storage/logos-storage-py-api-client
