@@ -8,15 +8,15 @@
 # - Thread-safe exported procs callable from C
 # - Callback registration and invocation for asynchronous communication
 
-# cdecl is C declaration calling convention. 
+# cdecl is C declaration calling convention.
 # It’s the standard way C compilers expect functions to behave:
-# 1- Caller cleans up the stack after the call 
+# 1- Caller cleans up the stack after the call
 # 2- Symbol names are exported in a predictable way
 # In other termes, it is a glue that makes Nim functions callable as normal C functions.
 {.pragma: exported, exportc, cdecl, raises: [].}
 {.pragma: callback, cdecl, raises: [], gcsafe.}
 
-# Ensure code is position-independent so it can be built into a shared library (.so). 
+# Ensure code is position-independent so it can be built into a shared library (.so).
 # In other terms, the code that can run no matter where it’s placed in memory.
 {.passc: "-fPIC".}
 
@@ -53,7 +53,19 @@ template checkLibstorageParams*(
   if isNil(callback):
     return RET_MISSING_CALLBACK
 
-# From Nim doc: 
+proc malloc(size: csize_t): pointer {.importc, header: "<stdlib.h>".}
+
+proc asNewCString(s: string): ptr cchar =
+  # We need malloc so C clients can free it.
+  let
+    n = s.len
+    cstr = cast[ptr UncheckedArray[cchar]](malloc(n.csize_t + 1))
+  if n > 0:
+    copyMem(cstr, addr s[0], n)
+  cstr[n] = 0.cchar
+  cast[ptr cchar](cstr)
+
+# From Nim doc:
 # "the C targets require you to initialize Nim's internals, which is done calling a NimMain function."
 # "The name NimMain can be influenced via the --nimMainPrefix:prefix switch."
 # "Use --nimMainPrefix:MyLib and the function to call is named MyLibNimMain."
@@ -110,35 +122,15 @@ proc storage_new(
 
   return ctx
 
-proc storage_version(
-    ctx: ptr StorageContext, callback: StorageCallback, userData: pointer
-): cint {.dynlib, exportc.} =
+proc storage_version(ctx: ptr StorageContext): ptr cchar {.dynlib, exportc.} =
   initializeLibrary()
-  checkLibstorageParams(ctx, callback, userData)
 
-  callback(
-    RET_OK,
-    cast[ptr cchar](conf.codexVersion),
-    cast[csize_t](len(conf.codexVersion)),
-    userData,
-  )
+  return asNewCString(conf.codexVersion)
 
-  return RET_OK
-
-proc storage_revision(
-    ctx: ptr StorageContext, callback: StorageCallback, userData: pointer
-): cint {.dynlib, exportc.} =
+proc storage_revision(ctx: ptr StorageContext): ptr cchar {.dynlib, exportc.} =
   initializeLibrary()
-  checkLibstorageParams(ctx, callback, userData)
 
-  callback(
-    RET_OK,
-    cast[ptr cchar](conf.codexRevision),
-    cast[csize_t](len(conf.codexRevision)),
-    userData,
-  )
-
-  return RET_OK
+  return asNewCString(conf.codexRevision)
 
 proc storage_repo(
     ctx: ptr StorageContext, callback: StorageCallback, userData: pointer
@@ -268,18 +260,10 @@ proc storage_close(
 
   return callback.okOrError(res, userData)
 
-proc storage_destroy(
-    ctx: ptr StorageContext, callback: StorageCallback, userData: pointer
-): cint {.dynlib, exportc.} =
+proc storage_destroy(ctx: ptr StorageContext): cint {.dynlib, exportc.} =
   initializeLibrary()
-  checkLibstorageParams(ctx, callback, userData)
-
-  let
-    res = storage_context.destroyStorageContext(ctx)
-    ret = if res.isErr: RET_ERR else: RET_OK
-
-  callback(ret, nil, 0, userData)
-  return ret
+  let res = storage_context.destroyStorageContext(ctx)
+  if res.isErr: RET_ERR else: RET_OK
 
 proc storage_upload_init(
     ctx: ptr StorageContext,

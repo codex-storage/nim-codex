@@ -64,18 +64,18 @@ extern "C"
     // Get the Logos Storage version string.
     // This call does not require the node to be started and
     // does not involve a thread call.
-    int storage_version(
-        void *ctx,
-        StorageCallback callback,
-        void *userData);
+    // It is also synchronous, so it does not require a callback.
+    // Returns a null-terminated string which needs to be deallocated
+    // by the caller.
+    char *storage_version(void *ctx);
 
     // Get the Logos Storage contracts revision.
     // This call does not require the node to be started and
     // does not involve a thread call.
-    int storage_revision(
-        void *ctx,
-        StorageCallback callback,
-        void *userData);
+    // It is also synchronous, so it does not require a callback.
+    // Returns a null-terminated string which needs to be deallocated
+    // by the caller.
+    char *storage_revision(void *ctx);
 
     // Get the repo (data-dir) used by the node.
     int storage_repo(
@@ -375,6 +375,7 @@ extern "C"
     // Destroys an instance of a Logos Storage node.
     // This will free all resources associated with the node.
     // The node must be stopped and closed before calling this function.
+    // The call is synchronous, so it does not require a callback.
     //
     // Typical usage:
     // ctx = storage_new(configJson, myCallback, myUserData);
@@ -383,9 +384,7 @@ extern "C"
     // storage_stop(ctx, ...);
     // storage_close(ctx, ...);
     // storage_destroy(ctx, ...);
-    int storage_destroy(void *ctx,
-                        StorageCallback callback,
-                        void *userData);
+    int storage_destroy(void *ctx);
 
     // Not used currently.
     // Reserved for future use to set an event callback.
