@@ -273,17 +273,12 @@ int cleanup(void *storage_ctx)
         return RET_ERR;
     }
 
-    r = alloc_resp();
-
     // Destroy node
     // No need to wait here as storage_destroy is synchronous
-    if (storage_destroy(storage_ctx, (StorageCallback)callback, r) != RET_OK)
+    if (storage_destroy(storage_ctx) != RET_OK)
     {
-        free_resp(r);
         return RET_ERR;
     }
-
-    free_resp(r);
 
     return RET_OK;
 }
