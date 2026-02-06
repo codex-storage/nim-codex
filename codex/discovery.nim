@@ -62,42 +62,40 @@ proc toNodeId*(host: ca.Address): NodeId =
 proc findPeer*(
     d: Discovery, peerId: PeerId
 ): Future[?PeerRecord] {.async: (raises: [CancelledError]).} =
-  trace "protocol.resolve..."
+  trace "protocol.findPeer..."
   ## Find peer using the given Discovery object
   ##
 
   try:
-    let node = await d.protocol.resolve(toNodeId(peerId))
+    without peerInfo = await d.protocol.findPeer(peerId), error:
+      debug "Could not find peer", peerId = peerId, error = error.msg
+      return PeerRecord.none
 
-    return
-      if node.isSome():
-        node.get().record.data.some
-      else:
-        PeerRecord.none
+    return some peerInfo.toPeerRecord
+
   except CancelledError as exc:
     warn "Error finding peer", peerId = peerId, exc = exc.msg
     raise exc
-  except CatchableError as exc:
-    warn "Error finding peer", peerId = peerId, exc = exc.msg
-
-  return PeerRecord.none
 
 method find*(
     d: Discovery, cid: Cid
-): Future[seq[SignedPeerRecord]] {.async: (raises: [CancelledError]), base.} =
+): Future[seq[PeerRecord]] {.async: (raises: [CancelledError]), base.} =
   ## Find block providers
   ##
 
   try:
-    without providers =? (await d.protocol.getProviders(cid.toNodeId())).mapFailure,
+    without var providers =? (await d.protocol.getProviders(cid.toKey())).mapFailure,
       error:
       warn "Error finding providers for block", cid, error = error.msg
 
-    return providers.filterIt(not (it.data.peerId == d.peerId))
+    providers.excl(d.peerId)
+
+    return providers.mapIt(it.toPeerRecord)
+  
   except CancelledError as exc:
     warn "Error finding providers for block", cid, exc = exc.msg
     raise exc
-  except CatchableError as exc:
+  except LPStreamError, DialFailedError as exc:
     warn "Error finding providers for block", cid, exc = exc.msg
 
 method provide*(d: Discovery, cid: Cid) {.async: (raises: [CancelledError]), base.} =

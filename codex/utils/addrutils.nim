@@ -102,3 +102,15 @@ proc toBootstrapAddrs*(sprs: openArray[SignedPeerRecord]): seq[(PeerId, seq[Mult
     res.add spr.toBootstrapAddr
 
   return res
+
+proc toPeerRecord*(peerInfo: PeerInfo): PeerRecord =
+  ## Convert PeerInfo to PeerRecord
+  ##
+  PeerRecord.init(peerInfo.peerId, peerInfo.addrs)
+
+proc toPeerRecord*(provider: Provider): PeerRecord =
+  ## Convert Provider to PeerRecord
+  ##
+  PeerRecord.init(provider.peerId, provider.addrs)
+
+{.pop.}

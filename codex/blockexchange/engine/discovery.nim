@@ -112,7 +112,7 @@ proc discoveryTaskLoop(b: DiscoveryEngine) {.async: (raises: []).} =
         continue
 
       if haves.len < b.minPeersPerBlock:
-        let request = b.discovery.find(cid)
+        let request = b.discovery.find(cid) # seq[PeerRecord]
         b.inFlightDiscReqs[cid] = request
         codex_inflight_discovery.set(b.inFlightDiscReqs.len.int64)
 
@@ -121,12 +121,16 @@ proc discoveryTaskLoop(b: DiscoveryEngine) {.async: (raises: []).} =
           codex_inflight_discovery.set(b.inFlightDiscReqs.len.int64)
 
         if (await request.withTimeout(DefaultDiscoveryTimeout)) and
-            peers =? (await request).catch:
-          let dialed = await allFinished(peers.mapIt(b.network.dialPeer(it.data)))
+            providers =? (await request).catch:
+          let dialed = await allFinished(
+            providers.mapIt(
+              b.network.dialPeer(it)
+            )
+          )
 
           for i, f in dialed:
             if f.failed:
-              await b.discovery.removeProvider(peers[i].data.peerId)
+              await b.discovery.removeProvider(providers[i].peerId)
   except CancelledError:
     trace "Discovery task cancelled"
     return
