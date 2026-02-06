@@ -61,20 +61,18 @@ extern "C"
         StorageCallback callback,
         void *userData);
 
-    // Get the Logos Storage version string.
+    // Get the Logos Storage version as a null-terminated string, which
+    // must then be freed by the caller.
     // This call does not require the node to be started and
     // does not involve a thread call.
     // It is also synchronous, so it does not require a callback.
-    // Returns a null-terminated string which needs to be deallocated
-    // by the caller.
     char *storage_version(void *ctx);
 
-    // Get the Logos Storage contracts revision.
+    // Get the Logos Storage contracts revision as a null-terminated
+    // string, which must then be freed by the caller.
     // This call does not require the node to be started and
     // does not involve a thread call.
     // It is also synchronous, so it does not require a callback.
-    // Returns a null-terminated string which needs to be deallocated
-    // by the caller.
     char *storage_revision(void *ctx);
 
     // Get the repo (data-dir) used by the node.
