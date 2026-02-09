@@ -137,10 +137,11 @@ int storage_close(void *ctx, StorageCallback callback, void *userData);
 
 ### `storage_destroy`
 
-Destroy the node instance and free associated resources. Node must be stopped and closed.
+Destroys the node instance and frees associated resources. Node must be stopped and closed.
+The call is synchronous, so it does not require a callback.
 
 ```c
-int storage_destroy(void *ctx, StorageCallback callback, void *userData);
+int storage_destroy(void *ctx);
 ```
 
 ---
@@ -149,22 +150,22 @@ int storage_destroy(void *ctx, StorageCallback callback, void *userData);
 
 ### `storage_version`
 
-Get the Logos Storage version string.
-Does not require the node to be started and does not involve a thread call.
+Get the Logos Storage version as a null-terminated string. The caller is responsible for freeing it.
+Does not require the node to be started. It is also a synchronous call, so it does not require a callback.
 
 ```c
-int storage_version(void *ctx, StorageCallback callback, void *userData);
+char* storage_version(void *ctx);
 ```
 
 ---
 
 ### `storage_revision`
 
-Get the Logos Storage contracts revision.
-Does not require the node to be started and does not involve a thread call.
+Get the Logos Storage contracts revision as a null-terminated string. The caller is responsible for freeing it.
+Does not require the node to be started. It is also a synchronous call, so it does not require a callback.
 
 ```c
-int storage_revision(void *ctx, StorageCallback callback, void *userData);
+char* storage_revision(void *ctx);
 ```
 
 ---

@@ -273,36 +273,21 @@ int cleanup(void *storage_ctx)
         return RET_ERR;
     }
 
-    r = alloc_resp();
-
     // Destroy node
     // No need to wait here as storage_destroy is synchronous
-    if (storage_destroy(storage_ctx, (StorageCallback)callback, r) != RET_OK)
+    if (storage_destroy(storage_ctx) != RET_OK)
     {
-        free_resp(r);
         return RET_ERR;
     }
-
-    free_resp(r);
 
     return RET_OK;
 }
 
 int check_version(void *storage_ctx)
 {
-    char *res = NULL;
-
-    Resp *r = alloc_resp();
-
-    // No need to wait here as storage_version is synchronous
-    if (storage_version(storage_ctx, (StorageCallback)callback, r) != RET_OK)
-    {
-        free_resp(r);
-        return RET_ERR;
-    }
-
-    free_resp(r);
-
+    char *version = storage_version(storage_ctx);
+    printf("version: %s\n", version);
+    free(version);
     return RET_OK;
 }
 
