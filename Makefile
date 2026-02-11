@@ -68,9 +68,9 @@ LIBSTORAGE_PARAMS :=
 # By default, libstorage disables the restapi. To build libstorage with the rest
 # api enabled for remote debugging, use `make DEBUG=1 libstorage`
 ifeq ($(DEBUG),1)
-	LIBSTORAGE_PARAMS := $(LIBSTORAGE_PARAMS) -d:libstorage_DisableRestApi=0
+	LIBSTORAGE_PARAMS := $(LIBSTORAGE_PARAMS) -d:LibstorageDisableRestApi=0
 else ifeq ($(DEBUG),0)
-	LIBSTORAGE_PARAMS := $(LIBSTORAGE_PARAMS) -d:libstorage_DisableRestApi=1
+	LIBSTORAGE_PARAMS := $(LIBSTORAGE_PARAMS) -d:LibstorageDisableRestApi=1
 endif
 
 # we don't want an error here, so we can handle things later, in the ".DEFAULT" target

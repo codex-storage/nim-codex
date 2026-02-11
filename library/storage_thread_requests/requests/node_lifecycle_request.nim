@@ -27,7 +27,7 @@ from ../../../codex/codex import CodexServer, new, start, stop, close
 logScope:
   topics = "libstorage libstoragelifecycle"
 
-const libstorage_DisableRestApi* {.booldefine.} = true
+const LibstorageDisableRestApi* {.booldefine.} = true
 
 type NodeLifecycleMsgType* = enum
   CREATE_NODE
@@ -141,8 +141,9 @@ proc createStorage(
     return err("Failed to create Storage: unable to get the private key.")
   let pk = privateKey.get()
 
-  when libstorage_DisableRestApi:
+  when LibstorageDisableRestApi:
     conf.apiBindAddress = string.none
+    debug "Rest API is disabled!"
   else:
     debug "Rest API is enabled!"
 
