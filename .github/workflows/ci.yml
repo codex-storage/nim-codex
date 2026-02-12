@@ -100,14 +100,3 @@ jobs:
         with:
           os: linux
           nim_version: ${{ env.nim_version }}
-
-      - name: C Binding build
-        run: |
-            make -j${ncpu} update
-            make -j${ncpu} libstorage
-
-      - name: C Binding test
-        run: |
-          cd examples/c
-          gcc -o storage storage.c -L../../build -lstorage -Wl,-rpath,../../ -pthread
-          LD_LIBRARY_PATH=../../build ./storage

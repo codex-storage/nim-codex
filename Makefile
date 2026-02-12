@@ -83,6 +83,9 @@ endif
 	deps \
 	libbacktrace \
 	test \
+	testAll \
+	testIntegration \
+	testLibstorage \
 	update
 
 ifeq ($(NIM_PARAMS),)
@@ -144,8 +147,19 @@ testIntegration: | build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
 		$(ENV_SCRIPT) nim testIntegration $(TEST_PARAMS) $(NIM_PARAMS) --define:ws_resubscribe=240 build.nims
 
+# Builds a C example that uses the libstorage C library and runs it
+testLibstorage: | build deps libstorage
+	cd examples/c && \
+	if [ "$(detected_OS)" = "Windows" ]; then \
+		gcc -o storage.exe storage.c -L../../build -lstorage -pthread && \
+		PATH=../../build:$$PATH ./storage.exe; \
+	else \
+		gcc -o storage storage.c -L../../build -lstorage -Wl,-rpath,../../ -pthread && \
+		LD_LIBRARY_PATH=../../build ./storage; \
+	fi
+
 # Builds and runs all tests (except for Taiko L2 tests)
-testAll: | build deps
+testAll: | build deps testLibstorage
 	echo -e $(BUILD_MSG) "build/$@" && \
 		$(ENV_SCRIPT) nim testAll $(NIM_PARAMS) build.nims
 
