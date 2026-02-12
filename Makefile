@@ -150,7 +150,7 @@ testIntegration: | build deps
 # Builds a C example that uses the libstorage C library and runs it
 testLibstorage: | build deps
 	$(MAKE) $(if $(ncpu),-j$(ncpu),) libstorage
-	cd examples/c && \
+	cd tests/cbindings && \
 	if [ "$(detected_OS)" = "Windows" ]; then \
 		gcc -o storage.exe storage.c -L../../build -lstorage -pthread && \
 		PATH=../../build:$$PATH ./storage.exe; \

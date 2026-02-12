@@ -48,5 +48,5 @@ tests/integration/logs
 
 data/
 
-examples/c/data-dir
-examples/c/downloaded_hello.txt
+tests/cbindings/data-dir
+tests/cbindings/downloaded_hello.txt
