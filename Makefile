@@ -148,7 +148,8 @@ testIntegration: | build deps
 		$(ENV_SCRIPT) nim testIntegration $(TEST_PARAMS) $(NIM_PARAMS) --define:ws_resubscribe=240 build.nims
 
 # Builds a C example that uses the libstorage C library and runs it
-testLibstorage: | build deps libstorage
+testLibstorage: | build deps
+	$(MAKE) $(if $(ncpu),-j$(ncpu),) libstorage
 	cd examples/c && \
 	if [ "$(detected_OS)" = "Windows" ]; then \
 		gcc -o storage.exe storage.c -L../../build -lstorage -pthread && \
@@ -158,10 +159,11 @@ testLibstorage: | build deps libstorage
 		LD_LIBRARY_PATH=../../build ./storage; \
 	fi
 
-# Builds and runs all tests (except for Taiko L2 tests)
-testAll: | build deps testLibstorage
+# Builds and runs all tests
+testAll: | build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
 		$(ENV_SCRIPT) nim testAll $(NIM_PARAMS) build.nims
+	$(MAKE) $(if $(ncpu),-j$(ncpu),) testLibstorage
 
 # nim-libbacktrace
 LIBBACKTRACE_MAKE_FLAGS := -C vendor/nim-libbacktrace --no-print-directory BUILD_CXX_LIB=0
