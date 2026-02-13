@@ -56,8 +56,6 @@ in stdenv.mkDerivation rec {
 
   # Disable CPU optimizations that make binary not portable.
   NIMFLAGS = "-d:disableMarchNative -d:git_revision_override=${revision}";
-  # Avoid Nim cache permission errors.
-  XDG_CACHE_HOME = "/tmp";
 
   makeFlags = targets ++ [
     "V=${toString verbosity}"
@@ -72,6 +70,8 @@ in stdenv.mkDerivation rec {
   '';
 
   configurePhase = ''
+    # Avoid Nim cache permission errors.
+    export XDG_CACHE_HOME=$TMPDIR
     patchShebangs . vendor/nimbus-build-system > /dev/null
     make nimbus-build-system-paths
   '';
