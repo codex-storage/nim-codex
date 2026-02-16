@@ -139,10 +139,10 @@ proc new*(
     T: type StorageServer, config: StorageConf, privateKey: StoragePrivateKey
 ): StorageServer =
   ## create StorageServer including setting up datastore, repostore, etc
-  let listenAddr = MultiAddress
-                    .init(DefaultListenAddress & $config.listenPort)
-                    .expect("Default multiaddress and provied port not valid")
-  
+  let listenAddr = MultiAddress.init(DefaultListenAddress & $config.listenPort).expect(
+      "Default multiaddress and provied port not valid"
+    )
+
   let switch = SwitchBuilder
     .new()
     .withPrivateKey(privateKey)

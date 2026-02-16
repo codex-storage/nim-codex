@@ -136,9 +136,11 @@ type
     .}: OutDir
 
     listenPort* {.
-      desc: "Port to listen on for remote peer connections. Announced in the DHT as /ip4/0.0.0.0/tcp/",
+      desc:
+        "Port to listen on for remote peer connections. Announced in the DHT as /ip4/0.0.0.0/tcp/",
       defaultValue: 0,
-      defaultValueDesc: "Chooses a random port for the MultiAddress, eg /ip4/0.0.0.0/tcp/0",
+      defaultValueDesc:
+        "Chooses a random port for the MultiAddress, eg /ip4/0.0.0.0/tcp/0",
       abbr: "l",
       name: "listen-port"
     .}: int
