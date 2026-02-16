@@ -135,14 +135,13 @@ type
       name: "data-dir"
     .}: OutDir
 
-    listenAddrs* {.
-      desc: "Multi Addresses to listen on",
-      defaultValue:
-        @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").expect("Should init multiaddress")],
-      defaultValueDesc: "/ip4/0.0.0.0/tcp/0",
-      abbr: "i",
-      name: "listen-addrs"
-    .}: seq[MultiAddress]
+    listenPort* {.
+      desc: "Port to listen on for remote peer connections. Announced in the DHT as /ip4/0.0.0.0/tcp/",
+      defaultValue: 0,
+      defaultValueDesc: "Chooses a random port for the MultiAddress, eg /ip4/0.0.0.0/tcp/0",
+      abbr: "l",
+      name: "listen-port"
+    .}: int
 
     nat* {.
       desc:

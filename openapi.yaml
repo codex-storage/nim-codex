@@ -240,7 +240,8 @@ paths:
           description: |
             If supplied, it will be used to dial the peer.
             The address has to target the listening address of the peer,
-            which is specified with the `--listen-addrs` CLI flag.
+            which is /ip4/0.0.0.0/tcp/<port>, where port is specified 
+            with the `--listen-port` CLI flag.
 
       responses:
         "200":

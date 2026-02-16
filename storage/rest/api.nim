@@ -440,7 +440,9 @@ proc initNodeApi(node: StorageNodeRef, conf: StorageConf, router: var RestRouter
     ## to invoke peer discovery, if it succeeds
     ## the returned addresses will be used to dial
     ##
-    ## `addrs` the listening addresses of the peers to dial, eg the one specified with `--listen-addrs`
+    ## `addrs` the listening addresses of the peers to dial, which is 
+    ## /ip4/0.0.0.0/tcp/<port>, where port is specified with the 
+    ## `--listen-port` CLI flag.
     ##
     var headers = buildCorsHeaders("GET", allowedOrigin)
 
