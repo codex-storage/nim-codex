@@ -135,20 +135,29 @@ type
       name: "data-dir"
     .}: OutDir
 
+    listenIp* {.
+      desc:
+        "IP address to listen on for remote peer connections. Announced in the DHT as a multiaddress, eg /ip4/<listen-ip>/tcp/<listen-port>. IP address can be v4 or v6",
+      defaultValue: "0.0.0.0".parseIpAddress,
+      defaultValueDesc: "Listens on all addresses.",
+      abbr: "i",
+      name: "listen-ip"
+    .}: IpAddress
+
     listenPort* {.
       desc:
-        "Port to listen on for remote peer connections. Announced in the DHT as /ip4/0.0.0.0/tcp/",
+        "Port to listen on for remote peer connections. Announced in the DHT as a multiaddress, eg /ip4/<listen-ip>/tcp/<listen-port>. Port must be in the range 0-65535.",
       defaultValue: 0,
-      defaultValueDesc:
-        "Chooses a random port for the MultiAddress, eg /ip4/0.0.0.0/tcp/0",
+      defaultValueDesc: "Listens on a random free port.",
       abbr: "l",
       name: "listen-port"
-    .}: int
+    .}: Port
 
     nat* {.
       desc:
         "Specify method to use for determining public address. " &
-        "Must be one of: any, none, upnp, pmp, extip:<IP>",
+        "Must be one of: any, none, upnp, pmp, extip:<IP>. " &
+        "If connecting to peers on a local network only, use 'none'.",
       defaultValue: defaultNatConfig(),
       defaultValueDesc: "any",
       name: "nat"

@@ -139,14 +139,12 @@ proc new*(
     T: type StorageServer, config: StorageConf, privateKey: StoragePrivateKey
 ): StorageServer =
   ## create StorageServer including setting up datastore, repostore, etc
-  let listenAddr = MultiAddress.init(DefaultListenAddress & $config.listenPort).expect(
-      "Default multiaddress and provied port not valid"
-    )
+  let listenMultiAddr = getMultiAddrWithIpAndTcpPort(config.listenIp, config.listenPort)
 
   let switch = SwitchBuilder
     .new()
     .withPrivateKey(privateKey)
-    .withAddresses(@[listenAddr])
+    .withAddresses(@[listenMultiAddr])
     .withRng(random.Rng.instance())
     .withNoise()
     .withMplex(5.minutes, 5.minutes)
@@ -194,7 +192,7 @@ proc new*(
 
     discovery = Discovery.new(
       switch.peerInfo.privateKey,
-      announceAddrs = @[listenAddr],
+      announceAddrs = @[listenMultiAddr],
       bindPort = config.discoveryPort,
       bootstrapNodes = config.bootstrapNodes,
       store = discoveryStore,
