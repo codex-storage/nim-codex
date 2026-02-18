@@ -109,10 +109,19 @@ integration_test () {
   fi
 }
 
+
+# outputs a libstorage test job
+libstorage_test () {
+  job_tests="libstorage"
+  job_includes=""
+  job
+}
+
 # outputs jobs for all test types
 all_tests () {
   unit_test
   integration_test
+  libstorage_test
 }
 
 # outputs jobs for the specified operating systems and all test types

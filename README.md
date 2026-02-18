@@ -67,23 +67,7 @@ This produces the shared library under `build/`.
 
 ### Run the Go example
 
-Build the Go example:
-
-```bash
-go build -o storage-go examples/golang/storage.go
-```
-
-Export the library path:
-
-```bash
-export LD_LIBRARY_PATH=build
-```
-
-Run the example:
-
-```bash
-./storage-go
-```
+See https://github.com/logos-storage/logos-storage-go-bindings-example.
 
 ### Static vs Dynamic build
 

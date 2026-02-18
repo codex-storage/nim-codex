@@ -63,6 +63,11 @@ jobs:
           path: tests/integration/logs/
           retention-days: 1
 
+      ## Part 3 Tests ##
+      - name: Libstorage tests
+        if: matrix.tests == 'libstorage' || matrix.tests == 'all'
+        run: make -j${ncpu} testLibstorage
+
   status:
     if: always()
     needs: [build]

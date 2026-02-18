@@ -6,6 +6,19 @@
 #include <unistd.h>
 #include "../../library/libstorage.h"
 
+/* Provide realpath on Windows (not available on some MSVC/MinGW setups) */
+#if defined(_WIN32) || defined(_WIN64)
+#include <limits.h>
+#if defined(_MSC_VER)
+#include <direct.h>
+#define realpath(N,R) _fullpath((R),(N),_MAX_PATH)
+#else
+/* MinGW / other Windows gcc: map to _fullpath using PATH_MAX */
+#include <stdlib.h>
+#define realpath(N,R) _fullpath((R),(N),PATH_MAX)
+#endif
+#endif
+
 // We need 250 as max retries mainly for the start function in CI.
 // Other functions should be not need that many retries.
 #define MAX_RETRIES 250
