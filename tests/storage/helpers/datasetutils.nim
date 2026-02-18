@@ -33,8 +33,8 @@ proc makeDataset*(blocks: seq[Block]): ?!TestDataset =
     return failure("Blocks list was empty")
 
   let
-    datasetSize = blocks.mapIt(it.data.len).foldl(a + b)
-    blockSize = blocks.mapIt(it.data.len).foldl(max(a, b))
+    datasetSize = blocks.mapIt(it.data[].len).foldl(a + b)
+    blockSize = blocks.mapIt(it.data[].len).foldl(max(a, b))
     tree = ?StorageMerkleTree.init(blocks.mapIt(it.cid))
     treeCid = ?tree.rootCid
     manifest = Manifest.new(

@@ -34,12 +34,11 @@ type NetworkStore* = ref object of BlockStore
 method getBlocks*(
     self: NetworkStore, addresses: seq[BlockAddress]
 ): Future[SafeAsyncIter[Block]] {.async: (raises: [CancelledError]).} =
+  let runtimeQuota = 10.milliseconds
   var
     localAddresses: seq[BlockAddress]
     remoteAddresses: seq[BlockAddress]
-
-  let runtimeQuota = 10.milliseconds
-  var lastIdle = Moment.now()
+    lastIdle = Moment.now()
 
   for address in addresses:
     if not (await address in self.localStore):
@@ -59,26 +58,29 @@ method getBlocks*(
 method getBlock*(
     self: NetworkStore, address: BlockAddress
 ): Future[?!Block] {.async: (raises: [CancelledError]).} =
-  without blk =? (await self.localStore.getBlock(address)), err:
-    if not (err of BlockNotFoundError):
-      error "Error getting block from local store", address, err = err.msg
-      return failure err
+  let downloadOpt = self.engine.downloadManager.getDownload(address.treeCid)
+  if downloadOpt.isSome:
+    let handle = downloadOpt.get().getWantHandle(address)
+    without blk =? (await self.localStore.getBlock(address)), err:
+      if not (err of BlockNotFoundError):
+        handle.cancel()
+        return failure err
+      return await handle
+    discard downloadOpt.get().completeWantHandle(address, some(blk))
+    return success blk
 
-    without newBlock =? (await self.engine.requestBlock(address)), err:
-      error "Unable to get block from exchange engine", address, err = err.msg
-      return failure err
+  without newBlock =? (await self.engine.requestBlock(address)), err:
+    error "Unable to get block from exchange engine", address, err = err.msg
+    return failure err
 
-    return success newBlock
-
-  return success blk
+  return success newBlock
 
 method getBlock*(
     self: NetworkStore, cid: Cid
 ): Future[?!Block] {.async: (raw: true, raises: [CancelledError]).} =
-  ## Get a block from the blockstore
+  ## Get a block from the local blockstore only.
   ##
-
-  self.getBlock(BlockAddress.init(cid))
+  self.localStore.getBlock(cid)
 
 method getBlock*(
     self: NetworkStore, treeCid: Cid, index: Natural
@@ -87,9 +89,6 @@ method getBlock*(
   ##
 
   self.getBlock(BlockAddress.init(treeCid, index))
-
-method completeBlock*(self: NetworkStore, address: BlockAddress, blk: Block) =
-  self.engine.completeBlock(address, blk)
 
 method putBlock*(
     self: NetworkStore, blk: Block, ttl = Duration.none
@@ -100,7 +99,6 @@ method putBlock*(
   if res.isErr:
     return res
 
-  await self.engine.resolveBlocks(@[blk])
   return success()
 
 method putCidAndProof*(

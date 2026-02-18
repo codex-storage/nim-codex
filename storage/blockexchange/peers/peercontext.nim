@@ -7,127 +7,87 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/sequtils
-import std/tables
-import std/sets
-
 import pkg/libp2p
 import pkg/chronos
 import pkg/questionable
 
-import ../protobuf/blockexc
-import ../protobuf/presence
-
-import ../../blocktype
-import ../../logutils
+import ./peerstats
 
 const
-  MinRefreshInterval = 1.seconds
-  MaxRefreshBackoff = 36 # 36 seconds
-  MaxWantListBatchSize* = 1024 # Maximum blocks to send per WantList message
+  ThroughputScoreBaseline* = 12_500_000.0 # 100 Mbps baseline for throughput scoring
+  DefaultBatchTimeout* = 30.seconds # fallback when no BDP stats available
+  TimeoutSafetyFactor* = 3.0
+    # multiplier to account for variance (network jitter, congestion, GC pauses )
+  MinBatchTimeout* = 5.seconds # min to avoid too aggressive timeouts
+  MaxBatchTimeout* = 45.seconds # max to handle high contention scenarios
 
-type BlockExcPeerCtx* = ref object of RootObj
+type PeerContext* = ref object of RootObj
   id*: PeerId
-  blocks*: Table[BlockAddress, Presence] # remote peer have list
-  wantedBlocks*: HashSet[BlockAddress] # blocks that the peer wants
-  exchanged*: int # times peer has exchanged with us
-  refreshInProgress*: bool # indicates if a refresh is in progress
-  lastRefresh*: Moment # last time we refreshed our knowledge of the blocks this peer has
-  refreshBackoff*: int = 1 # backoff factor for refresh requests
-  blocksSent*: HashSet[BlockAddress] # blocks sent to peer
-  blocksRequested*: HashSet[BlockAddress] # pending block requests to this peer
-  lastExchange*: Moment # last time peer has sent us a block
-  activityTimeout*: Duration
-  lastSentWants*: HashSet[BlockAddress]
-    # track what wantList we last sent for delta updates
+  stats*: PeerPerfStats
 
-proc isKnowledgeStale*(self: BlockExcPeerCtx): bool =
-  let staleness =
-    self.lastRefresh + self.refreshBackoff * MinRefreshInterval < Moment.now()
+proc new*(T: type PeerContext, id: PeerId): PeerContext =
+  PeerContext(id: id, stats: PeerPerfStats.new())
 
-  if staleness and self.refreshInProgress:
-    trace "Cleaning up refresh state", peer = self.id
-    self.refreshInProgress = false
-    self.refreshBackoff = 1
+proc optimalPipelineDepth*(self: PeerContext, batchBytes: uint64): int =
+  self.stats.optimalPipelineDepth(batchBytes)
 
-  staleness
+proc batchTimeout*(self: PeerContext, batchBytes: uint64): Duration =
+  ## find optimal timeout for a batch based on BDP
+  ## timeout = min((batchBytes / throughput + RTT) * safetyFactor, maxTimeout)
+  ## it falls back to default if no stats available.
+  let
+    throughputOpt = self.stats.throughputBps()
+    rttOpt = self.stats.avgRttMicros()
 
-proc isBlockSent*(self: BlockExcPeerCtx, address: BlockAddress): bool =
-  address in self.blocksSent
+  if throughputOpt.isNone or rttOpt.isNone:
+    return DefaultBatchTimeout
 
-proc markBlockAsSent*(self: BlockExcPeerCtx, address: BlockAddress) =
-  self.blocksSent.incl(address)
+  let
+    throughput = throughputOpt.get()
+    rttMicros = rttOpt.get()
 
-proc markBlockAsNotSent*(self: BlockExcPeerCtx, address: BlockAddress) =
-  self.blocksSent.excl(address)
+  if throughput == 0:
+    return DefaultBatchTimeout
 
-proc refreshRequested*(self: BlockExcPeerCtx) =
-  trace "Refresh requested for peer", peer = self.id, backoff = self.refreshBackoff
-  self.refreshInProgress = true
-  self.lastRefresh = Moment.now()
+  let
+    transferTimeMicros = (batchBytes * 1_000_000) div throughput
+    totalTimeMicros = transferTimeMicros + rttMicros
+    timeoutMicros = (totalTimeMicros.float * TimeoutSafetyFactor).uint64
+    timeout = microseconds(timeoutMicros.int64)
 
-proc refreshReplied*(self: BlockExcPeerCtx) =
-  self.refreshInProgress = false
-  self.lastRefresh = Moment.now()
-  self.refreshBackoff = min(self.refreshBackoff * 2, MaxRefreshBackoff)
+  if timeout < MinBatchTimeout:
+    return MinBatchTimeout
 
-proc havesUpdated(self: BlockExcPeerCtx) =
-  self.refreshBackoff = 1
+  if timeout > MaxBatchTimeout:
+    return MaxBatchTimeout
 
-proc wantsUpdated*(self: BlockExcPeerCtx) =
-  self.refreshBackoff = 1
+  return timeout
 
-proc peerHave*(self: BlockExcPeerCtx): HashSet[BlockAddress] =
-  # XXX: this is ugly an inefficient, but since those will typically
-  #  be used in "joins", it's better to pay the price here and have
-  #  a linear join than to not do it and have a quadratic join.
-  toHashSet(self.blocks.keys.toSeq)
+proc evalBDPScore*(
+    self: PeerContext, batchBytes: uint64, currentLoad: int, penalty: float
+): float =
+  let
+    pipelineDepth = self.optimalPipelineDepth(batchBytes)
+    capacityScore =
+      if currentLoad >= pipelineDepth:
+        100.0
+      else:
+        (currentLoad.float / pipelineDepth.float) * 10.0
 
-proc contains*(self: BlockExcPeerCtx, address: BlockAddress): bool =
-  address in self.blocks
+    throughputScore =
+      if self.stats.throughputBps().isSome:
+        let bps = self.stats.throughputBps().get().float
+        if bps > 0:
+          ThroughputScoreBaseline / bps
+        else:
+          50.0
+      else:
+        25.0 # normalization fallback
 
-func setPresence*(self: BlockExcPeerCtx, presence: Presence) =
-  if presence.address notin self.blocks:
-    self.havesUpdated()
+    rttScore =
+      if self.stats.avgRttMicros().isSome:
+        self.stats.avgRttMicros().get().float / 10000.0
+      else:
+        5.0 # normalization fallback
 
-  self.blocks[presence.address] = presence
-
-func cleanPresence*(self: BlockExcPeerCtx, addresses: seq[BlockAddress]) =
-  for a in addresses:
-    self.blocks.del(a)
-
-func cleanPresence*(self: BlockExcPeerCtx, address: BlockAddress) =
-  self.cleanPresence(@[address])
-
-proc blockRequestScheduled*(self: BlockExcPeerCtx, address: BlockAddress) =
-  ## Adds a block the set of blocks that have been requested to this peer
-  ## (its request schedule).
-  if self.blocksRequested.len == 0:
-    self.lastExchange = Moment.now()
-  self.blocksRequested.incl(address)
-
-proc blockRequestCancelled*(self: BlockExcPeerCtx, address: BlockAddress) =
-  ## Removes a block from the set of blocks that have been requested to this peer
-  ## (its request schedule).
-  self.blocksRequested.excl(address)
-
-proc blockReceived*(self: BlockExcPeerCtx, address: BlockAddress): bool =
-  let wasRequested = address in self.blocksRequested
-  self.blocksRequested.excl(address)
-  self.lastExchange = Moment.now()
-  wasRequested
-
-proc activityTimer*(
-    self: BlockExcPeerCtx
-): Future[void] {.async: (raises: [CancelledError]).} =
-  ## This is called by the block exchange when a block is scheduled for this peer.
-  ## If the peer sends no blocks for a while, it is considered inactive/uncooperative
-  ## and the peer is dropped. Note that ANY block that the peer sends will reset this
-  ## timer for all blocks.
-  ##
-  while true:
-    let idleTime = Moment.now() - self.lastExchange
-    if idleTime > self.activityTimeout:
-      return
-
-    await sleepAsync(self.activityTimeout - idleTime)
+  return capacityScore + throughputScore + rttScore + penalty

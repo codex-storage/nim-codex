@@ -46,11 +46,6 @@ export logutils
 logScope:
   topics = "storage node"
 
-const
-  DefaultFetchBatch = 1024
-  MaxOnBatchBlocks = 128
-  BatchRefillThreshold = 0.75 # Refill when 75% of window completes
-
 type
   StorageNode* = object
     switch: Switch
@@ -58,6 +53,7 @@ type
     networkStore: NetworkStore
     engine: BlockExcEngine
     discovery: Discovery
+    manifestProto: ManifestProtocol
     clock*: Clock
     taskPool: Taskpool
     trackedFutures: TrackedFutures
@@ -65,8 +61,6 @@ type
   StorageNodeRef* = ref StorageNode
 
   OnManifest* = proc(cid: Cid, manifest: Manifest): void {.gcsafe, raises: [].}
-  BatchProc* =
-    proc(blocks: seq[bt.Block]): Future[?!void] {.async: (raises: [CancelledError]).}
   OnBlockStoredProc = proc(chunk: seq[byte]): void {.gcsafe, raises: [].}
 
 func switch*(self: StorageNodeRef): Switch =
@@ -101,27 +95,8 @@ proc storeManifest*(
 proc fetchManifest*(
     self: StorageNodeRef, cid: Cid
 ): Future[?!Manifest] {.async: (raises: [CancelledError]).} =
-  ## Fetch and decode a manifest block
-  ##
-
-  if err =? cid.isManifest.errorOption:
-    return failure "CID has invalid content type for manifest {$cid}"
-
-  trace "Retrieving manifest for cid", cid
-
-  without blk =? await self.networkStore.getBlock(BlockAddress.init(cid)), err:
-    trace "Error retrieve manifest block", cid, err = err.msg
-    return failure err
-
-  trace "Decoding manifest for cid", cid
-
-  without manifest =? Manifest.decode(blk), err:
-    trace "Unable to decode as manifest", err = err.msg
-    return failure("Unable to decode as manifest")
-
-  trace "Decoded manifest", cid
-
-  return manifest.success
+  ## Fetch and decode a manifest
+  return await self.manifestProto.fetchManifest(cid)
 
 proc findPeer*(self: StorageNodeRef, peerId: PeerId): Future[?PeerRecord] {.async.} =
   ## Find peer using the discovery service from the given StorageNode
@@ -156,118 +131,35 @@ proc updateExpiry*(
 
   return success()
 
-proc fetchBatched*(
-    self: StorageNodeRef,
-    cid: Cid,
-    iter: Iter[int],
-    batchSize = DefaultFetchBatch,
-    onBatch: BatchProc = nil,
-    fetchLocal = true,
-): Future[?!void] {.async: (raises: [CancelledError]), gcsafe.} =
-  ## Fetch blocks in batches of `batchSize`
-  ##
-
-  # TODO: doesn't work if callee is annotated with async
-  # let
-  #   iter = iter.map(
-  #     (i: int) => self.networkStore.getBlock(BlockAddress.init(cid, i))
-  #   )
-
-  # Sliding window: maintain batchSize blocks in-flight
-  let
-    refillThreshold = int(float(batchSize) * BatchRefillThreshold)
-    refillSize = max(refillThreshold, 1)
-    maxCallbackBlocks = min(batchSize, MaxOnBatchBlocks)
-
-  var
-    blockData: seq[bt.Block]
-    failedBlocks = 0
-    successfulBlocks = 0
-    completedInWindow = 0
-
-  var addresses = newSeqOfCap[BlockAddress](batchSize)
-  for i in 0 ..< batchSize:
-    if not iter.finished:
-      let address = BlockAddress.init(cid, iter.next())
-      if fetchLocal or not (await address in self.networkStore):
-        addresses.add(address)
-
-  var blockResults = await self.networkStore.getBlocks(addresses)
-
-  while not blockResults.finished:
-    without blk =? await blockResults.next(), err:
-      inc(failedBlocks)
-      continue
-
-    inc(successfulBlocks)
-    inc(completedInWindow)
-
-    if not onBatch.isNil:
-      blockData.add(blk)
-      if blockData.len >= maxCallbackBlocks:
-        if batchErr =? (await onBatch(blockData)).errorOption:
-          return failure(batchErr)
-        blockData = @[]
-
-    if completedInWindow >= refillThreshold and not iter.finished:
-      var refillAddresses = newSeqOfCap[BlockAddress](refillSize)
-      for i in 0 ..< refillSize:
-        if not iter.finished:
-          let address = BlockAddress.init(cid, iter.next())
-          if fetchLocal or not (await address in self.networkStore):
-            refillAddresses.add(address)
-
-      if refillAddresses.len > 0:
-        blockResults =
-          chain(blockResults, await self.networkStore.getBlocks(refillAddresses))
-      completedInWindow = 0
-
-  if failedBlocks > 0:
-    return failure("Some blocks failed (Result) to fetch (" & $failedBlocks & ")")
-
-  if not onBatch.isNil and blockData.len > 0:
-    if batchErr =? (await onBatch(blockData)).errorOption:
-      return failure(batchErr)
-
-  success()
-
-proc fetchBatched*(
-    self: StorageNodeRef,
-    manifest: Manifest,
-    batchSize = DefaultFetchBatch,
-    onBatch: BatchProc = nil,
-    fetchLocal = true,
-): Future[?!void] {.async: (raw: true, raises: [CancelledError]).} =
-  ## Fetch manifest in batches of `batchSize`
-  ##
-
-  trace "Fetching blocks in batches of",
-    size = batchSize, blocksCount = manifest.blocksCount
-
-  let iter = Iter[int].new(0 ..< manifest.blocksCount)
-  self.fetchBatched(manifest.treeCid, iter, batchSize, onBatch, fetchLocal)
-
 proc fetchDatasetAsync*(
     self: StorageNodeRef, manifest: Manifest, fetchLocal = true
-): Future[void] {.async: (raises: []).} =
-  ## Asynchronously fetch a dataset in the background.
-  ## This task will be tracked and cleaned up on node shutdown.
-  ##
+): Future[?!void] {.async: (raises: [CancelledError]).} =
+  let
+    treeCid = manifest.treeCid
+    download = ?self.engine.startTreeDownloadOpaque(
+      treeCid, manifest.blockSize.uint32, manifest.blocksCount.uint64
+    )
   try:
-    if err =? (
-      await self.fetchBatched(
-        manifest = manifest, batchSize = DefaultFetchBatch, fetchLocal = fetchLocal
-      )
-    ).errorOption:
-      error "Unable to fetch blocks", err = err.msg
-  except CancelledError as exc:
-    trace "Cancelled fetching blocks", exc = exc.msg
+    trace "Starting tree download",
+      treeCid = treeCid, totalBlocks = manifest.blocksCount
+    return await download.waitForComplete()
+  finally:
+    self.engine.releaseDownload(download)
 
 proc fetchDatasetAsyncTask*(self: StorageNodeRef, manifest: Manifest) =
   ## Start fetching a dataset in the background.
   ## The task will be tracked and cleaned up on node shutdown.
   ##
-  self.trackedFutures.track(self.fetchDatasetAsync(manifest, fetchLocal = false))
+
+  proc fetchTask(): Future[void] {.async: (raises: []).} =
+    try:
+      if err =? (await self.fetchDatasetAsync(manifest, fetchLocal = false)).errorOption:
+        error "Background dataset fetch failed",
+          treeCid = manifest.treeCid, err = err.msg
+    except CancelledError:
+      trace "Background dataset fetch cancelled", treeCid = manifest.treeCid
+
+  self.trackedFutures.track(fetchTask())
 
 proc streamSingleBlock(
     self: StorageNodeRef, cid: Cid
@@ -278,14 +170,14 @@ proc streamSingleBlock(
 
   let stream = BufferStream.new()
 
-  without blk =? (await self.networkStore.getBlock(BlockAddress.init(cid))), err:
+  without blk =? (await self.networkStore.localStore.getBlock(cid)), err:
     return failure(err)
 
   proc streamOneBlock(): Future[void] {.async: (raises: []).} =
     try:
       defer:
         await stream.pushEof()
-      await stream.pushData(blk.data)
+      await stream.pushData(blk.data[])
     except CancelledError as exc:
       trace "Streaming block cancelled", cid, exc = exc.msg
     except LPStreamError as exc:
@@ -304,7 +196,15 @@ proc streamEntireDataset(
   var jobs: seq[Future[void]]
   let stream = LPStream(StoreStream.new(self.networkStore, manifest, pad = false))
 
-  jobs.add(self.fetchDatasetAsync(manifest, fetchLocal = false))
+  proc fetchTask(): Future[void] {.async: (raises: []).} =
+    try:
+      if err =? (await self.fetchDatasetAsync(manifest, fetchLocal = false)).errorOption:
+        error "Dataset fetch failed during streaming", manifestCid, err = err.msg
+        await stream.close()
+    except CancelledError:
+      trace "Dataset fetch cancelled during streaming", manifestCid
+
+  jobs.add(fetchTask())
 
   # Monitor stream completion and cancel background jobs when done
   proc monitorStream() {.async: (raises: []).} =
@@ -542,6 +442,7 @@ proc new*(
     networkStore: NetworkStore,
     engine: BlockExcEngine,
     discovery: Discovery,
+    manifestProto: ManifestProtocol,
     taskpool: Taskpool,
 ): StorageNodeRef =
   ## Create new instance of a Storage self, call `start` to run it
@@ -552,6 +453,7 @@ proc new*(
     networkStore: networkStore,
     engine: engine,
     discovery: discovery,
+    manifestProto: manifestProto,
     taskPool: taskpool,
     trackedFutures: TrackedFutures(),
   )

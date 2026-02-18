@@ -9,16 +9,10 @@
 
 {.push raises: [].}
 
-import std/sequtils
 import std/tables
-import std/algorithm
-import std/sequtils
 
-import pkg/chronos
 import pkg/libp2p
 
-import ../protobuf/blockexc
-import ../../blocktype
 import ../../logutils
 
 import ./peercontext
@@ -27,63 +21,37 @@ export peercontext
 logScope:
   topics = "storage peerctxstore"
 
-type
-  PeerCtxStore* = ref object of RootObj
-    peers*: OrderedTable[PeerId, BlockExcPeerCtx]
+type PeerContextStore* = ref object of RootObj
+  peers*: OrderedTable[PeerId, PeerContext]
 
-  PeersForBlock* = tuple[with: seq[BlockExcPeerCtx], without: seq[BlockExcPeerCtx]]
-
-iterator items*(self: PeerCtxStore): BlockExcPeerCtx =
+iterator items*(self: PeerContextStore): PeerContext =
   for p in self.peers.values:
     yield p
 
-proc contains*(a: openArray[BlockExcPeerCtx], b: PeerId): bool =
+proc contains*(a: openArray[PeerContext], b: PeerId): bool =
   ## Convenience method to check for peer precense
   ##
 
   a.anyIt(it.id == b)
 
-func peerIds*(self: PeerCtxStore): seq[PeerId] =
+func peerIds*(self: PeerContextStore): seq[PeerId] =
   toSeq(self.peers.keys)
 
-func contains*(self: PeerCtxStore, peerId: PeerId): bool =
+func contains*(self: PeerContextStore, peerId: PeerId): bool =
   peerId in self.peers
 
-func add*(self: PeerCtxStore, peer: BlockExcPeerCtx) =
+func add*(self: PeerContextStore, peer: PeerContext) =
   self.peers[peer.id] = peer
 
-func remove*(self: PeerCtxStore, peerId: PeerId) =
+func remove*(self: PeerContextStore, peerId: PeerId) =
   self.peers.del(peerId)
 
-func get*(self: PeerCtxStore, peerId: PeerId): BlockExcPeerCtx =
+func get*(self: PeerContextStore, peerId: PeerId): PeerContext =
   self.peers.getOrDefault(peerId, nil)
 
-func len*(self: PeerCtxStore): int =
+func len*(self: PeerContextStore): int =
   self.peers.len
 
-func peersHave*(self: PeerCtxStore, address: BlockAddress): seq[BlockExcPeerCtx] =
-  toSeq(self.peers.values).filterIt(address in it.peerHave)
-
-func peersHave*(self: PeerCtxStore, cid: Cid): seq[BlockExcPeerCtx] =
-  # FIXME: this is way slower and can end up leading to unexpected performance loss.
-  toSeq(self.peers.values).filterIt(it.peerHave.anyIt(it.cidOrTreeCid == cid))
-
-func peersWant*(self: PeerCtxStore, address: BlockAddress): seq[BlockExcPeerCtx] =
-  toSeq(self.peers.values).filterIt(address in it.wantedBlocks)
-
-func peersWant*(self: PeerCtxStore, cid: Cid): seq[BlockExcPeerCtx] =
-  # FIXME: this is way slower and can end up leading to unexpected performance loss.
-  toSeq(self.peers.values).filterIt(it.wantedBlocks.anyIt(it.cidOrTreeCid == cid))
-
-proc getPeersForBlock*(self: PeerCtxStore, address: BlockAddress): PeersForBlock =
-  var res: PeersForBlock = (@[], @[])
-  for peer in self:
-    if address in peer:
-      res.with.add(peer)
-    else:
-      res.without.add(peer)
-  res
-
-proc new*(T: type PeerCtxStore): PeerCtxStore =
+proc new*(T: type PeerContextStore): PeerContextStore =
   ## create new instance of a peer context store
-  PeerCtxStore(peers: initOrderedTable[PeerId, BlockExcPeerCtx]())
+  PeerContextStore(peers: initOrderedTable[PeerId, PeerContext]())

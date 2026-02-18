@@ -7,68 +7,47 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/sequtils
-import std/sets
-import std/options
-import std/algorithm
-import std/sugar
-import std/random
+import std/[sequtils, sets, options, algorithm, sugar, tables]
 
 import pkg/chronos
 import pkg/libp2p/[cid, switch, multihash, multicodec]
 import pkg/metrics
-import pkg/stint
 import pkg/questionable
+import pkg/questionable/results
 import pkg/stew/shims/sets
 
-import ../../rng
 import ../../stores/blockstore
 import ../../blocktype
 import ../../utils
-import ../../utils/exceptions
 import ../../utils/trackedfutures
 import ../../merkletree
 import ../../logutils
-import ../../manifest
-
-import ../protobuf/blockexc
-import ../protobuf/presence
+import ../protocol/message
+import ../protocol/presence
+import ../protocol/constants
 
 import ../network
 import ../peers
+import ../utils as bexutils
 
 import ./discovery
 import ./advertiser
-import ./pendingblocks
+import ./downloadmanager
+import ./swarm
+import ./scheduler
 
-export peers, pendingblocks, discovery
+export peers, downloadmanager, discovery, swarm, scheduler
 
 logScope:
   topics = "storage blockexcengine"
 
 declareCounter(
-  storage_block_exchange_want_have_lists_sent,
-  "storage blockexchange wantHave lists sent",
-)
-declareCounter(
   storage_block_exchange_want_have_lists_received,
   "storage blockexchange wantHave lists received",
-)
-declareCounter(
-  storage_block_exchange_want_block_lists_sent,
-  "storage blockexchange wantBlock lists sent",
-)
-declareCounter(
-  storage_block_exchange_want_block_lists_received,
-  "storage blockexchange wantBlock lists received",
 )
 declareCounter(storage_block_exchange_blocks_sent, "storage blockexchange blocks sent")
 declareCounter(
   storage_block_exchange_blocks_received, "storage blockexchange blocks received"
-)
-declareCounter(
-  storage_block_exchange_spurious_blocks_received,
-  "storage blockexchange unrequested/duplicate blocks received",
 )
 declareCounter(
   storage_block_exchange_discovery_requests_total,
@@ -83,49 +62,71 @@ declareCounter(
 )
 
 const
-  # The default max message length of nim-libp2p is 100 megabytes, meaning we can
-  # in principle fit up to 1600 64k blocks per message, so 20 is well under
-  # that number.
-  DefaultMaxBlocksPerMessage = 20
-  DefaultTaskQueueSize = 100
-  DefaultConcurrentTasks = 10
   # Don't do more than one discovery request per `DiscoveryRateLimit` seconds.
   DiscoveryRateLimit = 3.seconds
-  DefaultPeerActivityTimeout = 1.minutes
-  # Match MaxWantListBatchSize to efficiently respond to incoming WantLists
-  PresenceBatchSize = MaxWantListBatchSize
-  CleanupBatchSize = 2048
 
 type
-  TaskHandler* = proc(task: BlockExcPeerCtx): Future[void] {.gcsafe.}
-  TaskScheduler* = proc(task: BlockExcPeerCtx): bool {.gcsafe.}
-  PeerSelector* =
-    proc(peers: seq[BlockExcPeerCtx]): BlockExcPeerCtx {.gcsafe, raises: [].}
-
   BlockExcEngine* = ref object of RootObj
     localStore*: BlockStore # Local block store for this instance
-    network*: BlockExcNetwork # Network interface
-    peers*: PeerCtxStore # Peers we're currently actively exchanging with
-    taskQueue*: AsyncHeapQueue[BlockExcPeerCtx]
-    selectPeer*: PeerSelector # Peers we're currently processing tasks for
-    concurrentTasks: int # Number of concurrent peers we're serving at any given time
+    network*: BlockExcNetwork
+    peers*: PeerContextStore # Peers we're currently actively exchanging with
     trackedFutures: TrackedFutures # Tracks futures of blockexc tasks
     blockexcRunning: bool # Indicates if the blockexc task is running
-    maxBlocksPerMessage: int
-      # Maximum number of blocks we can squeeze in a single message
-    pendingBlocks*: PendingBlocksManager # Blocks we're awaiting to be resolved
+    downloadManager*: DownloadManager
     discovery*: DiscoveryEngine
     advertiser*: Advertiser
-    lastDiscRequest: Moment # time of last discovery request
+    lastDiscRequest: Moment # Time of last discovery request
+    selectionPolicy*: SelectionPolicy # Block selection policy for block scheduling
+    activeDownloads*: HashSet[uint64] # Track running download workers by download ID
 
-# attach task scheduler to engine
-proc scheduleTask(self: BlockExcEngine, task: BlockExcPeerCtx) {.gcsafe, raises: [].} =
-  if self.taskQueue.pushOrUpdateNoWait(task).isOk():
-    trace "Task scheduled for peer", peer = task.id
-  else:
-    warn "Unable to schedule task for peer", peer = task.id
+  DownloadHandleGeneric*[T] = object
+    cid*: Cid
+    downloadId*: uint64
+    iter*: SafeAsyncIter[T]
+    completionFuture*: Future[?!void].Raising([CancelledError])
 
-proc blockexcTaskRunner(self: BlockExcEngine) {.async: (raises: []).}
+  DownloadHandle* = DownloadHandleGeneric[Block]
+  DownloadHandleOpaque* = DownloadHandleGeneric[void]
+
+proc finished*[T](h: DownloadHandleGeneric[T]): bool =
+  h.iter.finished
+
+proc next*[T](
+    h: DownloadHandleGeneric[T]
+): Future[?!T] {.async: (raw: true, raises: [CancelledError]).} =
+  h.iter.next()
+
+proc waitForComplete*[T](
+    h: DownloadHandleGeneric[T]
+): Future[?!void] {.async: (raises: [CancelledError]).} =
+  return await h.completionFuture
+
+proc nextBlock*(
+    h: DownloadHandle
+): Future[?!Block] {.async: (raw: true, raises: [CancelledError]).} =
+  h.iter.next()
+
+proc requestWantBlocks*(
+  self: BlockExcEngine, peer: PeerId, blockRange: BlockRange
+): Future[WantBlocksResult[seq[BlockDeliveryView]]] {.
+  async: (raises: [CancelledError])
+.}
+
+proc downloadWorker(
+  self: BlockExcEngine, download: ActiveDownload
+) {.async: (raises: []).}
+
+proc ensureDownloadWorker(
+  self: BlockExcEngine, download: ActiveDownload
+) {.gcsafe, raises: [].}
+
+proc startDownload(
+  self: BlockExcEngine, desc: DownloadDesc
+): ActiveDownload {.gcsafe, raises: [].}
+
+proc startDownload(
+  self: BlockExcEngine, desc: DownloadDesc, missingBlocks: seq[uint64]
+): ActiveDownload {.gcsafe, raises: [].}
 
 proc start*(self: BlockExcEngine) {.async: (raises: []).} =
   ## Start the blockexc task
@@ -133,18 +134,14 @@ proc start*(self: BlockExcEngine) {.async: (raises: []).} =
   await self.discovery.start()
   await self.advertiser.start()
 
-  trace "Blockexc starting with concurrent tasks", tasks = self.concurrentTasks
   if self.blockexcRunning:
     warn "Starting blockexc twice"
     return
 
   self.blockexcRunning = true
-  for i in 0 ..< self.concurrentTasks:
-    let fut = self.blockexcTaskRunner()
-    self.trackedFutures.track(fut)
 
 proc stop*(self: BlockExcEngine) {.async: (raises: []).} =
-  ## Stop the blockexc blockexc
+  ## Stop the blockexc
   ##
 
   await self.trackedFutures.cancelTracked()
@@ -161,316 +158,88 @@ proc stop*(self: BlockExcEngine) {.async: (raises: []).} =
 
   trace "NetworkStore stopped"
 
-proc sendWantHave(
-    self: BlockExcEngine, addresses: seq[BlockAddress], peers: seq[BlockExcPeerCtx]
-): Future[void] {.async: (raises: [CancelledError]).} =
-  for p in peers:
-    let toAsk = addresses.filterIt(it notin p.peerHave)
-    trace "Sending wantHave request", toAsk, peer = p.id
-    await self.network.request.sendWantList(p.id, toAsk, wantType = WantType.WantHave)
-    storage_block_exchange_want_have_lists_sent.inc()
-
-proc sendWantBlock(
-    self: BlockExcEngine, addresses: seq[BlockAddress], blockPeer: BlockExcPeerCtx
-): Future[void] {.async: (raises: [CancelledError]).} =
-  trace "Sending wantBlock request to", addresses, peer = blockPeer.id
-  await self.network.request.sendWantList(
-    blockPeer.id, addresses, wantType = WantType.WantBlock
-  ) # we want this remote to send us a block
-  storage_block_exchange_want_block_lists_sent.inc()
-
-proc sendBatchedWantList(
-    self: BlockExcEngine,
-    peer: BlockExcPeerCtx,
-    addresses: seq[BlockAddress],
-    full: bool,
-) {.async: (raises: [CancelledError]).} =
-  var offset = 0
-  while offset < addresses.len:
-    let batchEnd = min(offset + MaxWantListBatchSize, addresses.len)
-    let batch = addresses[offset ..< batchEnd]
-
-    trace "Sending want list batch",
-      peer = peer.id,
-      batchSize = batch.len,
-      offset = offset,
-      total = addresses.len,
-      full = full
-
-    await self.network.request.sendWantList(
-      peer.id, batch, full = (full and offset == 0)
-    )
-    for address in batch:
-      peer.lastSentWants.incl(address)
-
-    offset = batchEnd
-
-proc refreshBlockKnowledge(
-    self: BlockExcEngine, peer: BlockExcPeerCtx, skipDelta = false, resetBackoff = false
-) {.async: (raises: [CancelledError]).} =
-  if peer.lastSentWants.len > 0:
-    var toRemove: seq[BlockAddress]
-
-    for address in peer.lastSentWants:
-      if address notin self.pendingBlocks:
-        toRemove.add(address)
-
-        if toRemove.len >= CleanupBatchSize:
-          await idleAsync()
-          break
-
-    for addr in toRemove:
-      peer.lastSentWants.excl(addr)
-
-  if self.pendingBlocks.wantListLen == 0:
-    if peer.lastSentWants.len > 0:
-      trace "Clearing want list tracking, no pending blocks", peer = peer.id
-      peer.lastSentWants.clear()
-    return
-
-  # We send only blocks that the peer hasn't already told us that they already have.
-  let
-    peerHave = peer.peerHave
-    toAsk = toHashSet(self.pendingBlocks.wantList.toSeq.filterIt(it notin peerHave))
-
-  if toAsk.len == 0:
-    if peer.lastSentWants.len > 0:
-      trace "Clearing want list tracking, peer has all blocks", peer = peer.id
-      peer.lastSentWants.clear()
-    return
-
-  let newWants = toAsk - peer.lastSentWants
-
-  if peer.lastSentWants.len > 0 and not skipDelta:
-    if newWants.len > 0:
-      trace "Sending delta want list update",
-        peer = peer.id, newWants = newWants.len, totalWants = toAsk.len
-
-      await self.sendBatchedWantList(peer, newWants.toSeq, full = false)
-
-      if resetBackoff:
-        peer.wantsUpdated
-    else:
-      trace "No changes in want list, skipping send", peer = peer.id
-      peer.lastSentWants = toAsk
-  else:
-    trace "Sending full want list", peer = peer.id, length = toAsk.len
-
-    await self.sendBatchedWantList(peer, toAsk.toSeq, full = true)
-
-    if resetBackoff:
-      peer.wantsUpdated
-
-proc refreshBlockKnowledge(self: BlockExcEngine) {.async: (raises: [CancelledError]).} =
-  let runtimeQuota = 10.milliseconds
-  var lastIdle = Moment.now()
-
-  for peer in self.peers.peers.values.toSeq:
-    # We refresh block knowledge if:
-    # 1. the peer hasn't been refreshed in a while;
-    # 2. the list of blocks we care about has changed.
-    #
-    # Note that because of (2), it is important that we update our
-    # want list in the coarsest way possible instead of over many
-    # small updates.
-    #
-
-    # In dynamic swarms, staleness will dominate latency.
-    let
-      hasNewBlocks = peer.lastRefresh < self.pendingBlocks.lastInclusion
-      isKnowledgeStale = peer.isKnowledgeStale
-
-    if isKnowledgeStale or hasNewBlocks:
-      if not peer.refreshInProgress:
-        peer.refreshRequested()
-        await self.refreshBlockKnowledge(
-          peer, skipDelta = isKnowledgeStale, resetBackoff = hasNewBlocks
-        )
-    else:
-      trace "Not refreshing: peer is up to date", peer = peer.id
-
-    if (Moment.now() - lastIdle) >= runtimeQuota:
-      try:
-        await idleAsync()
-      except CancelledError:
-        discard
-      lastIdle = Moment.now()
-
 proc searchForNewPeers(self: BlockExcEngine, cid: Cid) =
   if self.lastDiscRequest + DiscoveryRateLimit < Moment.now():
     trace "Searching for new peers for", cid = cid
     storage_block_exchange_discovery_requests_total.inc()
-    self.lastDiscRequest = Moment.now() # always refresh before calling await!
+    self.lastDiscRequest = Moment.now() # always refresh before calling await
     self.discovery.queueFindBlocksReq(@[cid])
   else:
     trace "Not searching for new peers, rate limit not expired", cid = cid
+
+proc banAndDropPeer(
+    self: BlockExcEngine, download: ActiveDownload, cid: Cid, peerId: PeerId
+) {.async: (raises: [CancelledError]).} =
+  download.ctx.swarm.banPeer(peerId)
+  download.handlePeerFailure(peerId)
+  if download.ctx.swarm.needsPeers():
+    self.searchForNewPeers(cid)
+  await self.network.dropPeer(peerId)
 
 proc evictPeer(self: BlockExcEngine, peer: PeerId) =
   ## Cleanup disconnected peer
   ##
 
   trace "Evicting disconnected/departed peer", peer
-
-  let peerCtx = self.peers.get(peer)
-  if not peerCtx.isNil:
-    for address in peerCtx.blocksRequested:
-      self.pendingBlocks.clearRequest(address, peer.some)
-
-  # drop the peer from the peers table
   self.peers.remove(peer)
-
-proc downloadInternal(
-    self: BlockExcEngine, address: BlockAddress
-) {.async: (raises: []).} =
-  logScope:
-    address = address
-
-  let handle = self.pendingBlocks.getWantHandle(address)
-  trace "Downloading block"
-  try:
-    while address in self.pendingBlocks:
-      logScope:
-        retries = self.pendingBlocks.retries(address)
-        interval = self.pendingBlocks.retryInterval
-
-      if self.pendingBlocks.retriesExhausted(address):
-        trace "Error retries exhausted"
-        storage_block_exchange_requests_failed_total.inc()
-        handle.fail(newException(RetriesExhaustedError, "Error retries exhausted"))
-        break
-
-      let peers = self.peers.getPeersForBlock(address)
-      logScope:
-        peersWith = peers.with.len
-        peersWithout = peers.without.len
-
-      if peers.with.len == 0:
-        # We know of no peers that have the block.
-        if peers.without.len > 0:
-          # If we have peers connected but none of them have the block, this
-          # could be because our knowledge about what they have has run stale.
-          # Tries to refresh it.
-          await self.refreshBlockKnowledge()
-          # Also tries to look for new peers for good measure.
-          # TODO: in the future, peer search and knowledge maintenance should
-          #   be completely decoupled from one another. It is very hard to
-          #   control what happens and how many neighbors we get like this.
-        self.searchForNewPeers(address.cidOrTreeCid)
-
-        let nextDiscovery =
-          if self.lastDiscRequest + DiscoveryRateLimit > Moment.now():
-            (self.lastDiscRequest + DiscoveryRateLimit - Moment.now())
-          else:
-            0.milliseconds
-
-        let retryDelay =
-          max(secs(rand(self.pendingBlocks.retryInterval.secs)), nextDiscovery)
-
-        # We now wait for a bit and then retry. If the handle gets completed in the
-        # meantime (cause the presence handler might have requested the block and
-        # received it in the meantime), we are done. Retry delays are randomized
-        # so we don't get all block loops spinning at the same time.
-        await handle or sleepAsync(retryDelay)
-        if handle.finished:
-          break
-
-        # Without decrementing the retries count, this would infinitely loop
-        # trying to find peers.
-        self.pendingBlocks.decRetries(address)
-
-        # If we still don't have the block, we'll go for another cycle.
-        trace "No peers for block, will retry shortly"
-        continue
-
-      # Once again, it might happen that the block was requested to a peer
-      # in the meantime. If so, we don't need to do anything. Otherwise,
-      # we'll be the ones placing the request.
-      let scheduledPeer =
-        if not self.pendingBlocks.isRequested(address):
-          let peer = self.selectPeer(peers.with)
-          discard self.pendingBlocks.markRequested(address, peer.id)
-          peer.blockRequestScheduled(address)
-          trace "Request block from block retry loop"
-          await self.sendWantBlock(@[address], peer)
-          peer
-        else:
-          let peerId = self.pendingBlocks.getRequestPeer(address).get()
-          self.peers.get(peerId)
-
-      if scheduledPeer.isNil:
-        trace "Scheduled peer no longer available, clearing stale request", address
-        self.pendingBlocks.clearRequest(address)
-        continue
-
-      # Parks until either the block is received, or the peer times out.
-      let activityTimer = scheduledPeer.activityTimer()
-      await handle or activityTimer # TODO: or peerDropped
-      activityTimer.cancel()
-
-      # XXX: we should probably not have this. Blocks should be retried
-      #   to infinity unless cancelled by the client.
-      self.pendingBlocks.decRetries(address)
-
-      if handle.finished:
-        trace "Handle for block finished", failed = handle.failed
-        break
-      else:
-        # If the peer timed out, retries immediately.
-        trace "Peer timed out during block request", peer = scheduledPeer.id
-        storage_block_exchange_peer_timeouts_total.inc()
-        await self.network.dropPeer(scheduledPeer.id)
-        # Evicts peer immediately or we may end up picking it again in the
-        # next retry.
-        self.evictPeer(scheduledPeer.id)
-  except CancelledError as exc:
-    trace "Block download cancelled"
-    if not handle.finished:
-      await handle.cancelAndWait()
-  except RetriesExhaustedError as exc:
-    warn "Retries exhausted for block", address, exc = exc.msg
-    storage_block_exchange_requests_failed_total.inc()
-    if not handle.finished:
-      handle.fail(exc)
-  finally:
-    self.pendingBlocks.clearRequest(address)
 
 proc requestBlocks*(
     self: BlockExcEngine, addresses: seq[BlockAddress]
 ): SafeAsyncIter[Block] =
-  var handles: seq[BlockHandle]
-
-  # Adds all blocks to pendingBlocks before calling the first downloadInternal. This will
-  # ensure that we don't send incomplete want lists.
+  var byTree = initTable[Cid, seq[uint64]]()
   for address in addresses:
-    if address notin self.pendingBlocks:
-      handles.add(self.pendingBlocks.getWantHandle(address))
+    byTree.mgetOrPut(address.treeCid, @[]).add(address.index.uint64)
 
-  for address in addresses:
-    self.trackedFutures.track(self.downloadInternal(address))
+  var downloadsByCid = initTable[Cid, ActiveDownload]()
+  for treeCid, indices in byTree:
+    let dl = self.downloadManager.getDownload(treeCid)
+    if dl.isNone:
+      let desc = toDownloadDesc(treeCid, indices.max + 1, blockSize = 0)
+      downloadsByCid[treeCid] = self.startDownload(desc, indices)
+    else:
+      downloadsByCid[treeCid] = dl.get()
 
-  let totalHandles = handles.len
-  var completed = 0
+  let totalAddresses = addresses.len
+  var
+    nextAddressIdx = 0
+    pendingHandle: Option[BlockHandle] = none(BlockHandle)
+    completed = 0
 
   proc isFinished(): bool =
-    completed == totalHandles
+    completed == totalAddresses
 
   proc genNext(): Future[?!Block] {.async: (raises: [CancelledError]).} =
-    # Be it success or failure, we're completing this future.
-    let value =
-      try:
-        # FIXME: this is super expensive. We're doing several linear scans,
-        #   not to mention all the copying and callback fumbling in `one`.
-        let
-          handle = await one(handles)
-          i = handles.find(handle)
-        handles.del(i)
-        success await handle
-      except CancelledError as err:
-        warn "Block request cancelled", addresses, err = err.msg
-        raise err
-      except CatchableError as err:
-        error "Error getting blocks from exchange engine", addresses, err = err.msg
-        failure err
+    while pendingHandle.isNone and nextAddressIdx < totalAddresses:
+      let
+        address = addresses[nextAddressIdx]
+        cid = address.treeCid
+      nextAddressIdx += 1
+
+      var handle: Option[BlockHandle] = none(BlockHandle)
+      downloadsByCid.withValue(cid, download):
+        handle = some(download[].getWantHandle(address))
+
+      let blkResult = await self.localStore.getBlock(address)
+      if blkResult.isOk:
+        if handle.isSome:
+          downloadsByCid.withValue(cid, download):
+            discard download[].completeWantHandle(address, some(blkResult.get))
+        inc(completed)
+        return success blkResult.get
+      elif not (blkResult.error of BlockNotFoundError):
+        if handle.isSome:
+          handle.get().cancel()
+        return failure(blkResult.error)
+      else:
+        if handle.isSome:
+          pendingHandle = handle
+
+    if pendingHandle.isNone:
+      return failure("No more blocks")
+
+    let handle = pendingHandle.get()
+    pendingHandle = none(BlockHandle)
+    let value = await handle
 
     inc(completed)
     return value
@@ -480,354 +249,867 @@ proc requestBlocks*(
 proc requestBlock*(
     self: BlockExcEngine, address: BlockAddress
 ): Future[?!Block] {.async: (raises: [CancelledError]).} =
-  if address notin self.pendingBlocks:
-    self.trackedFutures.track(self.downloadInternal(address))
+  let cid = address.treeCid
+  var download = self.downloadManager.getDownload(cid)
+  if download.isNone:
+    let desc = toDownloadDesc(address, blockSize = 0)
+    download = some(self.startDownload(desc))
+
+  let handle = download.get().getWantHandle(address)
+  without blk =? (await self.localStore.getBlock(address)), err:
+    if not (err of BlockNotFoundError):
+      handle.cancel()
+      return failure err
+    return await handle
+  discard download.get().completeWantHandle(address, some(blk))
+  return success blk
+
+proc validateBlockDeliveryView(self: BlockExcEngine, view: BlockDeliveryView): ?!void =
+  without proof =? view.proof:
+    return failure("Missing proof")
+
+  if proof.index != view.address.index:
+    return failure(
+      "Proof index " & $proof.index & " doesn't match leaf index " & $view.address.index
+    )
+
+  without expectedMhash =? view.cid.mhash.mapFailure, err:
+    return failure("Unable to get mhash from cid for block, nested err: " & err.msg)
+
+  without computedMhash =?
+    MultiHash.digest(
+      $expectedMhash.mcodec,
+      view.sharedBuf.data.toOpenArray(
+        view.dataOffset, view.dataOffset + view.dataLen - 1
+      ),
+    ).mapFailure, err:
+    return failure("Unable to compute hash of block data, nested err: " & err.msg)
+
+  if computedMhash != expectedMhash:
+    return failure("Block data hash doesn't match claimed CID")
+
+  without treeRoot =? view.address.treeCid.mhash.mapFailure, err:
+    return failure("Unable to get mhash from treeCid for block, nested err: " & err.msg)
+
+  if err =? proof.verify(computedMhash, treeRoot).errorOption:
+    return failure("Unable to verify proof for block, nested err: " & err.msg)
+
+  return success()
+
+proc sendWantBlocksRequest(
+    self: BlockExcEngine,
+    download: ActiveDownload,
+    start: uint64,
+    count: uint64,
+    peer: PeerContext,
+): Future[void] {.async: (raises: [CancelledError]).} =
+  if download.cancelled:
+    return
+
+  let cid = download.cid
+  var
+    missingIndices: seq[uint64] = @[]
+    localBlockCount: uint64 = 0
+
+  for i in start ..< start + count:
+    let address = download.makeBlockAddress(i)
+
+    if download.isBlockExhausted(address):
+      continue
+
+    let exists =
+      try:
+        await address in self.localStore
+      except CatchableError as e:
+        warn "Error checking block existence", address = address, error = e.msg
+        false
+
+    if not exists:
+      missingIndices.add(i)
+    else:
+      localBlockCount += 1
+      # try to complete handle if iterator is still waiting
+      if address in download.blocks:
+        let blkResult = await self.localStore.getBlock(address)
+        if blkResult.isOk:
+          discard download.completeWantHandle(address, some(blkResult.get))
+
+  download.markBatchInFlight(start, count, localBlockCount, peer.id)
+
+  if missingIndices.len == 0:
+    # all blocks were local
+    download.completeBatch(start, 0, 0)
+    return
+
+  var ranges: seq[tuple[start: uint64, count: uint64]] = @[]
+  if missingIndices.len > 0:
+    var
+      rangeStart = missingIndices[0]
+      rangeCount: uint64 = 1
+
+    for i in 1 ..< missingIndices.len:
+      if missingIndices[i] == rangeStart + rangeCount:
+        rangeCount += 1
+      else:
+        ranges.add((rangeStart, rangeCount))
+        rangeStart = missingIndices[i]
+        rangeCount = 1
+
+    ranges.add((rangeStart, rangeCount))
+
+  trace "Requesting missing blocks",
+    cid = cid,
+    originalRange = $(start, count),
+    missing = missingIndices.len,
+    ranges = ranges.len,
+    peer = peer.id
+
+  let
+    requestStartTime = Moment.now()
+    requestResult =
+      await self.requestWantBlocks(peer.id, BlockRange(cid: cid, ranges: ranges))
+    rttMicros = (Moment.now() - requestStartTime).microseconds.uint64
+
+  if download.cancelled:
+    return
+
+  # request might have timed-out and have been requeued to another peer
+  # if yes, then discard response, it's already handled.
+  download.pendingBatches.withValue(start, pending):
+    if pending[].peerId != peer.id:
+      # discard it, was reassigned
+      return
+  do:
+    # either completed or requeued
+    return
+
+  if requestResult.isErr:
+    warn "Batch request failed", peer = peer.id, error = requestResult.error.msg
+    let swarm = download.ctx.swarm
+    if swarm.recordPeerFailure(peer.id):
+      warn "Peer exceeded max failures, removing from swarm", peer = peer.id
+      if swarm.removePeer(peer.id).isNone:
+        trace "Peer was not in swarm", peer = peer.id
+
+      download.handlePeerFailure(peer.id)
+
+      if swarm.needsPeers():
+        self.searchForNewPeers(cid)
+    else:
+      # we can requeue immediately (cancels timeout), no benefit waiting for timeout.
+      download.requeueBatch(start, count, front = true)
+    return
+
+  let allBlockViews = requestResult.get
+
+  if allBlockViews.len == 0:
+    trace "Peer responded with zero blocks", peer = peer.id, cid = cid
+    download.requeueBatch(start, count, front = false)
+    return
+
+  if not download.ctx.hasBlockSize() and allBlockViews.len > 0:
+    let discoveredBlockSize = allBlockViews[0].dataLen.uint32
+    if discoveredBlockSize > 0:
+      download.ctx.setBlockSize(discoveredBlockSize)
+      trace "Discovered block size from first batch",
+        cid = cid, blockSize = discoveredBlockSize
+
+  trace "Received batch response",
+    cid = cid,
+    originalRange = $(start, count),
+    received = allBlockViews.len,
+    requested = missingIndices.len,
+    peer = peer.id
+
+  var
+    totalBytes: uint64 = 0
+    validCount: int = 0
+    receivedIndices: HashSet[uint64]
+
+  for view in allBlockViews:
+    if not bexutils.isIndexInRanges(
+      view.address.index.uint64, ranges, sortedRanges = true
+    ):
+      warn "Received unrequested block", index = view.address.index, ranges = ranges.len
+      continue
+
+    if view.address.index.uint64 >= download.ctx.totalBlocks:
+      warn "Received block with out-of-bounds index - banning peer",
+        index = view.address.index,
+        totalBlocks = download.ctx.totalBlocks,
+        peer = peer.id
+      await self.banAndDropPeer(download, cid, peer.id)
+      return
+
+    if err =? self.validateBlockDeliveryView(view).errorOption:
+      error "Block validation failed - corrupted data from peer",
+        address = view.address, msg = err.msg, peer = peer.id
+      warn "Banning peer for sending corrupted block data", peer = peer.id
+      await self.banAndDropPeer(download, cid, peer.id)
+      return
+
+    let
+      bd = view.toBlockDelivery()
+      putResult = await self.localStore.putBlock(bd.blk)
+    if putResult.isErr:
+      warn "Failed to store block", address = bd.address, error = putResult.error.msg
+      continue
+
+    let proofResult = await self.localStore.putCidAndProof(
+      bd.address.treeCid, bd.address.index, bd.blk.cid, bd.proof.get
+    )
+    if proofResult.isErr:
+      warn "Failed to store proof", address = bd.address
+      discard await self.localStore.delBlock(bd.blk.cid)
+      continue
+
+    totalBytes += bd.blk.data[].len.uint64
+    validCount += 1
+    receivedIndices.incl(bd.address.index.uint64)
+
+    if bd.address in download.blocks:
+      discard download.completeWantHandle(bd.address, some(bd.blk))
+
+  storage_block_exchange_blocks_received.inc(validCount.int64)
+
+  download.ctx.swarm.recordBatchSuccess(peer, rttMicros, totalBytes)
+
+  if validCount < missingIndices.len:
+    trace "Peer delivered partial batch, computing missing ranges",
+      peer = peer.id, requested = missingIndices.len, received = validCount
+
+    var stillMissing: seq[uint64]
+    for idx in missingIndices:
+      if idx notin receivedIndices:
+        stillMissing.add(idx)
+
+    if stillMissing.len > 0:
+      var penaltyAddresses: seq[BlockAddress]
+      let peerAvail = download.ctx.swarm.getPeer(peer.id)
+      for idx in stillMissing:
+        if peerAvail.isSome and peerAvail.get().availability.hasRange(idx, 1):
+          penaltyAddresses.add(download.makeBlockAddress(idx))
+
+      let exhausted = download.decrementBlockRetries(penaltyAddresses)
+      if exhausted.len > 0:
+        warn "Blocks exhausted retries after partial delivery",
+          cid = cid, exhaustedCount = exhausted.len
+        download.failExhaustedBlocks(exhausted)
+        let exhaustedIndices = exhausted.mapIt(it.index.uint64).toHashSet
+        stillMissing = stillMissing.filterIt(it notin exhaustedIndices)
+
+    var missingRanges: seq[tuple[start: uint64, count: uint64]] = @[]
+    if stillMissing.len > 0:
+      stillMissing.sort()
+      var
+        rangeStart = stillMissing[0]
+        rangeCount: uint64 = 1
+
+      for i in 1 ..< stillMissing.len:
+        if stillMissing[i] == rangeStart + rangeCount:
+          rangeCount += 1
+        else:
+          missingRanges.add((rangeStart, rangeCount))
+          rangeStart = stillMissing[i]
+          rangeCount = 1
+
+      missingRanges.add((rangeStart, rangeCount))
+
+    trace "Partial batch completion - requeuing missing ranges",
+      cid = cid,
+      originalStart = start,
+      originalCount = count,
+      received = validCount,
+      missingRanges = missingRanges.len
+
+    download.partialCompleteBatch(
+      start, count, validCount.uint64, missingRanges, totalBytes
+    )
+  else:
+    download.completeBatch(start, validCount.uint64, totalBytes)
+
+proc ensureDownloadWorker(
+    self: BlockExcEngine, download: ActiveDownload
+) {.gcsafe, raises: [].} =
+  let id = download.id
+  if id in self.activeDownloads:
+    return
+
+  self.activeDownloads.incl(id)
+
+  proc wrappedDownloadWorker() {.async: (raises: []).} =
+    try:
+      await self.downloadWorker(download)
+    finally:
+      self.activeDownloads.excl(id)
+
+  self.trackedFutures.track(wrappedDownloadWorker())
+
+proc startDownload(
+    self: BlockExcEngine, desc: DownloadDesc
+): ActiveDownload {.gcsafe, raises: [].} =
+  result = self.downloadManager.startDownload(desc)
+  self.ensureDownloadWorker(result)
+
+proc startDownload(
+    self: BlockExcEngine, desc: DownloadDesc, missingBlocks: seq[uint64]
+): ActiveDownload {.gcsafe, raises: [].} =
+  result = self.downloadManager.startDownload(desc, missingBlocks)
+  self.ensureDownloadWorker(result)
+
+proc broadcastWantHave(
+    self: BlockExcEngine,
+    download: ActiveDownload,
+    cid: Cid,
+    start: uint64,
+    count: uint64,
+    peers: seq[PeerContext],
+) {.async: (raises: [CancelledError]).} =
+  let rangeAddress = BlockAddress.init(cid, start.int)
+  for peerCtx in peers:
+    if not download.addPeerIfAbsent(peerCtx.id, BlockAvailability.unknown()):
+      # skip presence request for peer with Complete availability
+      continue
+
+    try:
+      await self.network.request
+        .sendWantList(
+          peerCtx.id,
+          @[rangeAddress],
+          priority = 0,
+          cancel = false,
+          wantType = WantType.WantHave,
+          full = false,
+          sendDontHave = false,
+          rangeCount = count,
+          downloadId = download.id,
+        )
+        .wait(DefaultWantHaveSendTimeout)
+    except AsyncTimeoutError:
+      warn "Want-have send timed out", peer = peerCtx.id
+    except CatchableError as err:
+      warn "Want-have send failed", peer = peerCtx.id, error = err.msg
+
+proc handleBatchRetry(
+    self: BlockExcEngine,
+    download: ActiveDownload,
+    cid: Cid,
+    start: uint64,
+    count: uint64,
+    waitTime: Duration,
+) {.async: (raises: [CancelledError]).} =
+  # we decrement retries, fail exhausted blocks, requeue, and wait.
+  let
+    addresses = download.getBlockAddressesForRange(start, count)
+    exhausted = download.decrementBlockRetries(addresses)
+  if exhausted.len > 0:
+    warn "Block retries exhausted", cid = cid, exhaustedCount = exhausted.len
+    download.failExhaustedBlocks(exhausted)
+
+  download.requeueBatch(start, count, front = false)
+  await sleepAsync(waitTime)
+
+proc downloadWorker(
+    self: BlockExcEngine, download: ActiveDownload
+) {.async: (raises: []).} =
+  ## Continuously schedules batches to peers until download completes.
+  ## Supports concurrent batch requests per peer based on BDP pipeline depth.
+  ## When block size is unknown (0), BDP optimizations are disabled - first batch
+  ## is used to discover block size, then BDP calculations start.
+  let
+    cid = download.cid
+    retryInterval = self.downloadManager.retryInterval
+  logScope:
+    cid = cid
 
   try:
-    let handle = self.pendingBlocks.getWantHandle(address)
-    success await handle
-  except CancelledError as err:
-    warn "Block request cancelled", address
-    raise err
-  except CatchableError as err:
-    error "Block request failed", address, err = err.msg
-    failure err
+    let
+      (windowStart, windowCount) = download.ctx.currentPresenceWindow()
+      connectedPeers = self.peers.toSeq()
 
-proc requestBlock*(
-    self: BlockExcEngine, cid: Cid
-): Future[?!Block] {.async: (raw: true, raises: [CancelledError]).} =
-  self.requestBlock(BlockAddress.init(cid))
+    if connectedPeers.len > 0:
+      trace "Initial presence window broadcast",
+        cid = cid,
+        windowStart = windowStart,
+        windowCount = windowCount,
+        totalBlocks = download.ctx.totalBlocks
 
-proc completeBlock*(self: BlockExcEngine, address: BlockAddress, blk: Block) =
-  if address in self.pendingBlocks.blocks:
-    self.pendingBlocks.completeWantHandle(address, blk)
+      await self.broadcastWantHave(
+        download, cid, windowStart, windowCount, connectedPeers
+      )
+      trace "Initial broadcast sent, proceeding to batch loop"
+    else:
+      trace "No connected peers for initial broadcast, triggering discovery"
+      self.searchForNewPeers(cid)
+
+    while not download.cancelled and not download.isDownloadComplete():
+      for peerId in download.inFlightBatches.keys.toSeq:
+        var remaining: seq[Future[void]] = @[]
+        for fut in download.inFlightBatches[peerId]:
+          if not fut.finished:
+            remaining.add(fut)
+        if remaining.len > 0:
+          download.inFlightBatches[peerId] = remaining
+        else:
+          download.inFlightBatches.del(peerId)
+
+      let ctx = download.ctx
+      if ctx.needsNextPresenceWindow():
+        let (newStart, newCount) = ctx.advancePresenceWindow()
+
+        ctx.trimPresenceBeforeWatermark()
+
+        # Broadcast want-have for the new window
+        let connectedPeers = self.peers.toSeq()
+
+        trace "Advancing presence window",
+          cid = cid,
+          newWindowStart = newStart,
+          newWindowCount = newCount,
+          watermark = ctx.scheduler.completedWatermark()
+
+        await self.broadcastWantHave(download, cid, newStart, newCount, connectedPeers)
+
+      if ctx.shouldBroadcastAvailability():
+        let (broadcastStart, broadcastCount) = ctx.getAvailabilityBroadcast()
+        if broadcastCount > 0:
+          trace "Broadcasting availability to swarm",
+            cid = cid,
+            rangeStart = broadcastStart,
+            rangeCount = broadcastCount,
+            swarmPeers = ctx.swarm.peerCount()
+
+          let presence = BlockPresence(
+            address: BlockAddress(treeCid: cid, index: broadcastStart.int),
+            kind: BlockPresenceType.HaveRange,
+            ranges: @[(start: broadcastStart, count: broadcastCount)],
+          )
+
+          for peerId in ctx.swarm.connectedPeers():
+            let peerOpt = ctx.swarm.getPeer(peerId)
+            if peerOpt.isSome and peerOpt.get().availability.kind == bakComplete:
+              continue
+
+            try:
+              await self.network.request.sendPresence(peerId, @[presence]).wait(
+                DefaultWantHaveSendTimeout
+              )
+            except AsyncTimeoutError:
+              trace "Availability broadcast send timed out", peer = peerId
+            except CatchableError as err:
+              trace "Failed to broadcast availability", peer = peerId, error = err.msg
+
+          ctx.markAvailabilityBroadcasted()
+
+      let batchOpt = self.downloadManager.getNextBatch(download)
+      if batchOpt.isNone:
+        let pendingBatchCount = download.pendingBatchCount()
+
+        if pendingBatchCount == 0:
+          break
+
+        await sleepAsync(100.milliseconds)
+        continue
+
+      let (start, count) = batchOpt.get()
+      logScope:
+        batchStart = start
+        batchCount = count
+
+      block localCheck:
+        for i in start ..< start + count:
+          let address = download.makeBlockAddress(i)
+          if download.isBlockExhausted(address):
+            break localCheck
+          let exists =
+            try:
+              await address in self.localStore
+            except CatchableError:
+              false
+          if not exists:
+            break localCheck
+
+        for i in start ..< start + count:
+          let address = download.makeBlockAddress(i)
+          if address in download.blocks:
+            without blk =? (await self.localStore.getBlock(address)), err:
+              break localCheck
+            discard download.completeWantHandle(address, some(blk))
+
+        download.completeBatchLocal(start, count)
+        continue
+
+      let swarm = download.ctx.swarm
+      var shouldBroadcast = false
+
+      let peersNeeded = swarm.peersNeeded()
+      if peersNeeded > 0:
+        trace "Swarm below target, triggering discovery",
+          active = swarm.activePeerCount(), needed = peersNeeded
+        self.searchForNewPeers(cid)
+
+      if swarm.peersWithRange(start, count).len == 0:
+        shouldBroadcast = true
+
+      if shouldBroadcast:
+        let connectedPeers = self.peers.toSeq()
+
+        if connectedPeers.len > 0:
+          trace "Broadcasting want-have for batch range",
+            cid = cid, start = start, count = count, peerCount = connectedPeers.len
+
+          await self.broadcastWantHave(download, cid, start, count, connectedPeers)
+          # Give peers a short time to respond with presence
+          await sleepAsync(50.milliseconds)
+        else:
+          trace "No connected peers, searching for new peers"
+          self.searchForNewPeers(cid)
+          await self.handleBatchRetry(download, cid, start, count, retryInterval)
+          continue
+
+      if self.peers.len == 0:
+        trace "No connected peers available for batch, searching"
+        self.searchForNewPeers(cid)
+        await self.handleBatchRetry(download, cid, start, count, 100.milliseconds)
+        continue
+
+      let staleUnknown = swarm.staleUnknownPeers()
+      if staleUnknown.len > 0:
+        let rangeAddress = download.makeBlockAddress(start)
+
+        trace "Re-querying stale unknown peers",
+          cid = cid,
+          staleUnknownCount = staleUnknown.len,
+          batchStart = start,
+          batchCount = count
+
+        for peerId in staleUnknown:
+          try:
+            await self.network.request
+              .sendWantList(
+                peerId,
+                @[rangeAddress],
+                priority = 0,
+                cancel = false,
+                wantType = WantType.WantHave,
+                full = false,
+                sendDontHave = false,
+                rangeCount = count,
+                downloadId = download.id,
+              )
+              .wait(DefaultWantHaveSendTimeout)
+          except AsyncTimeoutError:
+            trace "Re-query stale unknown peer send timed out", peer = peerId
+          except CatchableError as err:
+            trace "Failed to re-query stale unknown peer",
+              peer = peerId, error = err.msg
+
+        await sleepAsync(50.milliseconds)
+
+      let
+        batchBytes = download.ctx.batchBytes
+        selection = swarm.selectPeerForBatch(
+          self.peers, start, count, batchBytes, download.inFlightBatches
+        )
+
+      if selection.kind == pskNoPeers:
+        trace "No peer with range, searching for new peers"
+        let
+          hasActivePeers = swarm.activePeerCount() > 0
+          waitTime = if hasActivePeers: retryInterval else: 100.milliseconds
+        await self.handleBatchRetry(download, cid, start, count, waitTime)
+        continue
+
+      if selection.kind == pskAtCapacity:
+        download.requeueBatch(start, count, front = false)
+        await sleepAsync(10.milliseconds)
+        continue
+
+      let
+        peer = selection.peer
+        batchFuture = self.sendWantBlocksRequest(download, start, count, peer)
+
+      if peer.id notin download.inFlightBatches:
+        download.inFlightBatches[peer.id] = @[]
+      download.inFlightBatches[peer.id].add(batchFuture)
+
+      download.setBatchRequestFuture(start, batchFuture)
+
+      let timeout = download.ctx.batchTimeout(peer, count)
+      proc batchTimeoutHandler(dl: ActiveDownload) {.async: (raises: []).} =
+        try:
+          await sleepAsync(timeout)
+        except CancelledError:
+          return
+
+        if dl.cancelled:
+          return
+
+        dl.pendingBatches.withValue(start, pending):
+          if pending[].peerId == peer.id:
+            trace "Batch timed out", peer = peer.id, start = start, count = count
+            storage_block_exchange_peer_timeouts_total.inc()
+
+            let swarm = dl.ctx.swarm
+            if swarm.recordPeerTimeout(peer.id):
+              warn "Peer exceeded max timeouts, removing from swarm", peer = peer.id
+              discard swarm.removePeer(peer.id)
+
+            let
+              addresses = dl.getBlockAddressesForRange(start, count)
+              exhausted = dl.decrementBlockRetries(addresses)
+
+            if exhausted.len > 0:
+              warn "Blocks exhausted retries after timeout",
+                cid = cid, exhaustedCount = exhausted.len
+              dl.failExhaustedBlocks(exhausted)
+
+            dl.requeueBatch(start, count, front = true)
+
+            if not pending[].requestFuture.isNil and not pending[].requestFuture.finished:
+              pending[].requestFuture.cancelSoon()
+
+      let timeoutFut = batchTimeoutHandler(download)
+      self.trackedFutures.track(timeoutFut)
+      download.setBatchTimeoutFuture(start, timeoutFut)
+
+      await sleepAsync(10.milliseconds)
+  except CancelledError:
+    trace "Batch download loop cancelled"
+  except CatchableError as exc:
+    error "Error in batch download loop", err = exc.msg
+
+proc startTreeDownloadGeneric[T: Block | void](
+    self: BlockExcEngine, treeCid: Cid, blockSize: uint32, totalBlocks: uint64
+): ?!DownloadHandleGeneric[T] =
+  ## - T = Block: Returns actual block data (for streaming)
+  ## - T = void: Returns success/failure only (for prefetching)
+
+  #if self.downloadManager.getDownload(treeCid).isSome:
+  #  return failure("Download already active for CID " & $treeCid)
+
+  let
+    desc = toDownloadDesc(treeCid, totalBlocks, blockSize)
+    activeDownload = self.startDownload(desc)
+
+  when T is Block:
+    trace "Started tree block download", treeCid = treeCid, totalBlocks = totalBlocks
+
+  when T is void:
+    type HandleT = BlockHandleOpaque
   else:
-    warn "Attempted to complete non-pending block", address
+    type HandleT = BlockHandle
+
+  var
+    pendingHandle: Option[HandleT] = none(HandleT)
+    nextBlockToRequest: uint64 = 0
+
+  proc isFinished(): bool =
+    nextBlockToRequest >= totalBlocks and pendingHandle.isNone
+
+  proc genNext(): Future[?!T] {.async: (raises: [CancelledError]).} =
+    while pendingHandle.isNone and nextBlockToRequest < totalBlocks:
+      let address = BlockAddress(treeCid: treeCid, index: nextBlockToRequest.int)
+      nextBlockToRequest += 1
+
+      let handle =
+        when T is void:
+          activeDownload.getWantHandleOpaque(address)
+        else:
+          activeDownload.getWantHandle(address)
+
+      when T is void:
+        let exists =
+          try:
+            await address in self.localStore
+          except CatchableError:
+            false
+        if exists:
+          discard activeDownload.completeWantHandle(address)
+      else:
+        let blkResult = await self.localStore.getBlock(address)
+        if blkResult.isOk:
+          discard activeDownload.completeWantHandle(address, some(blkResult.get))
+        elif not (blkResult.error of BlockNotFoundError):
+          handle.cancel()
+          return failure(blkResult.error)
+
+      pendingHandle = some(handle)
+
+    if pendingHandle.isNone:
+      return failure("No more blocks")
+
+    let handle = pendingHandle.get()
+    pendingHandle = none(HandleT)
+    let blkResult = await handle
+    if blkResult.isOk:
+      activeDownload.markBlockReturned()
+    return blkResult
+
+  success DownloadHandleGeneric[T](
+    cid: treeCid,
+    downloadId: activeDownload.id,
+    iter: SafeAsyncIter[T].new(genNext, isFinished),
+    completionFuture: activeDownload.completionFuture,
+  )
+
+proc startTreeDownload*(
+    self: BlockExcEngine, treeCid: Cid, blockSize: uint32, totalBlocks: uint64
+): ?!DownloadHandle =
+  startTreeDownloadGeneric[Block](self, treeCid, blockSize, totalBlocks)
+
+proc startTreeDownloadOpaque*(
+    self: BlockExcEngine, treeCid: Cid, blockSize: uint32, totalBlocks: uint64
+): ?!DownloadHandleOpaque =
+  startTreeDownloadGeneric[void](self, treeCid, blockSize, totalBlocks)
+
+proc releaseDownload*[T](self: BlockExcEngine, handle: DownloadHandleGeneric[T]) =
+  self.downloadManager.releaseDownload(handle.downloadId, handle.cid)
 
 proc blockPresenceHandler*(
     self: BlockExcEngine, peer: PeerId, blocks: seq[BlockPresence]
 ) {.async: (raises: []).} =
   trace "Received block presence from peer", peer, len = blocks.len
-  let
-    peerCtx = self.peers.get(peer)
-    ourWantList = toHashSet(self.pendingBlocks.wantList.toSeq)
-
+  let peerCtx = self.peers.get(peer)
   if peerCtx.isNil:
     return
 
-  peerCtx.refreshReplied()
-
   for blk in blocks:
     if presence =? Presence.init(blk):
-      peerCtx.setPresence(presence)
+      if presence.have:
+        let cid = presence.address.treeCid
 
-  let
-    peerHave = peerCtx.peerHave
-    dontWantCids = peerHave - ourWantList
+        let downloadOpt = self.downloadManager.getDownload(blk.downloadId, cid)
+        if downloadOpt.isSome:
+          let availability =
+            case presence.presenceType
+            of BlockPresenceType.Complete:
+              BlockAvailability.complete()
+            of BlockPresenceType.HaveRange:
+              if presence.ranges.len > 0:
+                BlockAvailability.fromRanges(presence.ranges)
+              else:
+                BlockAvailability.unknown()
+            of BlockPresenceType.DontHave:
+              BlockAvailability.unknown()
 
-  if dontWantCids.len > 0:
-    peerCtx.cleanPresence(dontWantCids.toSeq)
+          downloadOpt.get().updatePeerAvailability(peer, availability)
 
-  let ourWantCids = ourWantList.filterIt(
-    it in peerHave and not self.pendingBlocks.retriesExhausted(it) and
-      self.pendingBlocks.markRequested(it, peer)
-  ).toSeq
-
-  for address in ourWantCids:
-    self.pendingBlocks.decRetries(address)
-    peerCtx.blockRequestScheduled(address)
-
-  if ourWantCids.len > 0:
-    trace "Peer has blocks in our wantList", peer, wants = ourWantCids
-    # FIXME: this will result in duplicate requests for blocks
-    if err =? catch(await self.sendWantBlock(ourWantCids, peerCtx)).errorOption:
-      warn "Failed to send wantBlock to peer", peer, err = err.msg
-      for address in ourWantCids:
-        self.pendingBlocks.clearRequest(address, peer.some)
-
-proc scheduleTasks(
-    self: BlockExcEngine, blocksDelivery: seq[BlockDelivery]
-) {.async: (raises: [CancelledError]).} =
-  # schedule any new peers to provide blocks to
-  for p in self.peers:
-    for blockDelivery in blocksDelivery: # for each cid
-      # schedule a peer if it wants at least one cid
-      # and we have it in our local store
-      if blockDelivery.address in p.wantedBlocks:
-        let cid = blockDelivery.blk.cid
-        try:
-          if await (cid in self.localStore):
-            # TODO: the try/except should go away once blockstore tracks exceptions
-            self.scheduleTask(p)
-            break
-        except CancelledError as exc:
-          warn "Checking local store canceled", cid = cid, err = exc.msg
-          return
-        except CatchableError as exc:
-          error "Error checking local store for cid", cid = cid, err = exc.msg
-          raiseAssert "Unexpected error checking local store for cid"
-
-proc cancelBlocks(
-    self: BlockExcEngine, addrs: seq[BlockAddress]
-) {.async: (raises: [CancelledError]).} =
-  ## Tells neighboring peers that we're no longer interested in a block.
-  ##
-
-  let blocksDelivered = toHashSet(addrs)
-  var scheduledCancellations: Table[PeerId, HashSet[BlockAddress]]
-
-  if self.peers.len == 0:
-    return
-
-  proc dispatchCancellations(
-      entry: tuple[peerId: PeerId, addresses: HashSet[BlockAddress]]
-  ): Future[PeerId] {.async: (raises: [CancelledError]).} =
-    trace "Sending block request cancellations to peer",
-      peer = entry.peerId, addresses = entry.addresses.len
-    await self.network.request.sendWantCancellations(
-      peer = entry.peerId, addresses = entry.addresses.toSeq
-    )
-
-    return entry.peerId
-
-  try:
-    for peerCtx in self.peers.peers.values:
-      # Do we have pending requests, towards this peer, for any of the blocks
-      # that were just delivered?
-      let intersection = peerCtx.blocksRequested.intersection(blocksDelivered)
-      if intersection.len > 0:
-        # If so, schedules a cancellation.
-        scheduledCancellations[peerCtx.id] = intersection
-
-    if scheduledCancellations.len == 0:
-      return
-
-    let (succeededFuts, failedFuts) = await allFinishedFailed[PeerId](
-      toSeq(scheduledCancellations.pairs).map(dispatchCancellations)
-    )
-
-    (await allFinished(succeededFuts)).mapIt(it.read).apply do(peerId: PeerId):
-      let ctx = self.peers.get(peerId)
-      if not ctx.isNil:
-        ctx.cleanPresence(addrs)
-        for address in scheduledCancellations[peerId]:
-          ctx.blockRequestCancelled(address)
-
-    if failedFuts.len > 0:
-      warn "Failed to send block request cancellations to peers", peers = failedFuts.len
-    else:
-      trace "Block request cancellations sent to peers", peers = self.peers.len
-  except CancelledError as exc:
-    warn "Error sending block request cancellations", error = exc.msg
-    raise exc
-  except CatchableError as exc:
-    warn "Error sending block request cancellations", error = exc.msg
-
-proc resolveBlocks*(
-    self: BlockExcEngine, blocksDelivery: seq[BlockDelivery]
-) {.async: (raises: [CancelledError]).} =
-  self.pendingBlocks.resolve(blocksDelivery)
-  await self.scheduleTasks(blocksDelivery)
-  await self.cancelBlocks(blocksDelivery.mapIt(it.address))
-
-proc resolveBlocks*(
-    self: BlockExcEngine, blocks: seq[Block]
-) {.async: (raises: [CancelledError]).} =
-  await self.resolveBlocks(
-    blocks.mapIt(
-      BlockDelivery(blk: it, address: BlockAddress(leaf: false, cid: it.cid))
-    )
-  )
-
-proc validateBlockDelivery(self: BlockExcEngine, bd: BlockDelivery): ?!void =
-  if bd.address notin self.pendingBlocks:
-    return failure("Received block is not currently a pending block")
-
-  if bd.address.leaf:
-    without proof =? bd.proof:
-      return failure("Missing proof")
-
-    if proof.index != bd.address.index:
-      return failure(
-        "Proof index " & $proof.index & " doesn't match leaf index " & $bd.address.index
-      )
-
-    without leaf =? bd.blk.cid.mhash.mapFailure, err:
-      return failure("Unable to get mhash from cid for block, nested err: " & err.msg)
-
-    without treeRoot =? bd.address.treeCid.mhash.mapFailure, err:
-      return
-        failure("Unable to get mhash from treeCid for block, nested err: " & err.msg)
-
-    if err =? proof.verify(leaf, treeRoot).errorOption:
-      return failure("Unable to verify proof for block, nested err: " & err.msg)
-  else: # not leaf
-    if bd.address.cid != bd.blk.cid:
-      return failure(
-        "Delivery cid " & $bd.address.cid & " doesn't match block cid " & $bd.blk.cid
-      )
-
-  return success()
-
-proc blocksDeliveryHandler*(
-    self: BlockExcEngine,
-    peer: PeerId,
-    blocksDelivery: seq[BlockDelivery],
-    allowSpurious: bool = false,
-) {.async: (raises: []).} =
-  trace "Received blocks from peer", peer, blocks = (blocksDelivery.mapIt(it.address))
-
-  var validatedBlocksDelivery: seq[BlockDelivery]
-  let peerCtx = self.peers.get(peer)
-
-  let runtimeQuota = 10.milliseconds
-  var lastIdle = Moment.now()
-
-  for bd in blocksDelivery:
-    logScope:
-      peer = peer
-      address = bd.address
-
-    try:
-      # Unknown peers and unrequested blocks are dropped with a warning.
-      if not allowSpurious and (peerCtx == nil or not peerCtx.blockReceived(bd.address)):
-        warn "Dropping unrequested or duplicate block received from peer"
-        storage_block_exchange_spurious_blocks_received.inc()
-        continue
-
-      if err =? self.validateBlockDelivery(bd).errorOption:
-        warn "Block validation failed", msg = err.msg
-        continue
-
-      if err =? (await self.localStore.putBlock(bd.blk)).errorOption:
-        error "Unable to store block", err = err.msg
-        continue
-
-      if bd.address.leaf:
-        without proof =? bd.proof:
-          warn "Proof expected for a leaf block delivery"
-          continue
-        if err =? (
-          await self.localStore.putCidAndProof(
-            bd.address.treeCid, bd.address.index, bd.blk.cid, proof
-          )
-        ).errorOption:
-          warn "Unable to store proof and cid for a block"
-          continue
-    except CancelledError:
-      trace "Block delivery handling cancelled"
-    except CatchableError as exc:
-      warn "Error handling block delivery", error = exc.msg
-      continue
-
-    validatedBlocksDelivery.add(bd)
-
-    if (Moment.now() - lastIdle) >= runtimeQuota:
-      try:
-        await idleAsync()
-      except CancelledError:
-        discard
-      except CatchableError:
-        discard
-      lastIdle = Moment.now()
-
-  storage_block_exchange_blocks_received.inc(validatedBlocksDelivery.len.int64)
-
-  if err =? catch(await self.resolveBlocks(validatedBlocksDelivery)).errorOption:
-    warn "Error resolving blocks", err = err.msg
-    return
+          # try to propagate peer availability to other downloads for the same CID
+          self.downloadManager.downloads.withValue(cid, innerTable):
+            for otherId, otherDownload in innerTable[]:
+              if otherId != blk.downloadId:
+                otherDownload.updatePeerAvailability(peer, availability)
 
 proc wantListHandler*(
     self: BlockExcEngine, peer: PeerId, wantList: WantList
 ) {.async: (raises: []).} =
-  trace "Received want list from peer", peer, wantList = wantList.entries.len
+  trace "Received want list from peer", peer, entries = wantList.entries.len
 
   let peerCtx = self.peers.get(peer)
-
   if peerCtx.isNil:
     return
 
-  var
-    presence: seq[BlockPresence]
-    schedulePeer = false
-
-  let runtimeQuota = 10.milliseconds
-  var lastIdle = Moment.now()
+  var presence: seq[BlockPresence]
 
   try:
     for e in wantList.entries:
-      logScope:
-        peer = peerCtx.id
-        address = e.address
-        wantType = $e.wantType
+      storage_block_exchange_want_have_lists_received.inc()
 
-      if e.address notin peerCtx.wantedBlocks: # Adding new entry to peer wants
+      if e.rangeCount > 0:
+        let
+          startIdx = e.address.index.uint64
+          count = e.rangeCount
+          treeCid = e.address.treeCid
+
+        if count > MaxPresenceWindowBlocks:
+          warn "Rejecting oversized range query",
+            peer = peer, treeCid = treeCid, count = count, max = MaxPresenceWindowBlocks
+          continue
+
+        trace "Processing range query",
+          treeCid = treeCid, start = startIdx, count = count
+
+        var
+          ranges: seq[tuple[start: uint64, count: uint64]] = @[]
+          rangeStart: uint64 = 0
+          inRange = false
+
+        for i in 0'u64 ..< count:
+          let address = BlockAddress(treeCid: treeCid, index: (startIdx + i).int)
+          let have =
+            try:
+              await address in self.localStore
+            except CatchableError:
+              false
+
+          if have:
+            if not inRange:
+              rangeStart = startIdx + i
+              inRange = true
+          else:
+            if inRange:
+              ranges.add((rangeStart, (startIdx + i) - rangeStart))
+              inRange = false
+
+        if inRange:
+          ranges.add((rangeStart, (startIdx + count) - rangeStart))
+
+        if ranges.len > 0:
+          trace "Have blocks in range", treeCid = treeCid, ranges = ranges
+          presence.add(
+            BlockPresence(
+              address: e.address,
+              kind: BlockPresenceType.HaveRange,
+              ranges: ranges,
+              downloadId: e.downloadId,
+            )
+          )
+        else:
+          trace "Don't have range", treeCid = treeCid, start = startIdx, count = count
+          if e.sendDontHave:
+            presence.add(
+              BlockPresence(
+                address: e.address,
+                kind: BlockPresenceType.DontHave,
+                downloadId: e.downloadId,
+              )
+            )
+      else:
         let have =
           try:
             await e.address in self.localStore
-          except CatchableError as exc:
-            # TODO: should not be necessary once we have proper exception tracking on the BlockStore interface
+          except CatchableError:
             false
 
-        if e.cancel:
-          # This is sort of expected if we sent the block to the peer, as we have removed
-          # it from the peer's wantlist ourselves.
-          trace "Received cancelation for untracked block, skipping",
-            address = e.address
-          continue
-
-        trace "Processing want list entry", wantList = $e
-        case e.wantType
-        of WantType.WantHave:
-          if have:
-            trace "We HAVE the block", address = e.address
-            presence.add(
-              BlockPresence(address: e.address, `type`: BlockPresenceType.Have)
+        if have:
+          presence.add(
+            BlockPresence(
+              address: e.address,
+              kind: BlockPresenceType.HaveRange,
+              ranges: @[(e.address.index.uint64, 1'u64)],
+              downloadId: e.downloadId,
             )
-          else:
-            trace "We DON'T HAVE the block", address = e.address
-            if e.sendDontHave:
-              presence.add(
-                BlockPresence(address: e.address, `type`: BlockPresenceType.DontHave)
-              )
+          )
+        elif e.sendDontHave:
+          presence.add(
+            BlockPresence(
+              address: e.address,
+              kind: BlockPresenceType.DontHave,
+              downloadId: e.downloadId,
+            )
+          )
 
-          storage_block_exchange_want_have_lists_received.inc()
-        of WantType.WantBlock:
-          peerCtx.wantedBlocks.incl(e.address)
-          schedulePeer = true
-          storage_block_exchange_want_block_lists_received.inc()
-      else: # Updating existing entry in peer wants
-        # peer doesn't want this block anymore
-        if e.cancel:
-          trace "Canceling want for block", address = e.address
-          peerCtx.wantedBlocks.excl(e.address)
-          trace "Canceled block request",
-            address = e.address, len = peerCtx.wantedBlocks.len
-        else:
-          trace "Peer has requested a block more than once", address = e.address
-          if e.wantType == WantType.WantBlock:
-            schedulePeer = true
-
-      if presence.len >= PresenceBatchSize or (Moment.now() - lastIdle) >= runtimeQuota:
-        if presence.len > 0:
-          trace "Sending presence batch to remote", items = presence.len
-          await self.network.request.sendPresence(peer, presence)
-          presence = @[]
-        try:
-          await idleAsync()
-        except CancelledError:
-          discard
-        lastIdle = Moment.now()
-
-    # Send any remaining presence messages
     if presence.len > 0:
-      trace "Sending final presence to remote", items = presence.len
-      await self.network.request.sendPresence(peer, presence)
-
-    if schedulePeer:
-      self.scheduleTask(peerCtx)
-  except CancelledError as exc: #TODO: replace with CancelledError
-    warn "Error processing want list", error = exc.msg
+      trace "Sending presence to remote", items = presence.len
+      try:
+        await self.network.request.sendPresence(peer, presence).wait(
+          DefaultWantHaveSendTimeout
+        )
+      except AsyncTimeoutError:
+        warn "Presence response send timed out", peer = peer
+  except CancelledError as exc:
+    warn "Want list handling cancelled", error = exc.msg
 
 proc peerAddedHandler*(
     self: BlockExcEngine, peer: PeerId
@@ -837,134 +1119,42 @@ proc peerAddedHandler*(
   ##
 
   trace "Setting up peer", peer
-
   if peer notin self.peers:
-    let peerCtx = BlockExcPeerCtx(id: peer, activityTimeout: DefaultPeerActivityTimeout)
-    trace "Setting up new peer", peer
+    let peerCtx = PeerContext.new(peer)
     self.peers.add(peerCtx)
-    trace "Added peer", peers = self.peers.len
-    await self.refreshBlockKnowledge(peerCtx)
 
 proc localLookup(
     self: BlockExcEngine, address: BlockAddress
 ): Future[?!BlockDelivery] {.async: (raises: [CancelledError]).} =
-  if address.leaf:
-    (await self.localStore.getBlockAndProof(address.treeCid, address.index)).map(
-      (blkAndProof: (Block, StorageMerkleProof)) =>
-        BlockDelivery(address: address, blk: blkAndProof[0], proof: blkAndProof[1].some)
-    )
-  else:
-    (await self.localStore.getBlock(address)).map(
-      (blk: Block) =>
-        BlockDelivery(address: address, blk: blk, proof: StorageMerkleProof.none)
-    )
+  (await self.localStore.getBlockAndProof(address.treeCid, address.index)).map(
+    (blkAndProof: (Block, StorageMerkleProof)) =>
+      BlockDelivery(address: address, blk: blkAndProof[0], proof: blkAndProof[1].some)
+  )
 
-iterator splitBatches[T](sequence: seq[T], batchSize: int): seq[T] =
-  var batch: seq[T]
-  for element in sequence:
-    if batch.len == batchSize:
-      yield batch
-      batch = @[]
-    batch.add(element)
+proc requestWantBlocks*(
+    self: BlockExcEngine, peer: PeerId, blockRange: BlockRange
+): Future[WantBlocksResult[seq[BlockDeliveryView]]] {.
+    async: (raises: [CancelledError])
+.} =
+  let response = ?await self.network.sendWantBlocksRequest(peer, blockRange)
+  var blockViews: seq[BlockDeliveryView]
 
-  if batch.len > 0:
-    yield batch
+  for btBlock in response.blocks:
+    let viewResult =
+      toBlockDeliveryView(btBlock, response.treeCid, response.sharedBuffer)
+    if viewResult.isOk:
+      blockViews.add(viewResult.get)
+    else:
+      warn "Failed to convert block entry to view", error = viewResult.error.msg
 
-proc taskHandler*(
-    self: BlockExcEngine, peerCtx: BlockExcPeerCtx
-) {.async: (raises: [CancelledError, RetriesExhaustedError]).} =
-  # Send to the peer blocks he wants to get,
-  # if they present in our local store
+  if blockViews.len == 0:
+    trace "Request succeeded but received zero blocks",
+      peer = peer,
+      cid = blockRange.cid,
+      rangeCount = blockRange.ranges.len,
+      responseBlockCount = response.blocks.len
 
-  # Blocks that have been sent have already been picked up by other tasks and
-  # should not be re-sent.
-  var
-    wantedBlocks = peerCtx.wantedBlocks.filterIt(not peerCtx.isBlockSent(it))
-    sent: HashSet[BlockAddress]
-
-  trace "Running task for peer", peer = peerCtx.id
-
-  for wantedBlock in wantedBlocks:
-    peerCtx.markBlockAsSent(wantedBlock)
-
-  try:
-    for batch in wantedBlocks.toSeq.splitBatches(self.maxBlocksPerMessage):
-      var blockDeliveries: seq[BlockDelivery]
-      for wantedBlock in batch:
-        # I/O is blocking so looking up blocks sequentially is fine.
-        without blockDelivery =? await self.localLookup(wantedBlock), err:
-          error "Error getting block from local store",
-            err = err.msg, address = wantedBlock
-          peerCtx.markBlockAsNotSent(wantedBlock)
-          continue
-        blockDeliveries.add(blockDelivery)
-        sent.incl(wantedBlock)
-
-      if blockDeliveries.len == 0:
-        continue
-
-      await self.network.request.sendBlocksDelivery(peerCtx.id, blockDeliveries)
-      storage_block_exchange_blocks_sent.inc(blockDeliveries.len.int64)
-      # Drops the batch from the peer's set of wanted blocks; i.e. assumes that after
-      # we send the blocks, then the peer no longer wants them, so we don't need to
-      # re-send them. Note that the send might still fail down the line and we will
-      # have removed those anyway. At that point, we rely on the requester performing
-      # a retry for the request to succeed.
-      peerCtx.wantedBlocks.keepItIf(it notin sent)
-  finally:
-    # Better safe than sorry: if an exception does happen, we don't want to keep
-    # those as sent, as it'll effectively prevent the blocks from ever being sent again.
-    peerCtx.blocksSent.keepItIf(it notin wantedBlocks)
-
-proc blockexcTaskRunner(self: BlockExcEngine) {.async: (raises: []).} =
-  ## process tasks
-  ##
-
-  trace "Starting blockexc task runner"
-  try:
-    while self.blockexcRunning:
-      let peerCtx = await self.taskQueue.pop()
-      await self.taskHandler(peerCtx)
-  except CancelledError:
-    trace "block exchange task runner cancelled"
-  except CatchableError as exc:
-    error "error running block exchange task", error = exc.msg
-
-  info "Exiting blockexc task runner"
-
-proc selectRandom*(
-    peers: seq[BlockExcPeerCtx]
-): BlockExcPeerCtx {.gcsafe, raises: [].} =
-  if peers.len == 1:
-    return peers[0]
-
-  proc evalPeerScore(peer: BlockExcPeerCtx): float =
-    let
-      loadPenalty = peer.blocksRequested.len.float * 2.0
-      successRate =
-        if peer.exchanged > 0:
-          peer.exchanged.float / (peer.exchanged + peer.blocksRequested.len).float
-        else:
-          0.5
-      failurePenalty = (1.0 - successRate) * 5.0
-    return loadPenalty + failurePenalty
-
-  let
-    scores = peers.mapIt(evalPeerScore(it))
-    maxScore = scores.max() + 1.0
-    weights = scores.mapIt(maxScore - it)
-
-  var totalWeight = 0.0
-  for w in weights:
-    totalWeight += w
-
-  var r = rand(totalWeight)
-  for i, weight in weights:
-    r -= weight
-    if r <= 0.0:
-      return peers[i]
-
-  return peers[^1]
+  return ok(blockViews)
 
 proc new*(
     T: type BlockExcEngine,
@@ -972,11 +1162,9 @@ proc new*(
     network: BlockExcNetwork,
     discovery: DiscoveryEngine,
     advertiser: Advertiser,
-    peerStore: PeerCtxStore,
-    pendingBlocks: PendingBlocksManager,
-    maxBlocksPerMessage = DefaultMaxBlocksPerMessage,
-    concurrentTasks = DefaultConcurrentTasks,
-    selectPeer: PeerSelector = selectRandom,
+    peerStore: PeerContextStore,
+    downloadManager: DownloadManager,
+    selectionPolicy = spSequential,
 ): BlockExcEngine =
   ## Create new block exchange engine instance
   ##
@@ -984,15 +1172,13 @@ proc new*(
   let self = BlockExcEngine(
     localStore: localStore,
     peers: peerStore,
-    pendingBlocks: pendingBlocks,
+    downloadManager: downloadManager,
     network: network,
-    concurrentTasks: concurrentTasks,
     trackedFutures: TrackedFutures(),
-    maxBlocksPerMessage: maxBlocksPerMessage,
-    taskQueue: newAsyncHeapQueue[BlockExcPeerCtx](DefaultTaskQueueSize),
     discovery: discovery,
     advertiser: advertiser,
-    selectPeer: selectPeer,
+    selectionPolicy: selectionPolicy,
+    activeDownloads: initHashSet[uint64](),
   )
 
   proc blockWantListHandler(
@@ -1005,11 +1191,6 @@ proc new*(
   ): Future[void] {.async: (raises: []).} =
     self.blockPresenceHandler(peer, presence)
 
-  proc blocksDeliveryHandler(
-      peer: PeerId, blocksDelivery: seq[BlockDelivery]
-  ): Future[void] {.async: (raises: []).} =
-    self.blocksDeliveryHandler(peer, blocksDelivery)
-
   proc peerAddedHandler(
       peer: PeerId
   ): Future[void] {.async: (raises: [CancelledError]).} =
@@ -1020,10 +1201,40 @@ proc new*(
   ): Future[void] {.async: (raises: [CancelledError]).} =
     self.evictPeer(peer)
 
+  proc wantBlocksRequestHandler(
+      peer: PeerId, req: WantBlocksRequest
+  ): Future[seq[BlockDelivery]] {.async: (raises: [CancelledError]).} =
+    var
+      blockDeliveries: seq[BlockDelivery]
+      notFoundCount = 0
+      totalRequested: uint64 = 0
+
+    for (start, count) in req.ranges:
+      totalRequested += count
+      for i in start ..< start + count:
+        let address = BlockAddress(treeCid: req.cid, index: i.Natural)
+
+        let res = await self.localLookup(address)
+        if res.isOk:
+          blockDeliveries.add(res.get)
+        else:
+          notFoundCount += 1
+
+    if notFoundCount > 0:
+      warn "Some blocks not found in WantBlocks request",
+        peer = peer,
+        cid = req.cid,
+        requested = totalRequested,
+        found = blockDeliveries.len,
+        notFound = notFoundCount
+
+    storage_block_exchange_blocks_sent.inc(blockDeliveries.len.int64)
+    return blockDeliveries
+
   network.handlers = BlockExcHandlers(
     onWantList: blockWantListHandler,
-    onBlocksDelivery: blocksDeliveryHandler,
     onPresence: blockPresenceHandler,
+    onWantBlocksRequest: wantBlocksRequestHandler,
     onPeerJoined: peerAddedHandler,
     onPeerDeparted: peerDepartedHandler,
   )

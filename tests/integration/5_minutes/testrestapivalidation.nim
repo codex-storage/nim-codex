@@ -1,6 +1,5 @@
 import std/times
 import pkg/storage/conf
-import pkg/stint
 from pkg/libp2p import Cid, `$`
 import ../../asynctest
 import ../../checktest

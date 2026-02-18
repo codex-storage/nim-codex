@@ -23,7 +23,36 @@ type
   StorageError* = object of CatchableError # base Storage error
   StorageResult*[T] = Result[T, ref StorageError]
 
+  WantBlocksErrorKind* = enum
+    RequestTooShort
+    RequestTooLarge
+    RequestTruncated
+    InvalidCid
+    InvalidCodec
+    MetadataTooShort
+    MetadataTruncated
+    ResponseTooLarge
+    MetadataTooLarge
+    DataSizeMismatch
+    ProofTooShort
+    ProofTruncated
+    ProofCreationFailed
+    ProofPathTooLarge
+    ProofDecodeFailed
+    TooManyBlocks
+    NoConnection
+    ConnectionClosed
+    RequestFailed
+
+  WantBlocksError* = object of StorageError
+    kind*: WantBlocksErrorKind
+
+  WantBlocksResult*[T] = Result[T, ref WantBlocksError]
+
   FinishedFailed*[T] = tuple[success: seq[Future[T]], failure: seq[Future[T]]]
+
+proc wantBlocksError*(kind: WantBlocksErrorKind, msg: string): ref WantBlocksError =
+  (ref WantBlocksError)(kind: kind, msg: msg)
 
 template mapFailure*[T, V, E](
     exp: Result[T, V], exc: typedesc[E]

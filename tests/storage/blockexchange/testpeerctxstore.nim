@@ -1,24 +1,28 @@
-import std/sugar
-import std/sequtils
+import std/options
 
 import pkg/unittest2
 import pkg/libp2p
 
 import pkg/storage/blockexchange/peers
-import pkg/storage/blockexchange/protobuf/blockexc
-import pkg/storage/blockexchange/protobuf/presence
+import pkg/storage/blockexchange/peers/peerstats
+import pkg/storage/blockexchange/utils
+import pkg/storage/storagetypes
 
 import ../helpers
 import ../examples
 
+const
+  TestBlockSize = DefaultBlockSize.uint32
+  TestBatchBytes = computeBatchSize(TestBlockSize).uint64 * TestBlockSize.uint64
+
 suite "Peer Context Store":
   var
-    store: PeerCtxStore
-    peerCtx: BlockExcPeerCtx
+    store: PeerContextStore
+    peerCtx: PeerContext
 
   setup:
-    store = PeerCtxStore.new()
-    peerCtx = BlockExcPeerCtx.example
+    store = PeerContextStore.new()
+    peerCtx = PeerContext.example
     store.add(peerCtx)
 
   test "Should add peer":
@@ -31,78 +35,130 @@ suite "Peer Context Store":
   test "Should get peer":
     check store.get(peerCtx.id) == peerCtx
 
-suite "Peer Context Store Peer Selection":
-  var
-    store: PeerCtxStore
-    peerCtxs: seq[BlockExcPeerCtx]
-    addresses: seq[BlockAddress]
+  test "Should return nil for unknown peer":
+    let unknownId = PeerId.example
+    check store.get(unknownId) == nil
 
-  setup:
-    store = PeerCtxStore.new()
-    addresses = collect(newSeq):
-      for i in 0 ..< 10:
-        BlockAddress(leaf: false, cid: Cid.example)
+  test "Should return correct length":
+    check store.len == 1
 
-    peerCtxs = collect(newSeq):
-      for i in 0 ..< 10:
-        BlockExcPeerCtx.example
+    let peer2 = PeerContext.new(PeerId.example)
+    store.add(peer2)
+    check store.len == 2
 
-    for p in peerCtxs:
-      store.add(p)
+    store.remove(peer2.id)
+    check store.len == 1
 
-  teardown:
-    store = nil
-    addresses = @[]
-    peerCtxs = @[]
+  test "Should return peer IDs":
+    let peer2 = PeerContext.new(PeerId.example)
+    let peer3 = PeerContext.new(PeerId.example)
+    store.add(peer2)
+    store.add(peer3)
 
-  test "Should select peers that have Cid":
-    peerCtxs[0].blocks = collect(initTable):
-      for i, a in addresses:
-        {a: Presence(address: a)}
+    let ids = store.peerIds
+    check ids.len == 3
+    check peerCtx.id in ids
+    check peer2.id in ids
+    check peer3.id in ids
 
-    peerCtxs[5].blocks = collect(initTable):
-      for i, a in addresses:
-        {a: Presence(address: a)}
+  test "Should iterate over peers":
+    let peer2 = PeerContext.new(PeerId.example)
+    let peer3 = PeerContext.new(PeerId.example)
+    store.add(peer2)
+    store.add(peer3)
 
-    let peers = store.peersHave(addresses[0])
+    var seenPeers: seq[PeerId]
+    for peer in store:
+      seenPeers.add(peer.id)
 
-    check peers.len == 2
-    check peerCtxs[0] in peers
-    check peerCtxs[5] in peers
+    check seenPeers.len == 3
+    check peerCtx.id in seenPeers
+    check peer2.id in seenPeers
+    check peer3.id in seenPeers
 
-  test "Should select peers that want Cid":
-    let entries = addresses.mapIt(
-      WantListEntry(
-        address: it,
-        priority: 1,
-        cancel: false,
-        wantType: WantType.WantBlock,
-        sendDontHave: false,
-      )
-    )
+  test "Should replace peer with same ID":
+    let newPeerCtx = PeerContext.new(peerCtx.id)
+    store.add(newPeerCtx)
 
-    for address in addresses:
-      peerCtxs[0].wantedBlocks.incl(address)
-      peerCtxs[5].wantedBlocks.incl(address)
+    check store.len == 1 # Still only one peer
+    check store.get(peerCtx.id) == newPeerCtx # New context replaces old
 
-    let peers = store.peersWant(addresses[4])
+  test "Should handle contains check":
+    check peerCtx.id in store
+    let unknownId = PeerId.example
+    check unknownId notin store
 
-    check peers.len == 2
-    check peerCtxs[0] in peers
-    check peerCtxs[5] in peers
+  test "Should be empty initially":
+    let newStore = PeerContextStore.new()
+    check newStore.len == 0
+    check newStore.peerIds.len == 0
 
-  test "Should return peers with and without block":
-    let address = addresses[2]
+  test "Should check contains in array":
+    let peers = @[peerCtx]
+    check peerCtx.id in peers
 
-    peerCtxs[1].blocks[address] = Presence(address: address)
-    peerCtxs[2].blocks[address] = Presence(address: address)
+    let unknownId = PeerId.example
+    check unknownId notin peers
 
-    let peers = store.getPeersForBlock(address)
+suite "PeerContext":
+  test "Should create new PeerContext":
+    let
+      peerId = PeerId.example
+      ctx = PeerContext.new(peerId)
 
-    for i, pc in peerCtxs:
-      if i == 1 or i == 2:
-        check pc in peers.with
-        check pc notin peers.without
-      else:
-        check pc notin peers.with
-        check pc in peers.without
+    check ctx.id == peerId
+    check ctx.stats.throughputBps().isNone
+
+  test "Should compute optimal pipeline depth without stats":
+    let
+      ctx = PeerContext.new(PeerId.example)
+      depth = ctx.optimalPipelineDepth(TestBatchBytes)
+    check depth == DefaultRequestsPerPeer
+
+suite "PeerPerfStats":
+  test "Should create new stats":
+    let stats = PeerPerfStats.new()
+    check stats.throughputBps().isNone
+    check stats.avgRttMicros().isNone
+    check stats.totalBytes() == 0
+    check stats.sampleCount() == 0
+
+  test "Should record requests":
+    var stats = PeerPerfStats.new()
+    stats.recordRequest(1000, 65536)
+
+    check stats.sampleCount() == 1
+    check stats.totalBytes() == 65536
+
+  test "Should compute average RTT":
+    var stats = PeerPerfStats.new()
+    stats.recordRequest(1000, 65536)
+    stats.recordRequest(2000, 65536)
+    stats.recordRequest(3000, 65536)
+
+    let avgRtt = stats.avgRttMicros()
+    check avgRtt.isSome
+    check avgRtt.get == 2000
+
+  test "Should limit RTT samples":
+    var stats = PeerPerfStats.new()
+    for i in 1 .. RttSampleCount + 5:
+      stats.recordRequest(i.uint64 * 100, 1024)
+
+    check stats.sampleCount() == RttSampleCount
+
+  test "Should reset stats":
+    var stats = PeerPerfStats.new()
+    stats.recordRequest(1000, 65536)
+    check stats.sampleCount() == 1
+
+    stats.reset()
+
+    check stats.sampleCount() == 0
+    check stats.totalBytes() == 0
+    check stats.throughputBps().isNone
+    check stats.avgRttMicros().isNone
+
+  test "Should compute batch size":
+    check computeBatchSize(65536) > 0
+    check computeBatchSize(1024) > computeBatchSize(65536)

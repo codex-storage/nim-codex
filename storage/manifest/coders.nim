@@ -14,7 +14,6 @@ import times
 {.push raises: [].}
 
 import std/tables
-import std/sequtils
 
 import pkg/libp2p
 import pkg/questionable
@@ -139,4 +138,4 @@ func decode*(_: type Manifest, blk: Block): ?!Manifest =
   if not ?blk.cid.isManifest:
     return failure "Cid not a manifest codec"
 
-  Manifest.decode(blk.data)
+  Manifest.decode(blk.data[])

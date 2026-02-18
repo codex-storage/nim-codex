@@ -25,11 +25,8 @@ export
 
 export libp2p except setup, eventually
 
-# NOTE: The meaning of equality for blocks
-# is changed here, because blocks are now `ref`
-# types. This is only in tests!!!
 func `==`*(a, b: Block): bool =
-  (a.cid == b.cid) and (a.data == b.data)
+  (a.cid == b.cid) and (a.data[] == b.data[])
 
 proc calcEcBlocksCount*(blocksCount: int, ecK, ecM: int): int =
   let
@@ -50,7 +47,8 @@ proc lenPrefix*(msg: openArray[byte]): seq[byte] =
   return buf
 
 proc makeWantList*(
-    cids: seq[Cid],
+    treeCid: Cid,
+    count: int,
     priority: int = 0,
     cancel: bool = false,
     wantType: WantType = WantType.WantHave,
@@ -58,9 +56,9 @@ proc makeWantList*(
     sendDontHave: bool = false,
 ): WantList =
   WantList(
-    entries: cids.mapIt(
+    entries: (0 ..< count).mapIt(
       WantListEntry(
-        address: BlockAddress(leaf: false, cid: it),
+        address: BlockAddress(treeCid: treeCid, index: it),
         priority: priority.int32,
         cancel: cancel,
         wantType: wantType,
@@ -112,13 +110,13 @@ proc corruptBlocks*(
       blk = (await store.getBlock(manifest.treeCid, i)).tryGet()
       bytePos: seq[int]
 
-    doAssert bytes < blk.data.len
+    doAssert bytes < blk.data[].len
     while bytePos.len <= bytes:
-      let ii = Rng.instance.rand(blk.data.len - 1)
+      let ii = Rng.instance.rand(blk.data[].len - 1)
       if bytePos.find(ii) >= 0:
         continue
 
       bytePos.add(ii)
-      blk.data[ii] = byte 0
+      blk.data[][ii] = byte 0
 
   return pos

@@ -11,13 +11,9 @@
 
 import pkg/chronos
 import pkg/libp2p/cid
-import pkg/libp2p/multicodec
 import pkg/metrics
 import pkg/questionable
 import pkg/questionable/results
-
-import ../protobuf/presence
-import ../peers
 
 import ../../utils
 import ../../utils/exceptions

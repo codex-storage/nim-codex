@@ -18,7 +18,7 @@ const data = [
   "00000000000000000000000000000009".toBytes, "00000000000000000000000000000010".toBytes,
 ]
 
-suite "merkletree - coders":
+suite "Merkletree - coders":
   test "encoding and decoding a tree yields the same tree":
     let
       tree = StorageMerkleTree.init(Sha256HashCodec, data).tryGet()

@@ -7,7 +7,7 @@ import ../helpers
 type Module = object
   trackedFutures: TrackedFutures
 
-asyncchecksuite "tracked futures":
+asyncchecksuite "Tracked futures":
   var module: Module
 
   setup:

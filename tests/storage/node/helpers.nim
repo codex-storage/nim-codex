@@ -1,11 +1,11 @@
-import std/tables
-import std/times
+import std/[tables, times]
 
 import pkg/libp2p
 import pkg/chronos
 import pkg/storage/storagetypes
 import pkg/storage/chunker
 import pkg/storage/stores
+import pkg/storage/manifest
 
 import ../../asynctest
 
@@ -21,7 +21,7 @@ proc new*(
 method getBlock*(
     self: CountingStore, address: BlockAddress
 ): Future[?!Block] {.async: (raises: [CancelledError]).} =
-  self.lookups.mgetOrPut(address.cid, 0).inc
+  self.lookups.mgetOrPut(address.treeCid, 0).inc
   await procCall getBlock(NetworkStore(self), address)
 
 proc toTimesDuration*(d: chronos.Duration): times.Duration =
@@ -72,8 +72,8 @@ template setupAndTearDown*() {.dirty.} =
     store: NetworkStore
     node: StorageNodeRef
     blockDiscovery: Discovery
-    peerStore: PeerCtxStore
-    pendingBlocks: PendingBlocksManager
+    peerStore: PeerContextStore
+    downloadManager: DownloadManager
     discovery: DiscoveryEngine
     advertiser: Advertiser
 
@@ -100,20 +100,22 @@ template setupAndTearDown*() {.dirty.} =
         MultiAddress.init("/ip4/127.0.0.1/tcp/0").expect("Should return multiaddress")
       ],
     )
-    peerStore = PeerCtxStore.new()
-    pendingBlocks = PendingBlocksManager.new()
-    discovery =
-      DiscoveryEngine.new(localStore, peerStore, network, blockDiscovery, pendingBlocks)
+    peerStore = PeerContextStore.new()
+    downloadManager = DownloadManager.new()
+    discovery = DiscoveryEngine.new(localStore, peerStore, network, blockDiscovery)
     advertiser = Advertiser.new(localStore, blockDiscovery)
     engine = BlockExcEngine.new(
-      localStore, network, discovery, advertiser, peerStore, pendingBlocks
+      localStore, network, discovery, advertiser, peerStore, downloadManager
     )
     store = NetworkStore.new(engine, localStore)
+    let manifestProto = ManifestProtocol.new(switch, localStore, blockDiscovery)
+    switch.mount(manifestProto)
     node = StorageNodeRef.new(
       switch = switch,
       networkStore = store,
       engine = engine,
       discovery = blockDiscovery,
+      manifestProto = manifestProto,
       taskpool = Taskpool.new(),
     )
 

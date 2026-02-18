@@ -20,7 +20,6 @@ import pkg/storage/chunker
 import pkg/storage/manifest
 import pkg/storage/discovery
 import pkg/storage/blocktype as bt
-import pkg/storage/rng
 
 import pkg/storage/node {.all.}
 
@@ -59,48 +58,16 @@ asyncchecksuite "Test Node - Basic":
     check:
       fetched == manifest
 
-  test "Block Batching":
+  test "Fetch Dataset":
     let manifest = await storeDataGetManifest(localStore, chunker)
 
-    for batchSize in 1 .. 12:
-      (
-        await node.fetchBatched(
-          manifest,
-          batchSize = batchSize,
-          proc(
-              blocks: seq[bt.Block]
-          ): Future[?!void] {.async: (raises: [CancelledError]).} =
-            check blocks.len > 0 and blocks.len <= batchSize
-            return success(),
-        )
-      ).tryGet()
+    # Fetch the dataset using the download manager
+    (await node.fetchDatasetAsync(manifest, fetchLocal = true)).tryGet()
 
-  test "Block Batching with corrupted blocks":
-    let blocks = await makeRandomBlocks(datasetSize = 65536, blockSize = 64.KiBs)
-    assert blocks.len == 1
-
-    let blk = blocks[0]
-
-    # corrupt block
-    let pos = rng.Rng.instance.rand(blk.data.len - 1)
-    blk.data[pos] = byte 0
-
-    let manifest = await storeDataGetManifest(localStore, blocks)
-
-    let batchSize = manifest.blocksCount
-    let res = (
-      await node.fetchBatched(
-        manifest,
-        batchSize = batchSize,
-        proc(
-            blocks: seq[bt.Block]
-        ): Future[?!void] {.async: (raises: [CancelledError]).} =
-          return failure("Should not be called"),
-      )
-    )
-    check res.isFailure
-    check res.error of CatchableError
-    check res.error.msg == "Some blocks failed (Result) to fetch (1)"
+    # Verify all blocks are accessible from local store
+    for i in 0 ..< manifest.blocksCount:
+      let blk = (await localStore.getBlock(manifest.treeCid, i)).tryGet()
+      check blk.data[].len > 0
 
   test "Should store Data Stream":
     let
@@ -127,7 +94,7 @@ asyncchecksuite "Test Node - Basic":
     var data: seq[byte]
     for i in 0 ..< localManifest.blocksCount:
       let blk = (await localStore.getBlock(localManifest.treeCid, i)).tryGet()
-      data &= blk.data
+      data &= blk.data[]
 
     data.setLen(localManifest.datasetSize.int) # truncate data to original size
     check:
@@ -146,7 +113,7 @@ asyncchecksuite "Test Node - Basic":
     var storedData: seq[byte]
     for i in 0 ..< manifest.blocksCount:
       let blk = (await localStore.getBlock(manifest.treeCid, i)).tryGet()
-      storedData &= blk.data
+      storedData &= blk.data[]
 
     storedData.setLen(manifest.datasetSize.int) # truncate data to original size
     check:

@@ -1,5 +1,4 @@
 import std/sequtils
-import std/tables
 
 import pkg/chronos
 
@@ -30,9 +29,9 @@ asyncchecksuite "Test Discovery Engine":
     tree: StorageMerkleTree
     manifestBlock: bt.Block
     switch: Switch
-    peerStore: PeerCtxStore
+    peerStore: PeerContextStore
     blockDiscovery: MockDiscovery
-    pendingBlocks: PendingBlocksManager
+    downloadManager: DownloadManager
     network: BlockExcNetwork
 
   setup:
@@ -49,47 +48,15 @@ asyncchecksuite "Test Discovery Engine":
 
     switch = newStandardSwitch(transportFlags = {ServerFlags.ReuseAddr})
     network = BlockExcNetwork.new(switch)
-    peerStore = PeerCtxStore.new()
-    pendingBlocks = PendingBlocksManager.new()
+    peerStore = PeerContextStore.new()
+    downloadManager = DownloadManager.new()
     blockDiscovery = MockDiscovery.new()
-
-  test "Should Query Wants":
-    var
-      localStore = CacheStore.new()
-      discoveryEngine = DiscoveryEngine.new(
-        localStore,
-        peerStore,
-        network,
-        blockDiscovery,
-        pendingBlocks,
-        discoveryLoopSleep = 100.millis,
-      )
-      wants = blocks.mapIt(pendingBlocks.getWantHandle(it.cid))
-
-    blockDiscovery.findBlockProvidersHandler = proc(
-        d: MockDiscovery, cid: Cid
-    ): Future[seq[SignedPeerRecord]] {.async: (raises: [CancelledError]).} =
-      pendingBlocks.resolve(
-        blocks.filterIt(it.cid == cid).mapIt(
-          BlockDelivery(blk: it, address: it.address)
-        )
-      )
-
-    await discoveryEngine.start()
-    await allFuturesThrowing(allFinished(wants)).wait(100.millis)
-    await discoveryEngine.stop()
 
   test "Should queue discovery request":
     var
       localStore = CacheStore.new()
-      discoveryEngine = DiscoveryEngine.new(
-        localStore,
-        peerStore,
-        network,
-        blockDiscovery,
-        pendingBlocks,
-        discoveryLoopSleep = 100.millis,
-      )
+      discoveryEngine =
+        DiscoveryEngine.new(localStore, peerStore, network, blockDiscovery)
       want = newFuture[void]()
 
     blockDiscovery.findBlockProvidersHandler = proc(
@@ -104,60 +71,11 @@ asyncchecksuite "Test Discovery Engine":
     await want.wait(100.millis)
     await discoveryEngine.stop()
 
-  test "Should not request more than minPeersPerBlock":
-    var
-      localStore = CacheStore.new()
-      minPeers = 2
-      discoveryEngine = DiscoveryEngine.new(
-        localStore,
-        peerStore,
-        network,
-        blockDiscovery,
-        pendingBlocks,
-        discoveryLoopSleep = 5.minutes,
-        minPeersPerBlock = minPeers,
-      )
-      want = newAsyncEvent()
-
-    var pendingCids = newSeq[Cid]()
-    blockDiscovery.findBlockProvidersHandler = proc(
-        d: MockDiscovery, cid: Cid
-    ): Future[seq[SignedPeerRecord]] {.async: (raises: [CancelledError]).} =
-      check cid in pendingCids
-      pendingCids.keepItIf(it != cid)
-      check peerStore.len < minPeers
-      var peerCtx = BlockExcPeerCtx(id: PeerId.example)
-
-      let address = BlockAddress(leaf: false, cid: cid)
-
-      peerCtx.blocks[address] = Presence(address: address)
-      peerStore.add(peerCtx)
-      want.fire()
-
-    await discoveryEngine.start()
-    var idx = 0
-    while peerStore.len < minPeers:
-      let cid = blocks[idx].cid
-      inc idx
-      pendingCids.add(cid)
-      discoveryEngine.queueFindBlocksReq(@[cid])
-      await want.wait()
-      want.clear()
-
-    check peerStore.len == minPeers
-    await discoveryEngine.stop()
-
   test "Should not request if there is already an inflight discovery request":
     var
       localStore = CacheStore.new()
       discoveryEngine = DiscoveryEngine.new(
-        localStore,
-        peerStore,
-        network,
-        blockDiscovery,
-        pendingBlocks,
-        discoveryLoopSleep = 100.millis,
-        concurrentDiscReqs = 2,
+        localStore, peerStore, network, blockDiscovery, concurrentDiscReqs = 2
       )
       reqs = Future[void].Raising([CancelledError]).init()
       count = 0
@@ -170,7 +88,7 @@ asyncchecksuite "Test Discovery Engine":
         check false
       count.inc
 
-      await reqs # queue the request
+      await reqs
 
     await discoveryEngine.start()
     discoveryEngine.queueFindBlocksReq(@[blocks[0].cid])

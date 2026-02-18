@@ -1,5 +1,4 @@
-import std/sequtils
-import std/sets
+import std/[sequtils, sets]
 
 import pkg/chronos
 import pkg/taskpools
@@ -44,8 +43,8 @@ type
     blockDiscovery*: Discovery
     network*: BlockExcNetwork
     localStore*: BlockStore
-    peerStore*: PeerCtxStore
-    pendingBlocks*: PendingBlocksManager
+    peerStore*: PeerContextStore
+    downloadManager*: DownloadManager
     discovery*: DiscoveryEngine
     engine*: BlockExcEngine
     networkStore*: NetworkStore
@@ -71,15 +70,15 @@ converter toTuple*(
   blockDiscovery: Discovery,
   network: BlockExcNetwork,
   localStore: BlockStore,
-  peerStore: PeerCtxStore,
-  pendingBlocks: PendingBlocksManager,
+  peerStore: PeerContextStore,
+  downloadManager: DownloadManager,
   discovery: DiscoveryEngine,
   engine: BlockExcEngine,
   networkStore: NetworkStore,
 ] =
   (
     nc.switch, nc.blockDiscovery, nc.network, nc.localStore, nc.peerStore,
-    nc.pendingBlocks, nc.discovery, nc.engine, nc.networkStore,
+    nc.downloadManager, nc.discovery, nc.engine, nc.networkStore,
   )
 
 converter toComponents*(cluster: NodesCluster): seq[NodesComponents] =
@@ -162,8 +161,8 @@ proc generateNodes*(
       )
 
       network = BlockExcNetwork.new(switch)
-      peerStore = PeerCtxStore.new()
-      pendingBlocks = PendingBlocksManager.new()
+      peerStore = PeerContextStore.new()
+      downloadManager = DownloadManager.new()
 
     let (localStore, tempDbs, blockDiscovery) =
       if config.useRepoStore:
@@ -196,16 +195,16 @@ proc generateNodes*(
         (store.BlockStore, newSeq[TempLevelDb](), discovery)
 
     let
-      discovery = DiscoveryEngine.new(
-        localStore, peerStore, network, blockDiscovery, pendingBlocks
-      )
+      discovery = DiscoveryEngine.new(localStore, peerStore, network, blockDiscovery)
       advertiser = Advertiser.new(localStore, blockDiscovery)
       engine = BlockExcEngine.new(
-        localStore, network, discovery, advertiser, peerStore, pendingBlocks
+        localStore, network, discovery, advertiser, peerStore, downloadManager
       )
       networkStore = NetworkStore.new(engine, localStore)
+      manifestProto = ManifestProtocol.new(switch, localStore, blockDiscovery)
 
     switch.mount(network)
+    switch.mount(manifestProto)
 
     let node =
       if config.createFullNode:
@@ -214,6 +213,7 @@ proc generateNodes*(
           networkStore = networkStore,
           engine = engine,
           discovery = blockDiscovery,
+          manifestProto = manifestProto,
           taskpool = taskpool,
         )
 
@@ -239,7 +239,7 @@ proc generateNodes*(
       network: network,
       localStore: localStore,
       peerStore: peerStore,
-      pendingBlocks: pendingBlocks,
+      downloadManager: downloadManager,
       discovery: discovery,
       engine: engine,
       networkStore: networkStore,
