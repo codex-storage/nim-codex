@@ -57,14 +57,14 @@ asyncchecksuite "NetworkStore engine - 2 nodes":
 
     check:
       (await allFinished(blocks1[0 .. 3].mapIt(nodeCmps2.localStore.getBlock(it.cid))))
-      .filterIt(it.completed and it.read.isOk)
-      .mapIt($it.read.get.cid)
-      .sorted(cmp[string]) == blocks1[0 .. 3].mapIt($it.cid).sorted(cmp[string])
+        .filterIt(it.completed and it.read.isOk)
+        .mapIt($it.read.get.cid)
+        .sorted(cmp[string]) == blocks1[0 .. 3].mapIt($it.cid).sorted(cmp[string])
 
       (await allFinished(blocks2[0 .. 3].mapIt(nodeCmps1.localStore.getBlock(it.cid))))
-      .filterIt(it.completed and it.read.isOk)
-      .mapIt($it.read.get.cid)
-      .sorted(cmp[string]) == blocks2[0 .. 3].mapIt($it.cid).sorted(cmp[string])
+        .filterIt(it.completed and it.read.isOk)
+        .mapIt($it.read.get.cid)
+        .sorted(cmp[string]) == blocks2[0 .. 3].mapIt($it.cid).sorted(cmp[string])
 
   test "Should send want-have for block":
     let blk = bt.Block.new("Block 1".toBytes).tryGet()
@@ -138,9 +138,9 @@ asyncchecksuite "NetworkStore - multiple nodes":
 
     check:
       (await allFinished(downloadCids.mapIt(downloader.localStore.getBlock(it))))
-      .filterIt(it.completed and it.read.isOk)
-      .mapIt($it.read.get.cid)
-      .sorted(cmp[string]) == downloadCids.mapIt($it).sorted(cmp[string])
+        .filterIt(it.completed and it.read.isOk)
+        .mapIt($it.read.get.cid)
+        .sorted(cmp[string]) == downloadCids.mapIt($it).sorted(cmp[string])
 
   test "Should exchange blocks with multiple nodes":
     let

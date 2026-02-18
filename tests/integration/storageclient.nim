@@ -33,17 +33,17 @@ proc request(
     async: (raw: true, raises: [CancelledError, HttpError])
 .} =
   HttpClientRequestRef
-  .new(
-    self.session,
-    url,
-    httpMethod,
-    version = HttpVersion11,
-    flags = {},
-    maxResponseHeadersSize = HttpMaxHeadersSize,
-    headers = headers,
-    body = body.toOpenArrayByte(0, len(body) - 1),
-  ).get
-  .send()
+    .new(
+      self.session,
+      url,
+      httpMethod,
+      version = HttpVersion11,
+      flags = {},
+      maxResponseHeadersSize = HttpMaxHeadersSize,
+      headers = headers,
+      body = body.toOpenArrayByte(0, len(body) - 1),
+    ).get
+    .send()
 
 proc post*(
     self: StorageClient,

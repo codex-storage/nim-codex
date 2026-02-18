@@ -375,13 +375,12 @@ proc initDataApi(node: StorageNodeRef, repoStore: RepoStore, router: var RestRou
     return RestApiResponse.response($json, contentType = "application/json")
 
   router.api(MethodGet, "/api/storage/v1/space") do() -> RestApiResponse:
-    let json =
-      %RestRepoStore(
-        totalBlocks: repoStore.totalBlocks,
-        quotaMaxBytes: repoStore.quotaMaxBytes,
-        quotaUsedBytes: repoStore.quotaUsedBytes,
-        quotaReservedBytes: repoStore.quotaReservedBytes,
-      )
+    let json = %RestRepoStore(
+      totalBlocks: repoStore.totalBlocks,
+      quotaMaxBytes: repoStore.quotaMaxBytes,
+      quotaUsedBytes: repoStore.quotaUsedBytes,
+      quotaReservedBytes: repoStore.quotaReservedBytes,
+    )
     return RestApiResponse.response($json, contentType = "application/json")
 
 proc initNodeApi(node: StorageNodeRef, conf: StorageConf, router: var RestRouter) =

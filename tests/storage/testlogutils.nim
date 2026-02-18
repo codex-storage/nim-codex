@@ -205,11 +205,10 @@ checksuite "Test logging output":
     check loggedJson("ma", "\"/ip4/127.0.0.1/tcp/0\"")
 
   test "logs seq[MultiAddress] correctly":
-    let ma =
-      @[
-        MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet,
-        MultiAddress.init("/ip4/127.0.0.2/tcp/1").tryGet,
-      ]
+    let ma = @[
+      MultiAddress.init("/ip4/127.0.0.1/tcp/0").tryGet,
+      MultiAddress.init("/ip4/127.0.0.2/tcp/1").tryGet,
+    ]
     log ma
     check logged("ma", "\"@[/ip4/127.0.0.1/tcp/0, /ip4/127.0.0.2/tcp/1]\"")
     check loggedJson("ma", "[\"/ip4/127.0.0.1/tcp/0\",\"/ip4/127.0.0.2/tcp/1\"]")
