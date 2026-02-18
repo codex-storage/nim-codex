@@ -22,16 +22,18 @@ suite "NAT Address Tests":
 
     # Expected results
     let
-      expectedDiscoveryAddrs = @[
-        MultiAddress.init("/ip4/8.8.8.8/udp/1234").expect("valid multiaddr"),
-        MultiAddress.init("/ip4/8.8.8.8/udp/1234").expect("valid multiaddr"),
-        MultiAddress.init("/ip4/8.8.8.8/udp/1234").expect("valid multiaddr"),
-      ]
-      expectedlibp2pAddrs = @[
-        MultiAddress.init("/ip4/8.8.8.8/tcp/5000").expect("valid multiaddr"),
-        MultiAddress.init("/ip4/8.8.8.8/tcp/5000").expect("valid multiaddr"),
-        MultiAddress.init("/ip4/8.8.8.8/tcp/5000").expect("valid multiaddr"),
-      ]
+      expectedDiscoveryAddrs =
+        @[
+          MultiAddress.init("/ip4/8.8.8.8/udp/1234").expect("valid multiaddr"),
+          MultiAddress.init("/ip4/8.8.8.8/udp/1234").expect("valid multiaddr"),
+          MultiAddress.init("/ip4/8.8.8.8/udp/1234").expect("valid multiaddr"),
+        ]
+      expectedlibp2pAddrs =
+        @[
+          MultiAddress.init("/ip4/8.8.8.8/tcp/5000").expect("valid multiaddr"),
+          MultiAddress.init("/ip4/8.8.8.8/tcp/5000").expect("valid multiaddr"),
+          MultiAddress.init("/ip4/8.8.8.8/tcp/5000").expect("valid multiaddr"),
+        ]
 
       #ipv6Addr = MultiAddress.init("/ip6/::1/tcp/5000").expect("valid multiaddr")
       addrs = @[localAddr, anyAddr, publicAddr]

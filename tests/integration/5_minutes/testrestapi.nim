@@ -58,10 +58,11 @@ twonodessuite "REST API":
     check (await response.body) != ""
 
   test "node retrieve the metadata", twoNodesConfig:
-    let headers = @[
-      ("Content-Type", "text/plain"),
-      ("Content-Disposition", "attachment; filename=\"example.txt\""),
-    ]
+    let headers =
+      @[
+        ("Content-Type", "text/plain"),
+        ("Content-Disposition", "attachment; filename=\"example.txt\""),
+      ]
     let uploadResponse = await client1.uploadRaw("some file contents", headers)
     let cid = await uploadResponse.body
     let listResponse = await client1.listRaw()
@@ -82,10 +83,11 @@ twonodessuite "REST API":
     check manifest["mimetype"].getStr() == "text/plain"
 
   test "node set the headers when for download", twoNodesConfig:
-    let headers = @[
-      ("Content-Disposition", "attachment; filename=\"example.txt\""),
-      ("Content-Type", "text/plain"),
-    ]
+    let headers =
+      @[
+        ("Content-Disposition", "attachment; filename=\"example.txt\""),
+        ("Content-Type", "text/plain"),
+      ]
 
     let uploadResponse = await client1.uploadRaw("some file contents", headers)
     let cid = await uploadResponse.body

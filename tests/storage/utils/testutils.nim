@@ -7,12 +7,13 @@ suite "findIt":
     type AnObject = object
       attribute1*: int
 
-    var objList = @[
-      AnObject(attribute1: 1),
-      AnObject(attribute1: 3),
-      AnObject(attribute1: 5),
-      AnObject(attribute1: 3),
-    ]
+    var objList =
+      @[
+        AnObject(attribute1: 1),
+        AnObject(attribute1: 3),
+        AnObject(attribute1: 5),
+        AnObject(attribute1: 3),
+      ]
 
   test "should retur index of first object matching predicate":
     assert objList.findIt(it.attribute1 == 3) == 1
