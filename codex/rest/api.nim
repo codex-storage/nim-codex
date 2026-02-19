@@ -375,13 +375,12 @@ proc initDataApi(node: CodexNodeRef, repoStore: RepoStore, router: var RestRoute
     return RestApiResponse.response($json, contentType = "application/json")
 
   router.api(MethodGet, "/api/storage/v1/space") do() -> RestApiResponse:
-    let json =
-      %RestRepoStore(
-        totalBlocks: repoStore.totalBlocks,
-        quotaMaxBytes: repoStore.quotaMaxBytes,
-        quotaUsedBytes: repoStore.quotaUsedBytes,
-        quotaReservedBytes: repoStore.quotaReservedBytes,
-      )
+    let json = %RestRepoStore(
+      totalBlocks: repoStore.totalBlocks,
+      quotaMaxBytes: repoStore.quotaMaxBytes,
+      quotaUsedBytes: repoStore.quotaUsedBytes,
+      quotaReservedBytes: repoStore.quotaReservedBytes,
+    )
     return RestApiResponse.response($json, contentType = "application/json")
 
 proc initNodeApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
@@ -477,20 +476,16 @@ proc initDebugApi(node: CodexNodeRef, conf: CodexConf, router: var RestRouter) =
     try:
       let table = RestRoutingTable.init(node.discovery.protocol.routingTable)
 
-      let json =
-        %*{
-          "id": $node.switch.peerInfo.peerId,
-          "addrs": node.switch.peerInfo.addrs.mapIt($it),
-          "repo": $conf.dataDir,
-          "spr":
-            if node.discovery.dhtRecord.isSome:
-              node.discovery.dhtRecord.get.toURI
-            else:
-              "",
-          "announceAddresses": node.discovery.announceAddrs,
-          "table": table,
-          "storage": {"version": $codexVersion, "revision": $codexRevision},
-        }
+      let json = %*{
+        "id": $node.switch.peerInfo.peerId,
+        "addrs": node.switch.peerInfo.addrs.mapIt($it),
+        "repo": $conf.dataDir,
+        "spr":
+          if node.discovery.dhtRecord.isSome: node.discovery.dhtRecord.get.toURI else: "",
+        "announceAddresses": node.discovery.announceAddrs,
+        "table": table,
+        "storage": {"version": $codexVersion, "revision": $codexRevision},
+      }
 
       # return pretty json for human readability
       return RestApiResponse.response(

@@ -214,9 +214,11 @@ NPH:=$(shell dirname $(NIM_BINARY))/nph
 
 build-nph:
 ifeq ("$(wildcard $(NPH))","")
-		$(ENV_SCRIPT) nim c vendor/nph/src/nph.nim && \
-		mv vendor/nph/src/nph $(shell dirname $(NPH))
-		echo "nph utility is available at " $(NPH)
+	cd vendor/nph && \
+	nimble setup -l && \
+	nimble build && \
+	mv ./nph ../../$(shell dirname $(NPH)) && \
+	echo "nph utility is available at " $(NPH)
 endif
 
 GIT_PRE_COMMIT_HOOK := .git/hooks/pre-commit
