@@ -39,7 +39,7 @@ import ./storage_thread_requests/requests/node_download_request
 import ./storage_thread_requests/requests/node_storage_request
 import ./ffi_types
 
-from ../codex/conf import codexVersion
+from ../storage/conf import storageVersion
 
 logScope:
   topics = "libstorage"
@@ -125,12 +125,12 @@ proc storage_new(
 proc storage_version(ctx: ptr StorageContext): ptr cchar {.dynlib, exportc.} =
   initializeLibrary()
 
-  return asNewCString(conf.codexVersion)
+  return asNewCString(conf.storageVersion)
 
 proc storage_revision(ctx: ptr StorageContext): ptr cchar {.dynlib, exportc.} =
   initializeLibrary()
 
-  return asNewCString(conf.codexRevision)
+  return asNewCString(conf.storageVersion)
 
 proc storage_repo(
     ctx: ptr StorageContext, callback: StorageCallback, userData: pointer

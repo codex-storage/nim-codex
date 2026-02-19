@@ -49,7 +49,7 @@ jobs:
         uses: arnetheduck/nph-action@v1
         with:
           version: latest
-          options: "codex/ tests/"
+          options: "storage/ tests/"
           fail: true
           suggest: true
 

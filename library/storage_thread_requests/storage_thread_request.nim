@@ -14,7 +14,7 @@ import ./requests/node_upload_request
 import ./requests/node_download_request
 import ./requests/node_storage_request
 
-from ../../codex/codex import CodexServer
+from ../../storage/storage import StorageServer
 
 type RequestType* {.pure.} = enum
   LIFECYCLE
@@ -89,7 +89,7 @@ proc handleRes[T: string | void | seq[byte]](
 proc process*(
     T: type StorageThreadRequest,
     request: ptr StorageThreadRequest,
-    storage: ptr CodexServer,
+    storage: ptr StorageServer,
 ) {.async: (raises: []).} =
   ## Processes the request in the Logos Storage thread.
   ## Dispatch to the appropriate request handler based on reqType.

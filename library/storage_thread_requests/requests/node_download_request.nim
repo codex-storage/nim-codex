@@ -21,12 +21,12 @@ import chronicles
 import libp2p/stream/[lpstream]
 import serde/json as serde
 import ../../alloc
-import ../../../codex/units
-import ../../../codex/codextypes
+import ../../../storage/units
+import ../../../storage/storagetypes
 
-from ../../../codex/codex import CodexServer, node
-from ../../../codex/node import retrieve, fetchManifest
-from ../../../codex/rest/json import `%`, RestContent
+from ../../../storage/storage import StorageServer, node
+from ../../../storage/node import retrieve, fetchManifest
+from ../../../storage/rest/json import `%`, RestContent
 from libp2p import Cid, init, `$`
 
 logScope:
@@ -80,7 +80,7 @@ proc destroyShared(self: ptr NodeDownloadRequest) =
   deallocShared(self)
 
 proc init(
-    storage: ptr CodexServer, cCid: cstring = "", chunkSize: csize_t = 0, local: bool
+    storage: ptr StorageServer, cCid: cstring = "", chunkSize: csize_t = 0, local: bool
 ): Future[Result[string, string]] {.async: (raises: []).} =
   ## Init a new session to download the file identified by cid.
   ##
@@ -114,7 +114,7 @@ proc init(
   return ok("")
 
 proc chunk(
-    storage: ptr CodexServer, cCid: cstring = "", onChunk: OnChunkHandler
+    storage: ptr StorageServer, cCid: cstring = "", onChunk: OnChunkHandler
 ): Future[Result[string, string]] {.async: (raises: []).} =
   ## Download the next chunk of the file identified by cid.
   ## The chunk is passed to the onChunk handler.
@@ -164,7 +164,7 @@ proc chunk(
   return ok("")
 
 proc streamData(
-    storage: ptr CodexServer,
+    storage: ptr StorageServer,
     stream: LPStream,
     onChunk: OnChunkHandler,
     chunkSize: csize_t,
@@ -207,7 +207,7 @@ proc streamData(
   return ok("")
 
 proc stream(
-    storage: ptr CodexServer,
+    storage: ptr StorageServer,
     cCid: cstring,
     chunkSize: csize_t,
     local: bool,
@@ -251,7 +251,7 @@ proc stream(
   return ok("")
 
 proc cancel(
-    storage: ptr CodexServer, cCid: cstring
+    storage: ptr StorageServer, cCid: cstring
 ): Future[Result[string, string]] {.raises: [], async: (raises: []).} =
   ## Cancel the download session identified by cid.
   ## This operation is not supported when using the stream mode,
@@ -279,7 +279,7 @@ proc cancel(
   return ok("")
 
 proc manifest(
-    storage: ptr CodexServer, cCid: cstring
+    storage: ptr StorageServer, cCid: cstring
 ): Future[Result[string, string]] {.raises: [], async: (raises: []).} =
   let cid = Cid.init($cCid)
   if cid.isErr:
@@ -296,7 +296,7 @@ proc manifest(
     return err("Failed to fetch manifest: download cancelled.")
 
 proc process*(
-    self: ptr NodeDownloadRequest, storage: ptr CodexServer, onChunk: OnChunkHandler
+    self: ptr NodeDownloadRequest, storage: ptr StorageServer, onChunk: OnChunkHandler
 ): Future[Result[string, string]] {.async: (raises: []).} =
   defer:
     destroyShared(self)

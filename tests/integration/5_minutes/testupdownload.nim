@@ -1,6 +1,6 @@
-import pkg/codex/rest/json
+import pkg/storage/rest/json
 import ../twonodes
-import ../../codex/examples
+import ../../storage/examples
 import json
 from pkg/libp2p import Cid, `$`
 
@@ -84,7 +84,7 @@ twonodessuite "Uploads and downloads":
       content1 == resp2
 
   test "reliable transfer test", twoNodesConfig:
-    proc transferTest(a: CodexClient, b: CodexClient) {.async.} =
+    proc transferTest(a: StorageClient, b: StorageClient) {.async.} =
       let data = await RandomChunker.example(blocks = 8)
       let cid = (await a.upload(data)).get
       let response = (await b.download(cid)).get

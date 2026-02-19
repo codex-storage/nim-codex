@@ -17,7 +17,7 @@ in
       package = mkOption {
         type = types.package;
         default = pkgs.callPackage ./default.nix { src = self; inherit circomCompatPkg; };
-        defaultText = literalExpression "pkgs.codex";
+        defaultText = literalExpression "pkgs.storage";
         description = mdDoc "Package to use as Nim Logos Storage node.";
       };
 

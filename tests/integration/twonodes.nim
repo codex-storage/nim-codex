@@ -1,23 +1,23 @@
 import std/macros
 import pkg/questionable
 import ./multinodes
-import ./codexconfig
-import ./codexprocess
-import ./codexclient
+import ./storageconfig
+import ./storageprocess
+import ./storageclient
 import ./nodeconfigs
 
-export codexclient
+export storageclient
 export multinodes
 
 template twonodessuite*(name: string, body: untyped) =
   multinodesuite name:
     let twoNodesConfig {.inject, used.} =
-      NodeConfigs(clients: CodexConfigs.init(nodes = 2).some)
+      NodeConfigs(clients: StorageConfigs.init(nodes = 2).some)
 
-    var node1 {.inject, used.}: CodexProcess
-    var node2 {.inject, used.}: CodexProcess
-    var client1 {.inject, used.}: CodexClient
-    var client2 {.inject, used.}: CodexClient
+    var node1 {.inject, used.}: StorageProcess
+    var node2 {.inject, used.}: StorageProcess
+    var client1 {.inject, used.}: StorageClient
+    var client2 {.inject, used.}: StorageClient
 
     setup:
       node1 = clients()[0]

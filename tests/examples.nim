@@ -3,15 +3,15 @@ import std/sequtils
 import std/times
 import std/typetraits
 
-import pkg/codex/rng
-import pkg/codex/stores
-import pkg/codex/units
+import pkg/storage/rng
+import pkg/storage/stores
+import pkg/storage/units
 
 import pkg/chronos
 import pkg/stew/byteutils
 import pkg/stint
 
-import ./codex/helpers/randomchunker
+import ./storage/helpers/randomchunker
 
 export randomchunker
 export units

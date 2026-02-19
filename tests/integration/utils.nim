@@ -2,7 +2,7 @@ import std/os
 import std/strformat
 import pkg/chronos
 import pkg/chronos/asyncproc
-import pkg/codex/logutils
+import pkg/storage/logutils
 
 {.push raises: [].}
 
@@ -88,5 +88,5 @@ proc getDataDir*(testId, testName, startTime, role: string, index = int.none): s
   if idx =? index:
     suffix &= "_" & $idx
 
-  getTempDir() / "Codex" / sanitize(testId) / sanitize(testName) / sanitize(startTime) /
+  getTempDir() / "Storage" / sanitize(testId) / sanitize(testName) / sanitize(startTime) /
     sanitize(suffix)

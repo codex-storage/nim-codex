@@ -171,7 +171,7 @@ components:
           type: string
           nullable: true
           description: "The original name of the uploaded content (optional)"
-          example: codex.png
+          example: storage.png
         mimetype:
           type: string
           nullable: true
@@ -287,7 +287,7 @@ paths:
           description: The content disposition used to send the filename.
           schema:
             type: string
-            example: 'attachment; filename="codex.png"'
+            example: 'attachment; filename="storage.png"'
       requestBody:
         content:
           application/octet-stream:

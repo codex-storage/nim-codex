@@ -8,9 +8,9 @@ import chronos
 import chronicles
 import libp2p
 import ../../alloc
-import ../../../codex/node
+import ../../../storage/node
 
-from ../../../codex/codex import CodexServer, node
+from ../../../storage/storage import StorageServer, node
 
 logScope:
   topics = "libstorage libstoragep2p"
@@ -40,7 +40,7 @@ proc destroyShared(self: ptr NodeP2PRequest) =
   deallocShared(self)
 
 proc connect(
-    storage: ptr CodexServer, peerId: cstring, peerAddresses: seq[cstring] = @[]
+    storage: ptr StorageServer, peerId: cstring, peerAddresses: seq[cstring] = @[]
 ): Future[Result[string, string]] {.async: (raises: []).} =
   let node = storage[].node
   let res = PeerId.init($peerId)
@@ -81,7 +81,7 @@ proc connect(
   return ok("")
 
 proc process*(
-    self: ptr NodeP2PRequest, storage: ptr CodexServer
+    self: ptr NodeP2PRequest, storage: ptr StorageServer
 ): Future[Result[string, string]] {.async: (raises: []).} =
   defer:
     destroyShared(self)

@@ -38,7 +38,7 @@ nimble.paths
 .env
 
 .update.timestamp
-codex.nims
+storage.nims
 nimbus-build-system.paths
 docker/hostdatadir
 docker/prometheus-data
@@ -50,3 +50,5 @@ data/
 
 tests/cbindings/data-dir
 tests/cbindings/downloaded_hello.txt
+
+nimbledeps

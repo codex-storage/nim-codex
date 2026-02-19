@@ -181,11 +181,11 @@ endif
 
 coverage:
 	$(MAKE) NIMFLAGS="$(NIMFLAGS) --lineDir:on --passC:-fprofile-arcs --passC:-ftest-coverage --passL:-fprofile-arcs --passL:-ftest-coverage" test
-	cd nimcache/release/testCodex && rm -f *.c
+	cd nimcache/release/testStorage && rm -f *.c
 	mkdir -p coverage
-	lcov --capture --keep-going --directory nimcache/release/testCodex --output-file coverage/coverage.info
-	shopt -s globstar && ls $$(pwd)/codex/{*,**/*}.nim
-	shopt -s globstar && lcov --extract coverage/coverage.info --keep-going $$(pwd)/codex/{*,**/*}.nim --output-file coverage/coverage.f.info
+	lcov --capture --keep-going --directory nimcache/release/testStorage --output-file coverage/coverage.info
+	shopt -s globstar && ls $$(pwd)/storage/{*,**/*}.nim
+	shopt -s globstar && lcov --extract coverage/coverage.info --keep-going $$(pwd)/storage/{*,**/*}.nim --output-file coverage/coverage.f.info
 	echo -e $(BUILD_MSG) "coverage/report/index.html"
 	genhtml coverage/coverage.f.info --keep-going --output-directory coverage/report
 
@@ -237,7 +237,7 @@ nph/%: build-nph
 
 format:
 	$(NPH) *.nim
-	$(NPH) codex/
+	$(NPH) storage/
 	$(NPH) tests/
 	$(NPH) library/
 
@@ -267,15 +267,15 @@ libstorage:
 
 ifeq ($(STATIC), 1)
 		echo -e $(BUILD_MSG) "build/$@.a" && \
-		$(ENV_SCRIPT) nim libstorageStatic $(NIM_PARAMS) $(LIBSTORAGE_PARAMS) codex.nims
+		$(ENV_SCRIPT) nim libstorageStatic $(NIM_PARAMS) $(LIBSTORAGE_PARAMS) storage.nims
 else ifeq ($(detected_OS),Windows)
 		echo -e $(BUILD_MSG) "build/$@.dll" && \
-		$(ENV_SCRIPT) nim libstorageDynamic $(NIM_PARAMS) $(LIBSTORAGE_PARAMS) codex.nims
+		$(ENV_SCRIPT) nim libstorageDynamic $(NIM_PARAMS) $(LIBSTORAGE_PARAMS) storage.nims
 else ifeq ($(detected_OS),macOS)
 		echo -e $(BUILD_MSG) "build/$@.dylib" && \
-		$(ENV_SCRIPT) nim libstorageDynamic $(NIM_PARAMS) $(LIBSTORAGE_PARAMS) codex.nims
+		$(ENV_SCRIPT) nim libstorageDynamic $(NIM_PARAMS) $(LIBSTORAGE_PARAMS) storage.nims
 else
 		echo -e $(BUILD_MSG) "build/$@.so" && \
-		$(ENV_SCRIPT) nim libstorageDynamic $(NIM_PARAMS) $(LIBSTORAGE_PARAMS) codex.nims
+		$(ENV_SCRIPT) nim libstorageDynamic $(NIM_PARAMS) $(LIBSTORAGE_PARAMS) storage.nims
 endif
 endif # "variables.mk" was not included

@@ -2,7 +2,7 @@ global:
   scrape_interval: 12s
 
 scrape_configs:
-  - job_name: "codex"
+  - job_name: "storage"
     static_configs:
       - targets: ['127.0.0.1:8008']
   - job_name: "node_exporter"

@@ -10,11 +10,11 @@ import chronos
 import chronicles
 import codexdht/discv5/spr
 import ../../alloc
-import ../../../codex/conf
-import ../../../codex/rest/json
-import ../../../codex/node
+import ../../../storage/conf
+import ../../../storage/rest/json
+import ../../../storage/node
 
-from ../../../codex/codex import CodexServer, node
+from ../../../storage/storage import StorageServer, node
 
 logScope:
   topics = "libstorage libstoragedebug"
@@ -47,7 +47,7 @@ proc destroyShared(self: ptr NodeDebugRequest) =
   deallocShared(self)
 
 proc getDebug(
-    storage: ptr CodexServer
+    storage: ptr StorageServer
 ): Future[Result[string, string]] {.async: (raises: []).} =
   let node = storage[].node
   let table = RestRoutingTable.init(node.discovery.protocol.routingTable)
@@ -64,7 +64,7 @@ proc getDebug(
   return ok($json)
 
 proc getPeer(
-    storage: ptr CodexServer, peerId: cstring
+    storage: ptr StorageServer, peerId: cstring
 ): Future[Result[string, string]] {.async: (raises: []).} =
   when storage_enable_api_debug_peers:
     let node = storage[].node
@@ -88,7 +88,7 @@ proc getPeer(
     return err("Failed to get peer: peer debug API is disabled")
 
 proc updateLogLevel(
-    storage: ptr CodexServer, logLevel: cstring
+    storage: ptr StorageServer, logLevel: cstring
 ): Future[Result[string, string]] {.async: (raises: []).} =
   try:
     {.gcsafe.}:
@@ -99,7 +99,7 @@ proc updateLogLevel(
   return ok("")
 
 proc process*(
-    self: ptr NodeDebugRequest, storage: ptr CodexServer
+    self: ptr NodeDebugRequest, storage: ptr StorageServer
 ): Future[Result[string, string]] {.async: (raises: []).} =
   defer:
     destroyShared(self)

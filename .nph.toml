@@ -1,0 +1,5 @@
+# Add to default exclusions (recommended - doesn't lose the defaults)
+extend-exclude = [
+#   "tests/fixtures",
+  "vendor",
+]

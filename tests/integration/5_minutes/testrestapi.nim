@@ -3,12 +3,12 @@ import std/net
 import std/sequtils
 import std/strformat
 from pkg/libp2p import `==`, `$`, Cid
-import pkg/codex/units
-import pkg/codex/manifest
+import pkg/storage/units
+import pkg/storage/manifest
 import ../twonodes
 import ../../examples
-import ../../codex/examples
-import ../../codex/slots/helpers
+import ../../storage/examples
+import ../../storage/slots/helpers
 import json
 
 twonodessuite "REST API":
@@ -16,7 +16,7 @@ twonodessuite "REST API":
     check !(await client1.info()) != !(await client2.info())
 
   test "nodes can set chronicles log level", twoNodesConfig:
-    await client1.setLogLevel("DEBUG;TRACE:codex")
+    await client1.setLogLevel("DEBUG;TRACE:storage")
 
   test "node accepts file uploads", twoNodesConfig:
     let cid1 = (await client1.upload("some file contents")).get
