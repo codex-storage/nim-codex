@@ -97,10 +97,9 @@ template setupAndTearDown*() {.dirty.} =
 
     blockDiscovery = Discovery.new(
       switch.peerInfo.privateKey,
-      announceAddrs =
-        @[
-          MultiAddress.init("/ip4/127.0.0.1/tcp/0").expect("Should return multiaddress")
-        ],
+      announceAddrs = @[
+        MultiAddress.init("/ip4/127.0.0.1/tcp/0").expect("Should return multiaddress")
+      ],
     )
     peerStore = PeerCtxStore.new()
     pendingBlocks = PendingBlocksManager.new()
