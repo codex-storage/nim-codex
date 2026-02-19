@@ -50,3 +50,5 @@ data/
 
 tests/cbindings/data-dir
 tests/cbindings/downloaded_hello.txt
+
+nimbledeps
