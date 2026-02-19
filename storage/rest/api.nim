@@ -477,20 +477,16 @@ proc initDebugApi(node: StorageNodeRef, conf: StorageConf, router: var RestRoute
 
     try:
       let table = RestRoutingTable.init(node.discovery.protocol.routingTable)
-      let json =
-        %*{
-          "id": $node.switch.peerInfo.peerId,
-          "addrs": node.switch.peerInfo.addrs.mapIt($it),
-          "repo": $conf.dataDir,
-          "spr":
-            if node.discovery.dhtRecord.isSome:
-              node.discovery.dhtRecord.get.toURI
-            else:
-              "",
-          "announceAddresses": node.discovery.announceAddrs,
-          "table": table,
-          "storage": {"version": $storageVersion, "revision": $storageRevision},
-        }
+      let json = %*{
+        "id": $node.switch.peerInfo.peerId,
+        "addrs": node.switch.peerInfo.addrs.mapIt($it),
+        "repo": $conf.dataDir,
+        "spr":
+          if node.discovery.dhtRecord.isSome: node.discovery.dhtRecord.get.toURI else: "",
+        "announceAddresses": node.discovery.announceAddrs,
+        "table": table,
+        "storage": {"version": $storageVersion, "revision": $storageRevision},
+      }
 
       # return pretty json for human readability
       return RestApiResponse.response(
