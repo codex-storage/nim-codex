@@ -489,7 +489,7 @@ proc initDebugApi(node: StorageNodeRef, conf: StorageConf, router: var RestRoute
               "",
           "announceAddresses": node.discovery.announceAddrs,
           "table": table,
-          "storage": {"version": $codexVersion, "revision": $codexRevision},
+          "storage": {"version": $storageVersion, "revision": $storageRevision},
         }
 
       # return pretty json for human readability
