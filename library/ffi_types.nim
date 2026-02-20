@@ -19,7 +19,7 @@ const RET_PROGRESS*: cint = 3
 ## Returns RET_OK as acknowledgment and call the callback
 ## with RET_OK code and the provided message.
 proc success*(callback: StorageCallback, msg: string, userData: pointer): cint =
-  callback(RET_OK, cast[ptr cchar](msg), cast[csize_t](len(msg)), userData)
+  callback(RET_OK, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
 
   return RET_OK
 
