@@ -94,9 +94,9 @@ proc updateTotalBlocksCount*(
     proc(maybeCurrCount: ?Natural): Future[?Natural] {.async.} =
       let count: Natural =
         if currCount =? maybeCurrCount:
-          currCount + plusCount - minusCount
+          max(0, currCount + plusCount - minusCount)
         else:
-          plusCount - minusCount
+          max(0, plusCount - minusCount)
 
       self.totalBlocks = count
       storage_repostore_blocks.set(count.int64)
