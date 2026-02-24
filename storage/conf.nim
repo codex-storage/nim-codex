@@ -137,7 +137,7 @@ type
 
     listenIp* {.
       desc:
-        "IP address to listen on for remote peer connections. Announced in the DHT as a multiaddress, eg /ip4/<listen-ip>/tcp/<listen-port>. IP address can be v4 or v6",
+        "IP address to listen on for remote peer connections, can be ipv4 or ipv6",
       defaultValue: "0.0.0.0".parseIpAddress,
       defaultValueDesc: "Listens on all addresses.",
       abbr: "i",
@@ -146,7 +146,7 @@ type
 
     listenPort* {.
       desc:
-        "Port to listen on for remote peer connections. Announced in the DHT as a multiaddress, eg /ip4/<listen-ip>/tcp/<listen-port>. Port must be in the range 0-65535.",
+        "TCP port to listen on for remote peer connections. Selects a random port if none is specified.",
       defaultValue: 0,
       defaultValueDesc: "Listens on a random free port.",
       abbr: "l",
