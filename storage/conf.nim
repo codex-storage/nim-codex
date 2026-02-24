@@ -135,19 +135,29 @@ type
       name: "data-dir"
     .}: OutDir
 
-    listenAddrs* {.
-      desc: "Multi Addresses to listen on",
-      defaultValue:
-        @[MultiAddress.init("/ip4/0.0.0.0/tcp/0").expect("Should init multiaddress")],
-      defaultValueDesc: "/ip4/0.0.0.0/tcp/0",
+    listenIp* {.
+      desc:
+        "IP address to listen on for remote peer connections, can be ipv4 or ipv6",
+      defaultValue: "0.0.0.0".parseIpAddress,
+      defaultValueDesc: "Listens on all addresses.",
       abbr: "i",
-      name: "listen-addrs"
-    .}: seq[MultiAddress]
+      name: "listen-ip"
+    .}: IpAddress
+
+    listenPort* {.
+      desc:
+        "TCP port to listen on for remote peer connections. Selects a random port if none is specified.",
+      defaultValue: 0,
+      defaultValueDesc: "Listens on a random free port.",
+      abbr: "l",
+      name: "listen-port"
+    .}: Port
 
     nat* {.
       desc:
         "Specify method to use for determining public address. " &
-        "Must be one of: any, none, upnp, pmp, extip:<IP>",
+        "Must be one of: any, none, upnp, pmp, extip:<IP>. " &
+        "If connecting to peers on a local network only, use 'none'.",
       defaultValue: defaultNatConfig(),
       defaultValueDesc: "any",
       name: "nat"

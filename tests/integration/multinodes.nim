@@ -135,7 +135,6 @@ template multinodesuite*(suiteName: string, body: untyped) =
 
         config.addCliOption("--data-dir", datadir)
         config.addCliOption("--nat", "none")
-        config.addCliOption("--listen-addrs", "/ip4/127.0.0.1/tcp/0")
       except StorageConfigError as e:
         raiseMultiNodeSuiteError "invalid cli option, error: " & e.msg
 

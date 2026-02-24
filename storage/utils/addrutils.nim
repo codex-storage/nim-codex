@@ -53,6 +53,21 @@ proc getMultiAddrWithIPAndUDPPort*(ip: IpAddress, port: Port): MultiAddress =
   let ipFamily = if ip.family == IpAddressFamily.IPv4: "/ip4/" else: "/ip6/"
   return MultiAddress.init(ipFamily & $ip & "/udp/" & $port).expect("valid multiaddr")
 
+proc getMultiAddrWithIpAndTcpPort*(ip: IpAddress, port: Port): MultiAddress =
+  ## Creates a MultiAddress with the specified IP address and TCP port
+  ## 
+  ## Parameters:
+  ##   - ip: A valid IP address (IPv4 or IPv6)
+  ##   - port: The TCP port number
+  ##
+  ## Returns:
+  ##   A MultiAddress in the format "/ip4/<address>/tcp/<port>" or "/ip6/<address>/tcp/<port>"
+
+  let ipFamily = if ip.family == IpAddressFamily.IPv4: "/ip4/" else: "/ip6/"
+  return MultiAddress.init(ipFamily & $ip & "/tcp/" & $port).expect(
+      "Failed to construct multiaddress with IP and TCP port"
+    )
+
 proc getAddressAndPort*(
     ma: MultiAddress
 ): tuple[ip: Option[IpAddress], port: Option[Port]] =
