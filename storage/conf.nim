@@ -136,8 +136,7 @@ type
     .}: OutDir
 
     listenIp* {.
-      desc:
-        "IP address to listen on for remote peer connections, can be ipv4 or ipv6",
+      desc: "IP address to listen on for remote peer connections, can be ipv4 or ipv6",
       defaultValue: "0.0.0.0".parseIpAddress,
       defaultValueDesc: "Listens on all addresses.",
       abbr: "i",
