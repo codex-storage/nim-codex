@@ -440,8 +440,9 @@ asyncchecksuite "RepoStore":
       repo = RepoStore.new(repoDs, metaDs, clock = mockClock, quotaMaxBytes =
           1000'nb)
       (_, tree, manifest) = makeDataset(
-        await makeRandomBlocks(datasetSize = 2 * 256, blockSize = 256'nb)
-      ).tryGet()
+          await makeRandomBlocks(datasetSize = 2 * 256, blockSize = 256'nb)
+        )
+        .tryGet()
       treeCid = tree.rootCid.tryGet()
       proof = tree.getProof(1).tryGet()
 
