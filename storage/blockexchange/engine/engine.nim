@@ -17,6 +17,7 @@ import pkg/questionable/results
 import pkg/stew/shims/sets
 
 import ../../stores/blockstore
+import ../../errors
 import ../../blocktype
 import ../../utils
 import ../../utils/trackedfutures
@@ -183,87 +184,6 @@ proc evictPeer(self: BlockExcEngine, peer: PeerId) =
   trace "Evicting disconnected/departed peer", peer
   self.peers.remove(peer)
 
-proc requestBlocks*(
-    self: BlockExcEngine, addresses: seq[BlockAddress]
-): SafeAsyncIter[Block] =
-  var byTree = initTable[Cid, seq[uint64]]()
-  for address in addresses:
-    byTree.mgetOrPut(address.treeCid, @[]).add(address.index.uint64)
-
-  var downloadsByCid = initTable[Cid, ActiveDownload]()
-  for treeCid, indices in byTree:
-    let dl = self.downloadManager.getDownload(treeCid)
-    if dl.isNone:
-      let desc = toDownloadDesc(treeCid, indices.max + 1, blockSize = 0)
-      downloadsByCid[treeCid] = self.startDownload(desc, indices)
-    else:
-      downloadsByCid[treeCid] = dl.get()
-
-  let totalAddresses = addresses.len
-  var
-    nextAddressIdx = 0
-    pendingHandle: Option[BlockHandle] = none(BlockHandle)
-    completed = 0
-
-  proc isFinished(): bool =
-    completed == totalAddresses
-
-  proc genNext(): Future[?!Block] {.async: (raises: [CancelledError]).} =
-    while pendingHandle.isNone and nextAddressIdx < totalAddresses:
-      let
-        address = addresses[nextAddressIdx]
-        cid = address.treeCid
-      nextAddressIdx += 1
-
-      var handle: Option[BlockHandle] = none(BlockHandle)
-      downloadsByCid.withValue(cid, download):
-        handle = some(download[].getWantHandle(address))
-
-      let blkResult = await self.localStore.getBlock(address)
-      if blkResult.isOk:
-        if handle.isSome:
-          downloadsByCid.withValue(cid, download):
-            discard download[].completeWantHandle(address, some(blkResult.get))
-        inc(completed)
-        return success blkResult.get
-      elif not (blkResult.error of BlockNotFoundError):
-        if handle.isSome:
-          handle.get().cancel()
-        return failure(blkResult.error)
-      else:
-        if handle.isSome:
-          pendingHandle = handle
-
-    if pendingHandle.isNone:
-      return failure("No more blocks")
-
-    let handle = pendingHandle.get()
-    pendingHandle = none(BlockHandle)
-    let value = await handle
-
-    inc(completed)
-    return value
-
-  return SafeAsyncIter[Block].new(genNext, isFinished)
-
-proc requestBlock*(
-    self: BlockExcEngine, address: BlockAddress
-): Future[?!Block] {.async: (raises: [CancelledError]).} =
-  let cid = address.treeCid
-  var download = self.downloadManager.getDownload(cid)
-  if download.isNone:
-    let desc = toDownloadDesc(address, blockSize = 0)
-    download = some(self.startDownload(desc))
-
-  let handle = download.get().getWantHandle(address)
-  without blk =? (await self.localStore.getBlock(address)), err:
-    if not (err of BlockNotFoundError):
-      handle.cancel()
-      return failure err
-    return await handle
-  discard download.get().completeWantHandle(address, some(blk))
-  return success blk
-
 proc validateBlockDeliveryView(self: BlockExcEngine, view: BlockDeliveryView): ?!void =
   without proof =? view.proof:
     return failure("Missing proof")
@@ -406,13 +326,6 @@ proc sendWantBlocksRequest(
     trace "Peer responded with zero blocks", peer = peer.id, cid = cid
     download.requeueBatch(start, count, front = false)
     return
-
-  if not download.ctx.hasBlockSize() and allBlockViews.len > 0:
-    let discoveredBlockSize = allBlockViews[0].dataLen.uint32
-    if discoveredBlockSize > 0:
-      download.ctx.setBlockSize(discoveredBlockSize)
-      trace "Discovered block size from first batch",
-        cid = cid, blockSize = discoveredBlockSize
 
   trace "Received batch response",
     cid = cid,
@@ -654,7 +567,7 @@ proc downloadWorker(
           download.inFlightBatches.del(peerId)
 
       let ctx = download.ctx
-      if ctx.needsNextPresenceWindow():
+      if not download.fetchLocal and ctx.needsNextPresenceWindow():
         let (newStart, newCount) = ctx.advancePresenceWindow()
 
         ctx.trimPresenceBeforeWatermark()
@@ -670,19 +583,19 @@ proc downloadWorker(
 
         await self.broadcastWantHave(download, cid, newStart, newCount, connectedPeers)
 
-      if ctx.shouldBroadcastAvailability():
-        let (broadcastStart, broadcastCount) = ctx.getAvailabilityBroadcast()
-        if broadcastCount > 0:
+      # Broadcast availability to peers
+      if not download.fetchLocal and ctx.shouldBroadcastAvailability():
+        let broadcastRanges = ctx.getAvailabilityBroadcast()
+        if broadcastRanges.len > 0:
           trace "Broadcasting availability to swarm",
             cid = cid,
-            rangeStart = broadcastStart,
-            rangeCount = broadcastCount,
+            rangeCount = broadcastRanges.len,
             swarmPeers = ctx.swarm.peerCount()
 
           let presence = BlockPresence(
-            address: BlockAddress(treeCid: cid, index: broadcastStart.int),
+            address: BlockAddress(treeCid: cid, index: broadcastRanges[0].start.int),
             kind: BlockPresenceType.HaveRange,
-            ranges: @[(start: broadcastStart, count: broadcastCount)],
+            ranges: broadcastRanges,
           )
 
           for peerId in ctx.swarm.connectedPeers():
@@ -727,6 +640,9 @@ proc downloadWorker(
             except CatchableError:
               false
           if not exists:
+            if download.fetchLocal:
+              download.failLocalMissing(address)
+              break localCheck
             break localCheck
 
         for i in start ..< start + count:
@@ -737,6 +653,9 @@ proc downloadWorker(
             discard download.completeWantHandle(address, some(blk))
 
         download.completeBatchLocal(start, count)
+        continue
+
+      if download.cancelled or download.fetchLocal:
         continue
 
       let swarm = download.ctx.swarm
@@ -880,16 +799,26 @@ proc downloadWorker(
     error "Error in batch download loop", err = exc.msg
 
 proc startTreeDownloadGeneric[T: Block | void](
-    self: BlockExcEngine, treeCid: Cid, blockSize: uint32, totalBlocks: uint64
+    self: BlockExcEngine,
+    treeCid: Cid,
+    blockSize: uint32,
+    totalBlocks: uint64,
+    selectionPolicy: SelectionPolicy = spSequential,
+    isBackground: bool = false,
+    fetchLocal: bool = false,
 ): ?!DownloadHandleGeneric[T] =
   ## - T = Block: Returns actual block data (for streaming)
   ## - T = void: Returns success/failure only (for prefetching)
 
-  #if self.downloadManager.getDownload(treeCid).isSome:
-  #  return failure("Download already active for CID " & $treeCid)
-
   let
-    desc = toDownloadDesc(treeCid, totalBlocks, blockSize)
+    desc = toDownloadDesc(
+      treeCid,
+      totalBlocks,
+      blockSize,
+      selectionPolicy = selectionPolicy,
+      isBackground = isBackground,
+      fetchLocal = fetchLocal,
+    )
     activeDownload = self.startDownload(desc)
 
   when T is Block:
@@ -926,11 +855,16 @@ proc startTreeDownloadGeneric[T: Block | void](
             false
         if exists:
           discard activeDownload.completeWantHandle(address)
+        elif fetchLocal:
+          handle.cancel()
+          return failure(
+            newException(BlockNotFoundError, "Block not found locally: " & $address)
+          )
       else:
         let blkResult = await self.localStore.getBlock(address)
         if blkResult.isOk:
           discard activeDownload.completeWantHandle(address, some(blkResult.get))
-        elif not (blkResult.error of BlockNotFoundError):
+        elif not (blkResult.error of BlockNotFoundError) or fetchLocal:
           handle.cancel()
           return failure(blkResult.error)
 
@@ -954,17 +888,50 @@ proc startTreeDownloadGeneric[T: Block | void](
   )
 
 proc startTreeDownload*(
-    self: BlockExcEngine, treeCid: Cid, blockSize: uint32, totalBlocks: uint64
+    self: BlockExcEngine,
+    treeCid: Cid,
+    blockSize: uint32,
+    totalBlocks: uint64,
+    fetchLocal: bool = false,
 ): ?!DownloadHandle =
-  startTreeDownloadGeneric[Block](self, treeCid, blockSize, totalBlocks)
+  startTreeDownloadGeneric[Block](
+    self, treeCid, blockSize, totalBlocks, fetchLocal = fetchLocal
+  )
 
 proc startTreeDownloadOpaque*(
-    self: BlockExcEngine, treeCid: Cid, blockSize: uint32, totalBlocks: uint64
+    self: BlockExcEngine,
+    treeCid: Cid,
+    blockSize: uint32,
+    totalBlocks: uint64,
+    selectionPolicy: SelectionPolicy = spSequential,
+    isBackground: bool = false,
+    fetchLocal: bool = false,
 ): ?!DownloadHandleOpaque =
-  startTreeDownloadGeneric[void](self, treeCid, blockSize, totalBlocks)
+  startTreeDownloadGeneric[void](
+    self,
+    treeCid,
+    blockSize,
+    totalBlocks,
+    selectionPolicy = selectionPolicy,
+    isBackground = isBackground,
+    fetchLocal = fetchLocal,
+  )
 
 proc releaseDownload*[T](self: BlockExcEngine, handle: DownloadHandleGeneric[T]) =
   self.downloadManager.releaseDownload(handle.downloadId, handle.cid)
+
+proc cancelDownload*(self: BlockExcEngine, cid: Cid) =
+  self.downloadManager.cancelDownload(cid)
+
+proc cancelBackgroundDownload*(
+    self: BlockExcEngine, downloadId: uint64, cid: Cid
+): bool =
+  self.downloadManager.cancelBackgroundDownload(downloadId, cid)
+
+proc getDownloadProgress*(
+    self: BlockExcEngine, downloadId: uint64, cid: Cid
+): Option[DownloadProgress] =
+  self.downloadManager.getDownloadProgress(downloadId, cid)
 
 proc blockPresenceHandler*(
     self: BlockExcEngine, peer: PeerId, blocks: seq[BlockPresence]

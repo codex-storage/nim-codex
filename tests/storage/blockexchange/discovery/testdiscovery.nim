@@ -11,6 +11,7 @@ import pkg/storage/chunker
 import pkg/storage/manifest
 import pkg/storage/merkletree
 import pkg/storage/blocktype as bt
+import pkg/storage/storagetypes
 
 import ../../../asynctest
 import ../../helpers
@@ -73,7 +74,7 @@ asyncchecksuite "Block Advertising and Discovery":
     for blk in blocks:
       let
         address = BlockAddress.init(blk.cid, 0)
-        desc = toDownloadDesc(address, blockSize = 0)
+        desc = toDownloadDesc(address, DefaultBlockSize.uint32)
         download = engine.downloadManager.startDownload(desc)
       handles.add(download.getWantHandle(address))
 

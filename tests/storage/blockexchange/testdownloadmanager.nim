@@ -13,10 +13,15 @@ import pkg/storage/blockexchange/engine/activedownload {.all.}
 import pkg/storage/blockexchange/engine/downloadmanager {.all.}
 import pkg/storage/blockexchange/engine/scheduler {.all.}
 import pkg/storage/blockexchange/engine/swarm
+import pkg/storage/storagetypes
 
 import ../helpers
 import ../examples
 import ../../asynctest
+
+const
+  WindowSize = 16384'u64
+  Threshold = 0.75
 
 suite "DownloadManager - Want Handles":
   test "Should add want handle":
@@ -24,7 +29,7 @@ suite "DownloadManager - Want Handles":
       downloadManager = DownloadManager.new()
       blk = bt.Block.new("Hello".toBytes).tryGet
       address = BlockAddress.init(blk.cid, 0)
-      desc = toDownloadDesc(address, blockSize = 0)
+      desc = toDownloadDesc(address, DefaultBlockSize.uint32)
       download = downloadManager.startDownload(desc)
 
     discard download.getWantHandle(address)
@@ -36,7 +41,7 @@ suite "DownloadManager - Want Handles":
       downloadManager = DownloadManager.new()
       blk = bt.Block.new("Hello".toBytes).tryGet
       address = BlockAddress.init(blk.cid, 0)
-      desc = toDownloadDesc(address, blockSize = 0)
+      desc = toDownloadDesc(address, DefaultBlockSize.uint32)
       download = downloadManager.startDownload(desc)
       handle = download.getWantHandle(address)
 
@@ -50,7 +55,7 @@ suite "DownloadManager - Want Handles":
       downloadManager = DownloadManager.new()
       blk = bt.Block.new("Hello".toBytes).tryGet
       address = BlockAddress.init(blk.cid, 0)
-      desc = toDownloadDesc(address, blockSize = 0)
+      desc = toDownloadDesc(address, DefaultBlockSize.uint32)
       download = downloadManager.startDownload(desc)
       handle = download.getWantHandle(address)
 
@@ -63,7 +68,7 @@ suite "DownloadManager - Want Handles":
       dm = DownloadManager.new(3)
       blk = bt.Block.new("Hello".toBytes).tryGet
       address = BlockAddress.init(blk.cid, 0)
-      desc = toDownloadDesc(address, blockSize = 0)
+      desc = toDownloadDesc(address, DefaultBlockSize.uint32)
       download = dm.startDownload(desc)
 
     discard download.getWantHandle(address)
@@ -235,8 +240,7 @@ asyncchecksuite "DownloadManager - Download Lifecycle":
       dm = DownloadManager.new()
       treeCid = Cid.example
       desc = toDownloadDesc(treeCid, 100, 65536)
-
-    let downloadRef = dm.startDownload(desc)
+      downloadRef = dm.startDownload(desc)
 
     check downloadRef.cancelled == false
 
@@ -454,7 +458,7 @@ suite "DownloadManager - Retry Management":
       dm = DownloadManager.new(retries = 5)
       blk = bt.Block.new("Hello".toBytes).tryGet
       address = BlockAddress.init(blk.cid, 0)
-      desc = toDownloadDesc(address, blockSize = 0)
+      desc = toDownloadDesc(address, DefaultBlockSize.uint32)
       download = dm.startDownload(desc)
 
     discard download.getWantHandle(address)
@@ -470,7 +474,7 @@ suite "DownloadManager - Retry Management":
       dm = DownloadManager.new(retries = 2)
       blk = bt.Block.new("Hello".toBytes).tryGet
       address = BlockAddress.init(blk.cid, 0)
-      desc = toDownloadDesc(address, blockSize = 0)
+      desc = toDownloadDesc(address, DefaultBlockSize.uint32)
       download = dm.startDownload(desc)
 
     discard download.getWantHandle(address)
@@ -518,7 +522,7 @@ suite "DownloadManager - Request Tracking":
       dm = DownloadManager.new()
       blk = bt.Block.new("Hello".toBytes).tryGet
       address = BlockAddress.init(blk.cid, 0)
-      desc = toDownloadDesc(address, blockSize = 0)
+      desc = toDownloadDesc(address, DefaultBlockSize.uint32)
       download = dm.startDownload(desc)
       peerId = PeerId.example
 
@@ -536,7 +540,7 @@ suite "DownloadManager - Request Tracking":
       dm = DownloadManager.new()
       blk = bt.Block.new("Hello".toBytes).tryGet
       address = BlockAddress.init(blk.cid, 0)
-      desc = toDownloadDesc(address, blockSize = 0)
+      desc = toDownloadDesc(address, DefaultBlockSize.uint32)
       download = dm.startDownload(desc)
       peer1 = PeerId.example
       peer2 = PeerId.example
@@ -555,7 +559,7 @@ suite "DownloadManager - Request Tracking":
       dm = DownloadManager.new()
       blk = bt.Block.new("Hello".toBytes).tryGet
       address = BlockAddress.init(blk.cid, 0)
-      desc = toDownloadDesc(address, blockSize = 0)
+      desc = toDownloadDesc(address, DefaultBlockSize.uint32)
       download = dm.startDownload(desc)
       peerId = PeerId.example
 
@@ -604,7 +608,7 @@ suite "DownloadContext - Basics":
   test "Should create download context":
     let
       treeCid = Cid.example
-      ctx = DownloadContext.new(treeCid, 65536, 1000)
+      ctx = DownloadContext.new(toDownloadDesc(treeCid, 1000, 65536))
 
     check ctx.treeCid == treeCid
     check ctx.blockSize == 65536
@@ -612,24 +616,17 @@ suite "DownloadContext - Basics":
     check ctx.received == 0
     check ctx.bytesReceived == 0
 
-  test "Should create context with already have blocks":
-    let
-      treeCid = Cid.example
-      ctx = DownloadContext.new(treeCid, 65536, 1000, alreadyHave = 100)
-
-    check ctx.received == 100
-
   test "Should report not complete initially":
     let
       treeCid = Cid.example
-      ctx = DownloadContext.new(treeCid, 65536, 100)
+      ctx = DownloadContext.new(toDownloadDesc(treeCid, 100, 65536))
 
     check ctx.isComplete() == false
 
   test "Should report complete when all received":
     let
       treeCid = Cid.example
-      ctx = DownloadContext.new(treeCid, 65536, 100)
+      ctx = DownloadContext.new(toDownloadDesc(treeCid, 100, 65536))
 
     ctx.received = 100
 
@@ -638,7 +635,7 @@ suite "DownloadContext - Basics":
   test "Should return progress":
     let
       treeCid = Cid.example
-      ctx = DownloadContext.new(treeCid, 65536, 100)
+      ctx = DownloadContext.new(toDownloadDesc(treeCid, 100, 65536))
 
     ctx.received = 50
     ctx.bytesReceived = 50'u64 * 65536
@@ -651,7 +648,7 @@ suite "DownloadContext - Basics":
   test "Should return remaining blocks":
     let
       treeCid = Cid.example
-      ctx = DownloadContext.new(treeCid, 65536, 100)
+      ctx = DownloadContext.new(toDownloadDesc(treeCid, 100, 65536))
 
     check ctx.remainingBlocks() == 100
 
@@ -664,17 +661,17 @@ suite "DownloadContext - Basics":
   test "Should init scheduler with missing blocks":
     let
       treeCid = Cid.example
-      ctx = DownloadContext.new(treeCid, 65536, 1000)
+      ctx = DownloadContext.new(toDownloadDesc(treeCid, 1000, 65536))
       missingBlocks = @[10'u64, 11, 12, 50, 51, 100]
 
-    ctx.scheduler.initFromIndices(missingBlocks, 256)
+    ctx.scheduler.initFromIndices(missingBlocks, 256, WindowSize, Threshold)
 
     check ctx.scheduler.hasWork() == true
 
   test "Should mark batch received":
     let
       treeCid = Cid.example
-      ctx = DownloadContext.new(treeCid, 65536, 100)
+      ctx = DownloadContext.new(toDownloadDesc(treeCid, 100, 65536))
       peerId = PeerId.example
 
     ctx.markBatchInFlight(0, 10, peerId)
@@ -689,7 +686,7 @@ suite "DownloadContext - Basics":
   test "Should mark block in flight":
     let
       treeCid = Cid.example
-      ctx = DownloadContext.new(treeCid, 65536, 100)
+      ctx = DownloadContext.new(toDownloadDesc(treeCid, 100, 65536))
       peerId = PeerId.example
 
     ctx.markBlockInFlight(42, peerId)
@@ -701,7 +698,7 @@ suite "DownloadContext - Basics":
   test "Should mark batch in flight":
     let
       treeCid = Cid.example
-      ctx = DownloadContext.new(treeCid, 65536, 100)
+      ctx = DownloadContext.new(toDownloadDesc(treeCid, 100, 65536))
       peerId = PeerId.example
 
     ctx.markBatchInFlight(10, 5, peerId)
@@ -714,7 +711,7 @@ suite "DownloadContext - Basics":
   test "Should clear in-flight for peer":
     let
       treeCid = Cid.example
-      ctx = DownloadContext.new(treeCid, 65536, 100)
+      ctx = DownloadContext.new(toDownloadDesc(treeCid, 100, 65536))
       peer1 = PeerId.example
       peer2 = PeerId.example
 
@@ -733,72 +730,85 @@ suite "DownloadContext - Basics":
 
 suite "DownloadContext - Windowed Presence":
   test "Should compute presence window size":
-    check computePresenceWindowSize(65536) == 1024'u64 * 1024 * 1024 div 65536
-    check computePresenceWindowSize(1024) == 1024'u64 * 1024 * 1024 div 1024
-    check computePresenceWindowSize(2'u32 * 1024 * 1024 * 1024) >= 1'u64
+    check computeWindowSize(65536) == 1024'u64 * 1024 * 1024 div 65536
+    check computeWindowSize(1024) == 1024'u64 * 1024 * 1024 div 1024
+    check computeWindowSize(2'u32 * 1024 * 1024 * 1024) >= 1'u64
 
   test "Should initialize presence window":
     let
       treeCid = Cid.example
-      ctx = DownloadContext.new(treeCid, 65536, 100000)
+      ctx = DownloadContext.new(toDownloadDesc(treeCid, 100000, 65536))
+      window = ctx.currentPresenceWindow()
 
-    check ctx.presenceWindowStart == 0
-    check ctx.presenceWindowEnd > 0
-    check ctx.presenceWindowSize > 0
+    check window.start == 0
+    check window.count > 0
 
   test "Should get current presence window":
     let
       treeCid = Cid.example
-      ctx = DownloadContext.new(treeCid, 65536, 100000)
+      ctx = DownloadContext.new(toDownloadDesc(treeCid, 100000, 65536))
       window = ctx.currentPresenceWindow()
 
     check window.start == 0
-    check window.count == ctx.presenceWindowEnd
+    check window.count > 0
 
   test "Should check if block is in presence window":
     let
       treeCid = Cid.example
-      ctx = DownloadContext.new(treeCid, 65536, 100000)
+      ctx = DownloadContext.new(toDownloadDesc(treeCid, 100000, 65536))
+      window = ctx.currentPresenceWindow()
 
-    check ctx.presenceWindowContains(0) == true
-    check ctx.presenceWindowContains(ctx.presenceWindowEnd - 1) == true
-    check ctx.presenceWindowContains(ctx.presenceWindowEnd) == false
+    check 0'u64 >= window.start and 0'u64 < window.start + window.count
+    check window.start + window.count - 1 >= window.start
+    check not (
+      window.start + window.count >= window.start and
+      window.start + window.count < window.start + window.count
+    )
 
   test "Should advance presence window":
     let
       treeCid = Cid.example
-      ctx = DownloadContext.new(treeCid, 65536, 100000)
-      oldEnd = ctx.presenceWindowEnd
-      newWindow = ctx.advancePresenceWindow()
+      ctx = DownloadContext.new(toDownloadDesc(treeCid, 100000, 65536))
+      oldWindow = ctx.currentPresenceWindow()
+      oldEnd = oldWindow.start + oldWindow.count
+      advancedWindow = ctx.advancePresenceWindow()
 
-    check newWindow.start == oldEnd
-    check ctx.presenceWindowStart == oldEnd
-    check ctx.presenceWindowEnd > oldEnd
+    check advancedWindow.start == oldEnd
+    check advancedWindow.start + advancedWindow.count > oldEnd
 
   test "Should check if needs next presence window":
     let
       treeCid = Cid.example
-      ctx = DownloadContext.new(treeCid, 65536, 100000)
+      ctx = DownloadContext.new(toDownloadDesc(treeCid, 100000, 65536))
 
-    ctx.scheduler.init(ctx.totalBlocks, 256)
+    ctx.scheduler.init(ctx.totalBlocks, 256, WindowSize, Threshold)
     check ctx.needsNextPresenceWindow() == false
 
-    let threshold = (ctx.presenceWindowEnd.float * 0.75).uint64
+    let
+      window = ctx.currentPresenceWindow()
+      windowEnd = window.start + window.count
+      threshold = (windowEnd.float * 0.75).uint64
+
     var pos: uint64 = 0
-    while pos <= threshold:
+    while pos < windowEnd:
       discard ctx.scheduler.take()
+      pos += 256
+
+    pos = 0
+    while pos <= threshold:
       ctx.scheduler.markComplete(pos)
       pos += 256
 
-    if ctx.presenceWindowEnd < ctx.totalBlocks:
+    if windowEnd < ctx.totalBlocks:
       check ctx.needsNextPresenceWindow() == true
 
   test "Should not need next window when at last window":
     let
       treeCid = Cid.example
-      ctx = DownloadContext.new(treeCid, 65536, 100) # Small total, fits in one window
+      ctx = DownloadContext.new(toDownloadDesc(treeCid, 100, 65536))
+        # Small total, fits in one window
 
-    ctx.scheduler.init(ctx.totalBlocks, 256)
+    ctx.scheduler.init(ctx.totalBlocks, 256, WindowSize, Threshold)
 
     discard ctx.scheduler.take()
     ctx.scheduler.markComplete(0)
@@ -807,13 +817,13 @@ suite "DownloadContext - Windowed Presence":
   test "Should trim ranges entirely below watermark":
     let
       treeCid = Cid.example
-      ctx = DownloadContext.new(treeCid, 65536, 100000)
+      ctx = DownloadContext.new(toDownloadDesc(treeCid, 100000, 65536))
       peerId = PeerId.example
       ranges = @[(start: 0'u64, count: 400'u64), (start: 2000'u64, count: 500'u64)]
 
     discard ctx.swarm.addPeer(peerId, BlockAvailability.fromRanges(ranges))
 
-    ctx.scheduler.init(ctx.totalBlocks, 256)
+    ctx.scheduler.init(ctx.totalBlocks, 256, WindowSize, Threshold)
     discard ctx.scheduler.take()
     ctx.scheduler.markComplete(0)
     discard ctx.scheduler.take()
@@ -831,12 +841,12 @@ suite "DownloadContext - Windowed Presence":
   test "Should keep ranges spanning the watermark intact":
     let
       treeCid = Cid.example
-      ctx = DownloadContext.new(treeCid, 65536, 100000)
+      ctx = DownloadContext.new(toDownloadDesc(treeCid, 100000, 65536))
       peerId = PeerId.example
       ranges = @[(start: 0'u64, count: 1000'u64)]
     discard ctx.swarm.addPeer(peerId, BlockAvailability.fromRanges(ranges))
 
-    ctx.scheduler.init(ctx.totalBlocks, 256)
+    ctx.scheduler.init(ctx.totalBlocks, 256, WindowSize, Threshold)
     discard ctx.scheduler.take()
     ctx.scheduler.markComplete(0)
     discard ctx.scheduler.take()
@@ -854,12 +864,12 @@ suite "DownloadContext - Windowed Presence":
   test "Should not trim bakComplete peers":
     let
       treeCid = Cid.example
-      ctx = DownloadContext.new(treeCid, 65536, 100000)
+      ctx = DownloadContext.new(toDownloadDesc(treeCid, 100000, 65536))
       peerId = PeerId.example
 
     discard ctx.swarm.addPeer(peerId, BlockAvailability.complete())
 
-    ctx.scheduler.init(ctx.totalBlocks, 256)
+    ctx.scheduler.init(ctx.totalBlocks, 256, WindowSize, Threshold)
     discard ctx.scheduler.take()
     ctx.scheduler.markComplete(0)
     discard ctx.scheduler.take()

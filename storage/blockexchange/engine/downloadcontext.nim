@@ -17,6 +17,7 @@ import ./scheduler
 import ./swarm
 import ../peers/peercontext
 import ../../storagetypes
+import ../../blocktype
 import ../protocol/message
 import ../protocol/constants
 import ../utils
@@ -31,7 +32,6 @@ const
   PresenceBroadcastIntervalMin*: Duration = 5.seconds
   PresenceBroadcastIntervalMax*: Duration = 10.seconds
   PresenceBroadcastBlockThreshold*: uint64 = PresenceWindowBlocks div 2
-  DefaultBatchTimeoutUnknownBlockSize* = 30.seconds # timeout for unknown block size
 
 static:
   const
@@ -43,10 +43,28 @@ static:
       " bytes"
 
 type
-  DownloadProgress = object
+  DownloadProgress* = object
     blocksCompleted*: uint64
     totalBlocks*: uint64
     bytesTransferred*: uint64
+
+  DownloadDesc* = object
+    cid*: Cid
+    blockSize*: uint32
+    startIndex*: uint64
+    count*: uint64
+    selectionPolicy*: SelectionPolicy
+    isBackground*: bool
+    fetchLocal*: bool
+
+  BroadcastAvailabilityTracker = object
+    case policy: SelectionPolicy
+    of spSequential:
+      lastBroadcastedWatermark: uint64
+      lastBroadcastTime: Moment
+      broadcastInterval: Duration
+    of spRandomWindow:
+      pendingRanges: seq[tuple[start: uint64, count: uint64]]
 
   DownloadContext* = ref object
     treeCid*: Cid
@@ -58,68 +76,162 @@ type
     scheduler*: Scheduler
     swarm*: Swarm
     inFlightBlocks*: Table[uint64, PeerId] # block index -> peer fetching it
-    presenceWindowStart*: uint64
-    presenceWindowEnd*: uint64 # exclusive
-    presenceWindowSize*: uint64 # in blocks
-    lastAvailabilityBroadcastTime*: Moment
-    lastAvailabilityBroadcastedWatermark*: uint64
-    presenceBroadcastInterval*: Duration
+    availabilityTracker: BroadcastAvailabilityTracker
 
-proc computePresenceWindowSize*(blockSize: uint32): uint64 =
+proc computeWindowSize*(blockSize: uint32): uint64 =
   result = PresenceWindowBytes div blockSize.uint64
   if result == 0:
     result = 1
 
 proc randomBroadcastInterval(): Duration =
-  # try avoid thundering herd.
-
   rand(
     PresenceBroadcastIntervalMin.milliseconds.int ..
       PresenceBroadcastIntervalMax.milliseconds.int
   ).milliseconds
 
-proc new*(
-    T: type DownloadContext,
-    treeCid: Cid,
-    blockSize: uint32,
-    totalBlocks: uint64,
-    alreadyHave: uint64 = 0,
-): DownloadContext =
-  let windowSize =
-    if blockSize > 0:
-      computePresenceWindowSize(blockSize)
-    else:
-      PresenceWindowBlocks
-  let initialWindowEnd = min(windowSize, totalBlocks)
+proc shouldBroadcast(t: BroadcastAvailabilityTracker, watermark: uint64): bool =
+  case t.policy
+  of spRandomWindow:
+    t.pendingRanges.len > 0
+  of spSequential:
+    let newBlocks = watermark - t.lastBroadcastedWatermark
+    if newBlocks == 0:
+      return false
+    let timeSinceLast = Moment.now() - t.lastBroadcastTime
+    newBlocks >= PresenceBroadcastBlockThreshold or timeSinceLast >= t.broadcastInterval
 
-  DownloadContext(
-    treeCid: treeCid,
+proc getRanges(
+    t: BroadcastAvailabilityTracker, watermark: uint64
+): seq[tuple[start: uint64, count: uint64]] =
+  case t.policy
+  of spRandomWindow:
+    t.pendingRanges
+  of spSequential:
+    let count = watermark - t.lastBroadcastedWatermark
+    if count > 0:
+      @[(start: t.lastBroadcastedWatermark, count: count)]
+    else:
+      @[]
+
+proc markBroadcasted(t: var BroadcastAvailabilityTracker, watermark: uint64) =
+  case t.policy
+  of spRandomWindow:
+    t.pendingRanges.setLen(0)
+  of spSequential:
+    t.lastBroadcastedWatermark = watermark
+    t.lastBroadcastTime = Moment.now()
+    t.broadcastInterval = randomBroadcastInterval()
+
+proc addPendingRange(
+    t: var BroadcastAvailabilityTracker, range: tuple[start: uint64, count: uint64]
+) =
+  case t.policy
+  of spRandomWindow:
+    t.pendingRanges.add(range)
+  of spSequential:
+    discard
+
+proc id*(desc: DownloadDesc): Cid =
+  desc.cid
+
+proc toDownloadDesc*(
+    treeCid: Cid,
+    totalBlocks: uint64,
+    blockSize: uint32,
+    selectionPolicy: SelectionPolicy = spSequential,
+    isBackground: bool = false,
+    fetchLocal: bool = false,
+): DownloadDesc =
+  DownloadDesc(
+    cid: treeCid,
+    blockSize: blockSize,
+    startIndex: 0,
+    count: totalBlocks,
+    selectionPolicy: selectionPolicy,
+    isBackground: isBackground,
+    fetchLocal: fetchLocal,
+  )
+
+proc toDownloadDesc*(
+    treeCid: Cid, startIndex: uint64, count: uint64, blockSize: uint32
+): DownloadDesc =
+  DownloadDesc(cid: treeCid, blockSize: blockSize, startIndex: startIndex, count: count)
+
+proc toDownloadDesc*(address: BlockAddress, blockSize: uint32): DownloadDesc =
+  DownloadDesc(
+    cid: address.treeCid,
+    blockSize: blockSize,
+    startIndex: address.index.uint64,
+    count: 1,
+  )
+
+proc currentPresenceWindow*(ctx: DownloadContext): tuple[start: uint64, count: uint64] =
+  ctx.scheduler.currentPresenceWindow()
+
+proc needsNextPresenceWindow*(ctx: DownloadContext): bool =
+  ctx.scheduler.needsNextPresenceWindow()
+
+proc advancePresenceWindow*(ctx: DownloadContext): tuple[start: uint64, count: uint64] =
+  ctx.availabilityTracker.addPendingRange(ctx.scheduler.currentPresenceWindow())
+  discard ctx.scheduler.advancePresenceWindow()
+  ctx.scheduler.currentPresenceWindow()
+
+proc new*(
+    T: type DownloadContext, desc: DownloadDesc, missingBlocks: seq[uint64] = @[]
+): DownloadContext =
+  doAssert desc.blockSize > 0, "blockSize must be known at download creation"
+
+  let
+    totalBlocks = desc.startIndex + desc.count
+    blockSize = desc.blockSize
+    batchSize = computeBatchSize(blockSize)
+    windowSize = computeWindowSize(blockSize)
+
+  result = DownloadContext(
+    treeCid: desc.cid,
     blockSize: blockSize,
     totalBlocks: totalBlocks,
-    received: alreadyHave,
-    blocksReturned: 0,
-    bytesReceived: 0,
     scheduler: Scheduler.new(),
     swarm: Swarm.new(),
     inFlightBlocks: initTable[uint64, PeerId](),
-    presenceWindowStart: 0,
-    presenceWindowEnd: initialWindowEnd,
-    presenceWindowSize: windowSize,
-    lastAvailabilityBroadcastTime: Moment.now(),
-    lastAvailabilityBroadcastedWatermark: 0,
-    presenceBroadcastInterval: randomBroadcastInterval(),
   )
+
+  case desc.selectionPolicy
+  of spSequential:
+    result.availabilityTracker = BroadcastAvailabilityTracker(
+      policy: spSequential,
+      lastBroadcastedWatermark: 0,
+      lastBroadcastTime: Moment.now(),
+      broadcastInterval: randomBroadcastInterval(),
+    )
+
+    if missingBlocks.len > 0:
+      result.scheduler.initFromIndices(
+        missingBlocks, batchSize.uint64, windowSize, PresenceWindowThreshold
+      )
+    elif desc.count > batchSize.uint64:
+      if desc.startIndex == 0:
+        result.scheduler.init(
+          desc.count, batchSize.uint64, windowSize, PresenceWindowThreshold
+        )
+      else:
+        result.scheduler.initRange(
+          desc.startIndex, desc.count, batchSize.uint64, windowSize,
+          PresenceWindowThreshold,
+        )
+    else:
+      var indices: seq[uint64] = @[]
+      for i in desc.startIndex ..< desc.startIndex + desc.count:
+        indices.add(i)
+      result.scheduler.initFromIndices(
+        indices, batchSize.uint64, windowSize, PresenceWindowThreshold
+      )
+  of spRandomWindow:
+    result.availabilityTracker = BroadcastAvailabilityTracker(policy: spRandomWindow)
+    result.scheduler.initRandomWindows(totalBlocks, batchSize.uint64, windowSize)
 
 proc isComplete*(ctx: DownloadContext): bool =
   ctx.blocksReturned >= ctx.totalBlocks or ctx.received >= ctx.totalBlocks
-
-proc hasBlockSize*(ctx: DownloadContext): bool =
-  ctx.blockSize > 0
-
-proc setBlockSize*(ctx: DownloadContext, blockSize: uint32) =
-  if ctx.blockSize == 0 and blockSize > 0:
-    ctx.blockSize = blockSize
-    ctx.scheduler.updateBatchSize(computeBatchSize(blockSize).uint64)
 
 proc markBlockReturned*(ctx: DownloadContext) =
   # mark that a block was returned to the consumer by the iterator
@@ -147,35 +259,6 @@ proc clearInFlightForPeer*(ctx: DownloadContext, peerId: PeerId) =
   for blockIdx in toRemove:
     ctx.inFlightBlocks.del(blockIdx)
 
-proc currentPresenceWindow*(ctx: DownloadContext): tuple[start: uint64, count: uint64] =
-  (
-    start: ctx.presenceWindowStart,
-    count: ctx.presenceWindowEnd - ctx.presenceWindowStart,
-  )
-
-proc needsNextPresenceWindow*(ctx: DownloadContext): bool =
-  if ctx.presenceWindowEnd >= ctx.totalBlocks:
-    return false
-
-  let
-    watermark = ctx.scheduler.completedWatermark()
-    windowSize = ctx.presenceWindowEnd - ctx.presenceWindowStart
-    threshold =
-      ctx.presenceWindowStart + (windowSize.float * PresenceWindowThreshold).uint64
-
-  watermark >= threshold
-
-proc advancePresenceWindow*(ctx: DownloadContext): tuple[start: uint64, count: uint64] =
-  let
-    newStart = ctx.presenceWindowEnd
-    newEnd = min(newStart + ctx.presenceWindowSize, ctx.totalBlocks)
-
-  ctx.presenceWindowStart = newStart
-  ctx.presenceWindowEnd = newEnd
-
-  let count = newEnd - newStart
-  (start: newStart, count: count)
-
 proc trimPresenceBeforeWatermark*(ctx: DownloadContext) =
   let watermark = ctx.scheduler.completedWatermark()
 
@@ -194,28 +277,15 @@ proc trimPresenceBeforeWatermark*(ctx: DownloadContext) =
         peer.availability = BlockAvailability.fromRanges(newRanges)
 
 proc shouldBroadcastAvailability*(ctx: DownloadContext): bool =
-  let watermark = ctx.scheduler.completedWatermark()
-  let newBlocks = watermark - ctx.lastAvailabilityBroadcastedWatermark
-  if newBlocks == 0:
-    return false
-
-  let timeSinceLast = Moment.now() - ctx.lastAvailabilityBroadcastTime
-  newBlocks >= PresenceBroadcastBlockThreshold or
-    timeSinceLast >= ctx.presenceBroadcastInterval
+  ctx.availabilityTracker.shouldBroadcast(ctx.scheduler.completedWatermark())
 
 proc getAvailabilityBroadcast*(
     ctx: DownloadContext
-): tuple[start: uint64, count: uint64] =
-  let watermark = ctx.scheduler.completedWatermark()
-  (
-    start: ctx.lastAvailabilityBroadcastedWatermark,
-    count: watermark - ctx.lastAvailabilityBroadcastedWatermark,
-  )
+): seq[tuple[start: uint64, count: uint64]] =
+  ctx.availabilityTracker.getRanges(ctx.scheduler.completedWatermark())
 
 proc markAvailabilityBroadcasted*(ctx: DownloadContext) =
-  ctx.lastAvailabilityBroadcastTime = Moment.now()
-  ctx.lastAvailabilityBroadcastedWatermark = ctx.scheduler.completedWatermark()
-  ctx.presenceBroadcastInterval = randomBroadcastInterval()
+  ctx.availabilityTracker.markBroadcasted(ctx.scheduler.completedWatermark())
 
 proc batchBytes*(ctx: DownloadContext): uint64 =
   ctx.scheduler.batchSizeCount.uint64 * ctx.blockSize.uint64
@@ -223,14 +293,9 @@ proc batchBytes*(ctx: DownloadContext): uint64 =
 proc batchTimeout*(
     ctx: DownloadContext, peer: PeerContext, batchCount: uint64
 ): Duration =
-  let bytes = batchCount * ctx.blockSize.uint64
-  if bytes > 0:
-    peer.batchTimeout(bytes)
-  else:
-    DefaultBatchTimeoutUnknownBlockSize
+  peer.batchTimeout(batchCount * ctx.blockSize.uint64)
 
-## private - only used in tests
-proc progress(ctx: DownloadContext): DownloadProgress =
+proc progress*(ctx: DownloadContext): DownloadProgress =
   DownloadProgress(
     blocksCompleted: ctx.received,
     totalBlocks: ctx.totalBlocks,
@@ -251,6 +316,3 @@ proc remainingBlocks(ctx: DownloadContext): uint64 =
     ctx.totalBlocks - ctx.received
   else:
     0
-
-proc presenceWindowContains(ctx: DownloadContext, blockIndex: uint64): bool =
-  blockIndex >= ctx.presenceWindowStart and blockIndex < ctx.presenceWindowEnd

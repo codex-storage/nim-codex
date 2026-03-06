@@ -33,6 +33,8 @@ import ../conf
 import ../manifest
 import ../streams/asyncstreamwrapper
 import ../stores
+import ../stores/repostore
+import ../blockexchange
 import ../units
 import ../utils/options
 
@@ -337,9 +339,10 @@ proc initDataApi(node: StorageNodeRef, repoStore: RepoStore, router: var RestRou
     cid: Cid, resp: HttpResponseRef
   ) -> RestApiResponse:
     ## Download a file from the network to the local node
+    ## Returns the download ID for progress tracking and cancellation.
     ##
 
-    var headers = buildCorsHeaders("GET", allowedOrigin)
+    var headers = buildCorsHeaders("POST", allowedOrigin)
 
     if cid.isErr:
       return RestApiResponse.error(Http400, $cid.error(), headers = headers)
@@ -349,10 +352,64 @@ proc initDataApi(node: StorageNodeRef, repoStore: RepoStore, router: var RestRou
       return RestApiResponse.error(Http404, err.msg, headers = headers)
 
     # Start fetching the dataset in the background
-    node.fetchDatasetAsyncTask(manifest)
+    without downloadId =?
+      (await node.startBackgroundDownload(manifest, selectionPolicy = spRandomWindow)),
+      err:
+      return RestApiResponse.error(Http409, err.msg, headers = headers)
 
-    let json = %formatManifest(cid.get(), manifest)
+    var json = %formatManifest(cid.get(), manifest)
+    json["downloadId"] = %downloadId
     return RestApiResponse.response($json, contentType = "application/json")
+
+  router.api(MethodDelete, "/api/storage/v1/data/{cid}/network/{downloadId}") do(
+    cid: Cid, downloadId: uint64, resp: HttpResponseRef
+  ) -> RestApiResponse:
+    ## Cancel a specific background download
+    ##
+
+    var headers = buildCorsHeaders("DELETE", allowedOrigin)
+
+    if cid.isErr:
+      return RestApiResponse.error(Http400, $cid.error(), headers = headers)
+
+    if downloadId.isErr:
+      return RestApiResponse.error(Http400, "Invalid download ID", headers = headers)
+
+    if not node.cancelBackgroundDownload(downloadId.get(), cid.get()):
+      return RestApiResponse.error(
+        Http404, "Background download not found", headers = headers
+      )
+
+    resp.status = Http204
+    await resp.sendBody("")
+
+  router.api(MethodGet, "/api/storage/v1/data/{cid}/network/progress/{downloadId}") do(
+    cid: Cid, downloadId: uint64, resp: HttpResponseRef
+  ) -> RestApiResponse:
+    ## Get progress of a specific background download
+    ##
+    var headers = buildCorsHeaders("GET", allowedOrigin)
+
+    if cid.isErr:
+      return RestApiResponse.error(Http400, $cid.error(), headers = headers)
+
+    if downloadId.isErr:
+      return RestApiResponse.error(Http400, "Invalid download ID", headers = headers)
+
+    let progress = node.getDownloadProgress(downloadId.get(), cid.get())
+    if progress.isSome:
+      let
+        p = progress.get()
+        json = %*{
+          "active": true,
+          "received": p.blocksCompleted,
+          "total": p.totalBlocks,
+          "bytes": p.bytesTransferred,
+        }
+      return RestApiResponse.response($json, contentType = "application/json")
+    else:
+      let json = %*{"active": false}
+      return RestApiResponse.response($json, contentType = "application/json")
 
   router.api(MethodGet, "/api/storage/v1/data/{cid}/network/stream") do(
     cid: Cid, resp: HttpResponseRef

@@ -5,13 +5,17 @@ import pkg/unittest2
 import pkg/storage/blockexchange/engine/scheduler {.all.}
 
 suite "Scheduler":
+  const
+    WindowSize = 16384'u64
+    Threshold = 0.75
+
   var scheduler: Scheduler
 
   setup:
     scheduler = Scheduler.new()
 
   test "Should initialize with correct parameters":
-    scheduler.init(1000, 100)
+    scheduler.init(1000, 100, WindowSize, Threshold)
 
     check scheduler.totalBlockCount() == 1000
     check scheduler.batchSizeCount() == 100
@@ -19,7 +23,7 @@ suite "Scheduler":
     check scheduler.isEmpty() == false
 
   test "Should take batches in order":
-    scheduler.init(1000, 100)
+    scheduler.init(1000, 100, WindowSize, Threshold)
 
     let batch1 = scheduler.take()
     check batch1.isSome
@@ -32,7 +36,7 @@ suite "Scheduler":
     check batch2.get.count == 100
 
   test "Should handle last batch with fewer blocks":
-    scheduler.init(250, 100)
+    scheduler.init(250, 100, WindowSize, Threshold)
 
     discard scheduler.take()
     discard scheduler.take()
@@ -43,7 +47,7 @@ suite "Scheduler":
     check lastBatch.get.count == 50
 
   test "Should mark batch as complete":
-    scheduler.init(300, 100)
+    scheduler.init(300, 100, WindowSize, Threshold)
 
     let batch = scheduler.take()
     check batch.isSome
@@ -56,7 +60,7 @@ suite "Scheduler":
     check next.get.start == 100
 
   test "Should requeue batch at front":
-    scheduler.init(500, 100)
+    scheduler.init(500, 100, WindowSize, Threshold)
 
     let batch1 = scheduler.take()
     check batch1.get.start == 0
@@ -72,7 +76,7 @@ suite "Scheduler":
     check requeued.get.count == 100
 
   test "Should requeue batch at back":
-    scheduler.init(500, 100)
+    scheduler.init(500, 100, WindowSize, Threshold)
 
     let
       batch1 = scheduler.take()
@@ -88,7 +92,7 @@ suite "Scheduler":
     check second.get.start == 0
 
   test "Should handle partialComplete with single missing range":
-    scheduler.init(1000, 100)
+    scheduler.init(1000, 100, WindowSize, Threshold)
 
     let batch = scheduler.take()
     check batch.isSome
@@ -104,7 +108,7 @@ suite "Scheduler":
     check next.get.count == 50
 
   test "Should handle partialComplete with multiple missing ranges":
-    scheduler.init(1000, 100)
+    scheduler.init(1000, 100, WindowSize, Threshold)
 
     let batch = scheduler.take()
     check batch.isSome
@@ -125,7 +129,7 @@ suite "Scheduler":
     check next2.get.count == 25
 
   test "Should handle partialComplete with non-contiguous missing ranges":
-    scheduler.init(1000, 256)
+    scheduler.init(1000, 256, WindowSize, Threshold)
 
     let batch = scheduler.take()
     check batch.isSome
@@ -147,7 +151,7 @@ suite "Scheduler":
     check next2.get.count == 55
 
   test "Should not skip completed batches after partialComplete":
-    scheduler.init(500, 100)
+    scheduler.init(500, 100, WindowSize, Threshold)
 
     let batch1 = scheduler.take()
     check batch1.get.start == 0
@@ -166,7 +170,7 @@ suite "Scheduler":
     check next.get.count == 50
 
   test "Should become empty after all batches complete":
-    scheduler.init(200, 100)
+    scheduler.init(200, 100, WindowSize, Threshold)
 
     let batch1 = scheduler.take()
     scheduler.markComplete(batch1.get.start)
@@ -178,7 +182,7 @@ suite "Scheduler":
     check scheduler.hasWork() == false
 
   test "Should handle out-of-order completion":
-    scheduler.init(500, 100)
+    scheduler.init(500, 100, WindowSize, Threshold)
 
     let
       batch0 = scheduler.take()
@@ -198,7 +202,7 @@ suite "Scheduler":
     check next.get.start == 300
 
   test "Should initialize with range":
-    scheduler.initRange(500, 200, 100)
+    scheduler.initRange(500, 200, 100, WindowSize, Threshold)
 
     check scheduler.totalBlockCount() == 700
     check scheduler.batchSizeCount() == 100
@@ -232,7 +236,7 @@ suite "Scheduler":
     check batch2.get.count == 75
 
   test "Should clear scheduler":
-    scheduler.init(500, 100)
+    scheduler.init(500, 100, WindowSize, Threshold)
 
     discard scheduler.take()
     discard scheduler.take()
@@ -250,7 +254,7 @@ suite "Scheduler":
     check batch.isNone
 
   test "Should return pending batches":
-    scheduler.init(500, 100)
+    scheduler.init(500, 100, WindowSize, Threshold)
 
     check scheduler.pending().len == 0
 
@@ -263,7 +267,7 @@ suite "Scheduler":
     check pending[0].count == 100
 
   test "Should return correct requeuedCount":
-    scheduler.init(500, 100)
+    scheduler.init(500, 100, WindowSize, Threshold)
 
     check scheduler.requeuedCount() == 0
 
@@ -275,7 +279,7 @@ suite "Scheduler":
     check scheduler.requeuedCount() == 2
 
   test "Should return none when exhausted":
-    scheduler.init(200, 100)
+    scheduler.init(200, 100, WindowSize, Threshold)
 
     let
       b1 = scheduler.take()
@@ -288,7 +292,7 @@ suite "Scheduler":
     check b3.isNone
 
   test "Should handle single block":
-    scheduler.init(1, 100)
+    scheduler.init(1, 100, WindowSize, Threshold)
 
     let batch = scheduler.take()
     check batch.isSome
@@ -299,7 +303,7 @@ suite "Scheduler":
     check scheduler.isEmpty() == true
 
   test "Should handle batch size larger than total":
-    scheduler.init(50, 100)
+    scheduler.init(50, 100, WindowSize, Threshold)
 
     let batch = scheduler.take()
     check batch.isSome
@@ -310,7 +314,7 @@ suite "Scheduler":
     check scheduler.isEmpty() == true
 
   test "Should handle zero blocks":
-    scheduler.init(0, 100)
+    scheduler.init(0, 100, WindowSize, Threshold)
 
     check scheduler.hasWork() == false
     check scheduler.isEmpty() == true
@@ -319,7 +323,7 @@ suite "Scheduler":
     check batch.isNone
 
   test "Should ignore requeue of completed batch":
-    scheduler.init(300, 100)
+    scheduler.init(300, 100, WindowSize, Threshold)
 
     let batch = scheduler.take()
     scheduler.markComplete(batch.get.start)
@@ -330,7 +334,7 @@ suite "Scheduler":
     check scheduler.requeuedCount() == 0
 
   test "Should track in-flight batches":
-    scheduler.init(300, 100)
+    scheduler.init(300, 100, WindowSize, Threshold)
 
     let batch = scheduler.take()
     check batch.isSome
@@ -347,7 +351,7 @@ suite "Scheduler":
     check batch3.get.start == 100
 
   test "Should skip completed batches in requeued":
-    scheduler.init(500, 100)
+    scheduler.init(500, 100, WindowSize, Threshold)
 
     discard scheduler.take()
     scheduler.requeueBack(0, 100)
@@ -361,7 +365,7 @@ suite "Scheduler":
     check next.get.start == 100
 
   test "Watermark advances after all sub-ranges of partial batch complete":
-    scheduler.init(16, 8)
+    scheduler.init(16, 8, WindowSize, Threshold)
 
     let batch = scheduler.take()
     check batch.get.start == 0
@@ -399,7 +403,7 @@ suite "Scheduler":
     check scheduler.completedWatermark() == 8
 
   test "Watermark merges OOO after partial batch completes":
-    scheduler.init(24, 8)
+    scheduler.init(24, 8, WindowSize, Threshold)
 
     let
       batch0 = scheduler.take()
@@ -424,7 +428,7 @@ suite "Scheduler":
     check scheduler.isEmpty() == true
 
   test "Nested partials, requeues, OOO merge, multiple partial batches":
-    scheduler.init(40, 8)
+    scheduler.init(40, 8, WindowSize, Threshold)
 
     let
       b0 = scheduler.take()

@@ -19,6 +19,7 @@ import pkg/questionable
 import ../protocol/message
 import ../../blocktype
 import ../../logutils
+import ../../stores/blockstore
 
 import ./scheduler
 import ./swarm
@@ -69,6 +70,8 @@ type
     blockRetries*: int
     retryInterval*: Duration
     cancelled*: bool
+    isBackground*: bool
+    fetchLocal*: bool
     completionFuture*: Future[?!void].Raising([CancelledError])
 
 proc waitForComplete*(
@@ -207,6 +210,11 @@ proc failExhaustedBlocks*(download: ActiveDownload, addresses: seq[BlockAddress]
     download.failWantHandle(address, error)
     download.blocks.del(address)
 
+  download.signalCompletionIfDone(error)
+
+proc failLocalMissing*(download: ActiveDownload, address: BlockAddress) =
+  let error = (ref BlockNotFoundError)(msg: "Block not found locally: " & $address)
+  download.failWantHandle(address, error)
   download.signalCompletionIfDone(error)
 
 proc isBlockExhausted*(download: ActiveDownload, address: BlockAddress): bool =

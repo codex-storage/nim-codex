@@ -33,27 +33,8 @@ type NetworkStore* = ref object of BlockStore
 
 method getBlocks*(
     self: NetworkStore, addresses: seq[BlockAddress]
-): Future[SafeAsyncIter[Block]] {.async: (raises: [CancelledError]).} =
-  let runtimeQuota = 10.milliseconds
-  var
-    localAddresses: seq[BlockAddress]
-    remoteAddresses: seq[BlockAddress]
-    lastIdle = Moment.now()
-
-  for address in addresses:
-    if not (await address in self.localStore):
-      remoteAddresses.add(address)
-    else:
-      localAddresses.add(address)
-
-    if (Moment.now() - lastIdle) >= runtimeQuota:
-      await idleAsync()
-      lastIdle = Moment.now()
-
-  return chain(
-    await self.localStore.getBlocks(localAddresses),
-    self.engine.requestBlocks(remoteAddresses),
-  )
+): Future[SafeAsyncIter[Block]] {.async: (raw: true, raises: [CancelledError]).} =
+  self.localStore.getBlocks(addresses)
 
 method getBlock*(
     self: NetworkStore, address: BlockAddress
@@ -69,11 +50,7 @@ method getBlock*(
     discard downloadOpt.get().completeWantHandle(address, some(blk))
     return success blk
 
-  without newBlock =? (await self.engine.requestBlock(address)), err:
-    error "Unable to get block from exchange engine", address, err = err.msg
-    return failure err
-
-  return success newBlock
+  return await self.localStore.getBlock(address)
 
 method getBlock*(
     self: NetworkStore, cid: Cid

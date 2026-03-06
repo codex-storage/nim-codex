@@ -323,16 +323,22 @@ proc downloadDataset*(
 ): Future[void] {.async.} =
   # This is the same as fetchBatched, but we don't construct StorageNodes so I can't use
   # it here.
-  let requestAddresses = collect:
-    for i in 0 ..< dataset.manifest.blocksCount:
-      BlockAddress.init(dataset.manifest.treeCid, i)
+  let
+    treeCid = dataset.manifest.treeCid
+    totalBlocks = dataset.manifest.blocksCount.uint64
+    blockSize = dataset.manifest.blockSize.uint32
+    handleResult = node.engine.startTreeDownload(treeCid, blockSize, totalBlocks)
 
-  let blockCids = dataset.blocks.mapIt(it.cid).toHashSet()
+  doAssert handleResult.isOk, "Failed to start download"
+  let
+    handle = handleResult.get()
+    blockCids = dataset.blocks.mapIt(it.cid).toHashSet()
 
   var count = 0
-  for blockFut in (await node.networkStore.getBlocks(requestAddresses)):
-    let blk = (await blockFut).tryGet()
+  while not handle.finished:
+    let blk = (await handle.next()).tryGet()
     assert blk.cid in blockCids, "Unknown block CID: " & $blk.cid
     count += 1
 
   assert count == dataset.blocks.len, "Incorrect number of blocks downloaded"
+  node.engine.releaseDownload(handle)

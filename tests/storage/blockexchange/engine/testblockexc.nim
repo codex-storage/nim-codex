@@ -57,16 +57,6 @@ asyncchecksuite "BlockExchange - Basic Block Transfer":
   teardown:
     await cluster.components.stop()
 
-  test "Should request and receive a single block":
-    let
-      blk = dataset.blocks[0]
-      address = BlockAddress(treeCid: dataset.manifest.treeCid, index: 0)
-      res = await leecher.engine.requestBlock(address)
-
-    check res.isOk
-    check res.get.cid == blk.cid
-    check res.get.data[] == blk.data[]
-
   test "Should download dataset using networkStore":
     await leecher.downloadDataset(dataset)
 
@@ -433,14 +423,6 @@ asyncchecksuite "BlockExchange - Local Block Resolution":
   teardown:
     await cluster.components.stop()
 
-  test "Should return local blocks directly":
-    for i, blk in dataset.blocks:
-      let
-        address = BlockAddress(treeCid: dataset.manifest.treeCid, index: i)
-        res = await node1.engine.requestBlock(address)
-      check res.isOk
-      check res.get.cid == blk.cid
-
   test "Download worker should complete wantHandles when all blocks are local":
     let
       treeCid = dataset.manifest.treeCid
@@ -575,21 +557,3 @@ asyncchecksuite "BlockExchange - NetworkStore getBlocks":
   test "getBlocks mixed local and network":
     await leecher.assignBlocks(dataset, 0 ..< 2)
     await leecher.downloadDataset(dataset)
-
-  test "getBlocks subset with some local":
-    let
-      treeCid = dataset.manifest.treeCid
-      totalBlocks = dataset.blocks.len
-
-    await leecher.assignBlocks(dataset, 0 ..< totalBlocks - 2)
-
-    var addresses: seq[BlockAddress]
-    for i in totalBlocks - 2 ..< totalBlocks:
-      addresses.add(BlockAddress.init(treeCid, i))
-
-    var count = 0
-    for blkFut in (await leecher.networkStore.getBlocks(addresses)):
-      let blk = (await blkFut).tryGet()
-      count += 1
-
-    check count == 2

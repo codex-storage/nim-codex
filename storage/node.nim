@@ -132,12 +132,19 @@ proc updateExpiry*(
   return success()
 
 proc fetchDatasetAsync*(
-    self: StorageNodeRef, manifest: Manifest, fetchLocal = true
+    self: StorageNodeRef,
+    manifest: Manifest,
+    fetchLocal = true,
+    selectionPolicy: SelectionPolicy = spSequential,
 ): Future[?!void] {.async: (raises: [CancelledError]).} =
   let
     treeCid = manifest.treeCid
     download = ?self.engine.startTreeDownloadOpaque(
-      treeCid, manifest.blockSize.uint32, manifest.blocksCount.uint64
+      treeCid,
+      manifest.blockSize.uint32,
+      manifest.blocksCount.uint64,
+      selectionPolicy = selectionPolicy,
+      fetchLocal = fetchLocal,
     )
   try:
     trace "Starting tree download",
@@ -146,16 +153,56 @@ proc fetchDatasetAsync*(
   finally:
     self.engine.releaseDownload(download)
 
-proc fetchDatasetAsyncTask*(self: StorageNodeRef, manifest: Manifest) =
-  ## Start fetching a dataset in the background.
-  ## The task will be tracked and cleaned up on node shutdown.
-  ##
+proc cancelBackgroundDownload*(
+    self: StorageNodeRef, downloadId: uint64, cid: Cid
+): bool =
+  self.engine.cancelBackgroundDownload(downloadId, cid)
 
+proc getDownloadProgress*(
+    self: StorageNodeRef, downloadId: uint64, cid: Cid
+): Option[DownloadProgress] =
+  self.engine.getDownloadProgress(downloadId, cid)
+
+proc startBackgroundDownload*(
+    self: StorageNodeRef,
+    manifest: Manifest,
+    selectionPolicy: SelectionPolicy = spSequential,
+): Future[?!uint64] {.async: (raises: [CancelledError]).} =
+  let
+    treeCid = manifest.treeCid
+    totalBlocks = manifest.blocksCount.uint64
+    existing = self.engine.downloadManager.getBackgroundDownload(treeCid)
+
+  if existing.isSome:
+    return success(existing.get().id)
+
+  let
+    download = ?self.engine.startTreeDownloadOpaque(
+      treeCid,
+      manifest.blockSize.uint32,
+      totalBlocks,
+      selectionPolicy = selectionPolicy,
+      isBackground = true,
+    )
+    downloadId = download.downloadId
+
+  proc waitForCompleteTask(): Future[void] {.async: (raises: []).} =
+    try:
+      discard await download.waitForComplete()
+    except CancelledError:
+      trace "Background download cancelled", treeCid = treeCid, downloadId
+    finally:
+      self.engine.releaseDownload(download)
+
+  self.trackedFutures.track(waitForCompleteTask())
+  return success(downloadId)
+
+proc fetchDatasetAsyncTask*(self: StorageNodeRef, manifest: Manifest) =
+  ## Kept for C library compatibility.
   proc fetchTask(): Future[void] {.async: (raises: []).} =
     try:
-      if err =? (await self.fetchDatasetAsync(manifest, fetchLocal = false)).errorOption:
-        error "Background dataset fetch failed",
-          treeCid = manifest.treeCid, err = err.msg
+      discard
+        await self.startBackgroundDownload(manifest, selectionPolicy = spRandomWindow)
     except CancelledError:
       trace "Background dataset fetch cancelled", treeCid = manifest.treeCid
 
@@ -187,7 +234,7 @@ proc streamSingleBlock(
   LPStream(stream).success
 
 proc streamEntireDataset(
-    self: StorageNodeRef, manifest: Manifest, manifestCid: Cid
+    self: StorageNodeRef, manifest: Manifest, manifestCid: Cid, fetchLocal: bool = false
 ): Future[?!LPStream] {.async: (raises: [CancelledError]).} =
   ## Streams the contents of the entire dataset described by the manifest.
   ##
@@ -198,7 +245,8 @@ proc streamEntireDataset(
 
   proc fetchTask(): Future[void] {.async: (raises: []).} =
     try:
-      if err =? (await self.fetchDatasetAsync(manifest, fetchLocal = false)).errorOption:
+      if err =?
+          (await self.fetchDatasetAsync(manifest, fetchLocal = fetchLocal)).errorOption:
         error "Dataset fetch failed during streaming", manifestCid, err = err.msg
         await stream.close()
     except CancelledError:

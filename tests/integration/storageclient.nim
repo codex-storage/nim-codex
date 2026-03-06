@@ -170,6 +170,32 @@ proc downloadManifestOnly*(
 
   success await response.body
 
+proc startDownload*(
+    client: StorageClient, cid: Cid
+): Future[?!uint64] {.async: (raises: [CancelledError, HttpError]).} =
+  let response = await client.post(client.baseurl & "/data/" & $cid & "/network")
+
+  if response.status != 200:
+    return failure($response.status)
+
+  without jsonData =? JsonNode.parse(await response.body), err:
+    return failure(err)
+  let idNode = jsonData.getOrDefault("downloadId")
+  if idNode.isNil:
+    return failure("missing downloadId in response")
+  success idNode.getInt().uint64
+
+proc getDownloadProgress*(
+    client: StorageClient, cid: Cid, downloadId: uint64
+): Future[?!JsonNode] {.async: (raises: [CancelledError, HttpError]).} =
+  let url = client.baseurl & "/data/" & $cid & "/network/progress/" & $downloadId
+  let response = await client.get(url)
+
+  if response.status != 200:
+    return failure($response.status)
+
+  return JsonNode.parse(await response.body)
+
 proc deleteRaw*(
     client: StorageClient, cid: string
 ): Future[HttpClientResponseRef] {.

@@ -69,6 +69,18 @@ asyncchecksuite "Test Node - Basic":
       let blk = (await localStore.getBlock(manifest.treeCid, i)).tryGet()
       check blk.data[].len > 0
 
+  test "Fetch Dataset with fetchLocal fails when block missing":
+    let
+      blocks = await makeRandomBlocks(datasetSize = 2048, blockSize = 256'nb)
+      manifest = await storeDataGetManifest(localStore, blocks)
+
+    # Delete one block so it's missing locally
+    (await localStore.delBlock(manifest.treeCid, 0)).tryGet()
+
+    let res = await node.fetchDatasetAsync(manifest, fetchLocal = true)
+    check res.isErr
+    check res.error of BlockNotFoundError
+
   test "Should store Data Stream":
     let
       stream = BufferStream.new()
@@ -118,6 +130,73 @@ asyncchecksuite "Test Node - Basic":
     storedData.setLen(manifest.datasetSize.int) # truncate data to original size
     check:
       storedData == data
+
+  test "Stream blocks with fetchLocal succeeds when all local":
+    let
+      blocks = await makeRandomBlocks(datasetSize = 2048, blockSize = 256'nb)
+      manifest = await storeDataGetManifest(localStore, blocks)
+      treeCid = manifest.treeCid
+      totalBlocks = manifest.blocksCount.uint64
+      blockSize = manifest.blockSize.uint32
+      handle = engine
+        .startTreeDownload(treeCid, blockSize, totalBlocks, fetchLocal = true)
+        .tryGet()
+
+    defer:
+      engine.releaseDownload(handle)
+
+    var count = 0
+    while not handle.finished:
+      let blk = (await handle.next()).tryGet()
+      check blk.data[].len > 0
+      count += 1
+    check count.uint64 == totalBlocks
+
+  test "Stream blocks with fetchLocal fails when block missing":
+    let
+      blocks = await makeRandomBlocks(datasetSize = 2048, blockSize = 256'nb)
+      manifest = await storeDataGetManifest(localStore, blocks)
+      treeCid = manifest.treeCid
+      totalBlocks = manifest.blocksCount.uint64
+      blockSize = manifest.blockSize.uint32
+
+    # Delete one block so it's missing locally
+    (await localStore.delBlock(treeCid, 0)).tryGet()
+
+    let handle = engine
+      .startTreeDownload(treeCid, blockSize, totalBlocks, fetchLocal = true)
+      .tryGet()
+    defer:
+      engine.releaseDownload(handle)
+
+    let res = await handle.next()
+    check res.isErr
+    check res.error of BlockNotFoundError
+
+  test "Stream blocks with fetchLocal=false fails when retries exhausted":
+    let
+      blocks = await makeRandomBlocks(datasetSize = 2048, blockSize = 256'nb)
+      manifest = await storeDataGetManifest(localStore, blocks)
+      treeCid = manifest.treeCid
+      totalBlocks = manifest.blocksCount.uint64
+      blockSize = manifest.blockSize.uint32
+
+    # Delete one block so it's missing locally
+    (await localStore.delBlock(treeCid, 0)).tryGet()
+
+    # Configure low retries so the test completes quickly (no peers to fetch from)
+    downloadManager.blockRetries = 1
+    downloadManager.retryInterval = 10.milliseconds
+
+    let handle = engine
+      .startTreeDownload(treeCid, blockSize, totalBlocks, fetchLocal = false)
+      .tryGet()
+    defer:
+      engine.releaseDownload(handle)
+
+    let res = await handle.next()
+    check res.isErr
+    check res.error of RetriesExhaustedError
 
   test "Retrieve One Block":
     let

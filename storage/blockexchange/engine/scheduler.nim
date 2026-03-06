@@ -7,13 +7,33 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/[algorithm, deques, sets, tables, options]
+import std/[algorithm, deques, sets, tables, options, random, bitops, math]
 
 type
   BlockBatch* = tuple[start: uint64, count: uint64]
 
   SelectionPolicy* = enum
     spSequential
+    spRandomWindow
+
+  SequentialWindowCursor = object
+    advanceThreshold: float
+
+  RandomWindowCursor = object
+    totalWindows: uint64
+    halfBits: uint8
+    roundKeys: array[4, uint64]
+    nextIdx: uint64
+
+  WindowCursor = object
+    windowStart: uint64
+    windowSize: uint64
+    totalBlocks: uint64
+    case policy: SelectionPolicy
+    of spSequential:
+      sequential: SequentialWindowCursor
+    of spRandomWindow:
+      random: RandomWindowCursor
 
   Scheduler* = ref object
     totalBlocks: uint64
@@ -24,6 +44,142 @@ type
     completedOutOfOrder: HashSet[uint64]
     inFlight: Table[uint64, uint64] # batch start -> block count
     batchRemaining: Table[uint64, uint64] # parent batch start -> remaining blocks
+    windowCursor: WindowCursor
+
+proc canAdvance(
+    p: SequentialWindowCursor, windowStart, windowSize, totalBlocks: uint64
+): bool =
+  windowStart + windowSize < totalBlocks
+
+proc needsAdvance(
+    p: SequentialWindowCursor, windowStart, windowSize, totalBlocks, watermark: uint64
+): bool =
+  if not p.canAdvance(windowStart, windowSize, totalBlocks):
+    return false
+  let thresholdPos = windowStart + (windowSize.float * p.advanceThreshold).uint64
+  watermark >= thresholdPos
+
+proc advance(
+    p: SequentialWindowCursor, windowStart, windowSize, totalBlocks: uint64
+): (bool, uint64) =
+  if not p.canAdvance(windowStart, windowSize, totalBlocks):
+    return (false, 0)
+  (true, min(windowStart + windowSize, totalBlocks))
+
+proc permuteWindowIndex(p: RandomWindowCursor, x: uint64): uint64 =
+  func fmix64(x: uint64, seed: uint64): uint64 =
+    var h = x xor seed
+    h = h xor (h shr 33)
+    h = h * 0xff51afd7ed558ccd'u64
+    h = h xor (h shr 33)
+    h = h * 0xc4ceb9fe1a85ec53'u64
+    h = h xor (h shr 33)
+    h
+
+  let mask = (1'u64 shl p.halfBits) - 1
+  var
+    left = (x shr p.halfBits) and mask
+    right = x and mask
+  for i in 0 .. 3:
+    let
+      f = fmix64(right, p.roundKeys[i]) and mask
+      newLeft = right
+      newRight = left xor f
+    left = newLeft
+    right = newRight
+  (left shl p.halfBits) or right
+
+proc pickNext(p: var RandomWindowCursor): uint64 =
+  if p.totalWindows <= 1:
+    p.nextIdx += 1
+    return 0
+  var x = p.nextIdx
+  while true:
+    let permuted = p.permuteWindowIndex(x)
+    x = permuted
+    if permuted < p.totalWindows:
+      p.nextIdx += 1
+      return permuted
+
+proc isDone(p: RandomWindowCursor): bool =
+  p.nextIdx >= p.totalWindows
+
+proc advance(p: var RandomWindowCursor, windowSize: uint64): (bool, uint64) =
+  if p.isDone:
+    return (false, 0)
+  let windowIdx = p.pickNext()
+  (true, windowIdx * windowSize)
+
+proc currentWindow(p: WindowCursor): tuple[start: uint64, count: uint64] =
+  (start: p.windowStart, count: min(p.windowSize, p.totalBlocks - p.windowStart))
+
+proc isDone(p: WindowCursor): bool =
+  case p.policy
+  of spSequential:
+    not p.sequential.canAdvance(p.windowStart, p.windowSize, p.totalBlocks)
+  of spRandomWindow:
+    p.random.isDone
+
+proc canAdvance(p: WindowCursor): bool =
+  not p.isDone
+
+proc needsAdvance(p: WindowCursor, watermark: uint64): bool =
+  case p.policy
+  of spSequential:
+    p.sequential.needsAdvance(p.windowStart, p.windowSize, p.totalBlocks, watermark)
+  of spRandomWindow:
+    false
+
+proc advance(p: var WindowCursor): bool =
+  let (ok, newStart) =
+    case p.policy
+    of spSequential:
+      p.sequential.advance(p.windowStart, p.windowSize, p.totalBlocks)
+    of spRandomWindow:
+      p.random.advance(p.windowSize)
+  if ok:
+    p.windowStart = newStart
+  ok
+
+proc initSequentialWindowCursor(
+    totalBlocks: uint64, windowSize: uint64, advanceThreshold: float
+): WindowCursor =
+  WindowCursor(
+    policy: spSequential,
+    windowStart: 0,
+    windowSize: windowSize,
+    totalBlocks: totalBlocks,
+    sequential: SequentialWindowCursor(advanceThreshold: advanceThreshold),
+  )
+
+proc initRandomWindowCursor(totalBlocks: uint64, windowSize: uint64): WindowCursor =
+  if totalBlocks == 0 or windowSize == 0:
+    return WindowCursor(policy: spRandomWindow)
+
+  var rng = initRand()
+  let
+    totalWindows = ceilDiv(totalBlocks, windowSize)
+    seed = cast[uint64](rng.next())
+
+  var
+    rngKeys = initRand(cast[int64](seed))
+    random = RandomWindowCursor(totalWindows: totalWindows)
+  if totalWindows <= 1:
+    random.halfBits = 1
+  else:
+    let bits = fastLog2(int(totalWindows - 1)) + 1
+    random.halfBits = max(1'u8, uint8((bits + 1) div 2))
+  for i in 0 .. 3:
+    random.roundKeys[i] = rngKeys.next().uint64
+
+  let windowIdx = random.pickNext()
+  result = WindowCursor(
+    policy: spRandomWindow,
+    windowSize: windowSize,
+    totalBlocks: totalBlocks,
+    random: random,
+  )
+  result.windowStart = windowIdx * result.windowSize
 
 proc new*(T: type Scheduler): Scheduler =
   Scheduler(
@@ -35,30 +191,17 @@ proc new*(T: type Scheduler): Scheduler =
     completedOutOfOrder: initHashSet[uint64](),
     inFlight: initTable[uint64, uint64](),
     batchRemaining: initTable[uint64, uint64](),
+    windowCursor: WindowCursor(policy: spSequential),
   )
 
-proc init*(self: Scheduler, totalBlocks: uint64, batchSize: uint64) =
-  self.totalBlocks = totalBlocks
+proc resetState(self: Scheduler, batchSize: uint64) =
   self.batchSize = batchSize
   self.nextBatchStart = 0
-  self.requeued.clear()
   self.completedWatermark = 0
-  self.completedOutOfOrder.clear()
-  self.inFlight.clear()
-  self.batchRemaining.clear()
-
-proc initRange*(self: Scheduler, startIndex: uint64, count: uint64, batchSize: uint64) =
-  self.totalBlocks = startIndex + count
-  self.batchSize = batchSize
-  self.nextBatchStart = startIndex
   self.requeued.clear()
-  self.completedWatermark = startIndex
   self.completedOutOfOrder.clear()
   self.inFlight.clear()
   self.batchRemaining.clear()
-
-proc updateBatchSize*(self: Scheduler, newBatchSize: uint64) =
-  self.batchSize = newBatchSize
 
 proc add*(self: Scheduler, start: uint64, count: uint64) =
   self.requeued.addLast((start: start, count: count))
@@ -68,15 +211,43 @@ proc add*(self: Scheduler, start: uint64, count: uint64) =
   if self.batchSize == 0:
     self.batchSize = count
 
-proc initFromIndices*(self: Scheduler, indices: seq[uint64], batchSize: uint64) =
+proc init*(
+    self: Scheduler,
+    totalBlocks: uint64,
+    batchSize: uint64,
+    windowSize: uint64,
+    advanceThreshold: float,
+) =
+  self.totalBlocks = totalBlocks
+  self.resetState(batchSize)
+  self.windowCursor =
+    initSequentialWindowCursor(totalBlocks, windowSize, advanceThreshold)
+
+proc initRange*(
+    self: Scheduler,
+    startIndex: uint64,
+    count: uint64,
+    batchSize: uint64,
+    windowSize: uint64,
+    advanceThreshold: float,
+) =
+  self.totalBlocks = startIndex + count
+  self.resetState(batchSize)
+  self.nextBatchStart = startIndex
+  self.completedWatermark = startIndex
+  self.windowCursor =
+    initSequentialWindowCursor(self.totalBlocks, windowSize, advanceThreshold)
+
+proc initFromIndices*(
+    self: Scheduler,
+    indices: seq[uint64],
+    batchSize: uint64,
+    windowSize: uint64,
+    advanceThreshold: float,
+) =
   let sortedIndices = indices.sorted()
-  self.batchSize = batchSize
-  self.nextBatchStart = 0
-  self.requeued.clear()
-  self.completedWatermark = 0
-  self.completedOutOfOrder.clear()
-  self.inFlight.clear()
-  self.batchRemaining.clear()
+  self.totalBlocks = 0
+  self.resetState(batchSize)
 
   var
     batchStart: uint64 = 0
@@ -103,12 +274,27 @@ proc initFromIndices*(self: Scheduler, indices: seq[uint64], batchSize: uint64) 
   if inBatch and batchCount > 0:
     self.add(batchStart, batchCount)
 
+  self.windowCursor =
+    initSequentialWindowCursor(self.totalBlocks, windowSize, advanceThreshold)
+
+proc initRandomWindows*(
+    self: Scheduler, totalBlocks: uint64, batchSize: uint64, windowSize: uint64
+) =
+  self.totalBlocks = totalBlocks
+  self.resetState(batchSize)
+  self.windowCursor = initRandomWindowCursor(totalBlocks, windowSize)
+  self.nextBatchStart = self.windowCursor.currentWindow().start
+
+proc currentPresenceWindow*(self: Scheduler): tuple[start: uint64, count: uint64] =
+  self.windowCursor.currentWindow()
+
 proc generateNextBatchInternal(self: Scheduler): Option[BlockBatch] {.inline.} =
   ## does NOT add to inFlight - we must do that
-  while self.nextBatchStart < self.totalBlocks:
+  let (windowStart, windowCount) = self.windowCursor.currentWindow()
+  while self.nextBatchStart < windowStart + windowCount:
     let
       start = self.nextBatchStart
-      count = min(self.batchSize, self.totalBlocks - start)
+      count = min(self.batchSize, windowStart + windowCount - start)
     self.nextBatchStart = start + count
 
     if start < self.completedWatermark:
@@ -171,6 +357,13 @@ proc findPartialParent(self: Scheduler, start: uint64): Option[uint64] =
       return some parent
   return none(uint64)
 
+proc onBatchCompleted(self: Scheduler, batchStart: uint64) =
+  case self.windowCursor.policy
+  of spSequential:
+    self.advanceWatermark(batchStart)
+  of spRandomWindow:
+    discard
+
 proc markComplete*(self: Scheduler, start: uint64) =
   let count = self.inFlight.getOrDefault(start, 0'u64)
   self.inFlight.del(start)
@@ -181,10 +374,10 @@ proc markComplete*(self: Scheduler, start: uint64) =
       remaining[] -= count
       if remaining[] <= 0:
         self.batchRemaining.del(parent.get)
-        self.advanceWatermark(parent.get)
+        self.onBatchCompleted(parent.get)
     return
 
-  self.advanceWatermark(start)
+  self.onBatchCompleted(start)
 
 proc partialComplete*(
     self: Scheduler, originalStart: uint64, missingRanges: seq[BlockBatch]
@@ -209,14 +402,42 @@ proc partialComplete*(
     self.requeued.addFirst(batch)
 
 proc isEmpty*(self: Scheduler): bool =
-  self.completedWatermark >= self.totalBlocks and self.requeued.len == 0 and
-    self.inFlight.len == 0
+  case self.windowCursor.policy
+  of spSequential:
+    self.completedWatermark >= self.totalBlocks and self.requeued.len == 0 and
+      self.inFlight.len == 0
+  of spRandomWindow:
+    let (start, count) = self.windowCursor.currentWindow()
+    self.windowCursor.isDone and self.nextBatchStart >= start + count and
+      self.requeued.len == 0 and self.inFlight.len == 0
+
+proc needsNextPresenceWindow*(self: Scheduler): bool =
+  case self.windowCursor.policy
+  of spSequential:
+    let (windowStart, windowCount) = self.windowCursor.currentWindow()
+    self.nextBatchStart >= windowStart + windowCount and
+      self.windowCursor.needsAdvance(self.completedWatermark)
+  of spRandomWindow:
+    let (start, count) = self.windowCursor.currentWindow()
+    not self.windowCursor.isDone and self.nextBatchStart >= start + count and
+      self.requeued.len == 0 and self.inFlight.len == 0
+
+proc advancePresenceWindow*(self: Scheduler): bool =
+  if not self.windowCursor.advance():
+    return false
+  self.nextBatchStart = self.windowCursor.currentWindow().start
+  true
 
 proc completedWatermark*(self: Scheduler): uint64 =
   self.completedWatermark
 
 proc hasWork*(self: Scheduler): bool {.inline.} =
-  self.requeued.len > 0 or self.nextBatchStart < self.totalBlocks
+  if self.requeued.len > 0:
+    return true
+  let (start, count) = self.windowCursor.currentWindow()
+  if self.nextBatchStart < start + count:
+    return true
+  self.windowCursor.canAdvance()
 
 proc requeuedCount*(self: Scheduler): int {.inline.} =
   self.requeued.len
@@ -228,14 +449,9 @@ proc pending*(self: Scheduler): seq[BlockBatch] =
   return res
 
 proc clear*(self: Scheduler) =
-  self.requeued.clear()
-  self.completedOutOfOrder.clear()
-  self.inFlight.clear()
-  self.batchRemaining.clear()
-  self.nextBatchStart = 0
-  self.completedWatermark = 0
   self.totalBlocks = 0
-  self.batchSize = 0
+  self.resetState(0)
+  self.windowCursor = WindowCursor(policy: spSequential)
 
 proc totalBlockCount*(self: Scheduler): uint64 =
   self.totalBlocks

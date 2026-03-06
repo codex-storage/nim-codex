@@ -29,43 +29,14 @@ logScope:
   topics = "storage downloadmanager"
 
 const
-  DefaultBlockRetries* = 100
+  DefaultBlockRetries* = 200
   DefaultRetryInterval* = 2.seconds
 
-type
-  DownloadManager* = ref object of RootObj
-    nextDownloadId*: uint64 = 1 # 0 is invalid
-    blockRetries*: int
-    retryInterval*: Duration
-    downloads*: Table[Cid, Table[uint64, ActiveDownload]]
-    selectionPolicy*: SelectionPolicy
-
-  DownloadDesc* = object
-    cid*: Cid
-    blockSize*: uint32
-    startIndex*: uint64
-    count*: uint64
-
-proc id*(desc: DownloadDesc): Cid =
-  desc.cid
-
-proc toDownloadDesc*(
-    treeCid: Cid, totalBlocks: uint64, blockSize: uint32
-): DownloadDesc =
-  DownloadDesc(cid: treeCid, blockSize: blockSize, startIndex: 0, count: totalBlocks)
-
-proc toDownloadDesc*(
-    treeCid: Cid, startIndex: uint64, count: uint64, blockSize: uint32
-): DownloadDesc =
-  DownloadDesc(cid: treeCid, blockSize: blockSize, startIndex: startIndex, count: count)
-
-proc toDownloadDesc*(address: BlockAddress, blockSize: uint32): DownloadDesc =
-  DownloadDesc(
-    cid: address.treeCid,
-    blockSize: blockSize,
-    startIndex: address.index.uint64,
-    count: 1,
-  )
+type DownloadManager* = ref object of RootObj
+  nextDownloadId*: uint64 = 1 # 0 is invalid
+  blockRetries*: int
+  retryInterval*: Duration
+  downloads*: Table[Cid, Table[uint64, ActiveDownload]]
 
 proc getDownload*(self: DownloadManager, treeCid: Cid): Option[ActiveDownload] =
   self.downloads.withValue(treeCid, innerTable):
@@ -73,10 +44,19 @@ proc getDownload*(self: DownloadManager, treeCid: Cid): Option[ActiveDownload] =
       return some(download)
   return none(ActiveDownload)
 
-proc getDownload*(
-    self: DownloadManager, downloadId: uint64, cid: Cid
+proc getBackgroundDownload*(
+    self: DownloadManager, treeCid: Cid
 ): Option[ActiveDownload] =
-  self.downloads.withValue(cid, innerTable):
+  self.downloads.withValue(treeCid, innerTable):
+    for _, download in innerTable[]:
+      if download.isBackground:
+        return some(download)
+  return none(ActiveDownload)
+
+proc getDownload*(
+    self: DownloadManager, downloadId: uint64, treeCid: Cid
+): Option[ActiveDownload] =
+  self.downloads.withValue(treeCid, innerTable):
     innerTable[].withValue(downloadId, download):
       return some(download[])
   return none(ActiveDownload)
@@ -121,46 +101,30 @@ proc releaseDownload*(self: DownloadManager, downloadId: uint64, cid: Cid) =
   if download.isSome:
     self.cancelDownload(download.get())
 
+proc cancelBackgroundDownload*(
+    self: DownloadManager, downloadId: uint64, treeCid: Cid
+): bool =
+  let download = self.getDownload(downloadId, treeCid)
+  if download.isSome and download.get().isBackground:
+    self.cancelDownload(download.get())
+    return true
+  return false
+
 proc getNextBatch*(
     self: DownloadManager, download: ActiveDownload
 ): Option[tuple[start: uint64, count: uint64]] =
-  case self.selectionPolicy
-  of spSequential:
-    let batch = download.ctx.scheduler.take()
-    if batch.isSome:
-      return some((start: batch.get().start, count: batch.get().count))
-
-  return none(tuple[start: uint64, count: uint64])
+  let batch = download.ctx.scheduler.take()
+  if batch.isSome:
+    return some((start: batch.get().start, count: batch.get().count))
+  none(tuple[start: uint64, count: uint64])
 
 proc startDownload*(
     self: DownloadManager, desc: DownloadDesc, missingBlocks: seq[uint64] = @[]
 ): ActiveDownload =
   let
-    totalBlocks = desc.startIndex + desc.count
-    ctx = DownloadContext.new(desc.cid, desc.blockSize, totalBlocks)
-    batchSize =
-      if desc.blockSize > 0:
-        computeBatchSize(desc.blockSize)
-      else:
-        MinBatchSize
+    ctx = DownloadContext.new(desc, missingBlocks)
+    downloadId = self.nextDownloadId
 
-  if missingBlocks.len > 0:
-    # use explicit indices directly
-    ctx.scheduler.initFromIndices(missingBlocks, batchSize.uint64)
-  elif desc.count > batchSize.uint64:
-    # this is a large download, more than one batch, use lazy mode
-    if desc.startIndex == 0:
-      ctx.scheduler.init(desc.count, batchSize.uint64)
-    else:
-      ctx.scheduler.initRange(desc.startIndex, desc.count, batchSize.uint64)
-  else:
-    # this is a small range, single batch or less, schedule explicit indices
-    var indices: seq[uint64] = @[]
-    for i in desc.startIndex ..< desc.startIndex + desc.count:
-      indices.add(i)
-    ctx.scheduler.initFromIndices(indices, batchSize.uint64)
-
-  let downloadId = self.nextDownloadId
   self.nextDownloadId += 1
 
   let download = ActiveDownload(
@@ -173,6 +137,8 @@ proc startDownload*(
     exhaustedBlocks: initHashSet[BlockAddress](),
     blockRetries: self.blockRetries,
     retryInterval: self.retryInterval,
+    isBackground: desc.isBackground,
+    fetchLocal: desc.fetchLocal,
     completionFuture:
       Future[?!void].Raising([CancelledError]).init("ActiveDownload.completion"),
   )
@@ -181,22 +147,36 @@ proc startDownload*(
     download
 
   trace "Started download",
-    cid = desc.cid,
+    treeCid = desc.cid,
     startIndex = desc.startIndex,
     count = desc.count,
-    batchSize = batchSize
+    batchSize = ctx.scheduler.batchSizeCount
 
   return download
+
+proc getDownloadProgress*(
+    self: DownloadManager, treeCid: Cid
+): Option[DownloadProgress] =
+  let downloadOpt = self.getDownload(treeCid)
+  if downloadOpt.isNone:
+    return none(DownloadProgress)
+  some(downloadOpt.get().ctx.progress())
+
+proc getDownloadProgress*(
+    self: DownloadManager, downloadId: uint64, treeCid: Cid
+): Option[DownloadProgress] =
+  let downloadOpt = self.getDownload(downloadId, treeCid)
+  if downloadOpt.isNone:
+    return none(DownloadProgress)
+  some(downloadOpt.get().ctx.progress())
 
 proc new*(
     T: type DownloadManager,
     retries = DefaultBlockRetries,
     interval = DefaultRetryInterval,
-    selectionPolicy = spSequential,
 ): DownloadManager =
   DownloadManager(
     blockRetries: retries,
     retryInterval: interval,
     downloads: initTable[Cid, Table[uint64, ActiveDownload]](),
-    selectionPolicy: selectionPolicy,
   )
