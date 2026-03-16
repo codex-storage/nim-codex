@@ -6,6 +6,7 @@
 ################################################################################
 ### Exported types
 import results
+import stew/ptrops
 
 type StorageCallback* = proc(
   callerRet: cint, msg: ptr cchar, len: csize_t, userData: pointer
@@ -19,7 +20,7 @@ const RET_PROGRESS*: cint = 3
 ## Returns RET_OK as acknowledgment and call the callback
 ## with RET_OK code and the provided message.
 proc success*(callback: StorageCallback, msg: string, userData: pointer): cint =
-  callback(RET_OK, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
+  callback(RET_OK, baseAddr msg, cast[csize_t](len(msg)), userData)
 
   return RET_OK
 
@@ -27,7 +28,7 @@ proc success*(callback: StorageCallback, msg: string, userData: pointer): cint =
 ## with RET_ERR code and the provided message.
 proc error*(callback: StorageCallback, msg: string, userData: pointer): cint =
   let msg = "libstorage error: " & msg
-  callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
+  callback(RET_ERR, baseAddr msg, cast[csize_t](len(msg)), userData)
 
   return RET_ERR
 
