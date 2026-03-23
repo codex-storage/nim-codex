@@ -344,9 +344,10 @@ export class StorageNode {
   }
 
   /**
-   * Fetch content from the network into local store (background fetch).
+   * Downloads the manifest described by CID, then downloads the dataset content (treeCid in the manifest), storing it locally.
    * Does not return progress updates; resolves when fetch is complete.
    * @param {string} cid
+   * @returns {Promise<string>} the fetched manifest (json) content as a UTF-8 string
    */
   fetch(cid) {
     return callAsync(cb => _lib.storage_fetch(this.#ctx, cid, cb, null));

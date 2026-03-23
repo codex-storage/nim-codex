@@ -2,10 +2,29 @@
   "name": "logos-storage-js-tests",
   "version": "0.1.0",
   "type": "module",
+  "//": {
+    "scripts": {
+      "test": [
+        "Runs all the tests",
+        "Usage: `npm test`",
+        "Debug: use `npm test --debug` to output TRACE logs and node config to stdout"
+      ],
+      "testOnly": [
+        "Run tests with names that match the regex name pattern. Useful for development.",
+        "See https://mochajs.org/running/cli/#--grep-regexp--g-regexp for more info on the pattern syntax.",
+        "Usage: `npm run testOnly \"$test name regex\"`",
+        "Debug: also works with --debug (see above)"
+      ]
+    }
+  },
   "scripts": {
-    "test": "node two-node-test.js"
+    "test": "mocha --timeout 30000 two-node-test.js",
+    "testOnly": "sh -c 'mocha --timeout 30000 --grep \"$1\" two-node-test.js' --"
   },
   "dependencies": {
     "koffi": "^2.9.0"
+  },
+  "devDependencies": {
+    "mocha": "^11.7.5"
   }
 }

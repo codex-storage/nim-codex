@@ -10,20 +10,31 @@
  *
  * Usage:
  *   cd tests/js && npm install && npm test
+ *
+ * Environment:
+ *   PORT_BASE  Base port for node listen/disc ports (default: 8792).
+ *              Set explicitly when running in containers so ports are
+ *              predictable and can be pre-declared in port mappings.
  */
 
-import { StorageNode } from './harness.js';
+import { describe, it, before, after, beforeEach, afterEach } from 'mocha';
+import assert from 'node:assert/strict';
+import net from 'node:net';
 import { rmSync, mkdirSync } from 'fs';
 import { tmpdir } from 'os';
 import path from 'path';
+import { StorageNode } from './harness.js';
 
 // ---------------------------------------------------------------------------
 // Config helpers
 // ---------------------------------------------------------------------------
 
 const TMP = tmpdir();
+const PORT_BASE = parseInt(process.env.PORT_BASE ?? '8700', 10);
 
-function nodeConfig(label, config) {// { listenPort, discPort, bootstrapSpr = null }) {
+function nodeConfig(label, config) {
+  const debug = Boolean(process.env.npm_config_debug);
+
   if (!config["data-dir"]) {
     config["data-dir"] = path.join(TMP, `libstorage-test-${label}`);
   }
@@ -33,234 +44,216 @@ function nodeConfig(label, config) {// { listenPort, discPort, bootstrapSpr = nu
   mkdirSync(config["data-dir"], { recursive: true });
 
   if (!config["log-level"]) {
-    config["log-level"] = 'ERROR';
+    config["log-level"] = debug ? 'TRACE' :'ERROR';
   }
 
-  console.debug(`Node '${label}' config:`, config);
+  if (debug) {
+    console.debug(`Node '${label}' config:`, config);
+  }
 
   return JSON.stringify(config);
 }
 
-// ---------------------------------------------------------------------------
-// Minimal test runner
-// ---------------------------------------------------------------------------
-
-let passed = 0;
-let failed = 0;
-
-async function test(name, fn) {
-  process.stdout.write(`  ${name} ... `);
-  try {
-    await fn();
-    console.log('PASS');
-    passed++;
-  } catch (err) {
-    console.log(`FAIL\n    ${err.message}`);
-    failed++;
-  }
-}
-
-function assert(condition, message) {
-  if (!condition) throw new Error(message ?? 'assertion failed');
-}
-
-function assertEqual(actual, expected, label = '') {
-  if (actual !== expected) {
-    throw new Error(
-      `${label ? label + ': ' : ''}expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`
-    );
-  }
+/**
+ * Finds the first free TCP port at or above `port`.
+ * Tries to bind a server; if the port is in use, recurses with port + 1.
+ */
+function findFreePort(port) {
+  return new Promise((resolve) => {
+    const srv = net.createServer();
+    srv.listen(port, '127.0.0.1', () => srv.close(() => resolve(port)));
+    srv.on('error', () => resolve(findFreePort(port + 1)));
+  });
 }
 
 // ---------------------------------------------------------------------------
-// Test suite
+// Single-node tests — node A started ONCE for the whole describe block
 // ---------------------------------------------------------------------------
 
-async function main() {
-  console.log('\nlogos-storage two-node p2p test\n');
+describe('single-node tests', () => {
+  let nodeA;
 
-  const nodeA = new StorageNode();
-  const nodeB = new StorageNode();
-
-  // -------------------------------------------------------------------------
-  // Setup: start node A, get its SPR, start node B bootstrapped to node A
-  // -------------------------------------------------------------------------
-
-  console.log('Setting up nodes...');
-
-  await nodeA.create(nodeConfig('a', {
-    "listen-port": 8792,
-    "disc-port": 8794,
-    "nat": "extip:127.0.0.1",
-    // "log-level": 'TRACE'
-  }));
-  await nodeA.start();
-  console.log(`  node A version: ${nodeA.version()}`);
-
-  const sprA = await nodeA.spr();
-  console.log(`  node A SPR:     ${sprA.slice(0, 40)}...`);
-
-  await nodeB.create(nodeConfig('b', {
-    "listen-port": 8793,
-    "disc-port": 8795,
-    "nat": "extip:127.0.0.1",
-    // "log-level": 'TRACE',
-    "bootstrap-node": [sprA]
-  }));
-  await nodeB.start();
-  console.log(`  node B version: ${nodeB.version()}`);
-
-  // Allow time for the bootstrap connection to establish
-  // console.log('\nWaiting for p2p connection...');
-  // await new Promise(r => setTimeout(r, 3000));
-
-  // -------------------------------------------------------------------------
-  // Single-node tests (mirrors tests/cbindings/storage.c single-node suite)
-  // -------------------------------------------------------------------------
-
-  console.log('\nSingle-node tests (node A):');
-
-  await test('version is non-empty', () => {
-    assert(nodeA.version().length > 0, 'version should be non-empty');
+  before(async () => {
+    const [listenPort, discPort] = await Promise.all([
+      findFreePort(PORT_BASE),
+      findFreePort(PORT_BASE + 1),
+    ]);
+    nodeA = new StorageNode();
+    await nodeA.create(nodeConfig('a', {
+      "listen-port": listenPort,
+      "disc-port":   discPort,
+      "nat":         "extip:127.0.0.1",
+    }));
+    await nodeA.start();
   });
 
-  await test('peer ID is a non-empty string', async () => {
+  after(async () => {
+    await nodeA.shutdown();
+  });
+
+  it('version is non-empty', () => {
+    assert.ok(nodeA.version().length > 0);
+  });
+
+  it('peer ID is a non-empty string', async () => {
     const pid = await nodeA.peerId();
-    assert(pid && pid.length > 0, 'peer ID should be non-empty');
+    assert.ok(pid && pid.length > 0);
   });
 
-  await test('SPR contains "spr"', async () => {
+  it('SPR contains "spr"', async () => {
     const spr = await nodeA.spr();
-    assert(spr.includes('spr'), `SPR should contain "spr", got: ${spr}`);
+    assert.ok(spr.includes('spr'), `SPR should contain "spr", got: ${spr}`);
   });
 
-  await test('debug info has id and addrs', async () => {
-    const debugJson = await nodeA.debug();
-    const info = JSON.parse(debugJson);
-    assert(info.id && info.id.length > 0, 'debug.id should be present');
-    assert(Array.isArray(info.addrs), 'debug.addrs should be an array');
+  it('debug info has id and addrs', async () => {
+    const info = JSON.parse(await nodeA.debug());
+    assert.ok(info.id && info.id.length > 0);
+    assert.ok(Array.isArray(info.addrs));
   });
 
-  const CONTENT = 'Hello from node A — p2p test content!';
-  let cid;
-
-  await test('upload content on node A', async () => {
-    cid = await nodeA.uploadContent(CONTENT);
-    assert(cid && cid.length > 0, 'CID should be a non-empty string');
-    console.log(`\n    CID: ${cid}`);
+  it('upload returns a non-empty CID', async () => {
+    const cid = await nodeA.uploadContent('upload test content');
+    assert.ok(cid && cid.length > 0);
   });
 
-  await test('manifest has expected fields', async () => {
-    const manifestJson = await nodeA.downloadManifest(cid);
-    const m = JSON.parse(manifestJson);
-    assert(m.treeCid && m.treeCid.length > 0, 'manifest.treeCid should be present');
-    assert(typeof m.datasetSize === 'number', 'manifest.datasetSize should be a number');
-    assert(m.filename === 'test.txt', `manifest.filename should be "test.txt", got "${m.filename}"`);
+  it('manifest has expected fields', async () => {
+    const cid = await nodeA.uploadContent('manifest test content');
+    const m = JSON.parse(await nodeA.downloadManifest(cid));
+    assert.ok(m.treeCid && m.treeCid.length > 0);
+    assert.equal(typeof m.datasetSize, 'number');
+    assert.equal(m.filename, 'test.txt');
   });
 
-  await test('list includes uploaded CID manifest', async () => {
+  it('list includes uploaded CID', async () => {
+    const cid = await nodeA.uploadContent('list test content');
     const listJson = await nodeA.list();
-    assert(listJson.includes(cid), `list should include CID ${cid}`);
+    assert.ok(listJson.includes(cid));
   });
 
-  await test('space info has totalBlocks', async () => {
-    const spaceJson = await nodeA.space();
-    const s = JSON.parse(spaceJson);
-    assert(typeof s.totalBlocks === 'number', 'space.totalBlocks should be a number');
+  it('space info has totalBlocks', async () => {
+    const s = JSON.parse(await nodeA.space());
+    assert.equal(typeof s.totalBlocks, 'number');
   });
 
-  await test('content exists locally on node A', async () => {
-    const exists = await nodeA.exists(cid);
-    assert(exists === true, 'exists should return true for uploaded CID');
+  it('exists returns true for uploaded CID', async () => {
+    const cid = await nodeA.uploadContent('exists test content');
+    assert.equal(await nodeA.exists(cid), true);
   });
 
-  await test('content is downloadable locally on node A', async () => {
-    const downloaded = await nodeA.downloadContent(cid, true /* local only */);
-    assertEqual(downloaded, CONTENT, 'local download on node A');
+  it('local download returns uploaded content', async () => {
+    const content = 'local download test content';
+    const cid = await nodeA.uploadContent(content);
+    assert.equal(await nodeA.downloadContent(cid, true), content);
   });
 
-  // Upload a second piece of content for delete/fetch tests to leave CONTENT available
-  let cid2;
-  await test('upload second content for delete test', async () => {
-    cid2 = await nodeA.uploadContent('ephemeral content for delete test', 'ephemeral.txt');
-    assert(cid2 && cid2.length > 0, 'CID2 should be non-empty');
+  it('delete removes content from local store', async () => {
+    const cid = await nodeA.uploadContent('ephemeral content for delete test', 'ephemeral.txt');
+    await nodeA.delete(cid);
+    assert.equal(await nodeA.exists(cid), false);
   });
 
-  await test('delete removes content from local store', async () => {
-    await nodeA.delete(cid2);
-    const exists = await nodeA.exists(cid2);
-    assert(exists === false, 'exists should return false after delete');
-  });
-
-  await test('cancel download does not crash', async () => {
-    // Init a download then immediately cancel it — verifies the cancel path is wired correctly
+  it('cancel download does not crash', async () => {
+    const cid = await nodeA.uploadContent('cancel test content');
     await nodeA.downloadContent(cid, true); // ensure blocks are cached
     await nodeA.downloadCancel(cid);
-    // If we get here without exception, the cancel path is working
+    // reaching here without exception means the cancel path is working
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Two-node tests — fresh node pair started/stopped for EACH test
+// ---------------------------------------------------------------------------
+
+describe('two-node tests', () => {
+  let nodeA, nodeB;
+  // add 10 to PORT_BASE to avoid collisions with single-node tests, which use PORT_BASE and PORT_BASE + 1
+  let ports = {
+    listenA: PORT_BASE + 10,
+    discA: PORT_BASE + 11,
+    listenB: PORT_BASE + 12,
+    discB: PORT_BASE + 13
+  };
+
+  beforeEach(async () => {
+    const [listenA, discA, listenB, discB] = await Promise.all([
+      findFreePort(ports.listenA + 1),
+      findFreePort(ports.discA + 1),
+      findFreePort(ports.listenB + 1),
+      findFreePort(ports.discB + 1),
+    ]);
+    // update base for next test run to avoid collisions
+    ports.listenA = listenA;
+    ports.discA = discA;
+    ports.listenB = listenB;
+    ports.discB = discB;
+
+    nodeA = new StorageNode();
+    await nodeA.create(nodeConfig('a', {
+      "listen-port": ports.listenA,
+      "disc-port":   ports.discA,
+      "nat":         "extip:127.0.0.1",
+    }));
+    await nodeA.start();
+
+    const sprA = await nodeA.spr();
+
+    nodeB = new StorageNode();
+    await nodeB.create(nodeConfig('b', {
+      "listen-port":    ports.listenB,
+      "disc-port":      ports.discB,
+      "nat":            "extip:127.0.0.1",
+      "bootstrap-node": [sprA],
+    }));
+    await nodeB.start();
   });
 
-  // -------------------------------------------------------------------------
-  // Two-node tests
-  // -------------------------------------------------------------------------
-
-  console.log('\nTwo-node tests:');
-
-  await test('node B can download content from node A over p2p', async () => {
-    const downloaded = await nodeB.downloadContent(cid, false /* remote */);
-    assertEqual(downloaded, CONTENT, 'remote download on node B');
+  afterEach(async () => {
+    // allSettled ensures node B is shut down even if node A's shutdown throws
+    await Promise.allSettled([nodeA.shutdown(), nodeB.shutdown()]);
   });
 
-  await test('storage_fetch: node B fetches into local store, then exists locally', async () => {
-    // Upload fresh content on A so B definitely doesn't have it yet
-    const fetchContent = 'Content for storage_fetch test';
-    const fetchCid = await nodeA.uploadContent(fetchContent, 'fetch-test.txt');
-
-    // Verify B doesn't have it locally yet
-    const beforeFetch = await nodeB.exists(fetchCid);
-    assert(beforeFetch === false, 'B should not have the CID locally before fetch');
-
-    // Fetch into B's local store
-    await nodeB.fetch(fetchCid);
-
-    // Now it should exist locally on B
-    const afterFetch = await nodeB.exists(fetchCid);
-    assert(afterFetch === true, 'B should have the CID locally after fetch');
-
-    // And be downloadable locally
-    const downloaded = await nodeB.downloadContent(fetchCid, true /* local only */);
-    assertEqual(downloaded, fetchContent, 'fetched content should match');
+  it('node B can download content from node A over p2p', async () => {
+    const content = 'Hello from node A — p2p test content!';
+    const cid = await nodeA.uploadContent(content);
+    assert.equal(await nodeB.downloadContent(cid, false), content);
   });
 
-  await test('node B peer ID is non-empty', async () => {
-    const pid = await nodeB.peerId();
-    assert(pid && pid.length > 0, 'node B peer ID should be non-empty');
+  it('node B can fetch a file from node A, which exists locally', async () => {
+    const content = 'Content for storage_fetch test';
+    const cid = await nodeA.uploadContent(content, 'fetch-test.txt');
+
+    assert.equal(await nodeB.exists(cid), false);
+    await nodeB.fetch(cid);
+    assert.equal(await nodeB.exists(cid), true);
+    assert.equal(await nodeB.downloadContent(cid, true), content);
   });
 
-  await test('node A debug info shows node B in routing table', async () => {
-    const debugJson = await nodeA.debug();
-    const info = JSON.parse(debugJson);
-    // After 3s connection, node B should appear in node A's routing table
-    assert(Array.isArray(info.table?.nodes), 'debug.table.nodes should be an array');
-    assert(info.table.nodes.length > 0, 'routing table should contain at least one peer (node B)');
+  it('fetched content is equivalent to streamed content', async () => {
+    const content = 'Content for storage_fetch test';
+    const cid = await nodeA.uploadContent(content, 'fetch-test.txt');
+
+    await nodeB.fetch(cid);
+    const fetched = await nodeB.downloadContent(cid, true); // gets fetched content from local store
+    const streamed = await nodeB.downloadContent(cid, false); // streams content from network
+    assert.equal(fetched, streamed);
   });
 
-  // -------------------------------------------------------------------------
-  // Teardown
-  // -------------------------------------------------------------------------
+  it('downloaded manifest is equivalent to fetched manifest', async () => {
+    const content = 'Content for storage_fetch test';
+    const cid = await nodeA.uploadContent(content, 'fetch-test.txt');
 
-  console.log('\nShutting down nodes...');
-  await nodeA.shutdown();
-  await nodeB.shutdown();
+    const fetched = await nodeB.fetch(cid);
+    const downloaded = await nodeB.downloadManifest(cid)
+    assert.equal(fetched, downloaded);
+  });
 
-  // -------------------------------------------------------------------------
-  // Summary
-  // -------------------------------------------------------------------------
+  it('node A has node B in its routing table', async () => {
+    const content = 'Hello from node A — p2p test content!';
+    const cid = await nodeA.uploadContent(content);
+    assert.equal(await nodeB.downloadContent(cid), content);
 
-  console.log(`\n${passed + failed} tests: ${passed} passed, ${failed} failed\n`);
-  if (failed > 0) process.exit(1);
-}
-
-main().catch(err => {
-  console.error('\nFatal error:', err);
-  process.exit(1);
+    const info = JSON.parse(await nodeA.debug());
+    assert.ok(info.table?.nodes.length == 1);
+    assert.equal(info.table?.nodes[0].peerId, await nodeB.peerId());
+  });
 });

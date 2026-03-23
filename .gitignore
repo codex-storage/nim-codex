@@ -52,3 +52,4 @@ tests/cbindings/data-dir
 tests/cbindings/downloaded_hello.txt
 
 nimbledeps
+tests/js/node_modules
