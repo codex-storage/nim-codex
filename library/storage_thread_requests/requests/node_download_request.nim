@@ -254,8 +254,6 @@ proc cancel(
     storage: ptr StorageServer, cCid: cstring
 ): Future[Result[string, string]] {.raises: [], async: (raises: []).} =
   ## Cancel the download session identified by cid.
-  ## This operation is not supported when using the stream mode,
-  ## because the worker will be busy downloading the file.
 
   let cid = Cid.init($cCid)
   if cid.isErr:

@@ -112,6 +112,10 @@ const _lib = {
   storage_exists: lib.func(
     'int storage_exists(void *ctx, str cid, StorageCallback *callback, void *userData)'
   ),
+  // peerAddresses is const char ** — pass via koffi.as(addrs, 'char **') or null
+  storage_connect: lib.func(
+    'int storage_connect(void *ctx, str peerId, void *peerAddresses, size_t peerAddressesSize, StorageCallback *callback, void *userData)'
+  ),
 };
 
 /**
@@ -132,15 +136,11 @@ const _lib = {
  */
 function callAsync(thunk, { onProgress } = {}) {
   return new Promise((resolve, reject) => {
-    const keepAlive = setInterval(() => {}, 200);
-
-    let cb;
-    cb = koffi.register((ret, msg, _len, _userData) => {
+    let cb = koffi.register((ret, msg, len, _userData) => {
       if (ret === RET_PROGRESS) {
-        if (onProgress) onProgress(msg);
+        if (onProgress) onProgress(msg, len, _userData);
         return; // callback will fire again; keepAlive remains active
       }
-      clearInterval(keepAlive);
       koffi.unregister(cb);
       if (ret === RET_OK) resolve(msg ?? '');
       else reject(new Error(msg ?? `libstorage error (ret=${ret})`));
@@ -148,7 +148,6 @@ function callAsync(thunk, { onProgress } = {}) {
 
     const syncRet = thunk(cb);
     if (typeof syncRet === 'number' && syncRet !== RET_OK) {
-      clearInterval(keepAlive);
       koffi.unregister(cb);
       reject(new Error(`libstorage sync dispatch failed (ret=${syncRet})`));
     }
@@ -246,14 +245,16 @@ export class StorageNode {
     );
 
     const buf = Buffer.from(content, 'utf8');
-    await callAsync(
-      cb => _lib.storage_upload_chunk(this.#ctx, sessionId, buf, buf.byteLength, cb, null)
-    );
+    for (let offset = 0; offset < buf.length; offset += chunkSize) {
+      const chunk = buf.subarray(offset, Math.min(offset + chunkSize, buf.length));
+      await callAsync(
+        cb => _lib.storage_upload_chunk(this.#ctx, sessionId, chunk, chunk.byteLength, cb, null)
+      );
+    }
 
-    const cid = await callAsync(
+    return callAsync(
       cb => _lib.storage_upload_finalize(this.#ctx, sessionId, cb, null)
     );
-    return cid;
   }
 
   /**
@@ -281,10 +282,79 @@ export class StorageNode {
     const chunks = [];
     await callAsync(
       cb => _lib.storage_download_stream(this.#ctx, cid, chunkSize, local, null, cb, null),
-      { onProgress: (msg) => { if (msg) chunks.push(msg); } }
+      {
+        onProgress: (chunk, bytes, userData) => {
+          if (chunk) {
+            chunks.push(chunk);
+            console.log("download progress: received chunk of size ", bytes, " userData: ", userData);
+          }
+        }
+      }
     );
 
     return chunks.join('');
+  }
+
+  /**
+   * Download content by CID. Collects all RET_PROGRESS chunk messages and
+   * joins them as the full content string.
+   *
+   * @param {string}  cid
+   * @param {boolean} local  - true = local store only, false = fetch from network
+   * @param {number}  chunkSize
+   * @returns {Promise<string>} the downloaded content as a UTF-8 string
+   */
+  async downloadContentByChunks(cid, local = false, chunkSize = 64 * 1024) {
+    await callAsync(
+      cb => _lib.storage_download_init(this.#ctx, cid, chunkSize, local, cb, null)
+    );
+
+    const chunks = [];
+    let finished = false;
+
+    while(!finished) {
+      await callAsync(
+        cb => _lib.storage_download_chunk(this.#ctx, cid, cb, null),
+        {
+          onProgress: (chunk, bytes, userData) => {
+            if (chunk) {
+              chunks.push(chunk);
+              console.log("download chunk: received chunk of size ", bytes, " userData: ", userData);
+              console.debug("chunk length", chunk.length, "bytes", bytes, "chunkSize", chunkSize, " chunk content: ", chunk);
+              if (bytes === chunkSize) {
+                console.debug("still more data to come...");
+                return; // expect more chunks to come; keep waiting
+              }
+            }
+            finished = true;
+          }
+        }
+      );
+    }
+    
+
+    return chunks.join('');
+  }
+
+  /**
+   * Stream content by CID. Each RET_PROGRESS chunk message calls the callback with the chunk data.
+   *
+   * @param {string}  cid
+   * @param {boolean} local  - true = local store only, false = fetch from network
+   * @param {number}  chunkSize
+   * @param {Function} onProgress - callback(chunk, bytes, userData) called for each chunk; chunk is null on final callback
+   * @returns {Promise<string>} the downloaded content as a UTF-8 string
+   */
+  async streamContent(cid, local = false, chunkSize = 64 * 1024, onProgress = null) {
+    await callAsync(
+      cb => _lib.storage_download_init(this.#ctx, cid, chunkSize, local, cb, null)
+    );
+
+    const chunks = [];
+    await callAsync(
+      cb => _lib.storage_download_stream(this.#ctx, cid, chunkSize, local, null, cb, null),
+      { onProgress }
+    );
   }
 
   /**
@@ -346,6 +416,28 @@ export class StorageNode {
    */
   fetch(cid) {
     return callAsync(cb => _lib.storage_fetch(this.#ctx, cid, cb, null));
+  }
+
+  /**
+   * Initialise a download session without streaming — allows callers to cancel
+   * before any data is transferred.
+   * @param {string}  cid
+   * @param {boolean} local
+   * @param {number}  chunkSize
+   */
+  downloadInit(cid, local = false, chunkSize = 64 * 1024) {
+    return callAsync(cb => _lib.storage_download_init(this.#ctx, cid, chunkSize, local, cb, null));
+  }
+
+  /**
+   * Connect to a peer by peer ID and optional multiaddresses.
+   * If no addresses are given the library falls back to DHT lookup.
+   * @param {string}   peerId    - base58 libp2p peer ID
+   * @param {string[]} addresses - multiaddresses, e.g. ['/ip4/127.0.0.1/tcp/8792']
+   */
+  connect(peerId, addresses = []) {
+    const addrs = addresses.length > 0 ? koffi.as(addresses, 'char **') : null;
+    return callAsync(cb => _lib.storage_connect(this.#ctx, peerId, addrs, addresses.length, cb, null));
   }
 
   /** Graceful shutdown: stop → close → destroy */

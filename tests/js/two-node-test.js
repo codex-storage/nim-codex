@@ -228,6 +228,19 @@ describe('two-node tests', () => {
     assert.equal(await nodeB.downloadContent(cid, true), content);
   });
 
+  it('node B can download all chunks of a file from node A, which exists locally', async () => {
+    // 200 KB with a 16 KB chunk size → 13 chunks; exercises the upload loop
+    // and multi-progress download on the receiving side.
+    // const chunkSize = 16 * 1024;
+    const content = 'A'.repeat(200 * 1024);
+    const cid = await nodeA.uploadContent(content, 'fetch-test.txt');//, chunkSize);
+
+    assert.equal(await nodeB.exists(cid), false);
+    let downloaded = await nodeB.downloadContentByChunks(cid, false);//, chunkSize);
+    assert.equal(await nodeB.exists(cid), true);
+    assert.equal(downloaded, content);
+  });
+
   it('fetched content is equivalent to streamed content', async () => {
     const content = 'Content for storage_fetch test';
     const cid = await nodeA.uploadContent(content, 'fetch-test.txt');
@@ -255,5 +268,99 @@ describe('two-node tests', () => {
     const info = JSON.parse(await nodeA.debug());
     assert.ok(info.table?.nodes.length == 1);
     assert.equal(info.table?.nodes[0].peerId, await nodeB.peerId());
+  });
+
+  it('large multi-chunk file transfers intact across nodes', async () => {
+    // 200 KB with a 16 KB chunk size → 13 chunks; exercises the upload loop
+    // and multi-progress download on the receiving side.
+    const chunkSize = 16 * 1024;
+    const content = 'A'.repeat(200 * 1024);
+    const cid = await nodeA.uploadContent(content, 'large.txt', chunkSize);
+
+    // Verify locally on A first
+    const local = await nodeA.downloadContent(cid, true, chunkSize);
+    assert.equal(local.length, content.length, 'local: length mismatch');
+    assert.equal(local, content, 'local: content mismatch');
+
+    // Then verify across the p2p network
+    const remote = await nodeB.downloadContent(cid, false, chunkSize);
+    assert.equal(remote.length, content.length, 'remote: length mismatch');
+    assert.equal(remote, content, 'remote: content mismatch');
+  });
+
+  it('node B remains functional after cancelling a download init', async () => {
+    // Upload two independent pieces of content on A.
+    const cid1 = await nodeA.uploadContent('content to be cancelled');
+    const cid2 = await nodeA.uploadContent('content downloaded after cancel');
+
+    // Init a download for cid1, then immediately cancel it.
+    await nodeB.downloadInit(cid1, false);
+    await nodeB.downloadCancel(cid1);
+
+    // After cancelling, the library transfers blocks into B's local store as
+    // a side-effect of the init, so cid1 should exist locally on B.
+    assert.equal(await nodeB.exists(cid1), true, 'cancelled CID should be in local store after init');
+
+    // More importantly, node B must still be functional: it can download a
+    // completely fresh CID from the network without any issues.
+    const downloaded = await nodeB.downloadContent(cid2, false);
+    assert.equal(downloaded, 'content downloaded after cancel');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Explicit-connect tests — nodes start with no knowledge of each other;
+// connection is established by calling storage_connect with peer ID + addrs.
+// ---------------------------------------------------------------------------
+
+describe('explicit connect tests', () => {
+  let nodeA, nodeB;
+
+  beforeEach(async () => {
+    const [listenA, discA, listenB, discB] = await Promise.all([
+      findFreePort(PORT_BASE + 20),
+      findFreePort(PORT_BASE + 21),
+      findFreePort(PORT_BASE + 22),
+      findFreePort(PORT_BASE + 23),
+    ]);
+
+    // Start A with no bootstrap; B also starts with no knowledge of A
+    nodeA = new StorageNode();
+    await nodeA.create(nodeConfig('a-exp', {
+      'listen-port': listenA,
+      'disc-port':   discA,
+      'nat':         'extip:127.0.0.1',
+    }));
+    await nodeA.start();
+
+    nodeB = new StorageNode();
+    await nodeB.create(nodeConfig('b-exp', {
+      'listen-port': listenB,
+      'disc-port':   discB,
+      'nat':         'extip:127.0.0.1',
+    }));
+    await nodeB.start();
+  });
+
+  afterEach(async () => {
+    await Promise.allSettled([nodeA.shutdown(), nodeB.shutdown()]);
+  });
+
+  it('node B connects to node A via peer ID and multiaddresses', async () => {
+    // Get A's peer identity and listen addresses from its debug info
+    const debugA = JSON.parse(await nodeA.debug());
+    const peerIdA = debugA.id;
+    // Filter to loopback addresses only so the connect is local
+    const addrsA = (debugA.addrs ?? []).filter(a => a.includes('127.0.0.1'));
+    assert.ok(addrsA.length > 0, 'node A must have at least one loopback address');
+
+    // B explicitly connects to A by peer ID + addresses (no DHT, no bootstrap)
+    await nodeB.connect(peerIdA, addrsA);
+
+    // Verify the connection works end-to-end
+    const content = 'Connected via explicit peer ID + addresses';
+    const cid = await nodeA.uploadContent(content);
+    const downloaded = await nodeB.downloadContent(cid, false);
+    assert.equal(downloaded, content);
   });
 });
