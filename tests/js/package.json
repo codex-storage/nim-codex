@@ -1,0 +1,11 @@
+{
+  "name": "logos-storage-js-tests",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "test": "node two-node-test.js"
+  },
+  "dependencies": {
+    "koffi": "^2.9.0"
+  }
+}
