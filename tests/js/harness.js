@@ -163,26 +163,21 @@ export class StorageNode {
    * Resolves when the node is ready (storage_new callback fires RET_OK).
    */
   async create(configJson) {
-    let cb;
-    const promise = new Promise((resolve, reject) => {
-      const keepAlive = setInterval(() => {}, 200);
-
-      cb = koffi.register((ret, msg, _len, _userData) => {
-        clearInterval(keepAlive);
+    return new Promise((resolve, reject) => {
+      let cb = koffi.register((ret, msg, _len, _userData) => {
         koffi.unregister(cb);
         if (ret === RET_OK) resolve();
         else reject(new Error(msg ?? 'storage_new callback failed'));
       }, koffi.pointer(StorageCallback));
+      
+      this.#ctx = _lib.storage_new(configJson, cb, null);
+
+      if (!this.#ctx) {
+        koffi.unregister(cb);
+        throw new Error('storage_new returned null — check configJson');
+      }
+      
     });
-
-    this.#ctx = _lib.storage_new(configJson, cb, null);
-    if (!this.#ctx) {
-      koffi.unregister(cb);
-      throw new Error('storage_new returned null — check configJson');
-    }
-
-    await promise;
-    return this;
   }
 
   /** Returns the version string synchronously (e.g. "v0.3.2") */
