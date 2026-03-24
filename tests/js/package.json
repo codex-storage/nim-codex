@@ -18,8 +18,8 @@
     }
   },
   "scripts": {
-    "test": "mocha --timeout 30000 two-node-test.js",
-    "testOnly": "sh -c 'mocha --timeout 30000 --grep \"$1\" two-node-test.js' --"
+    "test": "NODE_OPTIONS=\"--force-node-api-uncaught-exceptions-policy=true\" mocha --timeout 30000 two-node-test.js",
+    "testOnly": "sh -c 'NODE_OPTIONS=\"--force-node-api-uncaught-exceptions-policy=true\" mocha --timeout 30000 --grep \"$1\" two-node-test.js' --"
   },
   "dependencies": {
     "koffi": "^2.9.0"

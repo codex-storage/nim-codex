@@ -16,6 +16,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 export const __dirname = path.dirname(fileURLToPath(import.meta.url));
+export const DEBUG_ENABLED = Boolean(process.env.npm_config_debug);
 
 const libName =
   process.platform === 'darwin' ? 'libstorage.dylib' :
@@ -32,7 +33,7 @@ export const RET_PROGRESS = 3;
 
 // typedef void (*StorageCallback)(int callerRet, const char *msg, size_t len, void *userData)
 const StorageCallback = koffi.proto(
-  'StorageCallback', 'void', ['int', 'str', 'size_t', 'void *']
+  'StorageCallback', 'void', ['int', 'const char *', 'size_t', 'void *']
 );
 
 // All libstorage function bindings
@@ -117,6 +118,12 @@ const _lib = {
     'int storage_connect(void *ctx, str peerId, void *peerAddresses, size_t peerAddressesSize, StorageCallback *callback, void *userData)'
   ),
 };
+
+export function debugLog(msg) {
+  if (DEBUG_ENABLED) {
+    console.debug(msg);
+  }
+}
 
 /**
  * Wraps a single async libstorage call into a Promise.
@@ -285,8 +292,8 @@ export class StorageNode {
       {
         onProgress: (chunk, bytes, userData) => {
           if (chunk) {
-            chunks.push(chunk);
-            console.log("download progress: received chunk of size ", bytes, " userData: ", userData);
+            chunks.push(chunk.substring(0, chunkSize));
+            debugLog("download progress: received chunk of size ", bytes, " userData: ", userData);
           }
         }
       }
@@ -296,15 +303,35 @@ export class StorageNode {
   }
 
   /**
+   * 
+   * @param {*} cid - manifest CID. The actual content CID is in the manifest's treeCid field, but the library needs the manifest CID to track the download session.
+   * @param {*} chunkSize - must match the chunkSize used in downloadInit; used to determine whether more chunks are expected
+   * @returns {Promise<{chunk: string, bytes: number, more: boolean}>} chunk is the downloaded chunk (up to chunkSize bytes); bytes is the number of bytes in the downloaded chunk; more indicates whether more chunks are expected after this one
+   */
+  async downloadChunk(cid, chunkSize) {
+    let result = null;
+    await callAsync(cb => _lib.storage_download_chunk(this.#ctx, cid, cb, null), {
+      onProgress: (chunk, bytes) => {
+        result = {
+          chunk: chunk?.substring(0, bytes),
+          bytes,
+          more: bytes === chunkSize,
+        };
+      },
+    });
+    return result ?? { chunk: '', bytes: 0, more: false };
+  }
+
+  /**
    * Download content by CID. Collects all RET_PROGRESS chunk messages and
-   * joins them as the full content string.
+   * joins them as the full content string. From the caller's perspective this behaves the same as downloadContent, but it allows coverage of downloading by stream and by chunks.
    *
    * @param {string}  cid
    * @param {boolean} local  - true = local store only, false = fetch from network
    * @param {number}  chunkSize
    * @returns {Promise<string>} the downloaded content as a UTF-8 string
    */
-  async downloadContentByChunks(cid, local = false, chunkSize = 64 * 1024) {
+  async downloadAllChunks(cid, local = false, chunkSize = 64 * 1024) {
     await callAsync(
       cb => _lib.storage_download_init(this.#ctx, cid, chunkSize, local, cb, null)
     );
@@ -318,21 +345,20 @@ export class StorageNode {
         {
           onProgress: (chunk, bytes, userData) => {
             if (chunk) {
-              chunks.push(chunk);
-              console.log("download chunk: received chunk of size ", bytes, " userData: ", userData);
-              console.debug("chunk length", chunk.length, "bytes", bytes, "chunkSize", chunkSize, " chunk content: ", chunk);
-              if (bytes === chunkSize) {
-                console.debug("still more data to come...");
+              const c = chunk.substring(0, bytes);
+              debugLog("Received chunk,", "length", c.length, "numBytes", bytes, "chunkSize", chunkSize, "more", c.length === chunkSize);
+              chunks.push(c);
+              if (c.length === chunkSize) {
                 return; // expect more chunks to come; keep waiting
               }
             }
+            debugLog("complete data:", chunks.join(''));
             finished = true;
           }
         }
       );
     }
-    
-
+  
     return chunks.join('');
   }
 
@@ -350,7 +376,6 @@ export class StorageNode {
       cb => _lib.storage_download_init(this.#ctx, cid, chunkSize, local, cb, null)
     );
 
-    const chunks = [];
     await callAsync(
       cb => _lib.storage_download_stream(this.#ctx, cid, chunkSize, local, null, cb, null),
       { onProgress }
