@@ -54,6 +54,10 @@ export
 
 type ThreadCount* = distinct Natural
 
+# Declare the log file globally in order to be collected properly
+# by the GC.
+var logFile : ?IoHandle
+
 proc `==`*(a, b: ThreadCount): bool {.borrow.}
 
 proc defaultDataDir*(): string =
@@ -546,7 +550,6 @@ proc setupLogging*(conf: StorageConf) =
   when defaultChroniclesStream.outputs.type.arity != 3:
     warn "Logging configuration options not enabled in the current build"
   else:
-    var logFile: ?IoHandle
     proc noOutput(logLevel: LogLevel, msg: LogOutputStr) =
       discard
 
