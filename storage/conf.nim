@@ -56,7 +56,7 @@ type ThreadCount* = distinct Natural
 
 # Declare the log file globally in order to be collected properly
 # by the GC.
-var logFile : ?IoHandle
+var logFile: ?IoHandle
 
 proc `==`*(a, b: ThreadCount): bool {.borrow.}
 
