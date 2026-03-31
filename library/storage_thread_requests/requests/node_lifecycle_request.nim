@@ -107,8 +107,6 @@ proc createStorage(
   except ConfigurationError as e:
     return err("Failed to create Storage: unable to load configuration: " & e.msg)
 
-  conf.setupLogging()
-
   try:
     {.gcsafe.}:
       updateLogLevel(conf.logLevel)
@@ -147,9 +145,11 @@ proc createStorage(
   else:
     debug "Rest API is enabled!"
 
+  let logFile = conf.setupLogging()
+
   let server =
     try:
-      StorageServer.new(conf, pk)
+      StorageServer.new(conf, pk, logFile)
     except Exception as exc:
       return err("Failed to create Storage: " & exc.msg)
 

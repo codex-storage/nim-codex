@@ -90,6 +90,13 @@ type
     repoSQLite = "sqlite"
     repoLevelDb = "leveldb"
 
+  # LogFile is a ref object so that the `fileFlush` closure captures a reference
+  # to it rather than a copy. This ensures the Nim GC keeps the closure environment
+  # alive as long as the owning StorageServer holds a reference to it.
+  LogFile* = ref object
+    handle*: Option[IoHandle]
+    writer*: proc (logLevel: LogLevel, msg: LogOutputStr) {.gcsafe, raises: [].}
+
   StorageConf* = object
     configFile* {.
       desc: "Loads the configuration from a TOML file",
@@ -285,10 +292,6 @@ type
     logFile* {.
       desc: "Logs to file", defaultValue: string.none, name: "log-file", hidden
     .}: Option[string]
-
-    # Declare the log file in StorageConf in order to be collected properly
-    # by the GC.
-    logFileIo: ?IoHandle
 
 func defaultAddress*(conf: StorageConf): IpAddress =
   result = static parseIpAddress("127.0.0.1")
@@ -546,7 +549,21 @@ proc updateLogLevel*(logLevel: string) {.raises: [ValueError].} =
       if not setTopicState(topicName, settings.state, settings.logLevel):
         warn "Unrecognized logging topic", topic = topicName
 
-proc setupLogging*(conf: StorageConf) =
+proc openLogFile(conf: StorageConf): Option[IoHandle] =
+  if logFilePath =? conf.logFile and logFilePath.len > 0:
+    let logFileHandle =
+      openFile(logFilePath, {OpenFlags.Write, OpenFlags.Create, OpenFlags.Truncate})
+    if logFileHandle.isErr:
+      error "failed to open log file",
+        path = logFilePath, errorCode = $logFileHandle.error
+    else:
+      return logFileHandle.option
+  return IoHandle.none
+
+proc setupLogging*(conf: StorageConf): LogFile =
+  let ioHandle = if conf.logFile.isSome: conf.openLogFile() else: IoHandle.none
+  let logFile = LogFile(handle: ioHandle)
+
   when defaultChroniclesStream.outputs.type.arity != 3:
     warn "Logging configuration options not enabled in the current build"
   else:
@@ -567,20 +584,14 @@ proc setupLogging*(conf: StorageConf) =
       writeAndFlush(stdout, stripAnsi(msg))
 
     proc fileFlush(logLevel: LogLevel, msg: LogOutputStr) =
-      if file =? conf.logFileIo:
+      if file =? logFile.handle:
         if error =? file.writeFile(stripAnsi(msg).toBytes).errorOption:
           error "failed to write to log file", errorCode = $error
 
     defaultChroniclesStream.outputs[2].writer = noOutput
-    if logFilePath =? conf.logFile and logFilePath.len > 0:
-      let logFileHandle =
-        openFile(logFilePath, {OpenFlags.Write, OpenFlags.Create, OpenFlags.Truncate})
-      if logFileHandle.isErr:
-        error "failed to open log file",
-          path = logFilePath, errorCode = $logFileHandle.error
-      else:
-        conf.logFileIo = logFileHandle.option
-        defaultChroniclesStream.outputs[2].writer = fileFlush
+    if logFile.handle.isSome:
+      defaultChroniclesStream.outputs[2].writer = fileFlush
+      logFile.writer = fileFlush
 
     defaultChroniclesStream.outputs[1].writer = noOutput
 
@@ -608,6 +619,8 @@ proc setupLogging*(conf: StorageConf) =
       defaultChroniclesStream.outputs[0].writer = numberedWriter
     else:
       defaultChroniclesStream.outputs[0].writer = writer
+
+    return logFile
 
 proc setupMetrics*(config: StorageConf) =
   if config.metricsEnabled:

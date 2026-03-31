@@ -42,6 +42,7 @@ logScope:
 type
   StorageServer* = ref object
     config: StorageConf
+    logFile*: LogFile
     restServer: RestServerRef
     storageNode: StorageNodeRef
     repoStore: RepoStore
@@ -93,12 +94,13 @@ proc stop*(s: StorageServer) {.async.} =
 
   notice "Stopping Storage node"
 
-  var futures = @[
-    s.storageNode.switch.stop(),
-    s.storageNode.stop(),
-    s.repoStore.stop(),
-    s.maintenance.stop(),
-  ]
+  var futures =
+    @[
+      s.storageNode.switch.stop(),
+      s.storageNode.stop(),
+      s.repoStore.stop(),
+      s.maintenance.stop(),
+    ]
 
   if s.restServer != nil:
     futures.add(s.restServer.stop())
@@ -133,7 +135,10 @@ proc shutdown*(server: StorageServer) {.async.} =
   await server.close()
 
 proc new*(
-    T: type StorageServer, config: StorageConf, privateKey: StoragePrivateKey
+    T: type StorageServer,
+    config: StorageConf,
+    privateKey: StoragePrivateKey,
+    logFile: LogFile = nil,
 ): StorageServer =
   ## create StorageServer including setting up datastore, repostore, etc
   let listenMultiAddr = getMultiAddrWithIpAndTcpPort(config.listenIp, config.listenPort)
@@ -272,4 +277,5 @@ proc new*(
     repoStore: repoStore,
     maintenance: maintenance,
     taskPool: taskPool,
+    logFile: logFile,
   )

@@ -53,7 +53,7 @@ when isMainModule:
         sources.addConfigFile(Toml, configFile)
     ,
   )
-  config.setupLogging()
+
 
   try:
     updateLogLevel(config.logLevel)
@@ -92,9 +92,10 @@ when isMainModule:
         config.dataDir / config.netPrivKeyFile
 
     privateKey = setupKey(keyPath).expect("Should setup private key!")
+    logFile = config.setupLogging()
     server =
       try:
-        StorageServer.new(config, privateKey)
+        StorageServer.new(config, privateKey, logFile)
       except Exception as exc:
         error "Failed to start Logos Storage", msg = exc.msg
         quit QuitFailure
