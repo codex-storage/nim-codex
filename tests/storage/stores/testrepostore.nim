@@ -435,6 +435,26 @@ asyncchecksuite "RepoStore":
     (await repo.delBlock(treeCid2, 0.Natural)).tryGet()
     check not (await sharedBlock.cid in repo)
 
+  test "should not panic (underflow) when deleting a manifest as a leaf":
+    let
+      repo = RepoStore.new(repoDs, metaDs, clock = mockClock, quotaMaxBytes =
+          1000'nb)
+      (_, tree, manifest) = makeDataset(
+          await makeRandomBlocks(datasetSize = 2 * 256, blockSize = 256'nb)
+        )
+        .tryGet()
+      treeCid = tree.rootCid.tryGet()
+      proof = tree.getProof(1).tryGet()
+
+    let encodedVerifiable = manifest.encode().tryGet
+    let blk = bt.Block.new(data = encodedVerifiable, codec = ManifestCodec).tryGet
+
+    (await repo.putCidAndProof(treeCid, 0.Natural, blk.cid, proof)).tryGet()
+
+    (await repo.delBlock(treeCid, 0.Natural)).tryGet
+
+    check not (await blk.cid in repo)
+
   test "should clear leaf metadata when block is deleted from dataset":
     let
       repo = RepoStore.new(repoDs, metaDs, clock = mockClock, quotaMaxBytes =

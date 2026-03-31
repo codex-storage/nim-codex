@@ -272,7 +272,8 @@ method delBlock*(
     error "Failed to delete leaf metadata, block will remain on disk.", err = err.msg
     return failure(err)
 
-  if err =?
+  if leafMd.blkCid.mcodec == BlockCodec and
+      err =?
       (await self.updateBlockMetadata(leafMd.blkCid, minusRefCount = 1)).errorOption:
     if not (err of BlockNotFoundError):
       return failure(err)
