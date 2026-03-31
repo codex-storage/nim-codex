@@ -584,12 +584,12 @@ proc setupLogging*(conf: StorageConf): LogFile =
       writeAndFlush(stdout, stripAnsi(msg))
 
     proc fileFlush(logLevel: LogLevel, msg: LogOutputStr) =
-      if file =? logFile.handle:
+      if file =? ioHandle:
         if error =? file.writeFile(stripAnsi(msg).toBytes).errorOption:
           error "failed to write to log file", errorCode = $error
 
     defaultChroniclesStream.outputs[2].writer = noOutput
-    if logFile.handle.isSome:
+    if ioHandle.isSome:
       defaultChroniclesStream.outputs[2].writer = fileFlush
       logFile.writer = fileFlush
 
