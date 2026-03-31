@@ -54,10 +54,6 @@ export
 
 type ThreadCount* = distinct Natural
 
-# Declare the log file globally in order to be collected properly
-# by the GC.
-var logFile: ?IoHandle
-
 proc `==`*(a, b: ThreadCount): bool {.borrow.}
 
 proc defaultDataDir*(): string =
@@ -289,6 +285,10 @@ type
     logFile* {.
       desc: "Logs to file", defaultValue: string.none, name: "log-file", hidden
     .}: Option[string]
+
+    # Declare the log file in StorageConf in order to be collected properly
+    # by the GC.
+    logFileIo: ?IoHandle
 
 func defaultAddress*(conf: StorageConf): IpAddress =
   result = static parseIpAddress("127.0.0.1")
@@ -567,7 +567,7 @@ proc setupLogging*(conf: StorageConf) =
       writeAndFlush(stdout, stripAnsi(msg))
 
     proc fileFlush(logLevel: LogLevel, msg: LogOutputStr) =
-      if file =? logFile:
+      if file =? conf.logFileIo:
         if error =? file.writeFile(stripAnsi(msg).toBytes).errorOption:
           error "failed to write to log file", errorCode = $error
 
@@ -579,7 +579,7 @@ proc setupLogging*(conf: StorageConf) =
         error "failed to open log file",
           path = logFilePath, errorCode = $logFileHandle.error
       else:
-        logFile = logFileHandle.option
+        conf.logFileIo = logFileHandle.option
         defaultChroniclesStream.outputs[2].writer = fileFlush
 
     defaultChroniclesStream.outputs[1].writer = noOutput
