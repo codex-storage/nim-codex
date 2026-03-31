@@ -54,7 +54,6 @@ when isMainModule:
     ,
   )
 
-
   try:
     updateLogLevel(config.logLevel)
   except ValueError as err:

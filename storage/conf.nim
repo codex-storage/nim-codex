@@ -95,7 +95,7 @@ type
   # alive as long as the owning StorageServer holds a reference to it.
   LogFile* = ref object
     handle*: Option[IoHandle]
-    writer*: proc (logLevel: LogLevel, msg: LogOutputStr) {.gcsafe, raises: [].}
+    writer*: proc(logLevel: LogLevel, msg: LogOutputStr) {.gcsafe, raises: [].}
 
   StorageConf* = object
     configFile* {.
@@ -561,7 +561,11 @@ proc openLogFile(conf: StorageConf): Option[IoHandle] =
   return IoHandle.none
 
 proc setupLogging*(conf: StorageConf): LogFile =
-  let ioHandle = if conf.logFile.isSome: conf.openLogFile() else: IoHandle.none
+  let ioHandle =
+    if conf.logFile.isSome:
+      conf.openLogFile()
+    else:
+      IoHandle.none
   let logFile = LogFile(handle: ioHandle)
 
   when defaultChroniclesStream.outputs.type.arity != 3:
