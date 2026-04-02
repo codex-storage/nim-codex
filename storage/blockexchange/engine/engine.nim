@@ -800,10 +800,11 @@ proc downloadWorker(
                 cid = cid, exhaustedCount = exhausted.len
               dl.failExhaustedBlocks(exhausted)
 
+            let reqFuture = pending[].requestFuture
             dl.requeueBatch(start, count, front = true)
 
-            if not pending[].requestFuture.isNil and not pending[].requestFuture.finished:
-              pending[].requestFuture.cancelSoon()
+            if not reqFuture.isNil and not reqFuture.finished:
+              reqFuture.cancelSoon()
 
       let timeoutFut = batchTimeoutHandler(download)
       self.trackedFutures.track(timeoutFut)
