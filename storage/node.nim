@@ -240,17 +240,29 @@ proc streamEntireDataset(
   ##
   trace "Retrieving blocks from manifest", manifestCid
 
+  let
+    treeCid = manifest.treeCid
+    download = ?self.engine.startTreeDownloadOpaque(
+      treeCid,
+      manifest.blockSize.uint32,
+      manifest.blocksCount.uint64,
+      fetchLocal = fetchLocal,
+    )
+    stream = LPStream(StoreStream.new(self.networkStore, manifest, pad = false))
+
   var jobs: seq[Future[void]]
-  let stream = LPStream(StoreStream.new(self.networkStore, manifest, pad = false))
 
   proc fetchTask(): Future[void] {.async: (raises: []).} =
     try:
-      if err =?
-          (await self.fetchDatasetAsync(manifest, fetchLocal = fetchLocal)).errorOption:
+      trace "Starting tree download",
+        treeCid = treeCid, totalBlocks = manifest.blocksCount
+      if err =? (await download.waitForComplete()).errorOption:
         error "Dataset fetch failed during streaming", manifestCid, err = err.msg
         await stream.close()
     except CancelledError:
       trace "Dataset fetch cancelled during streaming", manifestCid
+    finally:
+      self.engine.releaseDownload(download)
 
   jobs.add(fetchTask())
 

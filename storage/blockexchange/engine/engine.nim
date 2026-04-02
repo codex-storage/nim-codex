@@ -227,11 +227,17 @@ proc sendWantBlocksRequest(
     return
 
   let cid = download.cid
+  let runtimeQuota = 100.milliseconds
   var
     missingIndices: seq[uint64] = @[]
     localBlockCount: uint64 = 0
+    lastIdle = Moment.now()
 
   for i in start ..< start + count:
+    if (Moment.now() - lastIdle) >= runtimeQuota:
+      await idleAsync()
+      lastIdle = Moment.now()
+
     let address = download.makeBlockAddress(i)
 
     if download.isBlockExhausted(address):
@@ -618,7 +624,7 @@ proc downloadWorker(
       if batchOpt.isNone:
         let pendingBatchCount = download.pendingBatchCount()
 
-        if pendingBatchCount == 0:
+        if pendingBatchCount == 0 and download.isDownloadComplete():
           break
 
         await sleepAsync(100.milliseconds)
@@ -630,7 +636,14 @@ proc downloadWorker(
         batchCount = count
 
       block localCheck:
+        var lastIdle = Moment.now()
+        let runtimeQuota = 100.milliseconds
+
         for i in start ..< start + count:
+          if (Moment.now() - lastIdle) >= runtimeQuota:
+            await idleAsync()
+            lastIdle = Moment.now()
+
           let address = download.makeBlockAddress(i)
           if download.isBlockExhausted(address):
             break localCheck
@@ -646,6 +659,10 @@ proc downloadWorker(
             break localCheck
 
         for i in start ..< start + count:
+          if (Moment.now() - lastIdle) >= runtimeQuota:
+            await idleAsync()
+            lastIdle = Moment.now()
+
           let address = download.makeBlockAddress(i)
           if address in download.blocks:
             without blk =? (await self.localStore.getBlock(address)), err:
@@ -997,12 +1014,18 @@ proc wantListHandler*(
         trace "Processing range query",
           treeCid = treeCid, start = startIdx, count = count
 
+        let runtimeQuota = 100.milliseconds
         var
           ranges: seq[tuple[start: uint64, count: uint64]] = @[]
           rangeStart: uint64 = 0
           inRange = false
+          lastIdle = Moment.now()
 
         for i in 0'u64 ..< count:
+          if (Moment.now() - lastIdle) >= runtimeQuota:
+            await idleAsync()
+            lastIdle = Moment.now()
+
           let address = BlockAddress(treeCid: treeCid, index: (startIdx + i).int)
           let have =
             try:
