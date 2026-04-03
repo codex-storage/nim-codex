@@ -131,6 +131,17 @@ proc close*(s: StorageServer) {.async.} =
     error "Failed to close Storage node", failures = res.failure.len
     raiseAssert "Failed to close Storage node"
 
+  proc noOutput(logLevel: LogLevel, msg: LogOutputStr) =
+    discard
+
+  # If a log file was assigned, clear the `fileFlush` proc to ensure a clean
+  # state for future restarts.
+  # Without this manual cleanup, the old writer remains active in the global stream.
+  # When `setupLogging` is called again during a restart, the GC might trigger
+  # after the new context is created, destroying the newly assigned writer and
+  # leaving it silently capturing a `None` value. This results in missing log files.
+  defaultChroniclesStream.outputs[2].writer = noOutput
+
 proc shutdown*(server: StorageServer) {.async.} =
   await server.stop()
   await server.close()
