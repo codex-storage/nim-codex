@@ -94,13 +94,12 @@ proc stop*(s: StorageServer) {.async.} =
 
   notice "Stopping Storage node"
 
-  var futures =
-    @[
-      s.storageNode.switch.stop(),
-      s.storageNode.stop(),
-      s.repoStore.stop(),
-      s.maintenance.stop(),
-    ]
+  var futures = @[
+    s.storageNode.switch.stop(),
+    s.storageNode.stop(),
+    s.repoStore.stop(),
+    s.maintenance.stop(),
+  ]
 
   if s.restServer != nil:
     futures.add(s.restServer.stop())
