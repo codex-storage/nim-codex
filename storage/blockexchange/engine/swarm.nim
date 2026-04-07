@@ -62,7 +62,7 @@ type
       discard
 
   Swarm* = ref object
-    config: SwarmConfig
+    config*: SwarmConfig
     peers: Table[PeerId, SwarmPeer]
     removedPeers: HashSet[PeerId]
 

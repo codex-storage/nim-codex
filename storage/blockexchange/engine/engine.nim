@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/[sequtils, sets, options, algorithm, sugar, tables]
+import std/[sequtils, sets, options, algorithm, sugar, tables, random]
 
 import pkg/chronos
 import pkg/libp2p/[cid, switch, multihash, multicodec]
@@ -544,14 +544,20 @@ proc downloadWorker(
   try:
     let
       (windowStart, windowCount) = download.ctx.currentPresenceWindow()
-      connectedPeers = self.peers.toSeq()
+      maxSwarmPeers = download.ctx.swarm.config.deltaMax
+
+    var connectedPeers = self.peers.toSeq()
+    if connectedPeers.len > maxSwarmPeers:
+      shuffle(connectedPeers)
+      connectedPeers.setLen(maxSwarmPeers)
 
     if connectedPeers.len > 0:
       trace "Initial presence window broadcast",
         cid = cid,
         windowStart = windowStart,
         windowCount = windowCount,
-        totalBlocks = download.ctx.totalBlocks
+        totalBlocks = download.ctx.totalBlocks,
+        peerCount = connectedPeers.len
 
       await self.broadcastWantHave(
         download, cid, windowStart, windowCount, connectedPeers
@@ -578,16 +584,21 @@ proc downloadWorker(
 
         ctx.trimPresenceBeforeWatermark()
 
-        # Broadcast want-have for the new window
-        let connectedPeers = self.peers.toSeq()
+        # Broadcast want-have for the new window to swarm peers only
+        var swarmPeers: seq[PeerContext] = @[]
+        for peerId in ctx.swarm.connectedPeers():
+          let peerCtx = self.peers.get(peerId)
+          if not peerCtx.isNil:
+            swarmPeers.add(peerCtx)
 
         trace "Advancing presence window",
           cid = cid,
           newWindowStart = newStart,
           newWindowCount = newCount,
-          watermark = ctx.scheduler.completedWatermark()
+          watermark = ctx.scheduler.completedWatermark(),
+          swarmPeers = swarmPeers.len
 
-        await self.broadcastWantHave(download, cid, newStart, newCount, connectedPeers)
+        await self.broadcastWantHave(download, cid, newStart, newCount, swarmPeers)
 
       # Broadcast availability to peers
       if not download.fetchLocal and ctx.shouldBroadcastAvailability():
