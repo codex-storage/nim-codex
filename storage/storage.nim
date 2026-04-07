@@ -42,7 +42,7 @@ logScope:
 type
   StorageServer* = ref object
     config: StorageConf
-    logFile*: LogFile
+    logFile*: Option[IoHandle]
     restServer: RestServerRef
     storageNode: StorageNodeRef
     repoStore: RepoStore
@@ -126,6 +126,15 @@ proc close*(s: StorageServer) {.async.} =
       error "Failed to stop the taskpool", failures = res.failure.len
       raiseAssert("Failure in taskpool shutdown:" & exc.msg)
 
+  when defaultChroniclesStream.outputs.type.arity == 3:
+    proc noOutput(logLevel: LogLevel, msg: LogOutputStr) =
+      discard
+    defaultChroniclesStream.outputs[2].writer = noOutput
+
+  if s.logFile.isSome:
+    if error =? closeFile(s.logFile.get()).errorOption:
+      error "Failed to close log file", errorCode = $error
+
   if res.failure.len > 0:
     error "Failed to close Storage node", failures = res.failure.len
     raiseAssert "Failed to close Storage node"
@@ -138,7 +147,7 @@ proc new*(
     T: type StorageServer,
     config: StorageConf,
     privateKey: StoragePrivateKey,
-    logFile: LogFile = nil,
+    logFile: Option[IoHandle] = IoHandle.none,
 ): StorageServer =
   ## create StorageServer including setting up datastore, repostore, etc
   let listenMultiAddr = getMultiAddrWithIpAndTcpPort(config.listenIp, config.listenPort)

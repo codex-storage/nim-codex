@@ -90,13 +90,6 @@ type
     repoSQLite = "sqlite"
     repoLevelDb = "leveldb"
 
-  # LogFile is a ref object so that the `fileFlush` closure captures a reference
-  # to it rather than a copy. This ensures the Nim GC keeps the closure environment
-  # alive as long as the owning StorageServer holds a reference to it.
-  LogFile* = ref object
-    handle*: Option[IoHandle]
-    writer*: proc(logLevel: LogLevel, msg: LogOutputStr) {.gcsafe, raises: [].}
-
   StorageConf* = object
     configFile* {.
       desc: "Loads the configuration from a TOML file",
@@ -560,13 +553,12 @@ proc openLogFile(conf: StorageConf): Option[IoHandle] =
       return logFileHandle.option
   return IoHandle.none
 
-proc setupLogging*(conf: StorageConf): LogFile =
+proc setupLogging*(conf: StorageConf): Option[IoHandle] =
   let ioHandle =
     if conf.logFile.isSome:
       conf.openLogFile()
     else:
       IoHandle.none
-  let logFile = LogFile(handle: ioHandle)
 
   when defaultChroniclesStream.outputs.type.arity != 3:
     warn "Logging configuration options not enabled in the current build"
@@ -595,7 +587,6 @@ proc setupLogging*(conf: StorageConf): LogFile =
     defaultChroniclesStream.outputs[2].writer = noOutput
     if ioHandle.isSome:
       defaultChroniclesStream.outputs[2].writer = fileFlush
-      logFile.writer = fileFlush
 
     defaultChroniclesStream.outputs[1].writer = noOutput
 
@@ -624,7 +615,7 @@ proc setupLogging*(conf: StorageConf): LogFile =
     else:
       defaultChroniclesStream.outputs[0].writer = writer
 
-    return logFile
+    return ioHandle
 
 proc setupMetrics*(config: StorageConf) =
   if config.metricsEnabled:
