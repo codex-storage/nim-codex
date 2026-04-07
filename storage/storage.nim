@@ -129,6 +129,7 @@ proc close*(s: StorageServer) {.async.} =
   when defaultChroniclesStream.outputs.type.arity == 3:
     proc noOutput(logLevel: LogLevel, msg: LogOutputStr) =
       discard
+
     defaultChroniclesStream.outputs[2].writer = noOutput
 
   if s.logFile.isSome:
