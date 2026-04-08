@@ -54,6 +54,8 @@ when isMainModule:
     ,
   )
 
+  let logFile = config.setupLogging()
+
   try:
     updateLogLevel(config.logLevel)
   except ValueError as err:
@@ -91,7 +93,7 @@ when isMainModule:
         config.dataDir / config.netPrivKeyFile
 
     privateKey = setupKey(keyPath).expect("Should setup private key!")
-    logFile = config.setupLogging()
+
     server =
       try:
         StorageServer.new(config, privateKey, logFile)

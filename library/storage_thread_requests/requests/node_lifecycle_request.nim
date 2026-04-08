@@ -91,7 +91,6 @@ proc createStorage(
     configJson: cstring
 ): Future[Result[StorageServer, string]] {.async: (raises: []).} =
   var conf: StorageConf
-
   try:
     conf = StorageConf.load(
       version = storageFullVersion,
@@ -106,6 +105,8 @@ proc createStorage(
     )
   except ConfigurationError as e:
     return err("Failed to create Storage: unable to load configuration: " & e.msg)
+
+  let logFile = conf.setupLogging()
 
   try:
     {.gcsafe.}:
@@ -144,8 +145,6 @@ proc createStorage(
     debug "Rest API is disabled!"
   else:
     debug "Rest API is enabled!"
-
-  let logFile = conf.setupLogging()
 
   let server =
     try:

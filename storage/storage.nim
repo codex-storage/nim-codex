@@ -125,6 +125,18 @@ proc close*(s: StorageServer) {.async.} =
       error "Failed to stop the taskpool", failures = res.failure.len
       raiseAssert("Failure in taskpool shutdown:" & exc.msg)
 
+  # when defaultChroniclesStream.outputs.type.arity >= 3:
+  #   proc noOutput(logLevel: LogLevel, msg: LogOutputStr) =
+  #     discard
+
+  #   defaultChroniclesStream.outputs[2].writer = noOutput
+
+  when defaultChroniclesStream.outputs.type.arity >= 3:
+    proc noOutput(logLevel: LogLevel, msg: LogOutputStr) =
+      echo "LOG FILE DYNAMIC OUTPUT NOT SET", msg
+
+    defaultChroniclesStream.outputs[2].writer = noOutput
+
   if s.logFile.isSome:
     if error =? closeFile(s.logFile.get()).errorOption:
       error "Failed to close log file", errorCode = $error
