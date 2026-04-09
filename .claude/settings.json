@@ -1,4 +1,13 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(npm install)",
+      "WebSearch",
+      "Bash(npm test:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:api.github.com)"
+    ]
+  },
   "env": {
     "MCP_TIMEOUT": "120000"
   }

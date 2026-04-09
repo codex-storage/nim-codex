@@ -179,11 +179,107 @@ jobs:
           path: ${{ env.build_dir }}/${{ env.c_bindings_lib }}.zip
           if-no-files-found: error
 
+  # Build Docker dist-tests image
+  build-docker-dist-tests:
+    name: Build Docker dist-tests image
+    if: github.ref_type == 'tag'
+    uses: ./.github/workflows/docker-reusable.yml
+    with:
+      nimflags: '-d:disableMarchNative -d:storage_enable_api_debug_peers=true -d:storage_enable_log_counter=true'
+      nat_ip_auto: true
+      tag_latest: false
+      tag_stable: false
+      tag_suffix: dist-tests
+      tag_sha: false
+    secrets: inherit
+
+  # Release tests
+  release-tests:
+    name: Release Tests
+    runs-on: ubuntu-latest
+    if: github.ref_type == 'tag'
+    needs: build-docker-dist-tests
+    env:
+      TF_VAR_region: ams3
+      TF_VAR_do_token: ${{ secrets.DO_TOKEN }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.SPACES_ACCESS_KEY }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.SPACES_SECRET_KEY }}
+      CODEXDOCKERIMAGE: ${{ needs.build-docker-dist-tests.outputs.logos_storage_image }}
+      NAMESPACE: default
+      TEST_TYPE: release-tests
+      BRANCH: master
+      SOURCE: https://github.com/logos-storage/logos-storage-nim-cs-dist-tests
+      TF_DIR: .github/release/clusters/codex-dist-tests-do-ams3
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Setup doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DO_TOKEN }}
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.30.5
+
+      - name: Terraform init
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform init
+
+      - name: Terraform apply
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform apply -auto-approve
+
+      - name: Get kubeconfig
+        run: doctl kubernetes cluster kubeconfig save codex-dist-tests-do-ams3
+
+      - name: Create in-cluster app kubeconfig secret
+        run: |
+          kubectl create secret generic codex-dist-tests-app-kubeconfig \
+            --from-file=kubeconfig.yaml=$HOME/.kube/config \
+            -n ${{ env.NAMESPACE }}
+
+      - name: Set run variables
+        run: |
+          RUNID=$(date +%Y%m%d-%H%M%S)
+          echo "RUNID=${RUNID}" >> $GITHUB_ENV
+          echo "NAMEPREFIX=r-tests-${RUNID}" >> $GITHUB_ENV
+          echo "TESTID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+          echo "COMMAND=$(jq -c 'split(" ")' <<< '"dotnet test Tests/CodexReleaseTests"')" >> $GITHUB_ENV
+
+      - name: Deploy test job
+        run: envsubst < .github/release/job-release-tests.yaml | kubectl apply -f -
+
+      - name: Stream test logs
+        run: |
+          kubectl logs -l job-name=${{ env.NAMEPREFIX }} \
+            -n ${{ env.NAMESPACE }} \
+            --follow \
+            --pod-running-timeout=300s
+
+      - name: Check job status
+        run: |
+          sleep 5
+          job_status=$(kubectl get jobs ${{ env.NAMEPREFIX }} -n ${{ env.NAMESPACE }} \
+            -o jsonpath='{.status.conditions[0].type}')
+          echo "Job status: $job_status"
+          [[ "$job_status" == "Complete" ]] || exit 1
+
+      - name: Terraform destroy
+        if: always()
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform destroy -auto-approve
+
   # Release
   release:
     runs-on: ubuntu-latest
-    needs: build
-    if: success() || failure()
+    needs: [build, release-tests]
+    if: needs.build.result == 'success' && needs.release-tests.result == 'success'
     steps:
       - name: Set conditional env variables
         shell: bash
