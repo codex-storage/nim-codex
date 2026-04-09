@@ -8,10 +8,10 @@ on:
       - master
   workflow_dispatch:
     inputs:
-      runner_image:
-        description: 'cs-dist-tests runner image (default: logosstorage/cs-codex-dist-tests:latest)'
+      branch:
+        description: 'cs-dist-tests branch to run tests from'
         required: false
-        default: 'logosstorage/cs-codex-dist-tests:latest'
+        default: 'master'
         type: string
 
 env:
@@ -211,10 +211,8 @@ jobs:
       AWS_ACCESS_KEY_ID: ${{ secrets.SPACES_ACCESS_KEY }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.SPACES_SECRET_KEY }}
       CODEXDOCKERIMAGE: ${{ needs.build-docker-dist-tests.outputs.logos_storage_image }}
-      RUNNER_IMAGE: ${{ inputs.runner_image || 'logosstorage/cs-codex-dist-tests:latest' }}
-      NAMESPACE: default
       TEST_TYPE: release-tests
-      BRANCH: master
+      BRANCH: ${{ inputs.branch || 'master' }}
       SOURCE: https://github.com/logos-storage/logos-storage-nim-cs-dist-tests
       TF_DIR: .github/release/clusters/codex-dist-tests-do-ams3
     steps:
@@ -249,7 +247,7 @@ jobs:
         run: |
           kubectl create secret generic codex-dist-tests-app-kubeconfig \
             --from-file=kubeconfig.yaml=$HOME/.kube/config \
-            -n ${{ env.NAMESPACE }}
+            -n default
 
       - name: Set run variables
         run: |
@@ -257,22 +255,21 @@ jobs:
           echo "RUNID=${RUNID}" >> $GITHUB_ENV
           echo "NAMEPREFIX=r-tests-${RUNID}" >> $GITHUB_ENV
           echo "TESTID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
-          echo "COMMAND=$(jq -c 'split(" ")' <<< '"dotnet test Tests/CodexReleaseTests"')" >> $GITHUB_ENV
 
       - name: Deploy test job
         run: envsubst < .github/release/job-release-tests.yaml | kubectl apply -f -
 
       - name: Stream test logs
         run: |
-          kubectl logs -l job-name=${{ env.NAMEPREFIX }} \
-            -n ${{ env.NAMESPACE }} \
+          kubectl logs -l job-name=$NAMEPREFIX \
+            -n default \
             --follow \
             --pod-running-timeout=300s
 
       - name: Check job status
         run: |
           sleep 5
-          job_status=$(kubectl get jobs ${{ env.NAMEPREFIX }} -n ${{ env.NAMESPACE }} \
+          job_status=$(kubectl get jobs $NAMEPREFIX -n default \
             -o jsonpath='{.status.conditions[0].type}')
           echo "Job status: $job_status"
           [[ "$job_status" == "Complete" ]] || exit 1
