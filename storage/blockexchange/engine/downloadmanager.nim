@@ -80,24 +80,24 @@ proc cancelDownload*(self: DownloadManager, download: ActiveDownload) =
   if not download.completionFuture.finished:
     download.completionFuture.fail(newException(CancelledError, "Download cancelled"))
 
-  self.downloads.withValue(download.cid, innerTable):
+  self.downloads.withValue(download.treeCid, innerTable):
     innerTable[].del(download.id)
     if innerTable[].len == 0:
-      self.downloads.del(download.cid)
+      self.downloads.del(download.treeCid)
 
-proc cancelDownload*(self: DownloadManager, cid: Cid) =
-  self.downloads.withValue(cid, innerTable):
+proc cancelDownload*(self: DownloadManager, treeCid: Cid) =
+  self.downloads.withValue(treeCid, innerTable):
     var toCancel: seq[ActiveDownload] = @[]
     for _, download in innerTable[]:
       toCancel.add(download)
     for download in toCancel:
       self.cancelDownload(download)
 
-proc releaseDownload*(self: DownloadManager, cid: Cid) =
-  self.cancelDownload(cid)
+proc releaseDownload*(self: DownloadManager, treeCid: Cid) =
+  self.cancelDownload(treeCid)
 
-proc releaseDownload*(self: DownloadManager, downloadId: uint64, cid: Cid) =
-  let download = self.getDownload(downloadId, cid)
+proc releaseDownload*(self: DownloadManager, downloadId: uint64, treeCid: Cid) =
+  let download = self.getDownload(downloadId, treeCid)
   if download.isSome:
     self.cancelDownload(download.get())
 
@@ -129,7 +129,7 @@ proc startDownload*(
 
   let download = ActiveDownload(
     id: downloadId,
-    cid: desc.cid,
+    treeCid: desc.treeCid,
     ctx: ctx,
     blocks: initTable[BlockAddress, BlockReq](),
     pendingBatches: initTable[uint64, PendingBatch](),
@@ -143,11 +143,12 @@ proc startDownload*(
       Future[?!void].Raising([CancelledError]).init("ActiveDownload.completion"),
   )
 
-  self.downloads.mgetOrPut(desc.cid, initTable[uint64, ActiveDownload]())[downloadId] =
-    download
+  self.downloads.mgetOrPut(desc.treeCid, initTable[uint64, ActiveDownload]())[
+    downloadId
+  ] = download
 
   trace "Started download",
-    treeCid = desc.cid,
+    treeCid = desc.treeCid,
     startIndex = desc.startIndex,
     count = desc.count,
     batchSize = ctx.scheduler.batchSizeCount

@@ -49,7 +49,7 @@ type
     bytesTransferred*: uint64
 
   DownloadDesc* = object
-    cid*: Cid
+    treeCid*: Cid
     blockSize*: uint32
     startIndex*: uint64
     count*: uint64
@@ -131,9 +131,6 @@ proc addPendingRange(
   of spSequential:
     discard
 
-proc id*(desc: DownloadDesc): Cid =
-  desc.cid
-
 proc toDownloadDesc*(
     treeCid: Cid,
     totalBlocks: uint64,
@@ -143,7 +140,7 @@ proc toDownloadDesc*(
     fetchLocal: bool = false,
 ): DownloadDesc =
   DownloadDesc(
-    cid: treeCid,
+    treeCid: treeCid,
     blockSize: blockSize,
     startIndex: 0,
     count: totalBlocks,
@@ -155,11 +152,13 @@ proc toDownloadDesc*(
 proc toDownloadDesc*(
     treeCid: Cid, startIndex: uint64, count: uint64, blockSize: uint32
 ): DownloadDesc =
-  DownloadDesc(cid: treeCid, blockSize: blockSize, startIndex: startIndex, count: count)
+  DownloadDesc(
+    treeCid: treeCid, blockSize: blockSize, startIndex: startIndex, count: count
+  )
 
 proc toDownloadDesc*(address: BlockAddress, blockSize: uint32): DownloadDesc =
   DownloadDesc(
-    cid: address.treeCid,
+    treeCid: address.treeCid,
     blockSize: blockSize,
     startIndex: address.index.uint64,
     count: 1,
@@ -188,7 +187,7 @@ proc new*(
     windowSize = computeWindowSize(blockSize)
 
   result = DownloadContext(
-    treeCid: desc.cid,
+    treeCid: desc.treeCid,
     blockSize: blockSize,
     totalBlocks: totalBlocks,
     scheduler: Scheduler.new(),

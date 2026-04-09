@@ -59,7 +59,7 @@ type
 
   ActiveDownload* = ref object
     id*: uint64 # for request/response correlation - echoed in protocol
-    cid*: Cid
+    treeCid*: Cid
     ctx*: DownloadContext
     blocks*: Table[BlockAddress, BlockReq] # per-download block requests
     pendingBatches*: Table[uint64, PendingBatch] # batch start -> pending info
@@ -88,7 +88,7 @@ proc signalCompletionIfDone(download: ActiveDownload, error: ref StorageError = 
     download.completionFuture.complete(success())
 
 proc makeBlockAddress*(download: ActiveDownload, index: uint64): BlockAddress =
-  BlockAddress(treeCid: download.cid, index: index.int)
+  BlockAddress(treeCid: download.treeCid, index: index.int)
 
 proc getOrCreateBlockReq(
     download: ActiveDownload, address: BlockAddress, requested: Option[PeerId]
@@ -416,3 +416,17 @@ proc addPeerIfAbsent*(
 
   discard download.ctx.swarm.addPeer(peerId, availability)
   return true # new peer added, send WantHave
+
+proc handleBatchRetry*(
+    download: ActiveDownload, start: uint64, count: uint64, waitTime: Duration
+) {.async: (raises: [CancelledError]).} =
+  let
+    addresses = download.getBlockAddressesForRange(start, count)
+    exhausted = download.decrementBlockRetries(addresses)
+  if exhausted.len > 0:
+    warn "Block retries exhausted",
+      treeCid = download.treeCid, exhaustedCount = exhausted.len
+    download.failExhaustedBlocks(exhausted)
+
+  download.requeueBatch(start, count, front = false)
+  await sleepAsync(waitTime)

@@ -81,7 +81,7 @@ type
     activeDownloads*: HashSet[uint64] # Track running download workers by download ID
 
   DownloadHandleGeneric*[T] = object
-    cid*: Cid
+    treeCid*: Cid
     downloadId*: uint64
     iter*: SafeAsyncIter[T]
     completionFuture*: Future[?!void].Raising([CancelledError])
@@ -169,12 +169,12 @@ proc searchForNewPeers(self: BlockExcEngine, cid: Cid) =
     trace "Not searching for new peers, rate limit not expired", cid = cid
 
 proc banAndDropPeer(
-    self: BlockExcEngine, download: ActiveDownload, cid: Cid, peerId: PeerId
+    self: BlockExcEngine, download: ActiveDownload, peerId: PeerId
 ) {.async: (raises: [CancelledError]).} =
   download.ctx.swarm.banPeer(peerId)
   download.handlePeerFailure(peerId)
   if download.ctx.swarm.needsPeers():
-    self.searchForNewPeers(cid)
+    self.searchForNewPeers(download.treeCid)
   await self.network.dropPeer(peerId)
 
 proc evictPeer(self: BlockExcEngine, peer: PeerId) =
@@ -226,8 +226,10 @@ proc sendWantBlocksRequest(
   if download.cancelled:
     return
 
-  let cid = download.cid
-  let runtimeQuota = 100.milliseconds
+  let
+    treeCid = download.treeCid
+    runtimeQuota = 100.milliseconds
+
   var
     missingIndices: seq[uint64] = @[]
     localBlockCount: uint64 = 0
@@ -284,7 +286,7 @@ proc sendWantBlocksRequest(
     ranges.add((rangeStart, rangeCount))
 
   trace "Requesting missing blocks",
-    cid = cid,
+    treeCid = treeCid,
     originalRange = $(start, count),
     missing = missingIndices.len,
     ranges = ranges.len,
@@ -292,8 +294,9 @@ proc sendWantBlocksRequest(
 
   let
     requestStartTime = Moment.now()
-    requestResult =
-      await self.requestWantBlocks(peer.id, BlockRange(cid: cid, ranges: ranges))
+    requestResult = await self.requestWantBlocks(
+      peer.id, BlockRange(treeCid: treeCid, ranges: ranges)
+    )
     rttMicros = (Moment.now() - requestStartTime).microseconds.uint64
 
   if download.cancelled:
@@ -320,7 +323,7 @@ proc sendWantBlocksRequest(
       download.handlePeerFailure(peer.id)
 
       if swarm.needsPeers():
-        self.searchForNewPeers(cid)
+        self.searchForNewPeers(treeCid)
     else:
       # we can requeue immediately (cancels timeout), no benefit waiting for timeout.
       download.requeueBatch(start, count, front = true)
@@ -329,12 +332,12 @@ proc sendWantBlocksRequest(
   let allBlockViews = requestResult.get
 
   if allBlockViews.len == 0:
-    trace "Peer responded with zero blocks", peer = peer.id, cid = cid
+    trace "Peer responded with zero blocks", peer = peer.id, treeCid = treeCid
     download.requeueBatch(start, count, front = false)
     return
 
   trace "Received batch response",
-    cid = cid,
+    treeCid = treeCid,
     originalRange = $(start, count),
     received = allBlockViews.len,
     requested = missingIndices.len,
@@ -357,14 +360,14 @@ proc sendWantBlocksRequest(
         index = view.address.index,
         totalBlocks = download.ctx.totalBlocks,
         peer = peer.id
-      await self.banAndDropPeer(download, cid, peer.id)
+      await self.banAndDropPeer(download, peer.id)
       return
 
     if err =? self.validateBlockDeliveryView(view).errorOption:
       error "Block validation failed - corrupted data from peer",
         address = view.address, msg = err.msg, peer = peer.id
       warn "Banning peer for sending corrupted block data", peer = peer.id
-      await self.banAndDropPeer(download, cid, peer.id)
+      await self.banAndDropPeer(download, peer.id)
       return
 
     let
@@ -412,7 +415,7 @@ proc sendWantBlocksRequest(
       let exhausted = download.decrementBlockRetries(penaltyAddresses)
       if exhausted.len > 0:
         warn "Blocks exhausted retries after partial delivery",
-          cid = cid, exhaustedCount = exhausted.len
+          treeCid = treeCid, exhaustedCount = exhausted.len
         download.failExhaustedBlocks(exhausted)
         let exhaustedIndices = exhausted.mapIt(it.index.uint64).toHashSet
         stillMissing = stillMissing.filterIt(it notin exhaustedIndices)
@@ -435,7 +438,7 @@ proc sendWantBlocksRequest(
       missingRanges.add((rangeStart, rangeCount))
 
     trace "Partial batch completion - requeuing missing ranges",
-      cid = cid,
+      treeCid = treeCid,
       originalStart = start,
       originalCount = count,
       received = validCount,
@@ -479,12 +482,11 @@ proc startDownload(
 proc broadcastWantHave(
     self: BlockExcEngine,
     download: ActiveDownload,
-    cid: Cid,
     start: uint64,
     count: uint64,
     peers: seq[PeerContext],
 ) {.async: (raises: [CancelledError]).} =
-  let rangeAddress = BlockAddress.init(cid, start.int)
+  let rangeAddress = BlockAddress.init(download.treeCid, start.int)
   for peerCtx in peers:
     if not download.addPeerIfAbsent(peerCtx.id, BlockAvailability.unknown()):
       # skip presence request for peer with Complete availability
@@ -509,37 +511,16 @@ proc broadcastWantHave(
     except CatchableError as err:
       warn "Want-have send failed", peer = peerCtx.id, error = err.msg
 
-proc handleBatchRetry(
-    self: BlockExcEngine,
-    download: ActiveDownload,
-    cid: Cid,
-    start: uint64,
-    count: uint64,
-    waitTime: Duration,
-) {.async: (raises: [CancelledError]).} =
-  # we decrement retries, fail exhausted blocks, requeue, and wait.
-  let
-    addresses = download.getBlockAddressesForRange(start, count)
-    exhausted = download.decrementBlockRetries(addresses)
-  if exhausted.len > 0:
-    warn "Block retries exhausted", cid = cid, exhaustedCount = exhausted.len
-    download.failExhaustedBlocks(exhausted)
-
-  download.requeueBatch(start, count, front = false)
-  await sleepAsync(waitTime)
-
 proc downloadWorker(
     self: BlockExcEngine, download: ActiveDownload
 ) {.async: (raises: []).} =
   ## Continuously schedules batches to peers until download completes.
   ## Supports concurrent batch requests per peer based on BDP pipeline depth.
-  ## When block size is unknown (0), BDP optimizations are disabled - first batch
-  ## is used to discover block size, then BDP calculations start.
   let
-    cid = download.cid
+    treeCid = download.treeCid
     retryInterval = self.downloadManager.retryInterval
   logScope:
-    cid = cid
+    treeCid = treeCid
 
   try:
     let
@@ -553,19 +534,17 @@ proc downloadWorker(
 
     if connectedPeers.len > 0:
       trace "Initial presence window broadcast",
-        cid = cid,
+        treeCid = treeCid,
         windowStart = windowStart,
         windowCount = windowCount,
         totalBlocks = download.ctx.totalBlocks,
         peerCount = connectedPeers.len
 
-      await self.broadcastWantHave(
-        download, cid, windowStart, windowCount, connectedPeers
-      )
+      await self.broadcastWantHave(download, windowStart, windowCount, connectedPeers)
       trace "Initial broadcast sent, proceeding to batch loop"
     else:
       trace "No connected peers for initial broadcast, triggering discovery"
-      self.searchForNewPeers(cid)
+      self.searchForNewPeers(treeCid)
 
     while not download.cancelled and not download.isDownloadComplete():
       for peerId in download.inFlightBatches.keys.toSeq:
@@ -592,25 +571,25 @@ proc downloadWorker(
             swarmPeers.add(peerCtx)
 
         trace "Advancing presence window",
-          cid = cid,
+          treeCid = treeCid,
           newWindowStart = newStart,
           newWindowCount = newCount,
           watermark = ctx.scheduler.completedWatermark(),
           swarmPeers = swarmPeers.len
 
-        await self.broadcastWantHave(download, cid, newStart, newCount, swarmPeers)
+        await self.broadcastWantHave(download, newStart, newCount, swarmPeers)
 
       # Broadcast availability to peers
       if not download.fetchLocal and ctx.shouldBroadcastAvailability():
         let broadcastRanges = ctx.getAvailabilityBroadcast()
         if broadcastRanges.len > 0:
           trace "Broadcasting availability to swarm",
-            cid = cid,
+            treeCid = treeCid,
             rangeCount = broadcastRanges.len,
             swarmPeers = ctx.swarm.peerCount()
 
           let presence = BlockPresence(
-            address: BlockAddress(treeCid: cid, index: broadcastRanges[0].start.int),
+            address: BlockAddress(treeCid: treeCid, index: broadcastRanges[0].start.int),
             kind: BlockPresenceType.HaveRange,
             ranges: broadcastRanges,
           )
@@ -693,7 +672,7 @@ proc downloadWorker(
       if peersNeeded > 0:
         trace "Swarm below target, triggering discovery",
           active = swarm.activePeerCount(), needed = peersNeeded
-        self.searchForNewPeers(cid)
+        self.searchForNewPeers(treeCid)
 
       if swarm.peersWithRange(start, count).len == 0:
         shouldBroadcast = true
@@ -703,21 +682,24 @@ proc downloadWorker(
 
         if connectedPeers.len > 0:
           trace "Broadcasting want-have for batch range",
-            cid = cid, start = start, count = count, peerCount = connectedPeers.len
+            treeCid = treeCid,
+            start = start,
+            count = count,
+            peerCount = connectedPeers.len
 
-          await self.broadcastWantHave(download, cid, start, count, connectedPeers)
+          await self.broadcastWantHave(download, start, count, connectedPeers)
           # Give peers a short time to respond with presence
           await sleepAsync(50.milliseconds)
         else:
           trace "No connected peers, searching for new peers"
-          self.searchForNewPeers(cid)
-          await self.handleBatchRetry(download, cid, start, count, retryInterval)
+          self.searchForNewPeers(treeCid)
+          await download.handleBatchRetry(start, count, retryInterval)
           continue
 
       if self.peers.len == 0:
         trace "No connected peers available for batch, searching"
-        self.searchForNewPeers(cid)
-        await self.handleBatchRetry(download, cid, start, count, 100.milliseconds)
+        self.searchForNewPeers(treeCid)
+        await download.handleBatchRetry(start, count, 100.milliseconds)
         continue
 
       let staleUnknown = swarm.staleUnknownPeers()
@@ -725,7 +707,7 @@ proc downloadWorker(
         let rangeAddress = download.makeBlockAddress(start)
 
         trace "Re-querying stale unknown peers",
-          cid = cid,
+          treeCid = treeCid,
           staleUnknownCount = staleUnknown.len,
           batchStart = start,
           batchCount = count
@@ -764,7 +746,7 @@ proc downloadWorker(
         let
           hasActivePeers = swarm.activePeerCount() > 0
           waitTime = if hasActivePeers: retryInterval else: 100.milliseconds
-        await self.handleBatchRetry(download, cid, start, count, waitTime)
+        await download.handleBatchRetry(start, count, waitTime)
         continue
 
       if selection.kind == pskAtCapacity:
@@ -808,7 +790,7 @@ proc downloadWorker(
 
             if exhausted.len > 0:
               warn "Blocks exhausted retries after timeout",
-                cid = cid, exhaustedCount = exhausted.len
+                treeCid = treeCid, exhaustedCount = exhausted.len
               dl.failExhaustedBlocks(exhausted)
 
             let reqFuture = pending[].requestFuture
@@ -910,7 +892,7 @@ proc startTreeDownloadGeneric[T: Block | void](
     return blkResult
 
   success DownloadHandleGeneric[T](
-    cid: treeCid,
+    treeCid: treeCid,
     downloadId: activeDownload.id,
     iter: SafeAsyncIter[T].new(genNext, isFinished),
     completionFuture: activeDownload.completionFuture,
@@ -947,20 +929,20 @@ proc startTreeDownloadOpaque*(
   )
 
 proc releaseDownload*[T](self: BlockExcEngine, handle: DownloadHandleGeneric[T]) =
-  self.downloadManager.releaseDownload(handle.downloadId, handle.cid)
+  self.downloadManager.releaseDownload(handle.downloadId, handle.treeCid)
 
-proc cancelDownload*(self: BlockExcEngine, cid: Cid) =
-  self.downloadManager.cancelDownload(cid)
+proc cancelDownload*(self: BlockExcEngine, treeCid: Cid) =
+  self.downloadManager.cancelDownload(treeCid)
 
 proc cancelBackgroundDownload*(
-    self: BlockExcEngine, downloadId: uint64, cid: Cid
+    self: BlockExcEngine, downloadId: uint64, treeCid: Cid
 ): bool =
-  self.downloadManager.cancelBackgroundDownload(downloadId, cid)
+  self.downloadManager.cancelBackgroundDownload(downloadId, treeCid)
 
 proc getDownloadProgress*(
-    self: BlockExcEngine, downloadId: uint64, cid: Cid
+    self: BlockExcEngine, downloadId: uint64, treeCid: Cid
 ): Option[DownloadProgress] =
-  self.downloadManager.getDownloadProgress(downloadId, cid)
+  self.downloadManager.getDownloadProgress(downloadId, treeCid)
 
 proc blockPresenceHandler*(
     self: BlockExcEngine, peer: PeerId, blocks: seq[BlockPresence]
@@ -973,9 +955,10 @@ proc blockPresenceHandler*(
   for blk in blocks:
     if presence =? Presence.init(blk):
       if presence.have:
-        let cid = presence.address.treeCid
+        let
+          treeCid = presence.address.treeCid
+          downloadOpt = self.downloadManager.getDownload(blk.downloadId, treeCid)
 
-        let downloadOpt = self.downloadManager.getDownload(blk.downloadId, cid)
         if downloadOpt.isSome:
           let availability =
             case presence.presenceType
@@ -991,8 +974,8 @@ proc blockPresenceHandler*(
 
           downloadOpt.get().updatePeerAvailability(peer, availability)
 
-          # try to propagate peer availability to other downloads for the same CID
-          self.downloadManager.downloads.withValue(cid, innerTable):
+          # try to propagate peer availability to other downloads for the same tree CID
+          self.downloadManager.downloads.withValue(treeCid, innerTable):
             for otherId, otherDownload in innerTable[]:
               if otherId != blk.downloadId:
                 otherDownload.updatePeerAvailability(peer, availability)
@@ -1152,7 +1135,7 @@ proc requestWantBlocks*(
   if blockViews.len == 0:
     trace "Request succeeded but received zero blocks",
       peer = peer,
-      cid = blockRange.cid,
+      treeCid = blockRange.treeCid,
       rangeCount = blockRange.ranges.len,
       responseBlockCount = response.blocks.len
 
@@ -1214,7 +1197,7 @@ proc new*(
     for (start, count) in req.ranges:
       totalRequested += count
       for i in start ..< start + count:
-        let address = BlockAddress(treeCid: req.cid, index: i.Natural)
+        let address = BlockAddress(treeCid: req.treeCid, index: i.Natural)
 
         let res = await self.localLookup(address)
         if res.isOk:
@@ -1225,7 +1208,7 @@ proc new*(
     if notFoundCount > 0:
       warn "Some blocks not found in WantBlocks request",
         peer = peer,
-        cid = req.cid,
+        treeCid = req.treeCid,
         requested = totalRequested,
         found = blockDeliveries.len,
         notFound = notFoundCount

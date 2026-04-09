@@ -91,7 +91,7 @@ asyncchecksuite "DownloadManager - Download Lifecycle":
 
     let download = dm.startDownload(desc)
 
-    check download.cid == treeCid
+    check download.treeCid == treeCid
 
   test "Should allow multiple downloads for same CID":
     let
@@ -102,7 +102,7 @@ asyncchecksuite "DownloadManager - Download Lifecycle":
       download2 = dm.startDownload(desc)
 
     check download1.id != download2.id
-    check download1.cid == download2.cid
+    check download1.treeCid == download2.treeCid
 
   test "Multiple downloads for same CID have independent block state":
     let
@@ -577,18 +577,18 @@ suite "DownloadManager - DownloadDesc":
       treeCid = Cid.example
       desc = toDownloadDesc(treeCid, 1000, 65536)
 
-    check desc.cid == treeCid
+    check desc.treeCid == treeCid
 
     check desc.startIndex == 0
     check desc.count == 1000
-    check desc.id == treeCid
+    check desc.treeCid == treeCid
 
   test "Should create range download desc":
     let
       treeCid = Cid.example
       desc = toDownloadDesc(treeCid, 500, 200, 65536)
 
-    check desc.cid == treeCid
+    check desc.treeCid == treeCid
 
     check desc.startIndex == 500
     check desc.count == 200
@@ -599,7 +599,7 @@ suite "DownloadManager - DownloadDesc":
       address = BlockAddress(treeCid: treeCid, index: 42)
       desc = toDownloadDesc(address, 65536)
 
-    check desc.cid == treeCid
+    check desc.treeCid == treeCid
 
     check desc.startIndex == 42
     check desc.count == 1

@@ -17,7 +17,7 @@ import ../blocktype
 
 type
   BlockRange* = object
-    cid*: Cid
+    treeCid*: Cid
     ranges*: seq[tuple[start: uint64, count: uint64]]
 
   BlockAvailabilityKind* = enum

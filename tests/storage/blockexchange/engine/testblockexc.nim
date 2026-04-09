@@ -254,7 +254,7 @@ asyncchecksuite "BlockExchange - Download Lifecycle":
       download2 = leecher.downloadManager.startDownload(desc)
 
     check download1.id != download2.id
-    check download1.cid == download2.cid
+    check download1.treeCid == download2.treeCid
 
     leecher.downloadManager.cancelDownload(treeCid)
     check leecher.downloadManager.getDownload(treeCid).isNone

@@ -54,7 +54,7 @@ type
 
   WantBlocksRequest* = object
     requestId*: uint64
-    cid*: Cid
+    treeCid*: Cid
     ranges*: seq[tuple[start: uint64, count: uint64]]
 
   SharedBlocksBuffer* = ref object
@@ -146,7 +146,7 @@ proc decodeProofBinary*(data: openArray[byte]): WantBlocksResult[StorageMerklePr
   )
 
 proc calcRequestSize*(req: WantBlocksRequest): int {.inline.} =
-  let cidBytes = req.cid.data.buffer
+  let cidBytes = req.treeCid.data.buffer
   SizeRequestId + SizeCidLen + cidBytes.len + SizeRangeCount +
     (req.ranges.len * SizeRange)
 
@@ -160,7 +160,7 @@ proc encodeRequestInto*(
   offset += 8
 
   let
-    cidBytes = req.cid.data.buffer
+    cidBytes = req.treeCid.data.buffer
     cidLenLE = cidBytes.len.uint16.toLE
   copyMem(addr buf[offset], unsafeAddr cidLenLE, 2)
   offset += 2
@@ -201,7 +201,7 @@ proc decodeRequest*(data: openArray[byte]): WantBlocksResult[WantBlocksRequest] 
   if offset + cidLen + SizeRangeCount > data.len:
     return err(wantBlocksError(RequestTruncated, "Request truncated (CID)"))
 
-  let cid = ?Cid.init(data.toOpenArray(offset, offset + cidLen - 1)).mapErr(
+  let treeCid = ?Cid.init(data.toOpenArray(offset, offset + cidLen - 1)).mapErr(
     proc(e: auto): ref WantBlocksError =
       wantBlocksError(InvalidCid, "Invalid CID: " & $e)
   )
@@ -222,7 +222,7 @@ proc decodeRequest*(data: openArray[byte]): WantBlocksResult[WantBlocksRequest] 
     offset += 8
     ranges.add((start, count))
 
-  ok(WantBlocksRequest(requestId: requestId, cid: cid, ranges: ranges))
+  ok(WantBlocksRequest(requestId: requestId, treeCid: treeCid, ranges: ranges))
 
 proc calcProofBinarySize*(proof: StorageMerkleProof): int {.inline.} =
   result = SizeProofHeader

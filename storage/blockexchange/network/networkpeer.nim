@@ -109,7 +109,7 @@ proc readLoop*(self: NetworkPeer, conn: Connection) {.async: (raises: []).} =
         let
           req = reqResult.get
           blocks = await self.wantBlocksHandler(self.id, req)
-        await writeWantBlocksResponse(conn, req.requestId, req.cid, blocks)
+        await writeWantBlocksResponse(conn, req.requestId, req.treeCid, blocks)
       of mtWantBlocksResponse:
         let respResult = await readWantBlocksResponse(conn, dataLen)
         if respResult.isErr:
@@ -201,7 +201,7 @@ proc sendWantBlocksRequest*(
       return err(wantBlocksError(NoConnection, "No connection available"))
 
     let req = WantBlocksRequest(
-      requestId: requestId, cid: blockRange.cid, ranges: blockRange.ranges
+      requestId: requestId, treeCid: blockRange.treeCid, ranges: blockRange.ranges
     )
     await writeWantBlocksRequest(conn, req)
     return await responseFuture
