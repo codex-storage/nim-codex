@@ -33,11 +33,6 @@
 	url = https://github.com/status-im/nim-stew.git
 	ignore = untracked
 	branch = master
-[submodule "vendor/nim-nitro"]
-	path = vendor/nim-nitro
-	url = https://github.com/status-im/nim-nitro.git
-	ignore = untracked
-	branch = main
 [submodule "vendor/questionable"]
 	path = vendor/questionable
 	url = https://github.com/status-im/questionable.git
@@ -131,15 +126,9 @@
 [submodule "vendor/nim-contract-abi"]
 	path = vendor/nim-contract-abi
 	url = https://github.com/status-im/nim-contract-abi
-[submodule "vendor/nim-json-rpc"]
-	path = vendor/nim-json-rpc
-	url = https://github.com/status-im/nim-json-rpc
 [submodule "vendor/nim-zlib"]
 	path = vendor/nim-zlib
 	url = https://github.com/status-im/nim-zlib
-[submodule "vendor/nim-ethers"]
-	path = vendor/nim-ethers
-	url = https://github.com/status-im/nim-ethers
 [submodule "vendor/lrucache.nim"]
 	path = vendor/lrucache.nim
 	url = https://github.com/status-im/lrucache.nim
@@ -167,9 +156,6 @@
 [submodule "vendor/nim-sqlite3-abi"]
 	path = vendor/nim-sqlite3-abi
 	url = https://github.com/arnetheduck/nim-sqlite3-abi.git
-[submodule "vendor/nim-eth"]
-	path = vendor/nim-eth
-	url = https://github.com/status-im/nim-eth
 [submodule "vendor/nim-protobuf-serialization"]
 	path = vendor/nim-protobuf-serialization
 	url = https://github.com/status-im/nim-protobuf-serialization
