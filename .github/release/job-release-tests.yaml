@@ -1,0 +1,63 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ${NAMEPREFIX}
+  namespace: ${NAMESPACE}
+  labels:
+    name: ${NAMEPREFIX}
+    runid: ${RUNID}
+spec:
+  ttlSecondsAfterFinished: 86400
+  backoffLimit: 0
+  template:
+    metadata:
+      name: ${NAMEPREFIX}
+      labels:
+        app: ${TEST_TYPE}-runner
+        name: ${NAMEPREFIX}
+        runid: ${RUNID}
+    spec:
+      priorityClassName: system-node-critical
+      nodeSelector:
+        workload-type: "tests-runners-ci"
+      containers:
+      - name: runner
+        image: logosstorage/cs-codex-dist-tests:latest
+        imagePullPolicy: Always
+        resources:
+          requests:
+            memory: "1Gi"
+        env:
+        - name: KUBECONFIG
+          value: "/opt/kubeconfig.yaml"
+        - name: LOGPATH
+          value: "/var/log/codex-${TEST_TYPE}"
+        - name: NAMESPACE
+          value: "${NAMESPACE}"
+        - name: BRANCH
+          value: "${BRANCH}"
+        - name: SOURCE
+          value: "${SOURCE}"
+        - name: RUNID
+          value: "${RUNID}"
+        - name: CODEXDOCKERIMAGE
+          value: "${CODEXDOCKERIMAGE}"
+        - name: TESTID
+          value: "${TESTID}"
+        - name: TESTS_TYPE
+          value: "${TEST_TYPE}"
+        volumeMounts:
+        - name: kubeconfig
+          mountPath: /opt/kubeconfig.yaml
+          subPath: kubeconfig.yaml
+        - name: logs
+          mountPath: /var/log/codex-${TEST_TYPE}
+        args: ${COMMAND}
+      restartPolicy: Never
+      volumes:
+        - name: kubeconfig
+          secret:
+            secretName: codex-dist-tests-app-kubeconfig
+        - name: logs
+          hostPath:
+            path: /var/log/codex-${TEST_TYPE}
