@@ -7,6 +7,12 @@ on:
     branches:
       - master
   workflow_dispatch:
+    inputs:
+      runner_image:
+        description: 'cs-dist-tests runner image (default: logosstorage/cs-codex-dist-tests:latest)'
+        required: false
+        default: 'logosstorage/cs-codex-dist-tests:latest'
+        type: string
 
 env:
   cache_nonce: 0 # Allows for easily busting actions/cache caches
@@ -205,6 +211,7 @@ jobs:
       AWS_ACCESS_KEY_ID: ${{ secrets.SPACES_ACCESS_KEY }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.SPACES_SECRET_KEY }}
       CODEXDOCKERIMAGE: ${{ needs.build-docker-dist-tests.outputs.logos_storage_image }}
+      RUNNER_IMAGE: ${{ inputs.runner_image || 'logosstorage/cs-codex-dist-tests:latest' }}
       NAMESPACE: default
       TEST_TYPE: release-tests
       BRANCH: master
