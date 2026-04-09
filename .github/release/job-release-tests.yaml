@@ -2,7 +2,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: ${NAMEPREFIX}
-  namespace: ${NAMESPACE}
+  namespace: default
   labels:
     name: ${NAMEPREFIX}
     runid: ${RUNID}
@@ -22,7 +22,7 @@ spec:
         workload-type: "tests-runners-ci"
       containers:
       - name: runner
-        image: ${RUNNER_IMAGE}
+        image: logosstorage/cs-codex-dist-tests:latest
         imagePullPolicy: Always
         resources:
           requests:
@@ -32,8 +32,6 @@ spec:
           value: "/opt/kubeconfig.yaml"
         - name: LOGPATH
           value: "/var/log/codex-${TEST_TYPE}"
-        - name: NAMESPACE
-          value: "${NAMESPACE}"
         - name: BRANCH
           value: "${BRANCH}"
         - name: SOURCE
@@ -52,7 +50,7 @@ spec:
           subPath: kubeconfig.yaml
         - name: logs
           mountPath: /var/log/codex-${TEST_TYPE}
-        args: ${COMMAND}
+        args: ["dotnet", "test", "Tests/CodexReleaseTests"]
       restartPolicy: Never
       volumes:
         - name: kubeconfig
