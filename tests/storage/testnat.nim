@@ -21,16 +21,18 @@ suite "NAT Address Tests":
 
     # Expected results
     let
-      expectedDiscoveryAddrs = @[
-        MultiAddress.init("/ip4/8.8.8.8/udp/1234").expect("valid multiaddr"),
-        MultiAddress.init("/ip4/8.8.8.8/udp/1234").expect("valid multiaddr"),
-        MultiAddress.init("/ip4/8.8.8.8/udp/1234").expect("valid multiaddr"),
-      ]
-      expectedlibp2pAddrs = @[
-        MultiAddress.init("/ip4/8.8.8.8/tcp/5000").expect("valid multiaddr"),
-        MultiAddress.init("/ip4/8.8.8.8/tcp/5000").expect("valid multiaddr"),
-        MultiAddress.init("/ip4/8.8.8.8/tcp/5000").expect("valid multiaddr"),
-      ]
+      expectedDiscoveryAddrs =
+        @[
+          MultiAddress.init("/ip4/8.8.8.8/udp/1234").expect("valid multiaddr"),
+          MultiAddress.init("/ip4/8.8.8.8/udp/1234").expect("valid multiaddr"),
+          MultiAddress.init("/ip4/8.8.8.8/udp/1234").expect("valid multiaddr"),
+        ]
+      expectedlibp2pAddrs =
+        @[
+          MultiAddress.init("/ip4/8.8.8.8/tcp/5000").expect("valid multiaddr"),
+          MultiAddress.init("/ip4/8.8.8.8/tcp/5000").expect("valid multiaddr"),
+          MultiAddress.init("/ip4/8.8.8.8/tcp/5000").expect("valid multiaddr"),
+        ]
 
       #ipv6Addr = MultiAddress.init("/ip6/::1/tcp/5000").expect("valid multiaddr")
       addrs = @[localAddr, anyAddr, publicAddr]
@@ -41,3 +43,26 @@ suite "NAT Address Tests":
     # Verify results
     check(discoveryAddrs == expectedDiscoveryAddrs)
     check(libp2pAddrs == expectedlibp2pAddrs)
+
+suite "setupAddress":
+  test "public bind IP with NatNone returns bind IP":
+    let
+      bindIp = parseIpAddress("8.8.8.8")
+      natConfig = NatConfig(hasExtIp: false, nat: NatStrategy.NatNone)
+      (ip, tcpPort, udpPort) =
+        setupAddress(natConfig, bindIp, Port(5000), Port(5001), "test")
+
+    check ip == some(bindIp)
+    check tcpPort == some(Port(5000))
+    check udpPort == some(Port(5001))
+
+  test "private bind IP with NatNone returns no IP":
+    let
+      bindIp = parseIpAddress("192.168.1.1")
+      natConfig = NatConfig(hasExtIp: false, nat: NatStrategy.NatNone)
+      (ip, tcpPort, udpPort) =
+        setupAddress(natConfig, bindIp, Port(5000), Port(5001), "test")
+
+    check ip == none(IpAddress)
+    check tcpPort == some(Port(5000))
+    check udpPort == some(Port(5001))

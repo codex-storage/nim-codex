@@ -137,7 +137,12 @@ proc getRoutePrefSrc(bindIp: IpAddress): (Option[IpAddress], PrefSrcStatus) =
   let bindAddress = initTAddress(bindIp, Port(0))
 
   if bindAddress.isAnyLocal():
-    let ip = getRouteIpv4()
+    let ip =
+      if bindIp.family == IpAddressFamily.IPv6:
+        getRouteIpv6()
+      else:
+        getRouteIpv4()
+
     if ip.isErr():
       # No route was found, log error and continue without IP.
       error "No routable IP address found, check your network connection",
