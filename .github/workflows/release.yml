@@ -188,7 +188,7 @@ jobs:
   # Build Docker dist-tests image
   build-docker-dist-tests:
     name: Build Docker dist-tests image
-    if: github.ref_type == 'tag'
+    if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
     uses: ./.github/workflows/docker-reusable.yml
     with:
       nimflags: '-d:disableMarchNative -d:storage_enable_api_debug_peers=true -d:storage_enable_log_counter=true'
@@ -203,7 +203,7 @@ jobs:
   release-tests:
     name: Release Tests
     runs-on: ubuntu-latest
-    if: github.ref_type == 'tag'
+    if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
     needs: build-docker-dist-tests
     env:
       TF_VAR_region: ams3
