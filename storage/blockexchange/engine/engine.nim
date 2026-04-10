@@ -221,53 +221,13 @@ proc sendWantBlocksRequest(
     download: ActiveDownload,
     start: uint64,
     count: uint64,
+    missingIndices: seq[uint64],
     peer: PeerContext,
 ): Future[void] {.async: (raises: [CancelledError]).} =
   if download.cancelled:
     return
 
-  let
-    treeCid = download.treeCid
-    runtimeQuota = 100.milliseconds
-
-  var
-    missingIndices: seq[uint64] = @[]
-    localBlockCount: uint64 = 0
-    lastIdle = Moment.now()
-
-  for i in start ..< start + count:
-    if (Moment.now() - lastIdle) >= runtimeQuota:
-      await idleAsync()
-      lastIdle = Moment.now()
-
-    let address = download.makeBlockAddress(i)
-
-    if download.isBlockExhausted(address):
-      continue
-
-    let exists =
-      try:
-        await address in self.localStore
-      except CatchableError as e:
-        warn "Error checking block existence", address = address, error = e.msg
-        false
-
-    if not exists:
-      missingIndices.add(i)
-    else:
-      localBlockCount += 1
-      # try to complete handle if iterator is still waiting
-      if address in download.blocks:
-        let blkResult = await self.localStore.getBlock(address)
-        if blkResult.isOk:
-          discard download.completeWantHandle(address, some(blkResult.get))
-
-  download.markBatchInFlight(start, count, localBlockCount, peer.id)
-
-  if missingIndices.len == 0:
-    # all blocks were local
-    download.completeBatch(start, 0, 0)
-    return
+  let treeCid = download.treeCid
 
   var ranges: seq[tuple[start: uint64, count: uint64]] = @[]
   if missingIndices.len > 0:
@@ -625,7 +585,12 @@ proc downloadWorker(
         batchStart = start
         batchCount = count
 
-      block localCheck:
+      var
+        missingIndices: seq[uint64] = @[]
+        localBlockCount: uint64 = 0
+        bailFetchLocal = false
+
+      block localScan:
         var lastIdle = Moment.now()
         let runtimeQuota = 100.milliseconds
 
@@ -636,30 +601,34 @@ proc downloadWorker(
 
           let address = download.makeBlockAddress(i)
           if download.isBlockExhausted(address):
-            break localCheck
+            continue
+
           let exists =
             try:
               await address in self.localStore
-            except CatchableError:
+            except CatchableError as e:
+              warn "Error checking block existence",
+                address = address, error = e.msg
               false
-          if not exists:
+
+          if exists:
+            localBlockCount += 1
+            if address in download.blocks:
+              let blkResult = await self.localStore.getBlock(address)
+              if blkResult.isOk:
+                discard download.completeWantHandle(address, some(blkResult.get))
+          else:
             if download.fetchLocal:
               download.failLocalMissing(address)
-              break localCheck
-            break localCheck
+              bailFetchLocal = true
+              break localScan
+            missingIndices.add(i)
 
-        for i in start ..< start + count:
-          if (Moment.now() - lastIdle) >= runtimeQuota:
-            await idleAsync()
-            lastIdle = Moment.now()
+      if bailFetchLocal:
+        continue
 
-          let address = download.makeBlockAddress(i)
-          if address in download.blocks:
-            without blk =? (await self.localStore.getBlock(address)), err:
-              break localCheck
-            discard download.completeWantHandle(address, some(blk))
-
-        download.completeBatchLocal(start, count)
+      if missingIndices.len == 0:
+        download.completeBatchLocal(start, localBlockCount)
         continue
 
       if download.cancelled or download.fetchLocal:
@@ -754,9 +723,12 @@ proc downloadWorker(
         await sleepAsync(10.milliseconds)
         continue
 
-      let
-        peer = selection.peer
-        batchFuture = self.sendWantBlocksRequest(download, start, count, peer)
+      let peer = selection.peer
+
+      download.markBatchInFlight(start, count, localBlockCount, peer.id)
+
+      let batchFuture =
+        self.sendWantBlocksRequest(download, start, count, missingIndices, peer)
 
       if peer.id notin download.inFlightBatches:
         download.inFlightBatches[peer.id] = @[]
