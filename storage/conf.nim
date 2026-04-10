@@ -53,6 +53,8 @@ export
   DefaultQuotaBytes, DefaultBlockTtl, DefaultBlockInterval, DefaultNumBlocksPerInterval,
   DefaultBlockRetries
 
+const DefaultNatScheduleInterval* = 5.minutes
+
 type ThreadCount* = distinct Natural
 
 proc `==`*(a, b: ThreadCount): bool {.borrow.}
@@ -308,6 +310,31 @@ type
     logFile* {.
       desc: "Logs to file", defaultValue: string.none, name: "log-file", hidden
     .}: Option[string]
+
+    natScheduleInterval* {.
+      desc: "Interval between AutoNAT reachability checks",
+      defaultValue: DefaultNatScheduleInterval,
+      defaultValueDesc: $DefaultNatScheduleInterval,
+      name: "nat-schedule-interval"
+    .}: Duration
+
+    natNumPeersToAsk* {.
+      desc: "Number of peers to ask per AutoNAT round",
+      defaultValue: 3,
+      name: "nat-num-peers-to-ask"
+    .}: int
+
+    natMaxQueueSize* {.
+      desc: "Number of past AutoNAT results kept to calculate confidence",
+      defaultValue: 3,
+      name: "nat-max-queue-size"
+    .}: int
+
+    natMinConfidence* {.
+      desc: "Minimum confidence threshold to confirm reachability",
+      defaultValue: 0.7,
+      name: "nat-min-confidence"
+    .}: float
 
 func defaultAddress*(conf: StorageConf): IpAddress =
   result = static parseIpAddress("127.0.0.1")
