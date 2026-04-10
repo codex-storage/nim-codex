@@ -32,7 +32,6 @@ type
   MultiNodeSuiteError = object of CatchableError
   SuiteTimeoutError = object of MultiNodeSuiteError
 
-const HardhatPort {.intdefine.}: int = 8545
 const StorageApiPort {.intdefine.}: int = 8080
 const StorageDiscPort {.intdefine.}: int = 8090
 const TestId {.strdefine.}: string = "TestId"
@@ -75,7 +74,6 @@ template multinodesuite*(suiteName: string, body: untyped) =
     var currentTestName = ""
     var nodeConfigs: NodeConfigs
     var snapshot: JsonNode
-    var lastUsedHardhatPort = HardhatPort
     var lastUsedStorageApiPort = StorageApiPort
     var lastUsedStorageDiscPort = StorageDiscPort
     var storagePortLock: AsyncLock
