@@ -17,6 +17,7 @@ import pkg/chronos
 import pkg/taskpools
 import pkg/presto
 import pkg/libp2p
+import pkg/libp2p/protocols/connectivity/autonat/[service, client]
 import pkg/confutils
 import pkg/confutils/defs
 import pkg/stew/io2
@@ -51,6 +52,7 @@ type
     repoStore: RepoStore
     maintenance: BlockMaintainer
     taskpool: Taskpool
+    autonatService*: AutonatService
     isStarted: bool
 
   StoragePrivateKey* = libp2p.PrivateKey # alias
@@ -76,9 +78,25 @@ proc start*(s: StorageServer) {.async.} =
 
   await s.storageNode.switch.start()
 
-  let (announceAddrs, discoveryAddrs) = nattedAddress(
-    s.config.nat, s.storageNode.switch.peerInfo.addrs, s.config.discoveryPort
-  )
+  let announceIp =
+    if s.config.nat.hasExtIp:
+      some(s.config.nat.extIp)
+    else:
+      getBestLocalAddress(s.config.listenIp)
+
+  if announceIp.isNone:
+    # We should have an IP, even at private IP
+    raise newException(StorageError, "Unable to determine an IP address to announce")
+
+  # Remap switch addresses to the resolved IP (replaces 0.0.0.0 or :: with the actual address),
+  # keeping unique entries only.
+  let announceAddrs = s.storageNode.switch.peerInfo.addrs
+    .mapIt(it.remapAddr(ip = announceIp, port = none(Port)))
+    .deduplicate()
+  let discoveryAddrs =
+    @[getMultiAddrWithIPAndUDPPort(announceIp.get, s.config.discoveryPort)]
+  s.storageNode.discovery.updateDhtRecord(discoveryAddrs)
+  s.storageNode.discovery.updateAnnounceRecord(announceAddrs)
 
   var hasPublicAddr = false
   for announceAddr in announceAddrs:
@@ -89,9 +107,6 @@ proc start*(s: StorageServer) {.async.} =
 
   if not hasPublicAddr:
     warn "Unable to determine a public IP address. This node will only be reachable on a private network."
-
-  s.storageNode.discovery.updateAnnounceRecord(announceAddrs)
-  s.storageNode.discovery.updateDhtRecord(discoveryAddrs)
 
   await s.storageNode.start()
 
@@ -171,6 +186,16 @@ proc new*(
   ## create StorageServer including setting up datastore, repostore, etc
   let listenMultiAddr = getMultiAddrWithIpAndTcpPort(config.listenIp, config.listenPort)
 
+  let autonatService = AutonatService.new(
+    autonatClient = AutonatClient.new(),
+    rng = random.Rng.instance(),
+    scheduleInterval = Opt.some(config.natScheduleInterval),
+    askNewConnectedPeers = true,
+    numPeersToAsk = config.natNumPeersToAsk,
+    maxQueueSize = config.natMaxQueueSize,
+    minConfidence = config.natMinConfidence,
+  )
+
   let switch = SwitchBuilder
     .new()
     .withPrivateKey(privateKey)
@@ -183,6 +208,8 @@ proc new*(
     .withAgentVersion(config.agentString)
     .withSignedPeerRecord(true)
     .withTcpTransport({ServerFlags.ReuseAddr, ServerFlags.TcpNoDelay})
+    .withAutonat()
+    .withServices(@[Service(autonatService)])
     .build()
 
   var taskPool: Taskpool
@@ -304,7 +331,9 @@ proc new*(
   if config.apiBindAddress.isSome:
     restServer = RestServerRef
       .new(
-        storageNode.initRestApi(config, repoStore, config.apiCorsAllowedOrigin),
+        storageNode.initRestApi(
+          config, repoStore, autonatService, config.apiCorsAllowedOrigin
+        ),
         initTAddress(config.apiBindAddress.get(), config.apiPort),
         bufferSize = (1024 * 64),
         maxRequestBodySize = int.high,
@@ -314,6 +343,17 @@ proc new*(
   switch.mount(network)
   switch.mount(manifestProto)
 
+  autonatService.statusAndConfidenceHandler(
+    proc(
+        networkReachability: NetworkReachability, confidence: Opt[float]
+    ) {.async: (raises: [CancelledError]).} =
+      if networkReachability == NotReachable:
+        let (announceAddrs, discoveryAddrs) =
+          nattedAddress(config.nat, switch.peerInfo.addrs, config.discoveryPort)
+        discovery.updateAnnounceRecord(announceAddrs)
+        discovery.updateDhtRecord(discoveryAddrs)
+  )
+
   StorageServer(
     config: config,
     storageNode: storageNode,
@@ -322,4 +362,5 @@ proc new*(
     maintenance: maintenance,
     taskPool: taskPool,
     logFile: logFile,
+    autonatService: autonatService,
   )

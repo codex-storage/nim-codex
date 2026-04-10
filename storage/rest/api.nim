@@ -23,6 +23,7 @@ import pkg/confutils
 
 import pkg/libp2p
 import pkg/libp2p/routing_record
+import pkg/libp2p/protocols/connectivity/autonat/service
 import pkg/codexdht/discv5/spr as spr
 
 import ../logutils
@@ -557,7 +558,12 @@ proc initNodeApi(node: StorageNodeRef, conf: StorageConf, router: var RestRouter
       return
         RestApiResponse.error(Http500, "Unknown error dialling peer", headers = headers)
 
-proc initDebugApi(node: StorageNodeRef, conf: StorageConf, router: var RestRouter) =
+proc initDebugApi(
+    node: StorageNodeRef,
+    conf: StorageConf,
+    autonat: AutonatService,
+    router: var RestRouter,
+) =
   let allowedOrigin = router.allowedOrigin
 
   router.api(MethodGet, "/api/storage/v1/debug/info") do() -> RestApiResponse:
@@ -577,6 +583,7 @@ proc initDebugApi(node: StorageNodeRef, conf: StorageConf, router: var RestRoute
         "announceAddresses": node.discovery.announceAddrs,
         "table": table,
         "storage": {"version": $storageVersion, "revision": $storageRevision},
+        "nat": {"reachability": $autonat.networkReachability},
       }
 
       # return pretty json for human readability
@@ -637,12 +644,13 @@ proc initRestApi*(
     node: StorageNodeRef,
     conf: StorageConf,
     repoStore: RepoStore,
+    autonat: AutonatService,
     corsAllowedOrigin: ?string,
 ): RestRouter =
   var router = RestRouter.init(validate, corsAllowedOrigin)
 
   initDataApi(node, repoStore, router)
   initNodeApi(node, conf, router)
-  initDebugApi(node, conf, router)
+  initDebugApi(node, conf, autonat, router)
 
   return router
