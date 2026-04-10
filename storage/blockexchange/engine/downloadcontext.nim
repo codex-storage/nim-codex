@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/[tables, options, random]
+import std/[options, random]
 
 import pkg/chronos
 import pkg/libp2p/cid
@@ -75,7 +75,6 @@ type
     bytesReceived*: uint64
     scheduler*: Scheduler
     swarm*: Swarm
-    inFlightBlocks*: Table[uint64, PeerId] # block index -> peer fetching it
     availabilityTracker: BroadcastAvailabilityTracker
 
 proc computeWindowSize*(blockSize: uint32): uint64 =
@@ -192,7 +191,6 @@ proc new*(
     totalBlocks: totalBlocks,
     scheduler: Scheduler.new(),
     swarm: Swarm.new(),
-    inFlightBlocks: initTable[uint64, PeerId](),
   )
 
   case desc.selectionPolicy
@@ -241,22 +239,6 @@ proc markBatchReceived*(
 ) =
   ctx.received += count
   ctx.bytesReceived += totalBytes
-  for i in start ..< start + count:
-    ctx.inFlightBlocks.del(i)
-
-proc markBatchInFlight*(
-    ctx: DownloadContext, start: uint64, count: uint64, peerId: PeerId
-) =
-  for i in start ..< start + count:
-    ctx.inFlightBlocks[i] = peerId
-
-proc clearInFlightForPeer*(ctx: DownloadContext, peerId: PeerId) =
-  var toRemove: seq[uint64] = @[]
-  for blockIdx, peer in ctx.inFlightBlocks:
-    if peer == peerId:
-      toRemove.add(blockIdx)
-  for blockIdx in toRemove:
-    ctx.inFlightBlocks.del(blockIdx)
 
 proc trimPresenceBeforeWatermark*(ctx: DownloadContext) =
   let watermark = ctx.scheduler.completedWatermark()
@@ -300,15 +282,6 @@ proc progress*(ctx: DownloadContext): DownloadProgress =
     totalBlocks: ctx.totalBlocks,
     bytesTransferred: ctx.bytesReceived,
   )
-
-proc markBlockInFlight(ctx: DownloadContext, index: uint64, peerId: PeerId) =
-  ctx.inFlightBlocks[index] = peerId
-
-proc isBlockInFlight(ctx: DownloadContext, index: uint64): bool =
-  index in ctx.inFlightBlocks
-
-proc inFlightCount(ctx: DownloadContext): int =
-  ctx.inFlightBlocks.len
 
 proc remainingBlocks(ctx: DownloadContext): uint64 =
   if ctx.totalBlocks > ctx.received:

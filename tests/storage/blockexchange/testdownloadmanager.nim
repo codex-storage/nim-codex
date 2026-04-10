@@ -672,61 +672,11 @@ suite "DownloadContext - Basics":
     let
       treeCid = Cid.example
       ctx = DownloadContext.new(toDownloadDesc(treeCid, 100, 65536))
-      peerId = PeerId.example
-
-    ctx.markBatchInFlight(0, 10, peerId)
-    check ctx.inFlightCount() == 10
 
     ctx.markBatchReceived(0, 10, 10'u64 * 65536)
 
     check ctx.received == 10
     check ctx.bytesReceived == 10'u64 * 65536
-    check ctx.inFlightCount() == 0
-
-  test "Should mark block in flight":
-    let
-      treeCid = Cid.example
-      ctx = DownloadContext.new(toDownloadDesc(treeCid, 100, 65536))
-      peerId = PeerId.example
-
-    ctx.markBlockInFlight(42, peerId)
-
-    check ctx.isBlockInFlight(42) == true
-    check ctx.isBlockInFlight(43) == false
-    check ctx.inFlightCount() == 1
-
-  test "Should mark batch in flight":
-    let
-      treeCid = Cid.example
-      ctx = DownloadContext.new(toDownloadDesc(treeCid, 100, 65536))
-      peerId = PeerId.example
-
-    ctx.markBatchInFlight(10, 5, peerId)
-
-    for i in 10'u64 ..< 15:
-      check ctx.isBlockInFlight(i) == true
-    check ctx.isBlockInFlight(15) == false
-    check ctx.inFlightCount() == 5
-
-  test "Should clear in-flight for peer":
-    let
-      treeCid = Cid.example
-      ctx = DownloadContext.new(toDownloadDesc(treeCid, 100, 65536))
-      peer1 = PeerId.example
-      peer2 = PeerId.example
-
-    ctx.markBatchInFlight(0, 5, peer1)
-    ctx.markBatchInFlight(10, 5, peer2)
-
-    check ctx.inFlightCount() == 10
-
-    ctx.clearInFlightForPeer(peer1)
-
-    check ctx.inFlightCount() == 5
-    for i in 0'u64 ..< 5:
-      check ctx.isBlockInFlight(i) == false
-    for i in 10'u64 ..< 15:
-      check ctx.isBlockInFlight(i) == true
 
 suite "DownloadContext - Windowed Presence":
   test "Should compute presence window size":

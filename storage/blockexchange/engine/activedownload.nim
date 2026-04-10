@@ -280,8 +280,6 @@ proc markBatchInFlight*(
     timeoutFuture: timeoutFuture,
   )
 
-  download.ctx.markBatchInFlight(start, count, peerId)
-
   for i in start ..< start + count:
     let address = download.makeBlockAddress(i)
     download.blocks.withValue(address, req):
@@ -383,8 +381,6 @@ proc pendingBatchCount*(download: ActiveDownload): int =
   download.pendingBatches.len
 
 proc handlePeerFailure*(download: ActiveDownload, peerId: PeerId) =
-  download.ctx.clearInFlightForPeer(peerId)
-
   var toRequeue: seq[tuple[start: uint64, count: uint64]] = @[]
   for start, batch in download.pendingBatches:
     if batch.peerId == peerId:
