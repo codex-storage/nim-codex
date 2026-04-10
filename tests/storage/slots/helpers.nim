@@ -9,8 +9,6 @@ import pkg/storage/merkletree
 import pkg/storage/manifest
 import pkg/storage/blocktype as bt
 import pkg/storage/chunker
-import pkg/storage/rng
-import pkg/taskpools
 
 import ../helpers
 

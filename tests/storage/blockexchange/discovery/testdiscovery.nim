@@ -4,7 +4,6 @@ import std/tables
 
 import pkg/chronos
 
-import pkg/libp2p/errors
 
 import pkg/storage/rng
 import pkg/storage/stores

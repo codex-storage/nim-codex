@@ -1,7 +1,5 @@
-import std/importutils
 import std/net
 import std/sequtils
-import std/strformat
 from pkg/libp2p import `==`, `$`, Cid
 import pkg/storage/units
 import pkg/storage/manifest

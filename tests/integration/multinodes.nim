@@ -1,6 +1,5 @@
 import std/httpclient
 import std/os
-import std/sequtils
 import std/strutils
 import std/sugar
 import std/times

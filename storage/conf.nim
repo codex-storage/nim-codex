@@ -11,7 +11,7 @@
 
 import std/os
 
-{.push warning[UnusedImport]: on.}
+{.push warning[UnusedImport]: off.}
 import std/terminal # Is not used in tests
 {.pop.}
 

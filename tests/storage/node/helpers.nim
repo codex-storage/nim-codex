@@ -6,7 +6,6 @@ import pkg/chronos
 import pkg/storage/storagetypes
 import pkg/storage/chunker
 import pkg/storage/stores
-import pkg/taskpools
 
 import ../../asynctest
 

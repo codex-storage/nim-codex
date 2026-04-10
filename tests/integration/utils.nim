@@ -1,8 +1,10 @@
 import std/os
-import std/strformat
 import pkg/chronos
-import pkg/chronos/asyncproc
 import pkg/storage/logutils
+
+when defined(windows):
+  import std/strformat
+  import pkg/chronos/asyncproc
 
 {.push raises: [].}
 

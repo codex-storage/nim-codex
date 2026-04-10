@@ -10,7 +10,6 @@
 
 import
   std/[options, os, strutils, times, net, atomics],
-  stew/[objects],
   nat_traversal/[miniupnpc, natpmp],
   json_serialization/std/net,
   results
