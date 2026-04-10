@@ -9,6 +9,7 @@ import std/[options]
 import chronos
 import chronicles
 import codexdht/discv5/spr
+import pkg/libp2p/protocols/connectivity/autonat/service
 import ../../alloc
 import ../../../storage/conf
 import ../../../storage/rest/json
@@ -59,6 +60,7 @@ proc getDebug(
       if node.discovery.dhtRecord.isSome: node.discovery.dhtRecord.get.toURI else: "",
     "announceAddresses": node.discovery.announceAddrs,
     "table": table,
+    "nat": {"reachability": $storage[].autonatService.networkReachability},
   }
 
   return ok($json)
