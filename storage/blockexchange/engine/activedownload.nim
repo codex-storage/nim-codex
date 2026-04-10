@@ -301,7 +301,9 @@ proc partialCompleteBatch*(
     missingRanges: seq[tuple[start: uint64, count: uint64]],
     totalBytes: uint64,
 ) =
+  var localCount: uint64 = 0
   download.pendingBatches.withValue(originalStart, pending):
+    localCount = pending[].localCount
     if not pending[].timeoutFuture.isNil and not pending[].timeoutFuture.finished:
       pending[].timeoutFuture.cancelSoon()
   download.pendingBatches.del(originalStart)
@@ -312,7 +314,9 @@ proc partialCompleteBatch*(
 
   download.ctx.scheduler.partialComplete(originalStart, missingBatches)
 
-  download.ctx.markBatchReceived(originalStart, receivedBlocksCount, totalBytes)
+  download.ctx.markBatchReceived(
+    originalStart, localCount + receivedBlocksCount, totalBytes
+  )
 
   download.signalCompletionIfDone()
 

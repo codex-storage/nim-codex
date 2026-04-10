@@ -348,6 +348,30 @@ suite "DownloadManager - Batch Management":
 
     check download.ctx.scheduler.requeuedCount() >= 1
 
+  test "Should count local blocks on partial completion":
+    let
+      dm = DownloadManager.new()
+      treeCid = Cid.example
+      desc = toDownloadDesc(treeCid, 1000, 65536)
+      peerId = PeerId.example
+      download = dm.startDownload(desc)
+      batch = dm.getNextBatch(download)
+
+    check batch.isSome
+
+    # 3 blocks local, peer delivered 2, rest is missing
+    download.markBatchInFlight(batch.get.start, batch.get.count, 3, peerId)
+
+    let missingRanges =
+      @[(start: batch.get.start + 5, count: batch.get.count - 5)]
+    download.partialCompleteBatch(
+      batch.get.start, batch.get.count, 2, missingRanges, 2'u64 * 65536
+    )
+
+    # received should include both local blocks (3) and peer-delivered (2)
+    check download.ctx.received == 5
+    check download.ctx.bytesReceived == 2'u64 * 65536
+
 suite "DownloadManager - Download Status":
   test "Should check if download is complete":
     let
