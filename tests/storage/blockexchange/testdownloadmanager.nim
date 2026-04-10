@@ -516,61 +516,6 @@ suite "DownloadManager - Retry Management":
     let addresses = download.getBlockAddressesForRange(0, 10)
     check addresses.len == 5
 
-suite "DownloadManager - Request Tracking":
-  test "Should mark block as requested":
-    let
-      dm = DownloadManager.new()
-      blk = bt.Block.new("Hello".toBytes).tryGet
-      address = BlockAddress.init(blk.cid, 0)
-      desc = toDownloadDesc(address, DefaultBlockSize.uint32)
-      download = dm.startDownload(desc)
-      peerId = PeerId.example
-
-    discard download.getWantHandle(address)
-
-    check download.isRequested(address) == false
-
-    let marked = download.markRequested(address, peerId)
-    check marked == true
-    check download.isRequested(address) == true
-    check download.getRequestPeer(address) == some(peerId)
-
-  test "Should not mark already requested block":
-    let
-      dm = DownloadManager.new()
-      blk = bt.Block.new("Hello".toBytes).tryGet
-      address = BlockAddress.init(blk.cid, 0)
-      desc = toDownloadDesc(address, DefaultBlockSize.uint32)
-      download = dm.startDownload(desc)
-      peer1 = PeerId.example
-      peer2 = PeerId.example
-
-    discard download.getWantHandle(address)
-
-    let marked1 = download.markRequested(address, peer1)
-    check marked1 == true
-
-    let marked2 = download.markRequested(address, peer2)
-    check marked2 == false
-    check download.getRequestPeer(address) == some(peer1) # Still first peer
-
-  test "Should clear request":
-    let
-      dm = DownloadManager.new()
-      blk = bt.Block.new("Hello".toBytes).tryGet
-      address = BlockAddress.init(blk.cid, 0)
-      desc = toDownloadDesc(address, DefaultBlockSize.uint32)
-      download = dm.startDownload(desc)
-      peerId = PeerId.example
-
-    discard download.getWantHandle(address)
-    discard download.markRequested(address, peerId)
-
-    download.clearRequest(address)
-
-    check download.isRequested(address) == false
-    check download.getRequestPeer(address).isNone
-
 suite "DownloadManager - DownloadDesc":
   test "Should create full tree download desc":
     let

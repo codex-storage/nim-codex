@@ -43,8 +43,6 @@ type
   BlockReq* = object
     handle*: BlockHandle
     opaqueHandle*: BlockHandleOpaque
-    requested*: Option[PeerId]
-    inBatch*: Option[uint64]
     blockRetries*: int
     startTime*: int64
 
@@ -91,7 +89,7 @@ proc makeBlockAddress*(download: ActiveDownload, index: uint64): BlockAddress =
   BlockAddress(treeCid: download.treeCid, index: index.int)
 
 proc getOrCreateBlockReq(
-    download: ActiveDownload, address: BlockAddress, requested: Option[PeerId]
+    download: ActiveDownload, address: BlockAddress
 ): BlockReq =
   download.blocks.withValue(address, blkReq):
     return blkReq[]
@@ -99,8 +97,6 @@ proc getOrCreateBlockReq(
     let blkReq = BlockReq(
       handle: BlockHandle.init("ActiveDownload.getWantHandle"),
       opaqueHandle: BlockHandleOpaque.init("ActiveDownload.getWantHandleOpaque"),
-      requested: requested,
-      inBatch: none(uint64),
       blockRetries: download.blockRetries,
       startTime: getMonoTime().ticks,
     )
@@ -120,18 +116,14 @@ proc getOrCreateBlockReq(
     return blkReq
 
 proc getWantHandle*(
-    download: ActiveDownload,
-    address: BlockAddress,
-    requested: Option[PeerId] = none(PeerId),
+    download: ActiveDownload, address: BlockAddress
 ): Future[?!Block] {.async: (raw: true, raises: [CancelledError]).} =
-  download.getOrCreateBlockReq(address, requested).handle
+  download.getOrCreateBlockReq(address).handle
 
 proc getWantHandleOpaque*(
-    download: ActiveDownload,
-    address: BlockAddress,
-    requested: Option[PeerId] = none(PeerId),
+    download: ActiveDownload, address: BlockAddress
 ): Future[?!void] {.async: (raw: true, raises: [CancelledError]).} =
-  download.getOrCreateBlockReq(address, requested).opaqueHandle
+  download.getOrCreateBlockReq(address).opaqueHandle
 
 proc completeWantHandle*(
     download: ActiveDownload, address: BlockAddress, blk: Option[Block] = none(Block)
@@ -229,34 +221,6 @@ proc getBlockAddressesForRange*(
     if address in download.blocks:
       result.add(address)
 
-func isRequested*(download: ActiveDownload, address: BlockAddress): bool =
-  result = false
-  download.blocks.withValue(address, pending):
-    result = pending[].requested.isSome
-
-func getRequestPeer*(download: ActiveDownload, address: BlockAddress): Option[PeerId] =
-  result = none(PeerId)
-  download.blocks.withValue(address, pending):
-    result = pending[].requested
-
-proc markRequested*(
-    download: ActiveDownload, address: BlockAddress, peer: PeerId
-): bool =
-  if download.isRequested(address):
-    return false
-  download.blocks.withValue(address, pending):
-    pending[].requested = some(peer)
-  return true
-
-proc clearRequest*(
-    download: ActiveDownload, address: BlockAddress, peer: Option[PeerId] = none(PeerId)
-) =
-  download.blocks.withValue(address, pending):
-    if peer.isSome:
-      assert peer == pending[].requested
-    pending[].requested = none(PeerId)
-    pending[].inBatch = none(uint64)
-
 func contains*(download: ActiveDownload, address: BlockAddress): bool =
   address in download.blocks
 
@@ -279,12 +243,6 @@ proc markBatchInFlight*(
     sentAt: Moment.now(),
     timeoutFuture: timeoutFuture,
   )
-
-  for i in start ..< start + count:
-    let address = download.makeBlockAddress(i)
-    download.blocks.withValue(address, req):
-      req[].requested = some(peerId)
-      req[].inBatch = some(start)
 
 proc setBatchTimeoutFuture*(
     download: ActiveDownload, start: uint64, timeoutFuture: Future[void]
@@ -335,12 +293,6 @@ proc requeueBatch*(
   else:
     download.ctx.scheduler.requeueBack(start, count)
 
-  for i in start ..< start + count:
-    let address = download.makeBlockAddress(i)
-    download.blocks.withValue(address, req):
-      req[].requested = none(PeerId)
-      req[].inBatch = none(uint64)
-
 proc partialCompleteBatch*(
     download: ActiveDownload,
     originalStart: uint64,
@@ -361,13 +313,6 @@ proc partialCompleteBatch*(
   download.ctx.scheduler.partialComplete(originalStart, missingBatches)
 
   download.ctx.markBatchReceived(originalStart, receivedBlocksCount, totalBytes)
-
-  for r in missingRanges:
-    for i in r.start ..< r.start + r.count:
-      let address = download.makeBlockAddress(i)
-      download.blocks.withValue(address, req):
-        req[].requested = none(PeerId)
-        req[].inBatch = none(uint64)
 
   download.signalCompletionIfDone()
 
