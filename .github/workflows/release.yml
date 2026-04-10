@@ -207,9 +207,9 @@ jobs:
     needs: build-docker-dist-tests
     env:
       TF_VAR_region: ams3
-      TF_VAR_do_token: ${{ secrets.DO_TOKEN }}
-      AWS_ACCESS_KEY_ID: ${{ secrets.SPACES_ACCESS_KEY }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.SPACES_SECRET_KEY }}
+      TF_VAR_do_token: ${{ secrets.RELEASE_TESTS_DO_TOKEN }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.RELEASE_TESTS_SPACES_ACCESS_KEY }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.RELEASE_TESTS_SPACES_SECRET_KEY }}
       CODEXDOCKERIMAGE: ${{ needs.build-docker-dist-tests.outputs.logos_storage_image }}
       TEST_TYPE: release-tests
       BRANCH: ${{ inputs.branch || 'master' }}
@@ -225,7 +225,7 @@ jobs:
       - name: Setup doctl
         uses: digitalocean/action-doctl@v2
         with:
-          token: ${{ secrets.DO_TOKEN }}
+          token: ${{ secrets.RELEASE_TESTS_DO_TOKEN }}
 
       - name: Setup kubectl
         uses: azure/setup-kubectl@v4
