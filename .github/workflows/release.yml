@@ -259,12 +259,19 @@ jobs:
       - name: Deploy test job
         run: envsubst < .github/release/job-release-tests.yaml | kubectl apply -f -
 
+      - name: Wait for test pod to start
+        run: |
+          kubectl wait pod \
+            -l job-name=$NAMEPREFIX \
+            -n default \
+            --for=condition=Ready \
+            --timeout=300s
+
       - name: Stream test logs
         run: |
           kubectl logs -l job-name=$NAMEPREFIX \
             -n default \
-            --follow \
-            --pod-running-timeout=300s
+            --follow
 
       - name: Check job status
         run: |
