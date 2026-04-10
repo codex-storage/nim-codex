@@ -245,8 +245,17 @@ jobs:
 
       - name: Create in-cluster app kubeconfig secret
         run: |
+          kubectl create serviceaccount release-tests-runner -n default
+          kubectl create clusterrolebinding release-tests-runner \
+            --clusterrole=cluster-admin \
+            --serviceaccount=default:release-tests-runner
+
+          TOKEN=$(kubectl create token release-tests-runner -n default --duration=2h)
+          SERVER=$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}')
+          CA=$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.certificate-authority-data}')
+
           kubectl create secret generic codex-dist-tests-app-kubeconfig \
-            --from-file=kubeconfig.yaml=$HOME/.kube/config \
+            --from-file=kubeconfig.yaml=<(envsubst < .github/release/kubeconfig-template.yaml) \
             -n default
 
       - name: Set run variables
