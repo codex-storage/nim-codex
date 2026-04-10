@@ -250,9 +250,9 @@ jobs:
             --clusterrole=cluster-admin \
             --serviceaccount=default:release-tests-runner
 
-          TOKEN=$(kubectl create token release-tests-runner -n default --duration=2h)
-          SERVER=$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}')
-          CA=$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.certificate-authority-data}')
+          export TOKEN=$(kubectl create token release-tests-runner -n default --duration=2h)
+          export SERVER=$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}')
+          export CA=$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.certificate-authority-data}')
 
           kubectl create secret generic codex-dist-tests-app-kubeconfig \
             --from-file=kubeconfig.yaml=<(envsubst < .github/release/kubeconfig-template.yaml) \
