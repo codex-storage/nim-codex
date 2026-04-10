@@ -1,4 +1,5 @@
 import std/strutils
+import std/sequtils
 
 from pkg/libp2p import Cid, `$`, init
 import pkg/questionable/results
@@ -32,17 +33,17 @@ proc request(
     async: (raw: true, raises: [CancelledError, HttpError])
 .} =
   HttpClientRequestRef
-    .new(
-      self.session,
-      url,
-      httpMethod,
-      version = HttpVersion11,
-      flags = {},
-      maxResponseHeadersSize = HttpMaxHeadersSize,
-      headers = headers,
-      body = body.toOpenArrayByte(0, len(body) - 1),
-    ).get
-    .send()
+  .new(
+    self.session,
+    url,
+    httpMethod,
+    version = HttpVersion11,
+    flags = {},
+    maxResponseHeadersSize = HttpMaxHeadersSize,
+    headers = headers,
+    body = body.toOpenArrayByte(0, len(body) - 1),
+  ).get
+  .send()
 
 proc post*(
     self: StorageClient,
@@ -260,3 +261,23 @@ proc hasBlockRaw*(
 .} =
   let url = client.baseurl & "/data/" & cid & "/exists"
   return client.get(url)
+
+proc connectPeer*(
+    client: StorageClient, peerId: string, addrs: seq[string]
+): Future[void] {.async: (raises: [CancelledError, HttpError]).} =
+  var url = client.baseurl & "/connect/" & peerId
+  if addrs.len > 0:
+    url &= "?" & addrs.mapIt("addrs=" & it).join("&")
+  let response = await client.get(url)
+  assert response.status == 200
+
+proc natReachability*(
+    client: StorageClient
+): Future[?!string] {.async: (raises: [CancelledError, HttpError]).} =
+  let info = await client.info()
+  if info.isErr:
+    return failure "Failed to get node info"
+  try:
+    return info.get()["nat"]["reachability"].getStr().success
+  except KeyError as e:
+    return failure e.msg

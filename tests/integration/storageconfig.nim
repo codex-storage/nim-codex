@@ -5,6 +5,7 @@ import std/strutils
 import std/sugar
 import std/tables
 from pkg/chronicles import LogLevel
+import pkg/chronos
 import pkg/storage/conf
 import pkg/storage/units
 import pkg/confutils
@@ -279,4 +280,44 @@ proc withStorageQuota*(
   var startConfig = self
   for config in startConfig.configs.mitems:
     config.addCliOption("--storage-quota", $quota)
+  return startConfig
+
+proc withListenIp*(
+    self: StorageConfigs, ip: string
+): StorageConfigs {.raises: [StorageConfigError].} =
+  var startConfig = self
+  for config in startConfig.configs.mitems:
+    config.addCliOption("--listen-ip", ip)
+  return startConfig
+
+proc withNatNumPeersToAsk*(
+    self: StorageConfigs, numPeersToAsk: int
+): StorageConfigs {.raises: [StorageConfigError].} =
+  var startConfig = self
+  for config in startConfig.configs.mitems:
+    config.addCliOption("--nat-num-peers-to-ask", $numPeersToAsk)
+  return startConfig
+
+proc withNatMaxQueueSize*(
+    self: StorageConfigs, maxQueueSize: int
+): StorageConfigs {.raises: [StorageConfigError].} =
+  var startConfig = self
+  for config in startConfig.configs.mitems:
+    config.addCliOption("--nat-max-queue-size", $maxQueueSize)
+  return startConfig
+
+proc withNatMinConfidence*(
+    self: StorageConfigs, minConfidence: float
+): StorageConfigs {.raises: [StorageConfigError].} =
+  var startConfig = self
+  for config in startConfig.configs.mitems:
+    config.addCliOption("--nat-min-confidence", $minConfidence)
+  return startConfig
+
+proc withNatScheduleInterval*(
+    self: StorageConfigs, scheduleInterval: Duration
+): StorageConfigs {.raises: [StorageConfigError].} =
+  var startConfig = self
+  for config in startConfig.configs.mitems:
+    config.addCliOption("--nat-schedule-interval", $scheduleInterval)
   return startConfig
