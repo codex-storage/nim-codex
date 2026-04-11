@@ -362,8 +362,7 @@ suite "DownloadManager - Batch Management":
     # 3 blocks local, peer delivered 2, rest is missing
     download.markBatchInFlight(batch.get.start, batch.get.count, 3, peerId)
 
-    let missingRanges =
-      @[(start: batch.get.start + 5, count: batch.get.count - 5)]
+    let missingRanges = @[(start: batch.get.start + 5, count: batch.get.count - 5)]
     download.partialCompleteBatch(
       batch.get.start, batch.get.count, 2, missingRanges, 2'u64 * 65536
     )

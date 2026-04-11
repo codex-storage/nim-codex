@@ -88,9 +88,7 @@ proc signalCompletionIfDone(download: ActiveDownload, error: ref StorageError = 
 proc makeBlockAddress*(download: ActiveDownload, index: uint64): BlockAddress =
   BlockAddress(treeCid: download.treeCid, index: index.int)
 
-proc getOrCreateBlockReq(
-    download: ActiveDownload, address: BlockAddress
-): BlockReq =
+proc getOrCreateBlockReq(download: ActiveDownload, address: BlockAddress): BlockReq =
   download.blocks.withValue(address, blkReq):
     return blkReq[]
   do:

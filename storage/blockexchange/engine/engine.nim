@@ -607,8 +607,7 @@ proc downloadWorker(
             try:
               await address in self.localStore
             except CatchableError as e:
-              warn "Error checking block existence",
-                address = address, error = e.msg
+              warn "Error checking block existence", address = address, error = e.msg
               false
 
           if exists:
