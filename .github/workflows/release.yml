@@ -288,7 +288,7 @@ jobs:
           job_status=$(kubectl get jobs $NAMEPREFIX -n default \
             -o jsonpath='{.status.conditions[0].type}')
           echo "Job status: $job_status"
-          [[ "$job_status" == "Complete" ]] || exit 1
+          [[ "$job_status" == "SuccessCriteriaMet" ]] || exit 1
 
       - name: Terraform destroy
         if: always()
