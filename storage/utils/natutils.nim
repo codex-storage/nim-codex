@@ -28,6 +28,7 @@ proc getRoute(publicAddress: TransportAddress): Result[IpAddress, cstring] =
         route.source.address()
       except ValueError as e:
         # This should not occur really.
+        echo "Address conversion error: ", e.name, " ", e.msg
         error "Address conversion error", exception = e.name, msg = e.msg
         return err("Invalid IP address")
     ok(ip)
