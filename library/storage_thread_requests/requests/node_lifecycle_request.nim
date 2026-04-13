@@ -91,7 +91,6 @@ proc createStorage(
     configJson: cstring
 ): Future[Result[StorageServer, string]] {.async: (raises: []).} =
   var conf: StorageConf
-
   try:
     conf = StorageConf.load(
       version = storageFullVersion,
@@ -107,7 +106,7 @@ proc createStorage(
   except ConfigurationError as e:
     return err("Failed to create Storage: unable to load configuration: " & e.msg)
 
-  conf.setupLogging()
+  let logFile = conf.setupLogging()
 
   try:
     {.gcsafe.}:
@@ -149,7 +148,7 @@ proc createStorage(
 
   let server =
     try:
-      StorageServer.new(conf, pk)
+      StorageServer.new(conf, pk, logFile)
     except Exception as exc:
       return err("Failed to create Storage: " & exc.msg)
 
