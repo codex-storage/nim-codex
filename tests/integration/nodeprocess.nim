@@ -5,7 +5,6 @@ import pkg/chronicles
 import pkg/chronos/asyncproc
 import pkg/libp2p
 import std/os
-import std/strformat
 import std/strutils
 import storage/conf
 import storage/utils/exceptions

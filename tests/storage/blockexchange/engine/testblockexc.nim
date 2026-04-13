@@ -1,6 +1,5 @@
 import std/sequtils
 import std/algorithm
-import std/importutils
 
 import pkg/chronos
 import pkg/stew/byteutils

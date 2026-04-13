@@ -7,8 +7,6 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/sequtils
-import std/strutils
 import std/os
 import std/tables
 import std/cpuinfo
@@ -32,7 +30,6 @@ import ./stores
 import ./blockexchange
 import ./utils/fileutils
 import ./discovery
-import ./systemclock
 import ./utils/addrutils
 import ./namespaces
 import ./storagetypes

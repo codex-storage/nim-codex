@@ -12,7 +12,6 @@
 import std/options
 import std/sequtils
 import std/strformat
-import std/sugar
 import times
 
 import pkg/taskpools

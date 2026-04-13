@@ -8,7 +8,6 @@ import pkg/storage/stores
 import pkg/storage/units
 
 import pkg/chronos
-import pkg/stew/byteutils
 import pkg/stint
 
 import ./storage/helpers/randomchunker

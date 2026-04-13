@@ -1,10 +1,9 @@
-import std/[unittest, options, net]
+import std/[unittest, net]
 import pkg/chronos
 import pkg/libp2p/[multiaddress, multihash, multicodec]
 import pkg/results
 
 import ../../storage/nat
-import ../../storage/utils/natutils
 import ../../storage/utils
 
 suite "NAT Address Tests":

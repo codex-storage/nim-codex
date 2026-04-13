@@ -4,8 +4,6 @@ import pkg/storage/chunker
 import pkg/storage/blocktype as bt
 import pkg/storage/manifest
 
-import pkg/storage/merkletree
-
 import ../asynctest
 import ./helpers
 import ./examples

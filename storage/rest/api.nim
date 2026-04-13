@@ -19,7 +19,6 @@ import pkg/chronos
 import pkg/presto except toJson
 import pkg/metrics except toJson
 import pkg/stew/base10
-import pkg/stew/byteutils
 import pkg/confutils
 
 import pkg/libp2p

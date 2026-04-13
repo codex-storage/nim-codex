@@ -7,9 +7,7 @@ import pkg/chronos
 import pkg/stew/byteutils
 import pkg/datastore
 import pkg/datastore/typedds
-import pkg/questionable
 import pkg/questionable/results
-import pkg/stint
 import pkg/taskpools
 
 import pkg/codexdht/discv5/protocol as discv5
@@ -22,7 +20,6 @@ import pkg/storage/blockexchange
 import pkg/storage/chunker
 import pkg/storage/manifest
 import pkg/storage/discovery
-import pkg/storage/merkletree
 import pkg/storage/blocktype as bt
 import pkg/storage/rng
 

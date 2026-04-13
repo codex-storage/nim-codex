@@ -1,10 +1,7 @@
 import std/sequtils
-import std/random
 import std/algorithm
 
-import pkg/stew/byteutils
 import pkg/chronos
-import pkg/libp2p/errors
 import pkg/libp2p/routing_record
 import pkg/codexdht/discv5/protocol as discv5
 
