@@ -20,7 +20,7 @@ func isGlobalUnicast*(address: IpAddress): bool =
 proc getRoute(publicAddress: TransportAddress): Result[IpAddress, cstring] =
   let route = getBestRoute(publicAddress)
 
-  if route.source == AddressFamily.None or route.source.isUnspecified():
+  if route.source.family == AddressFamily.None or route.source.isUnspecified():
     err("No best route found")
   else:
     let ip =
