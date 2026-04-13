@@ -216,7 +216,7 @@ build-nph:
 ifeq ("$(wildcard $(NPH))","")
 	cd vendor/nph && \
 	nimble setup -l && \
-	nimble build && \
+	nimble build -d:disable_libbacktrace && \
 	mv ./nph ../../$(shell dirname $(NPH)) && \
 	echo "nph utility is available at " $(NPH)
 endif
