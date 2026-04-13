@@ -5,6 +5,7 @@ import pkg/results
 
 import ../../storage/nat
 import ../../storage/utils
+import ../../storage/utils/natutils
 
 suite "NAT Address Tests":
   test "nattedAddress with local addresses":
