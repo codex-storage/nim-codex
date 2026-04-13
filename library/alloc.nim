@@ -23,16 +23,6 @@ proc alloc*(str: string): cstring =
   ret[str.len] = '\0'
   return ret
 
-proc allocSharedSeq*[T](s: seq[T]): SharedSeq[T] =
-  let data = allocShared(sizeof(T) * s.len)
-  if s.len != 0:
-    copyMem(data, unsafeAddr s[0], s.len)
-  return (cast[ptr UncheckedArray[T]](data), s.len)
-
-proc deallocSharedSeq*[T](s: var SharedSeq[T]) =
-  deallocShared(s.data)
-  s.len = 0
-
 proc toSeq*[T](s: SharedSeq[T]): seq[T] =
   ## Creates a seq[T] from a SharedSeq[T]. No explicit dealloc is required
   ## as req[T] is a GC managed type.
