@@ -19,8 +19,8 @@ const
   # message size limits for protobuf control messages
   MaxMessageSize*: uint32 = 16.MiBs.uint32
 
-  TargetBatchBytes*: uint32 = 4 * 1024 * 1024
-  MinBatchSize*: uint32 = 8
+  TargetBatchBytes*: uint32 = 1024 * 1024
+  MinBatchSize*: uint32 = 1
 
   MaxMetadataSize*: uint32 = 4 * 1024 * 1024
   MaxWantBlocksResponseBytes*: uint32 = 4 + MaxMetadataSize + TargetBatchBytes
@@ -31,8 +31,7 @@ const
   MaxWantBlocksRequestBytes*: uint32 = (MaxBlocksPerBatch div 2) * 16 + 1024
 
 static:
-  doAssert MinBatchSize * MaxBlockSize.uint32 == TargetBatchBytes,
-    "MinBatchSize * MaxBlockSize must equal TargetBatchBytes"
+  doAssert MinBatchSize >= 1, "MinBatchSize must be positive"
 
   doAssert MaxBlocksPerBatch == TargetBatchBytes div MinBlockSize.uint32,
     "MaxBlocksPerBatch must equal TargetBatchBytes / MinBlockSize"

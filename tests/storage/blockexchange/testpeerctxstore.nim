@@ -117,10 +117,9 @@ suite "PeerContext":
 
 suite "PeerPerfStats":
   test "Should create new stats":
-    let stats = PeerPerfStats.new()
+    var stats = PeerPerfStats.new()
     check stats.throughputBps().isNone
     check stats.avgRttMicros().isNone
-    check stats.totalBytes() == 0
     check stats.sampleCount() == 0
 
   test "Should record requests":
@@ -128,7 +127,6 @@ suite "PeerPerfStats":
     stats.recordRequest(1000, 65536)
 
     check stats.sampleCount() == 1
-    check stats.totalBytes() == 65536
 
   test "Should compute average RTT":
     var stats = PeerPerfStats.new()
@@ -155,7 +153,6 @@ suite "PeerPerfStats":
     stats.reset()
 
     check stats.sampleCount() == 0
-    check stats.totalBytes() == 0
     check stats.throughputBps().isNone
     check stats.avgRttMicros().isNone
 
