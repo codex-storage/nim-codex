@@ -22,6 +22,7 @@ const
   ProbeWindowBatches* = 16
   GainThresholdPct* = 8
   LossThresholdPct* = 20
+  MaxProbeBackoffShift* = 4
 
 type
   ProbeMode* = enum
@@ -44,6 +45,7 @@ type
     probeStartTime: Moment
     batchesSinceProbe: int
     batchesInProbeWindow: int
+    consecutiveReverts: int
 
 proc new*(T: type PeerPerfStats): PeerPerfStats =
   PeerPerfStats(
@@ -57,6 +59,7 @@ proc new*(T: type PeerPerfStats): PeerPerfStats =
     probeStartTotalBytes: 0,
     batchesSinceProbe: 0,
     batchesInProbeWindow: 0,
+    consecutiveReverts: 0,
   )
 
 proc trimThroughputWindow(self: var PeerPerfStats, now: Moment) =
@@ -144,7 +147,9 @@ proc optimalPipelineDepth*(self: var PeerPerfStats, batchBytes: uint64): int =
       self.currentDepth = max(MinRequestsPerPeer, bdpDepth)
       self.lastDepthChangeTime = now
 
-    if self.batchesSinceProbe >= ProbeIntervalBatches and
+    let effectiveInterval =
+      ProbeIntervalBatches * (1 shl min(self.consecutiveReverts, MaxProbeBackoffShift))
+    if self.batchesSinceProbe >= effectiveInterval and
         self.currentDepth < MaxRequestsPerPeer:
       let baseline = self.avgThroughputBps(now)
       if baseline.isSome:
@@ -173,14 +178,18 @@ proc optimalPipelineDepth*(self: var PeerPerfStats, batchBytes: uint64): int =
         deltaPct = ((probeBps.int64 - baselineBps.int64) * 100) div baselineBps.int64
 
       if deltaPct >= GainThresholdPct:
+        self.consecutiveReverts = 0
         self.lastDepthChangeTime = now
       elif deltaPct <= -LossThresholdPct:
+        self.consecutiveReverts = 0
         self.currentDepth = max(MinRequestsPerPeer, self.currentDepth - 2)
         self.lastDepthChangeTime = now
       else:
+        self.consecutiveReverts += 1
         self.currentDepth = max(MinRequestsPerPeer, self.currentDepth - 1)
         self.lastDepthChangeTime = now
     else:
+      self.consecutiveReverts += 1
       self.currentDepth = max(MinRequestsPerPeer, self.currentDepth - 1)
       self.lastDepthChangeTime = now
 
@@ -205,3 +214,4 @@ proc reset*(self: var PeerPerfStats) =
   self.probeStartTotalBytes = 0
   self.batchesSinceProbe = 0
   self.batchesInProbeWindow = 0
+  self.consecutiveReverts = 0
