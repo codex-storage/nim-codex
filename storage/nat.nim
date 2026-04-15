@@ -401,6 +401,12 @@ proc setupAddress*(
   of NatStrategy.NatUpnp, NatStrategy.NatPmp:
     return setupNat(natConfig.nat, tcpPort, udpPort, clientId)
 
+proc findReachableNodes*(bootstrapNodes: seq[SignedPeerRecord]): seq[SignedPeerRecord] =
+  ## Returns the list of nodes known to be directly reachable.
+  ## Currently returns bootstrap nodes. In the future, any network participant
+  ## confirmed reachable by AutoNAT could be included.
+  bootstrapNodes
+
 proc nattedAddress*(
     natConfig: NatConfig, addrs: seq[MultiAddress], udpPort: Port
 ): tuple[libp2p, discovery: seq[MultiAddress]] =

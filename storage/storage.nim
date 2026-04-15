@@ -111,7 +111,7 @@ proc start*(s: StorageServer) {.async.} =
 
   await s.storageNode.start()
 
-  for spr in s.config.bootstrapNodes:
+  for spr in findReachableNodes(s.config.bootstrapNodes):
     try:
       let addrs = spr.data.addresses.mapIt(it.address)
       await s.storageNode.switch.connect(spr.data.peerId, addrs)
