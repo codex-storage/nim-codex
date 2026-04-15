@@ -16,8 +16,9 @@ multinodesuite "AutoNAT integration":
       .withNatMinConfidence(0.5)
       .withNatScheduleInterval(10.seconds)
       .withNatMaxQueueSize(1)
-      .withLogFile()
-      .withLogLevel("DEBUG").some
+      # .withLogFile()
+      # .withLogLevel("DEBUG")
+      .some
   )
 
   # Reminder: multinodesuite setup the first node as bootstrap node
@@ -25,20 +26,8 @@ multinodesuite "AutoNAT integration":
     let node1 = clients()[0]
     let node2 = clients()[1]
 
-    # Temporary
-    # DHT exposes only UDP information
-    # So we force temporary by connection the 2 node together
-    # to update the autonat reachability
-    let info = await node2.client.info()
-
-    check not info.isErr
-
-    await node1.client.connectPeer(
-      info.get()["id"].getStr(), info.get()["addrs"].getElems().mapIt(it.getStr())
-    )
-
     check eventuallySafe(
-      (await node1.client.natReachability()).get() == "Reachable",
+      (await node2.client.natReachability()).get() == "Reachable",
       timeout = 30_000,
       pollInterval = 500,
     )

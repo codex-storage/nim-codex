@@ -39,6 +39,7 @@ import ./namespaces
 import ./storagetypes
 import ./logutils
 import ./nat
+import ./utils/natutils
 
 logScope:
   topics = "storage node"
@@ -95,7 +96,7 @@ proc start*(s: StorageServer) {.async.} =
     .deduplicate()
   let discoveryAddrs =
     @[getMultiAddrWithIPAndUDPPort(announceIp.get, s.config.discoveryPort)]
-  s.storageNode.discovery.updateDhtRecord(discoveryAddrs)
+  s.storageNode.discovery.updateDhtRecord(announceAddrs & discoveryAddrs)
   s.storageNode.discovery.updateAnnounceRecord(announceAddrs)
 
   var hasPublicAddr = false
@@ -109,6 +110,14 @@ proc start*(s: StorageServer) {.async.} =
     warn "Unable to determine a public IP address. This node will only be reachable on a private network."
 
   await s.storageNode.start()
+
+  for spr in s.config.bootstrapNodes:
+    try:
+      let addrs = spr.data.addresses.mapIt(it.address)
+      await s.storageNode.switch.connect(spr.data.peerId, addrs)
+    except CatchableError as e:
+      warn "Cannot connect to bootstrap node", error = e.msg
+      discard
 
   if s.restServer != nil:
     s.restServer.start()
@@ -351,7 +360,7 @@ proc new*(
         let (announceAddrs, discoveryAddrs) =
           nattedAddress(config.nat, switch.peerInfo.addrs, config.discoveryPort)
         discovery.updateAnnounceRecord(announceAddrs)
-        discovery.updateDhtRecord(discoveryAddrs)
+        discovery.updateDhtRecord(announceAddrs & discoveryAddrs)
   )
 
   StorageServer(
