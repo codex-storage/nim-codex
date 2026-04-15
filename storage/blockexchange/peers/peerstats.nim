@@ -31,7 +31,7 @@ type
 
   ThroughputSample = object
     time: Moment
-    bytes: uint64
+    cumBytes: uint64
 
   PeerPerfStats* = object
     rttSamples: Deque[uint64]
@@ -80,12 +80,10 @@ proc avgThroughputBps(self: var PeerPerfStats, now: Moment): Option[uint64] =
   if duration < MinThroughputDuration:
     return none(uint64)
 
-  var total: uint64 = 0
-  for s in self.throughputSamples:
-    total += s.bytes
-
-  let secs = duration.nanoseconds.float64 / 1_000_000_000.0
-  some((total.float64 / secs).uint64)
+  let
+    delta = last.cumBytes - first.cumBytes
+    secs = duration.nanoseconds.float64 / 1_000_000_000.0
+  some((delta.float64 / secs).uint64)
 
 proc avgRttMicros*(self: PeerPerfStats): Option[uint64] =
   if self.rttSamples.len == 0:
@@ -106,9 +104,11 @@ proc recordRequest*(self: var PeerPerfStats, rttMicros: uint64, bytes: uint64) =
   self.rttSamples.addLast(rttMicros)
 
   let now = Moment.now()
-  self.throughputSamples.addLast(ThroughputSample(time: now, bytes: bytes))
-  self.trimThroughputWindow(now)
   self.totalBytesDelivered += bytes
+  self.throughputSamples.addLast(
+    ThroughputSample(time: now, cumBytes: self.totalBytesDelivered)
+  )
+  self.trimThroughputWindow(now)
 
   self.batchesSinceProbe += 1
   if self.probeMode == Probing:
