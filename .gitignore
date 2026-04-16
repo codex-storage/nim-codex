@@ -53,3 +53,5 @@ tests/cbindings/downloaded_hello.txt
 
 nimbledeps
 tests/js/node_modules
+tests/js/dist/logs
+tests/js/dist/node_modules
