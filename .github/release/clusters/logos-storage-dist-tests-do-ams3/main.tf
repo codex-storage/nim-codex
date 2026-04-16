@@ -2,7 +2,7 @@
 module "doks" {
   source = "../modules/doks"
 
-  name                            = "codex-dist-tests"
+  name                            = "logos-storage-dist-tests"
   region                          = var.region
   kubernetes_version              = "1.34.5-do.2"
   kubernetes_ha                   = true

@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       branch:
-        description: 'cs-dist-tests branch to run tests from'
+        description: 'dist-tests branch to run tests from'
         required: false
         default: 'master'
         type: string
@@ -185,7 +185,7 @@ jobs:
           path: ${{ env.build_dir }}/${{ env.c_bindings_lib }}.zip
           if-no-files-found: error
 
-  # Build Docker dist-tests image
+  # Build Docker logosstorage/logos-storage-nim:latest-dist-tests image for Logos Storage nodes in the cluster
   build-docker-dist-tests:
     name: Build Docker dist-tests image
     if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
@@ -210,11 +210,11 @@ jobs:
       TF_VAR_do_token: ${{ secrets.RELEASE_TESTS_DO_TOKEN }}
       AWS_ACCESS_KEY_ID: ${{ secrets.RELEASE_TESTS_SPACES_ACCESS_KEY }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.RELEASE_TESTS_SPACES_SECRET_KEY }}
-      CODEXDOCKERIMAGE: ${{ needs.build-docker-dist-tests.outputs.logos_storage_image }}
+      STORAGEDOCKERIMAGE: ${{ needs.build-docker-dist-tests.outputs.logos_storage_image }}
       TEST_TYPE: release-tests
       BRANCH: ${{ inputs.branch || 'master' }}
       SOURCE: https://github.com/logos-storage/logos-storage-nim-cs-dist-tests
-      TF_DIR: .github/release/clusters/codex-dist-tests-do-ams3
+      TF_DIR: .github/release/clusters/logos-storage-dist-tests-do-ams3
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -241,7 +241,7 @@ jobs:
         run: terraform apply -auto-approve
 
       - name: Get kubeconfig
-        run: doctl kubernetes cluster kubeconfig save codex-dist-tests-do-ams3
+        run: doctl kubernetes cluster kubeconfig save logos-storage-dist-tests-do-ams3
 
       - name: Create in-cluster app kubeconfig secret
         run: |
@@ -254,7 +254,7 @@ jobs:
           export SERVER=$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}')
           export CA=$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.certificate-authority-data}')
 
-          kubectl create secret generic codex-dist-tests-app-kubeconfig \
+          kubectl create secret generic storage-dist-tests-app-kubeconfig \
             --from-file=kubeconfig.yaml=<(envsubst < .github/release/kubeconfig-template.yaml) \
             -n default
 

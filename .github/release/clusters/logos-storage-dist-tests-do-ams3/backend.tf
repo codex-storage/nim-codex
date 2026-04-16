@@ -4,7 +4,7 @@ terraform {
       s3 = "https://fra1.digitaloceanspaces.com"
     }
     bucket = "codex-infra-terraform"
-    key    = "clusters/codex-dist-tests-do-ams3/terraform.tfstate"
+    key    = "clusters/logos-storage-dist-tests-do-ams3/terraform.tfstate"
     region = "fra1"
 
     skip_credentials_validation = true
