@@ -343,7 +343,8 @@ method listBlocks*(
         let pair = res.value
         if pair.key.isSome:
           doAssert pair.data.len == 0
-          let cid = pair.key.get()
+          # safe: isSome checked above
+          let cid = pair.key.unsafeGet()
           trace "Retrieved record from repo", cid
           return Cid.init(cid.value).mapFailure
         else:
