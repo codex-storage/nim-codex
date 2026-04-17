@@ -43,7 +43,7 @@ proc lenPrefix*(msg: openArray[byte]): seq[byte] =
   ##
 
   let vbytes = PB.toBytes(msg.len().uint64)
-  var buf = newSeqUninitialized[byte](msg.len() + vbytes.len)
+  var buf = newSeqUninit[byte](msg.len() + vbytes.len)
   buf[0 ..< vbytes.len] = vbytes.toOpenArray()
   buf[vbytes.len ..< buf.len] = msg
 
