@@ -59,8 +59,6 @@ type
     ctx*: DownloadContext
     blocks*: Table[BlockAddress, BlockReq] # per-download block requests
     pendingBatches*: Table[uint64, PendingBatch] # batch start -> pending info
-    inFlightBatches*: Table[PeerId, seq[Future[void]]]
-      # track in-flight requests per peer for BDP - used as self-cleaning counter
     exhaustedBlocks*: HashSet[BlockAddress]
       # blocks that exhausted retries - failed permanently
     blockRetries*: int

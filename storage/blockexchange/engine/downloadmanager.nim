@@ -20,6 +20,7 @@ import ../../blocktype
 import ../../logutils
 
 import ./activedownload
+import ./peertracker
 
 export activedownload
 
@@ -35,6 +36,7 @@ type DownloadManager* = ref object of RootObj
   blockRetries*: int
   retryInterval*: Duration
   downloads*: Table[Cid, Table[uint64, ActiveDownload]]
+  peerTracker*: PeerInFlightTracker # peer-wide in-flight tracking
 
 proc getDownload*(self: DownloadManager, treeCid: Cid): Option[ActiveDownload] =
   self.downloads.withValue(treeCid, innerTable):
@@ -130,7 +132,6 @@ proc startDownload*(
     ctx: ctx,
     blocks: initTable[BlockAddress, BlockReq](),
     pendingBatches: initTable[uint64, PendingBatch](),
-    inFlightBatches: initTable[PeerId, seq[Future[void]]](),
     exhaustedBlocks: initHashSet[BlockAddress](),
     blockRetries: self.blockRetries,
     retryInterval: self.retryInterval,
@@ -177,4 +178,5 @@ proc new*(
     blockRetries: retries,
     retryInterval: interval,
     downloads: initTable[Cid, Table[uint64, ActiveDownload]](),
+    peerTracker: PeerInFlightTracker.new(),
   )

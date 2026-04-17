@@ -16,6 +16,7 @@ import ../peers/peerctxstore
 import ../peers/peerstats
 import ../types
 import ../../logutils
+import ./peertracker
 
 export peerctxstore, types
 
@@ -210,7 +211,7 @@ proc staleUnknownPeers*(swarm: Swarm): seq[PeerId] =
 proc selectByBDP*(
     peers: seq[PeerContext],
     batchBytes: uint64,
-    inFlightBatches: var Table[PeerId, seq[Future[void]]],
+    tracker: PeerInFlightTracker,
     penalties: var Table[PeerId, float],
     explorationProb: float = ExplorationProbability,
 ): Option[PeerContext] {.gcsafe, raises: [].} =
@@ -224,16 +225,16 @@ proc selectByBDP*(
     if peer.stats.throughputBps().isNone:
       let
         pipelineDepth = peer.optimalPipelineDepth(batchBytes)
-        currentLoad = inFlightBatches.getOrDefault(peer.id, @[]).len
+        currentLoad = tracker.count(peer.id)
       if currentLoad < pipelineDepth:
         untriedPeers.add(peer)
 
   if untriedPeers.len > 0:
     var
       bestPeer = untriedPeers[0]
-      bestLoad = inFlightBatches.getOrDefault(bestPeer.id, @[]).len
+      bestLoad = tracker.count(bestPeer.id)
     for i in 1 ..< untriedPeers.len:
-      let load = inFlightBatches.getOrDefault(untriedPeers[i].id, @[]).len
+      let load = tracker.count(untriedPeers[i].id)
       if load < bestLoad:
         bestLoad = load
         bestPeer = untriedPeers[i]
@@ -245,7 +246,7 @@ proc selectByBDP*(
     for peer in peers:
       let
         pipelineDepth = peer.optimalPipelineDepth(batchBytes)
-        currentLoad = inFlightBatches.getOrDefault(peer.id, @[]).len
+        currentLoad = tracker.count(peer.id)
       if currentLoad < pipelineDepth:
         peersWithCapacity.add(peer)
 
@@ -256,16 +257,12 @@ proc selectByBDP*(
   var
     bestPeers: seq[PeerContext] = @[peers[0]]
     bestScore = peers[0].evalBDPScore(
-      batchBytes,
-      inFlightBatches.getOrDefault(peers[0].id, @[]).len,
-      penalties.getOrDefault(peers[0].id, 0.0),
+      batchBytes, tracker.count(peers[0].id), penalties.getOrDefault(peers[0].id, 0.0)
     )
 
   for i in 1 ..< peers.len:
     let score = peers[i].evalBDPScore(
-      batchBytes,
-      inFlightBatches.getOrDefault(peers[i].id, @[]).len,
-      penalties.getOrDefault(peers[i].id, 0.0),
+      batchBytes, tracker.count(peers[i].id), penalties.getOrDefault(peers[i].id, 0.0)
     )
     if score < bestScore:
       bestScore = score
@@ -285,7 +282,7 @@ proc selectPeerForBatch*(
     start: uint64,
     count: uint64,
     batchBytes: uint64,
-    inFlightBatches: var Table[PeerId, seq[Future[void]]],
+    tracker: PeerInFlightTracker,
 ): PeerSelection =
   var penalties: Table[PeerId, float]
   for peerId, swarmPeer in swarm.peers:
@@ -308,14 +305,13 @@ proc selectPeerForBatch*(
         # peer disconnected, remove from swarm immediately
         discard swarm.removePeer(peerId)
         continue
-      let currentInFlight = inFlightBatches.getOrDefault(peerId, @[]).len
-      if currentInFlight < peer.optimalPipelineDepth(batchBytes):
+      if tracker.count(peerId) < peer.optimalPipelineDepth(batchBytes):
         peerCtxs.add(peer)
 
     if peerCtxs.len == 0:
       return PeerSelection(kind: pskAtCapacity)
 
-    let selected = selectByBDP(peerCtxs, batchBytes, inFlightBatches, penalties)
+    let selected = selectByBDP(peerCtxs, batchBytes, tracker, penalties)
     if selected.isSome:
       return PeerSelection(kind: pskFound, peer: selected.get())
     return PeerSelection(kind: pskNoPeers)
@@ -327,14 +323,13 @@ proc selectPeerForBatch*(
       # peer disconnected - remove from swarm immediately
       discard swarm.removePeer(peerId)
       continue
-    let currentInFlight = inFlightBatches.getOrDefault(peerId, @[]).len
-    if currentInFlight < peer.optimalPipelineDepth(batchBytes):
+    if tracker.count(peerId) < peer.optimalPipelineDepth(batchBytes):
       peerCtxs.add(peer)
 
   if peerCtxs.len == 0:
     return PeerSelection(kind: pskAtCapacity)
 
-  let selected = selectByBDP(peerCtxs, batchBytes, inFlightBatches, penalties)
+  let selected = selectByBDP(peerCtxs, batchBytes, tracker, penalties)
   if selected.isSome:
     return PeerSelection(kind: pskFound, peer: selected.get())
   return PeerSelection(kind: pskNoPeers)

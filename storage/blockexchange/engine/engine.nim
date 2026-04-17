@@ -35,6 +35,7 @@ import ../utils as bexutils
 import ./discovery
 import ./advertiser
 import ./downloadmanager
+import ./peertracker
 import ./swarm
 import ./scheduler
 
@@ -66,6 +67,7 @@ declareCounter(
 const
   # Don't do more than one discovery request per `DiscoveryRateLimit` seconds.
   DiscoveryRateLimit = 3.seconds
+  PeerTrackerSweepInterval = 15.seconds
 
 type
   BlockExcEngine* = ref object of RootObj
@@ -130,6 +132,16 @@ proc startDownload(
   self: BlockExcEngine, desc: DownloadDesc, missingBlocks: seq[uint64]
 ): ActiveDownload {.gcsafe, raises: [].}
 
+proc peerTrackerSweepLoop(self: BlockExcEngine) {.async: (raises: []).} =
+  try:
+    while self.blockexcRunning:
+      await sleepAsync(PeerTrackerSweepInterval)
+      await self.downloadManager.peerTracker.sweep()
+  except CancelledError:
+    discard
+  except CatchableError as exc:
+    warn "Peer tracker sweep loop failed", err = exc.msg
+
 proc start*(self: BlockExcEngine) {.async: (raises: []).} =
   ## Start the blockexc task
   ##
@@ -141,6 +153,7 @@ proc start*(self: BlockExcEngine) {.async: (raises: []).} =
     return
 
   self.blockexcRunning = true
+  self.trackedFutures.track(self.peerTrackerSweepLoop())
 
 proc stop*(self: BlockExcEngine) {.async: (raises: []).} =
   ## Stop the blockexc
@@ -184,6 +197,7 @@ proc evictPeer(self: BlockExcEngine, peer: PeerId) =
 
   trace "Evicting disconnected/departed peer", peer
   self.peers.remove(peer)
+  self.downloadManager.peerTracker.clearPeer(peer)
 
 proc validateBlockDeliveryView(self: BlockExcEngine, view: BlockDeliveryView): ?!void =
   without proof =? view.proof:
@@ -508,16 +522,6 @@ proc downloadWorker(
       self.searchForNewPeers(download.manifestCid)
 
     while not download.cancelled and not download.isDownloadComplete():
-      for peerId in download.inFlightBatches.keys.toSeq:
-        var remaining: seq[Future[void]] = @[]
-        for fut in download.inFlightBatches[peerId]:
-          if not fut.finished:
-            remaining.add(fut)
-        if remaining.len > 0:
-          download.inFlightBatches[peerId] = remaining
-        else:
-          download.inFlightBatches.del(peerId)
-
       let ctx = download.ctx
       if not download.fetchLocal and ctx.needsNextPresenceWindow():
         let (newStart, newCount) = ctx.advancePresenceWindow()
@@ -707,7 +711,7 @@ proc downloadWorker(
       let
         batchBytes = download.ctx.batchBytes
         selection = swarm.selectPeerForBatch(
-          self.peers, start, count, batchBytes, download.inFlightBatches
+          self.peers, start, count, batchBytes, self.downloadManager.peerTracker
         )
 
       if selection.kind == pskNoPeers:
@@ -730,9 +734,7 @@ proc downloadWorker(
       let batchFuture =
         self.sendWantBlocksRequest(download, start, count, missingIndices, peer)
 
-      if peer.id notin download.inFlightBatches:
-        download.inFlightBatches[peer.id] = @[]
-      download.inFlightBatches[peer.id].add(batchFuture)
+      self.downloadManager.peerTracker.track(peer.id, batchFuture)
 
       download.setBatchRequestFuture(start, batchFuture)
 

@@ -6,6 +6,7 @@ import pkg/libp2p/cid
 import pkg/libp2p/peerid
 
 import pkg/storage/blockexchange/engine/swarm
+import pkg/storage/blockexchange/engine/peertracker
 import pkg/storage/blockexchange/peers/peercontext
 import pkg/storage/blockexchange/peers/peerstats
 import pkg/storage/blockexchange/utils
@@ -352,16 +353,16 @@ suite "BDP Peer Selection":
 
   test "Should return none for empty peers":
     var
-      emptyInFlight = initTable[PeerId, seq[Future[void]]]()
+      emptyTracker = PeerInFlightTracker.new()
       emptyPenalties = initTable[PeerId, float]()
-    let res = selectByBDP(@[], TestBatchBytes, emptyInFlight, emptyPenalties)
+    let res = selectByBDP(@[], TestBatchBytes, emptyTracker, emptyPenalties)
     check res.isNone
 
   test "Should return single peer":
     var
-      emptyInFlight = initTable[PeerId, seq[Future[void]]]()
+      emptyTracker = PeerInFlightTracker.new()
       emptyPenalties = initTable[PeerId, float]()
-    let res = selectByBDP(@[peerCtxs[0]], TestBatchBytes, emptyInFlight, emptyPenalties)
+    let res = selectByBDP(@[peerCtxs[0]], TestBatchBytes, emptyTracker, emptyPenalties)
     check res.isSome
     check res.get == peerCtxs[0]
 
@@ -370,9 +371,9 @@ suite "BDP Peer Selection":
       check peer.stats.throughputBps().isNone
 
     var
-      emptyInFlight = initTable[PeerId, seq[Future[void]]]()
+      emptyTracker = PeerInFlightTracker.new()
       emptyPenalties = initTable[PeerId, float]()
-    let res = selectByBDP(peerCtxs, TestBatchBytes, emptyInFlight, emptyPenalties)
+    let res = selectByBDP(peerCtxs, TestBatchBytes, emptyTracker, emptyPenalties)
     check res.isSome
 
   test "Should select peer with capacity":
@@ -380,14 +381,12 @@ suite "BDP Peer Selection":
     peerCtxs[1].stats.recordRequest(1000, 65536)
 
     var
-      inFlightBatches = initTable[PeerId, seq[Future[void]]]()
+      tracker = PeerInFlightTracker.new()
       emptyPenalties = initTable[PeerId, float]()
-      fakeFutures: seq[Future[void]] = @[]
     for i in 0 ..< 10:
-      fakeFutures.add(newFuture[void]())
-    inFlightBatches[peerCtxs[1].id] = fakeFutures
+      tracker.track(peerCtxs[1].id, newFuture[void]())
 
-    let res = selectByBDP(peerCtxs, TestBatchBytes, inFlightBatches, emptyPenalties)
+    let res = selectByBDP(peerCtxs, TestBatchBytes, tracker, emptyPenalties)
     check res.isSome
 
   test "Should deprioritize peer with timeout penalty":
@@ -401,14 +400,14 @@ suite "BDP Peer Selection":
     check peerCtxs[1].stats.throughputBps().isSome
 
     var
-      emptyInFlight = initTable[PeerId, seq[Future[void]]]()
+      emptyTracker = PeerInFlightTracker.new()
       penalties = initTable[PeerId, float]()
     penalties[peerCtxs[0].id] = 1.0 * TimeoutPenaltyWeight
 
     let res = selectByBDP(
       @[peerCtxs[0], peerCtxs[1]],
       TestBatchBytes,
-      emptyInFlight,
+      emptyTracker,
       penalties,
       explorationProb = 0.0,
     )
@@ -421,11 +420,11 @@ suite "BDP Peer Selection":
     peerCtxs[0].stats.recordRequest(1000, 65536)
 
     var
-      emptyInFlight = initTable[PeerId, seq[Future[void]]]()
+      emptyTracker = PeerInFlightTracker.new()
       penalties = initTable[PeerId, float]()
     penalties[peerCtxs[0].id] = 3.0 * TimeoutPenaltyWeight
 
-    let res = selectByBDP(@[peerCtxs[0]], TestBatchBytes, emptyInFlight, penalties)
+    let res = selectByBDP(@[peerCtxs[0]], TestBatchBytes, emptyTracker, penalties)
     check res.isSome
     check res.get == peerCtxs[0]
 
@@ -437,7 +436,7 @@ suite "BDP Peer Selection":
     peerCtxs[1].stats.recordRequest(1000, 65536)
 
     var
-      emptyInFlight = initTable[PeerId, seq[Future[void]]]()
+      emptyTracker = PeerInFlightTracker.new()
       penalties = initTable[PeerId, float]()
     penalties[peerCtxs[0].id] = 2.0 * TimeoutPenaltyWeight
     penalties[peerCtxs[1].id] = 1.0 * TimeoutPenaltyWeight
@@ -445,7 +444,7 @@ suite "BDP Peer Selection":
     let res = selectByBDP(
       @[peerCtxs[0], peerCtxs[1]],
       TestBatchBytes,
-      emptyInFlight,
+      emptyTracker,
       penalties,
       explorationProb = 0.0,
     )
