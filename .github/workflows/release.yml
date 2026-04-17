@@ -237,6 +237,7 @@ jobs:
         run: terraform init
 
       - name: Terraform apply
+        id: tf-apply
         working-directory: ${{ env.TF_DIR }}
         run: terraform apply -auto-approve
 
@@ -291,7 +292,7 @@ jobs:
           [[ "$job_status" == "SuccessCriteriaMet" ]] || exit 1
 
       - name: Terraform destroy
-        if: always()
+        if: always() && steps.tf-apply.conclusion != 'skipped'
         working-directory: ${{ env.TF_DIR }}
         run: terraform destroy -auto-approve
 
