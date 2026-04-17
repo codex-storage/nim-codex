@@ -1,5 +1,4 @@
 import std/os
-import std/options
 import std/math
 import std/importutils
 
