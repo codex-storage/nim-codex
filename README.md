@@ -43,6 +43,18 @@ The order of priority is the same as above: CLI options --> Environment variable
 
 Please check `build/storage --help` for more information.
 
+### Local-only mode
+
+By default, the node will refuse to start if it cannot determine a public IP address.
+
+If you are running on a local network only (no public IP, behind NAT without UPnP/PMP), use the `--allow-private-address` flag:
+
+```bash
+build/storage --allow-private-address
+```
+
+Note: when using the C library (`libstorage`), this flag is enabled by default.
+
 ## API
 
 The client exposes a REST API that can be used to interact with the clients. Overview of the API can be found on [api.codex.storage](https://api.codex.storage).
@@ -91,6 +103,6 @@ Feel free to dive in, contributions are welcomed! Open an issue or submit PRs.
 
 `logos-storage-nim` uses [nph](https://github.com/arnetheduck/nph) for formatting our code and it is required to adhere to its styling.
 If you are setting up fresh setup, in order to get `nph` run `make build-nph`.
-In order to format files run `make nph/<file/folder you want to format>`. 
-If you want you can install Git pre-commit hook using `make install-nph-commit`, which will format modified files prior committing them. 
+In order to format files run `make nph/<file/folder you want to format>`.
+If you want you can install Git pre-commit hook using `make install-nph-commit`, which will format modified files prior committing them.
 If you are using VSCode and the [NimLang](https://marketplace.visualstudio.com/items?itemName=NimLang.nimlang) extension you can enable "Format On Save" (eq. the `nim.formatOnSave` property) that will format the files using `nph`.

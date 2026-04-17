@@ -31,6 +31,7 @@ import ./blockexchange
 import ./utils/fileutils
 import ./discovery
 import ./utils/addrutils
+import ./utils/natutils
 import ./namespaces
 import ./storagetypes
 import ./logutils
@@ -77,6 +78,17 @@ proc start*(s: StorageServer) {.async.} =
     s.config.nat, s.storageNode.switch.peerInfo.addrs, s.config.discoveryPort
   )
 
+  if not s.config.allowPrivateAddress.get(false):
+    var hasPublicAddr = false
+    for ma in announceAddrs:
+      let (maybeIp, _) = getAddressAndPort(ma)
+      if maybeIp.isSome and maybeIp.get.isGlobalUnicast():
+        hasPublicAddr = true
+        break
+    if not hasPublicAddr:
+      fatal "Node has no public addresses. Use --allow-private-address to allow starting with only private addresses."
+      raise newException(StorageError, "Node has no public addresses")
+
   s.storageNode.discovery.updateAnnounceRecord(announceAddrs)
   s.storageNode.discovery.updateDhtRecord(discoveryAddrs)
 
@@ -110,7 +122,7 @@ proc stop*(s: StorageServer) {.async.} =
 
   if res.failure.len > 0:
     error "Failed to stop Storage node", failures = res.failure.len
-    raiseAssert "Failed to stop Storage node"
+    raise newException(StorageError, "Failed to stop Storage node")
 
 proc close*(s: StorageServer) {.async.} =
   var futures =
@@ -123,7 +135,7 @@ proc close*(s: StorageServer) {.async.} =
       s.taskpool.shutdown()
     except Exception as exc:
       error "Failed to stop the taskpool", failures = res.failure.len
-      raiseAssert("Failure in taskpool shutdown:" & exc.msg)
+      raise newException(StorageError, "Failure in taskpool shutdown: " & exc.msg)
 
   when defaultChroniclesStream.outputs.type.arity >= 3:
     proc noOutput(logLevel: LogLevel, msg: LogOutputStr) =
@@ -137,7 +149,7 @@ proc close*(s: StorageServer) {.async.} =
 
   if res.failure.len > 0:
     error "Failed to close Storage node", failures = res.failure.len
-    raiseAssert "Failed to close Storage node"
+    raise newException(StorageError, "Failed to close Storage node")
 
 proc shutdown*(server: StorageServer) {.async.} =
   await server.stop()

@@ -280,3 +280,11 @@ proc withStorageQuota*(
   for config in startConfig.configs.mitems:
     config.addCliOption("--storage-quota", $quota)
   return startConfig
+
+proc withAllowPrivateAddress*(
+    self: StorageConfigs
+): StorageConfigs {.raises: [StorageConfigError].} =
+  var startConfig = self
+  for config in startConfig.configs.mitems:
+    config.addCliOption("--allow-private-address", "true")
+  return startConfig

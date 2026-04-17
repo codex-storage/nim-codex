@@ -91,6 +91,7 @@ proc createStorage(
     configJson: cstring
 ): Future[Result[StorageServer, string]] {.async: (raises: []).} =
   var conf: StorageConf
+
   try:
     conf = StorageConf.load(
       version = storageFullVersion,
@@ -146,6 +147,10 @@ proc createStorage(
   else:
     debug "Rest API is enabled!"
 
+  if conf.allowPrivateAddress.isNone:
+    # Default to true so the node starts out of the box.
+    conf.allowPrivateAddress = true.some
+
   let server =
     try:
       StorageServer.new(conf, pk, logFile)
@@ -185,6 +190,6 @@ proc process*(
     try:
       await storage[].close()
     except Exception as e:
-      error "Failed to STOP_NODE.", error = e.msg
+      error "Failed to CLOSE_NODE.", error = e.msg
       return err(e.msg)
   return ok("")

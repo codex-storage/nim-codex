@@ -184,6 +184,14 @@ type
       name: "bootstrap-node"
     .}: seq[SignedPeerRecord]
 
+    allowPrivateAddress* {.
+      desc:
+        "Allow the node to start with only private addresses. " &
+        "By default the node stops if no public address is available.",
+      defaultValue: bool.none,
+      name: "allow-private-address"
+    .}: Option[bool]
+
     maxPeers* {.
       desc: "The maximum number of peers to connect to",
       defaultValue: 160,
