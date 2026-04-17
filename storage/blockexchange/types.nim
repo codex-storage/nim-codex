@@ -13,8 +13,6 @@ import std/algorithm
 
 import pkg/libp2p/cid
 
-import ../blocktype
-
 type
   BlockRange* = object
     treeCid*: Cid

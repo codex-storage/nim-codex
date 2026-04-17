@@ -42,7 +42,7 @@ asyncchecksuite "Test Discovery Engine":
 
       blocks.add(bt.Block.new(chunk).tryGet())
 
-    (_, tree, manifest) = makeDataset(blocks).tryGet()
+    (_, tree, manifest, _) = makeDataset(blocks).tryGet()
     manifestBlock = manifest.asBlock()
     blocks.add(manifestBlock)
 

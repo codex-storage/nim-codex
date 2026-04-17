@@ -44,7 +44,7 @@ method getBlock*(
     let handle = downloadOpt.get().getWantHandle(address)
     without blk =? (await self.localStore.getBlock(address)), err:
       if not (err of BlockNotFoundError):
-        handle.cancel()
+        handle.cancelSoon()
         return failure err
       return await handle
     discard downloadOpt.get().completeWantHandle(address, some(blk))

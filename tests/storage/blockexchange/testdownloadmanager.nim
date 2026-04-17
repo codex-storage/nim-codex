@@ -29,7 +29,8 @@ suite "DownloadManager - Want Handles":
       downloadManager = DownloadManager.new()
       blk = bt.Block.new("Hello".toBytes).tryGet
       address = BlockAddress.init(blk.cid, 0)
-      desc = toDownloadDesc(address, DefaultBlockSize.uint32)
+      md = testManifestDesc(Cid.example, DefaultBlockSize.uint32, 1)
+      desc = DownloadDesc(md: md, startIndex: address.index.uint64, count: 1)
       download = downloadManager.startDownload(desc)
 
     discard download.getWantHandle(address)
@@ -41,7 +42,8 @@ suite "DownloadManager - Want Handles":
       downloadManager = DownloadManager.new()
       blk = bt.Block.new("Hello".toBytes).tryGet
       address = BlockAddress.init(blk.cid, 0)
-      desc = toDownloadDesc(address, DefaultBlockSize.uint32)
+      md = testManifestDesc(Cid.example, DefaultBlockSize.uint32, 1)
+      desc = DownloadDesc(md: md, startIndex: address.index.uint64, count: 1)
       download = downloadManager.startDownload(desc)
       handle = download.getWantHandle(address)
 
@@ -55,7 +57,8 @@ suite "DownloadManager - Want Handles":
       downloadManager = DownloadManager.new()
       blk = bt.Block.new("Hello".toBytes).tryGet
       address = BlockAddress.init(blk.cid, 0)
-      desc = toDownloadDesc(address, DefaultBlockSize.uint32)
+      md = testManifestDesc(Cid.example, DefaultBlockSize.uint32, 1)
+      desc = DownloadDesc(md: md, startIndex: address.index.uint64, count: 1)
       download = downloadManager.startDownload(desc)
       handle = download.getWantHandle(address)
 
@@ -68,7 +71,8 @@ suite "DownloadManager - Want Handles":
       dm = DownloadManager.new(3)
       blk = bt.Block.new("Hello".toBytes).tryGet
       address = BlockAddress.init(blk.cid, 0)
-      desc = toDownloadDesc(address, DefaultBlockSize.uint32)
+      md = testManifestDesc(Cid.example, DefaultBlockSize.uint32, 1)
+      desc = DownloadDesc(md: md, startIndex: address.index.uint64, count: 1)
       download = dm.startDownload(desc)
 
     discard download.getWantHandle(address)
@@ -86,18 +90,16 @@ asyncchecksuite "DownloadManager - Download Lifecycle":
   test "Should start new download":
     let
       dm = DownloadManager.new()
-      treeCid = Cid.example
-      desc = toDownloadDesc(treeCid, 100, 65536)
+      md = testManifestDesc(Cid.example, 65536, 100)
+      desc = DownloadDesc(md: md, count: 100)
 
-    let download = dm.startDownload(desc)
-
-    check download.treeCid == treeCid
+    discard dm.startDownload(desc)
 
   test "Should allow multiple downloads for same CID":
     let
       dm = DownloadManager.new()
-      treeCid = Cid.example
-      desc = toDownloadDesc(treeCid, 100, 65536)
+      md = testManifestDesc(Cid.example, 65536, 100)
+      desc = DownloadDesc(md: md, count: 100)
       download1 = dm.startDownload(desc)
       download2 = dm.startDownload(desc)
 
@@ -107,13 +109,13 @@ asyncchecksuite "DownloadManager - Download Lifecycle":
   test "Multiple downloads for same CID have independent block state":
     let
       dm = DownloadManager.new()
-      treeCid = Cid.example
-      desc = toDownloadDesc(treeCid, 100, 65536)
+      md = testManifestDesc(Cid.example, 65536, 100)
+      desc = DownloadDesc(md: md, count: 100)
 
       download1 = dm.startDownload(desc)
       download2 = dm.startDownload(desc)
 
-      address = BlockAddress(treeCid: treeCid, index: 0)
+      address = BlockAddress(treeCid: md.manifest.treeCid, index: 0)
       handle1 = download1.getWantHandle(address)
 
     check address in download1
@@ -130,11 +132,11 @@ asyncchecksuite "DownloadManager - Download Lifecycle":
   test "Cancel one download for same CID while other continues":
     let
       dm = DownloadManager.new()
-      treeCid = Cid.example
-      desc = toDownloadDesc(treeCid, 100, 65536)
+      md = testManifestDesc(Cid.example, 65536, 100)
+      desc = DownloadDesc(md: md, count: 100)
       download1 = dm.startDownload(desc)
       download2 = dm.startDownload(desc)
-      address = BlockAddress(treeCid: treeCid, index: 0)
+      address = BlockAddress(treeCid: md.manifest.treeCid, index: 0)
 
     discard download1.getWantHandle(address)
     let handle2 = download2.getWantHandle(address)
@@ -150,14 +152,14 @@ asyncchecksuite "DownloadManager - Download Lifecycle":
     let res = await handle2
     check res.isOk
 
-    check dm.getDownload(download2.id, treeCid).isSome
-    check dm.getDownload(download1.id, treeCid).isNone
+    check dm.getDownload(download2.id, md.manifest.treeCid).isSome
+    check dm.getDownload(download1.id, md.manifest.treeCid).isNone
 
   test "Should start range download":
     let
       dm = DownloadManager.new()
-      treeCid = Cid.example
-      desc = toDownloadDesc(treeCid, 50'u64, 100'u64, 65536)
+      md = testManifestDesc(Cid.example, 65536, 150)
+      desc = DownloadDesc(md: md, startIndex: 50, count: 100)
       download = dm.startDownload(desc)
 
     check download.ctx.totalBlocks == 150 # 50 + 100
@@ -165,8 +167,8 @@ asyncchecksuite "DownloadManager - Download Lifecycle":
   test "Should start download with missing blocks":
     let
       dm = DownloadManager.new()
-      treeCid = Cid.example
-      desc = toDownloadDesc(treeCid, 1000, 65536)
+      md = testManifestDesc(Cid.example, 65536, 1000)
+      desc = DownloadDesc(md: md, count: 1000)
       missingBlocks = @[10'u64, 11, 12, 50, 51, 100]
       download = dm.startDownload(desc, missingBlocks)
 
@@ -175,8 +177,9 @@ asyncchecksuite "DownloadManager - Download Lifecycle":
   test "Should release download":
     let
       dm = DownloadManager.new()
-      treeCid = Cid.example
-      desc = toDownloadDesc(treeCid, 100, 65536)
+      md = testManifestDesc(Cid.example, 65536, 100)
+      desc = DownloadDesc(md: md, count: 100)
+      treeCid = md.manifest.treeCid
 
     discard dm.startDownload(desc)
 
@@ -186,8 +189,9 @@ asyncchecksuite "DownloadManager - Download Lifecycle":
   test "Should cancel download":
     let
       dm = DownloadManager.new()
-      treeCid = Cid.example
-      desc = toDownloadDesc(treeCid, 100, 65536)
+      md = testManifestDesc(Cid.example, 65536, 100)
+      desc = DownloadDesc(md: md, count: 100)
+      treeCid = md.manifest.treeCid
 
     discard dm.startDownload(desc)
 
@@ -205,8 +209,9 @@ asyncchecksuite "DownloadManager - Download Lifecycle":
   test "Should set cancelled flag when download is cancelled":
     let
       dm = DownloadManager.new()
-      treeCid = Cid.example
-      desc = toDownloadDesc(treeCid, 100, 65536)
+      md = testManifestDesc(Cid.example, 65536, 100)
+      desc = DownloadDesc(md: md, count: 100)
+      treeCid = md.manifest.treeCid
 
     let downloadBefore = dm.startDownload(desc)
 
@@ -221,9 +226,10 @@ asyncchecksuite "DownloadManager - Download Lifecycle":
   test "Should allow new download for same CID after cancellation":
     let
       dm = DownloadManager.new()
-      treeCid = Cid.example
-      desc = toDownloadDesc(treeCid, 100, 65536)
+      md = testManifestDesc(Cid.example, 65536, 100)
+      desc = DownloadDesc(md: md, count: 100)
       oldDownload = dm.startDownload(desc)
+      treeCid = md.manifest.treeCid
 
     dm.cancelDownload(treeCid)
     check oldDownload.cancelled == true
@@ -238,9 +244,10 @@ asyncchecksuite "DownloadManager - Download Lifecycle":
   test "Should set cancelled flag when released":
     let
       dm = DownloadManager.new()
-      treeCid = Cid.example
-      desc = toDownloadDesc(treeCid, 100, 65536)
+      md = testManifestDesc(Cid.example, 65536, 100)
+      desc = DownloadDesc(md: md, count: 100)
       downloadRef = dm.startDownload(desc)
+      treeCid = md.manifest.treeCid
 
     check downloadRef.cancelled == false
 
@@ -254,8 +261,8 @@ suite "DownloadManager - Batch Management":
   test "Should get next batch":
     let
       dm = DownloadManager.new()
-      treeCid = Cid.example
-      desc = toDownloadDesc(treeCid, 1000, 65536)
+      md = testManifestDesc(Cid.example, 65536, 1000)
+      desc = DownloadDesc(md: md, count: 1000)
       download = dm.startDownload(desc)
       batch = dm.getNextBatch(download)
 
@@ -265,8 +272,8 @@ suite "DownloadManager - Batch Management":
   test "Should mark batch in flight":
     let
       dm = DownloadManager.new()
-      treeCid = Cid.example
-      desc = toDownloadDesc(treeCid, 1000, 65536)
+      md = testManifestDesc(Cid.example, 65536, 1000)
+      desc = DownloadDesc(md: md, count: 1000)
       peerId = PeerId.example
       download = dm.startDownload(desc)
       batch = dm.getNextBatch(download)
@@ -281,8 +288,8 @@ suite "DownloadManager - Batch Management":
   test "Should complete batch":
     let
       dm = DownloadManager.new()
-      treeCid = Cid.example
-      desc = toDownloadDesc(treeCid, 100, 65536)
+      md = testManifestDesc(Cid.example, 65536, 100)
+      desc = DownloadDesc(md: md, count: 100)
       peerId = PeerId.example
       download = dm.startDownload(desc)
       batch = dm.getNextBatch(download)
@@ -297,8 +304,8 @@ suite "DownloadManager - Batch Management":
   test "Should requeue batch at back":
     let
       dm = DownloadManager.new()
-      treeCid = Cid.example
-      desc = toDownloadDesc(treeCid, 1000, 65536)
+      md = testManifestDesc(Cid.example, 65536, 1000)
+      desc = DownloadDesc(md: md, count: 1000)
       peerId = PeerId.example
       download = dm.startDownload(desc)
       batch1 = dm.getNextBatch(download)
@@ -316,8 +323,8 @@ suite "DownloadManager - Batch Management":
   test "Should requeue batch at front":
     let
       dm = DownloadManager.new()
-      treeCid = Cid.example
-      desc = toDownloadDesc(treeCid, 1000, 65536)
+      md = testManifestDesc(Cid.example, 65536, 1000)
+      desc = DownloadDesc(md: md, count: 1000)
       peerId = PeerId.example
       download = dm.startDownload(desc)
       batch1 = dm.getNextBatch(download)
@@ -333,8 +340,8 @@ suite "DownloadManager - Batch Management":
   test "Should handle partial batch completion":
     let
       dm = DownloadManager.new()
-      treeCid = Cid.example
-      desc = toDownloadDesc(treeCid, 1000, 65536)
+      md = testManifestDesc(Cid.example, 65536, 1000)
+      desc = DownloadDesc(md: md, count: 1000)
       peerId = PeerId.example
       download = dm.startDownload(desc)
       batch = dm.getNextBatch(download)
@@ -351,8 +358,8 @@ suite "DownloadManager - Batch Management":
   test "Should count local blocks on partial completion":
     let
       dm = DownloadManager.new()
-      treeCid = Cid.example
-      desc = toDownloadDesc(treeCid, 1000, 65536)
+      md = testManifestDesc(Cid.example, 65536, 1000)
+      desc = DownloadDesc(md: md, count: 1000)
       peerId = PeerId.example
       download = dm.startDownload(desc)
       batch = dm.getNextBatch(download)
@@ -375,8 +382,8 @@ suite "DownloadManager - Download Status":
   test "Should check if download is complete":
     let
       dm = DownloadManager.new()
-      treeCid = Cid.example
-      desc = toDownloadDesc(treeCid, 10, 65536)
+      md = testManifestDesc(Cid.example, 65536, 10)
+      desc = DownloadDesc(md: md, count: 10)
       download = dm.startDownload(desc)
 
     check download.isDownloadComplete() == false
@@ -388,8 +395,8 @@ suite "DownloadManager - Download Status":
   test "Should check if work remains":
     let
       dm = DownloadManager.new()
-      treeCid = Cid.example
-      desc = toDownloadDesc(treeCid, 1000, 65536)
+      md = testManifestDesc(Cid.example, 65536, 1000)
+      desc = DownloadDesc(md: md, count: 1000)
       download = dm.startDownload(desc)
 
     check download.hasWorkRemaining() == true
@@ -397,8 +404,8 @@ suite "DownloadManager - Download Status":
   test "Should return pending batch count":
     let
       dm = DownloadManager.new()
-      treeCid = Cid.example
-      desc = toDownloadDesc(treeCid, 1000, 65536)
+      md = testManifestDesc(Cid.example, 65536, 1000)
+      desc = DownloadDesc(md: md, count: 1000)
       peerId = PeerId.example
       download = dm.startDownload(desc)
 
@@ -413,8 +420,8 @@ suite "DownloadManager - Peer Management":
   test "Should handle peer failure":
     let
       dm = DownloadManager.new()
-      treeCid = Cid.example
-      desc = toDownloadDesc(treeCid, 1000, 65536)
+      md = testManifestDesc(Cid.example, 65536, 1000)
+      desc = DownloadDesc(md: md, count: 1000)
       peerId = PeerId.example
       download = dm.startDownload(desc)
       batch1 = dm.getNextBatch(download)
@@ -434,8 +441,8 @@ suite "DownloadManager - Peer Management":
   test "Should get swarm":
     let
       dm = DownloadManager.new()
-      treeCid = Cid.example
-      desc = toDownloadDesc(treeCid, 100, 65536)
+      md = testManifestDesc(Cid.example, 65536, 100)
+      desc = DownloadDesc(md: md, count: 100)
       download = dm.startDownload(desc)
       swarm = download.getSwarm()
     check swarm != nil
@@ -443,8 +450,8 @@ suite "DownloadManager - Peer Management":
   test "Should update peer availability - add new peer":
     let
       dm = DownloadManager.new()
-      treeCid = Cid.example
-      desc = toDownloadDesc(treeCid, 100, 65536)
+      md = testManifestDesc(Cid.example, 65536, 100)
+      desc = DownloadDesc(md: md, count: 100)
       peerId = PeerId.example
       availability = BlockAvailability.complete()
       download = dm.startDownload(desc)
@@ -460,8 +467,8 @@ suite "DownloadManager - Peer Management":
   test "Should update peer availability - update existing peer":
     let
       dm = DownloadManager.new()
-      treeCid = Cid.example
-      desc = toDownloadDesc(treeCid, 100, 65536)
+      md = testManifestDesc(Cid.example, 65536, 100)
+      desc = DownloadDesc(md: md, count: 100)
       peerId = PeerId.example
       download = dm.startDownload(desc)
 
@@ -481,7 +488,8 @@ suite "DownloadManager - Retry Management":
       dm = DownloadManager.new(retries = 5)
       blk = bt.Block.new("Hello".toBytes).tryGet
       address = BlockAddress.init(blk.cid, 0)
-      desc = toDownloadDesc(address, DefaultBlockSize.uint32)
+      md = testManifestDesc(Cid.example, DefaultBlockSize.uint32, 1)
+      desc = DownloadDesc(md: md, startIndex: address.index.uint64, count: 1)
       download = dm.startDownload(desc)
 
     discard download.getWantHandle(address)
@@ -497,7 +505,8 @@ suite "DownloadManager - Retry Management":
       dm = DownloadManager.new(retries = 2)
       blk = bt.Block.new("Hello".toBytes).tryGet
       address = BlockAddress.init(blk.cid, 0)
-      desc = toDownloadDesc(address, DefaultBlockSize.uint32)
+      md = testManifestDesc(Cid.example, DefaultBlockSize.uint32, 1)
+      desc = DownloadDesc(md: md, startIndex: address.index.uint64, count: 1)
       download = dm.startDownload(desc)
 
     discard download.getWantHandle(address)
@@ -512,9 +521,9 @@ suite "DownloadManager - Retry Management":
   test "Should fail exhausted blocks":
     let
       dm = DownloadManager.new(retries = 1)
-      treeCid = Cid.example
-      desc = toDownloadDesc(treeCid, 100, 65536)
-      address = BlockAddress(treeCid: treeCid, index: 0)
+      md = testManifestDesc(Cid.example, 65536, 100)
+      desc = DownloadDesc(md: md, count: 100)
+      address = BlockAddress(treeCid: md.manifest.treeCid, index: 0)
       download = dm.startDownload(desc)
 
     discard download.getWantHandle(address)
@@ -528,9 +537,10 @@ suite "DownloadManager - Retry Management":
   test "Should get block addresses for range":
     let
       dm = DownloadManager.new()
-      treeCid = Cid.example
-      desc = toDownloadDesc(treeCid, 100, 65536)
+      md = testManifestDesc(Cid.example, 65536, 100)
+      desc = DownloadDesc(md: md, count: 100)
       download = dm.startDownload(desc)
+      treeCid = md.manifest.treeCid
 
     for i in 0'u64 ..< 5:
       let address = BlockAddress(treeCid: treeCid, index: i.int)
@@ -539,46 +549,12 @@ suite "DownloadManager - Retry Management":
     let addresses = download.getBlockAddressesForRange(0, 10)
     check addresses.len == 5
 
-suite "DownloadManager - DownloadDesc":
-  test "Should create full tree download desc":
-    let
-      treeCid = Cid.example
-      desc = toDownloadDesc(treeCid, 1000, 65536)
-
-    check desc.treeCid == treeCid
-
-    check desc.startIndex == 0
-    check desc.count == 1000
-    check desc.treeCid == treeCid
-
-  test "Should create range download desc":
-    let
-      treeCid = Cid.example
-      desc = toDownloadDesc(treeCid, 500, 200, 65536)
-
-    check desc.treeCid == treeCid
-
-    check desc.startIndex == 500
-    check desc.count == 200
-
-  test "Should create leaf block download desc from address":
-    let
-      treeCid = Cid.example
-      address = BlockAddress(treeCid: treeCid, index: 42)
-      desc = toDownloadDesc(address, 65536)
-
-    check desc.treeCid == treeCid
-
-    check desc.startIndex == 42
-    check desc.count == 1
-
 suite "DownloadContext - Basics":
   test "Should create download context":
     let
-      treeCid = Cid.example
-      ctx = DownloadContext.new(toDownloadDesc(treeCid, 1000, 65536))
+      md = testManifestDesc(Cid.example, 65536, 1000)
+      ctx = DownloadContext.new(DownloadDesc(md: md, count: 1000))
 
-    check ctx.treeCid == treeCid
     check ctx.blockSize == 65536
     check ctx.totalBlocks == 1000
     check ctx.received == 0
@@ -586,15 +562,15 @@ suite "DownloadContext - Basics":
 
   test "Should report not complete initially":
     let
-      treeCid = Cid.example
-      ctx = DownloadContext.new(toDownloadDesc(treeCid, 100, 65536))
+      md = testManifestDesc(Cid.example, 65536, 100)
+      ctx = DownloadContext.new(DownloadDesc(md: md, count: 100))
 
     check ctx.isComplete() == false
 
   test "Should report complete when all received":
     let
-      treeCid = Cid.example
-      ctx = DownloadContext.new(toDownloadDesc(treeCid, 100, 65536))
+      md = testManifestDesc(Cid.example, 65536, 100)
+      ctx = DownloadContext.new(DownloadDesc(md: md, count: 100))
 
     ctx.received = 100
 
@@ -602,8 +578,8 @@ suite "DownloadContext - Basics":
 
   test "Should return progress":
     let
-      treeCid = Cid.example
-      ctx = DownloadContext.new(toDownloadDesc(treeCid, 100, 65536))
+      md = testManifestDesc(Cid.example, 65536, 100)
+      ctx = DownloadContext.new(DownloadDesc(md: md, count: 100))
 
     ctx.received = 50
     ctx.bytesReceived = 50'u64 * 65536
@@ -615,8 +591,8 @@ suite "DownloadContext - Basics":
 
   test "Should return remaining blocks":
     let
-      treeCid = Cid.example
-      ctx = DownloadContext.new(toDownloadDesc(treeCid, 100, 65536))
+      md = testManifestDesc(Cid.example, 65536, 100)
+      ctx = DownloadContext.new(DownloadDesc(md: md, count: 100))
 
     check ctx.remainingBlocks() == 100
 
@@ -628,8 +604,8 @@ suite "DownloadContext - Basics":
 
   test "Should init scheduler with missing blocks":
     let
-      treeCid = Cid.example
-      ctx = DownloadContext.new(toDownloadDesc(treeCid, 1000, 65536))
+      md = testManifestDesc(Cid.example, 65536, 1000)
+      ctx = DownloadContext.new(DownloadDesc(md: md, count: 1000))
       missingBlocks = @[10'u64, 11, 12, 50, 51, 100]
 
     ctx.scheduler.initFromIndices(missingBlocks, 256, WindowSize, Threshold)
@@ -638,8 +614,8 @@ suite "DownloadContext - Basics":
 
   test "Should mark batch received":
     let
-      treeCid = Cid.example
-      ctx = DownloadContext.new(toDownloadDesc(treeCid, 100, 65536))
+      md = testManifestDesc(Cid.example, 65536, 100)
+      ctx = DownloadContext.new(DownloadDesc(md: md, count: 100))
 
     ctx.markBatchReceived(0, 10, 10'u64 * 65536)
 
@@ -654,39 +630,17 @@ suite "DownloadContext - Windowed Presence":
 
   test "Should initialize presence window":
     let
-      treeCid = Cid.example
-      ctx = DownloadContext.new(toDownloadDesc(treeCid, 100000, 65536))
+      md = testManifestDesc(Cid.example, 65536, 100000)
+      ctx = DownloadContext.new(DownloadDesc(md: md, count: 100000))
       window = ctx.currentPresenceWindow()
 
     check window.start == 0
     check window.count > 0
-
-  test "Should get current presence window":
-    let
-      treeCid = Cid.example
-      ctx = DownloadContext.new(toDownloadDesc(treeCid, 100000, 65536))
-      window = ctx.currentPresenceWindow()
-
-    check window.start == 0
-    check window.count > 0
-
-  test "Should check if block is in presence window":
-    let
-      treeCid = Cid.example
-      ctx = DownloadContext.new(toDownloadDesc(treeCid, 100000, 65536))
-      window = ctx.currentPresenceWindow()
-
-    check 0'u64 >= window.start and 0'u64 < window.start + window.count
-    check window.start + window.count - 1 >= window.start
-    check not (
-      window.start + window.count >= window.start and
-      window.start + window.count < window.start + window.count
-    )
 
   test "Should advance presence window":
     let
-      treeCid = Cid.example
-      ctx = DownloadContext.new(toDownloadDesc(treeCid, 100000, 65536))
+      md = testManifestDesc(Cid.example, 65536, 100000)
+      ctx = DownloadContext.new(DownloadDesc(md: md, count: 100000))
       oldWindow = ctx.currentPresenceWindow()
       oldEnd = oldWindow.start + oldWindow.count
       advancedWindow = ctx.advancePresenceWindow()
@@ -696,8 +650,8 @@ suite "DownloadContext - Windowed Presence":
 
   test "Should check if needs next presence window":
     let
-      treeCid = Cid.example
-      ctx = DownloadContext.new(toDownloadDesc(treeCid, 100000, 65536))
+      md = testManifestDesc(Cid.example, 65536, 100000)
+      ctx = DownloadContext.new(DownloadDesc(md: md, count: 100000))
 
     ctx.scheduler.init(ctx.totalBlocks, 256, WindowSize, Threshold)
     check ctx.needsNextPresenceWindow() == false
@@ -722,8 +676,8 @@ suite "DownloadContext - Windowed Presence":
 
   test "Should not need next window when at last window":
     let
-      treeCid = Cid.example
-      ctx = DownloadContext.new(toDownloadDesc(treeCid, 100, 65536))
+      md = testManifestDesc(Cid.example, 65536, 100)
+      ctx = DownloadContext.new(DownloadDesc(md: md, count: 100))
         # Small total, fits in one window
 
     ctx.scheduler.init(ctx.totalBlocks, 256, WindowSize, Threshold)
@@ -734,8 +688,8 @@ suite "DownloadContext - Windowed Presence":
 
   test "Should trim ranges entirely below watermark":
     let
-      treeCid = Cid.example
-      ctx = DownloadContext.new(toDownloadDesc(treeCid, 100000, 65536))
+      md = testManifestDesc(Cid.example, 65536, 100000)
+      ctx = DownloadContext.new(DownloadDesc(md: md, count: 100000))
       peerId = PeerId.example
       ranges = @[(start: 0'u64, count: 400'u64), (start: 2000'u64, count: 500'u64)]
 
@@ -758,8 +712,8 @@ suite "DownloadContext - Windowed Presence":
 
   test "Should keep ranges spanning the watermark intact":
     let
-      treeCid = Cid.example
-      ctx = DownloadContext.new(toDownloadDesc(treeCid, 100000, 65536))
+      md = testManifestDesc(Cid.example, 65536, 100000)
+      ctx = DownloadContext.new(DownloadDesc(md: md, count: 100000))
       peerId = PeerId.example
       ranges = @[(start: 0'u64, count: 1000'u64)]
     discard ctx.swarm.addPeer(peerId, BlockAvailability.fromRanges(ranges))
@@ -781,8 +735,8 @@ suite "DownloadContext - Windowed Presence":
 
   test "Should not trim bakComplete peers":
     let
-      treeCid = Cid.example
-      ctx = DownloadContext.new(toDownloadDesc(treeCid, 100000, 65536))
+      md = testManifestDesc(Cid.example, 65536, 100000)
+      ctx = DownloadContext.new(DownloadDesc(md: md, count: 100000))
       peerId = PeerId.example
 
     discard ctx.swarm.addPeer(peerId, BlockAvailability.complete())
@@ -803,8 +757,8 @@ suite "DownloadManager - Completion Future":
   test "Should complete batch locally":
     let
       dm = DownloadManager.new()
-      treeCid = Cid.example
-      desc = toDownloadDesc(treeCid, 10, 65536)
+      md = testManifestDesc(Cid.example, 65536, 10)
+      desc = DownloadDesc(md: md, count: 10)
       download = dm.startDownload(desc)
       batch = dm.getNextBatch(download)
 
@@ -821,8 +775,8 @@ suite "DownloadManager - Completion Future":
   test "Should resolve completion future on success":
     let
       dm = DownloadManager.new()
-      treeCid = Cid.example
-      desc = toDownloadDesc(treeCid, 10, 65536)
+      md = testManifestDesc(Cid.example, 65536, 10)
+      desc = DownloadDesc(md: md, count: 10)
       download = dm.startDownload(desc)
 
     check not download.completionFuture.finished
@@ -840,9 +794,10 @@ suite "DownloadManager - Completion Future":
   test "Should resolve completion future with error on exhausted blocks":
     let
       dm = DownloadManager.new(retries = 1)
-      treeCid = Cid.example
-      desc = toDownloadDesc(treeCid, 10, 65536)
+      md = testManifestDesc(Cid.example, 65536, 10)
+      desc = DownloadDesc(md: md, count: 10)
       download = dm.startDownload(desc)
+      treeCid = md.manifest.treeCid
 
     var addresses: seq[BlockAddress] = @[]
     for i in 0'u64 ..< 10:
@@ -863,9 +818,10 @@ suite "DownloadManager - Completion Future":
   test "Should fail completion future on cancel":
     let
       dm = DownloadManager.new()
-      treeCid = Cid.example
-      desc = toDownloadDesc(treeCid, 100, 65536)
+      md = testManifestDesc(Cid.example, 65536, 100)
+      desc = DownloadDesc(md: md, count: 100)
       download = dm.startDownload(desc)
+      treeCid = md.manifest.treeCid
 
     check not download.completionFuture.finished
 
@@ -877,8 +833,8 @@ suite "DownloadManager - Completion Future":
   test "Should not double-complete completion future":
     let
       dm = DownloadManager.new()
-      treeCid = Cid.example
-      desc = toDownloadDesc(treeCid, 10, 65536)
+      md = testManifestDesc(Cid.example, 65536, 10)
+      desc = DownloadDesc(md: md, count: 10)
       download = dm.startDownload(desc)
       batch = dm.getNextBatch(download)
 
@@ -901,10 +857,11 @@ suite "DownloadManager - Completion Future":
   test "Should propagate error through waitForComplete async":
     let
       dm = DownloadManager.new(retries = 1)
-      treeCid = Cid.example
-      desc = toDownloadDesc(treeCid, 10, 65536)
+      md = testManifestDesc(Cid.example, 65536, 10)
+      desc = DownloadDesc(md: md, count: 10)
       download = dm.startDownload(desc)
       waiter = download.waitForComplete()
+      treeCid = md.manifest.treeCid
 
     check not waiter.finished
 

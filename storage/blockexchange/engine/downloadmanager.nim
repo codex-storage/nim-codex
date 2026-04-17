@@ -15,8 +15,6 @@ import pkg/chronos
 import pkg/libp2p
 import pkg/questionable
 
-import ../protocol/message
-import ../protocol/constants
 import ../utils
 import ../../blocktype
 import ../../logutils
@@ -29,7 +27,7 @@ logScope:
   topics = "storage downloadmanager"
 
 const
-  DefaultBlockRetries* = 200
+  DefaultBlockRetries* = 300
   DefaultRetryInterval* = 2.seconds
 
 type DownloadManager* = ref object of RootObj
@@ -129,7 +127,6 @@ proc startDownload*(
 
   let download = ActiveDownload(
     id: downloadId,
-    treeCid: desc.treeCid,
     ctx: ctx,
     blocks: initTable[BlockAddress, BlockReq](),
     pendingBatches: initTable[uint64, PendingBatch](),
@@ -143,12 +140,12 @@ proc startDownload*(
       Future[?!void].Raising([CancelledError]).init("ActiveDownload.completion"),
   )
 
-  self.downloads.mgetOrPut(desc.treeCid, initTable[uint64, ActiveDownload]())[
-    downloadId
-  ] = download
+  self.downloads.mgetOrPut(
+    desc.md.manifest.treeCid, initTable[uint64, ActiveDownload]()
+  )[downloadId] = download
 
   trace "Started download",
-    treeCid = desc.treeCid,
+    treeCid = desc.md.manifest.treeCid,
     startIndex = desc.startIndex,
     count = desc.count,
     batchSize = ctx.scheduler.batchSizeCount

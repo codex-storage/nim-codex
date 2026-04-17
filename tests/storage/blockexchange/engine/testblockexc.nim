@@ -88,10 +88,11 @@ asyncchecksuite "BlockExchange - Presence Discovery":
 
   test "Should receive presence response for blocks peer has":
     let
+      manifestCid = dataset.manifestCid
       treeCid = dataset.manifest.treeCid
       totalBlocks = dataset.blocks.len.uint64
       blockSize = dataset.manifest.blockSize.uint32
-      desc = toDownloadDesc(treeCid, totalBlocks, blockSize)
+      desc = DownloadDesc(md: dataset.manifestDesc, count: totalBlocks)
       download = leecher.downloadManager.startDownload(desc)
       address = BlockAddress(treeCid: treeCid, index: 0)
 
@@ -114,10 +115,11 @@ asyncchecksuite "BlockExchange - Presence Discovery":
 
   test "Peer availability should propagate across downloads for same CID":
     let
+      manifestCid = dataset.manifestCid
       treeCid = dataset.manifest.treeCid
       totalBlocks = dataset.blocks.len.uint64
       blockSize = dataset.manifest.blockSize.uint32
-      desc = toDownloadDesc(treeCid, totalBlocks, blockSize)
+      desc = DownloadDesc(md: dataset.manifestDesc, count: totalBlocks)
       download1 = leecher.engine.startDownload(desc)
       download2 = leecher.engine.startDownload(desc)
       address = BlockAddress(treeCid: treeCid, index: 0)
@@ -141,9 +143,10 @@ asyncchecksuite "BlockExchange - Presence Discovery":
 
   test "Should update swarm when peer reports availability":
     let
+      manifestCid = dataset.manifestCid
       treeCid = dataset.manifest.treeCid
       blockSize = dataset.manifest.blockSize.uint32
-      desc = toDownloadDesc(treeCid, dataset.blocks.len.uint64, blockSize)
+      desc = DownloadDesc(md: dataset.manifestDesc, count: dataset.blocks.len.uint64)
       download = leecher.downloadManager.startDownload(desc)
       availability = BlockAvailability.complete()
 
@@ -194,9 +197,10 @@ asyncchecksuite "BlockExchange - Multi-Peer Download":
 
   test "Should handle partial availability from peers":
     let
+      manifestCid = dataset.manifestCid
       treeCid = dataset.manifest.treeCid
       blockSize = dataset.manifest.blockSize.uint32
-      desc = toDownloadDesc(treeCid, dataset.blocks.len.uint64, blockSize)
+      desc = DownloadDesc(md: dataset.manifestDesc, count: dataset.blocks.len.uint64)
       download = leecher.downloadManager.startDownload(desc)
       halfPoint = (dataset.blocks.len div 2).uint64
       ranges1 = @[(start: 0'u64, count: halfPoint)]
@@ -246,10 +250,11 @@ asyncchecksuite "BlockExchange - Download Lifecycle":
 
   test "Should allow multiple downloads for same CID":
     let
+      manifestCid = dataset.manifestCid
       treeCid = dataset.manifest.treeCid
       totalBlocks = dataset.blocks.len.uint64
       blockSize = dataset.manifest.blockSize.uint32
-      desc = toDownloadDesc(treeCid, totalBlocks, blockSize)
+      desc = DownloadDesc(md: dataset.manifestDesc, count: totalBlocks)
       download1 = leecher.downloadManager.startDownload(desc)
       download2 = leecher.downloadManager.startDownload(desc)
 
@@ -260,15 +265,12 @@ asyncchecksuite "BlockExchange - Download Lifecycle":
     check leecher.downloadManager.getDownload(treeCid).isNone
 
   test "Two concurrent full downloads for same CID should both complete":
-    let
-      treeCid = dataset.manifest.treeCid
-      totalBlocks = dataset.blocks.len.uint64
-      blockSize = dataset.manifest.blockSize.uint32
+    let totalBlocks = dataset.blocks.len.uint64
 
-    let handle1 = leecher.engine.startTreeDownload(treeCid, blockSize, totalBlocks)
+    let handle1 = leecher.engine.startTreeDownload(dataset.manifestDesc)
     require handle1.isOk == true
 
-    let handle2 = leecher.engine.startTreeDownload(treeCid, blockSize, totalBlocks)
+    let handle2 = leecher.engine.startTreeDownload(dataset.manifestDesc)
     require handle2.isOk == true
 
     let
@@ -299,13 +301,12 @@ asyncchecksuite "BlockExchange - Download Lifecycle":
     let
       treeCid = dataset.manifest.treeCid
       totalBlocks = dataset.blocks.len.uint64
-      blockSize = dataset.manifest.blockSize.uint32
 
-    let handle1 = leecher.engine.startTreeDownload(treeCid, blockSize, totalBlocks)
+    let handle1 = leecher.engine.startTreeDownload(dataset.manifestDesc)
     require handle1.isOk
     let h1 = handle1.get()
 
-    let handle2 = leecher.engine.startTreeDownload(treeCid, blockSize, totalBlocks)
+    let handle2 = leecher.engine.startTreeDownload(dataset.manifestDesc)
     require handle2.isOk
     let h2 = handle2.get()
 
@@ -326,10 +327,11 @@ asyncchecksuite "BlockExchange - Download Lifecycle":
 
   test "Should cancel download":
     let
+      manifestCid = dataset.manifestCid
       treeCid = dataset.manifest.treeCid
       totalBlocks = dataset.blocks.len.uint64
       blockSize = dataset.manifest.blockSize.uint32
-      desc = toDownloadDesc(treeCid, totalBlocks, blockSize)
+      desc = DownloadDesc(md: dataset.manifestDesc, count: totalBlocks)
 
     discard leecher.downloadManager.startDownload(desc)
 
@@ -362,9 +364,10 @@ asyncchecksuite "BlockExchange - Error Handling":
 
   test "Should handle peer with partial blocks in swarm":
     let
+      manifestCid = dataset.manifestCid
       treeCid = dataset.manifest.treeCid
       blockSize = dataset.manifest.blockSize.uint32
-      desc = toDownloadDesc(treeCid, dataset.blocks.len.uint64, blockSize)
+      desc = DownloadDesc(md: dataset.manifestDesc, count: dataset.blocks.len.uint64)
       download = leecher.downloadManager.startDownload(desc)
       ranges = @[(start: 0'u64, count: 2'u64)]
 
@@ -384,9 +387,10 @@ asyncchecksuite "BlockExchange - Error Handling":
 
   test "Should requeue batch on peer failure":
     let
+      manifestCid = dataset.manifestCid
       treeCid = dataset.manifest.treeCid
       blockSize = dataset.manifest.blockSize.uint32
-      desc = toDownloadDesc(treeCid, dataset.blocks.len.uint64, blockSize)
+      desc = DownloadDesc(md: dataset.manifestDesc, count: dataset.blocks.len.uint64)
       download = leecher.downloadManager.startDownload(desc)
       batch = leecher.downloadManager.getNextBatch(download)
     check batch.isSome
@@ -425,10 +429,11 @@ asyncchecksuite "BlockExchange - Local Block Resolution":
 
   test "Download worker should complete wantHandles when all blocks are local":
     let
+      manifestCid = dataset.manifestCid
       treeCid = dataset.manifest.treeCid
       totalBlocks = dataset.blocks.len.uint64
       blockSize = dataset.manifest.blockSize.uint32
-      desc = toDownloadDesc(treeCid, totalBlocks, blockSize)
+      desc = DownloadDesc(md: dataset.manifestDesc, count: totalBlocks)
       download = node1.downloadManager.startDownload(desc)
 
     var handles: seq[BlockHandle] = @[]

@@ -36,6 +36,10 @@ type Manifest* = ref object of RootObj
   filename {.serialize.}: ?string # The filename of the content uploaded (optional)
   mimetype {.serialize.}: ?string # The mimetype of the content uploaded (optional)
 
+type ManifestDescriptor* = ref object
+  manifest*: Manifest
+  manifestCid*: Cid
+
 ############################################################
 # Accessors
 ############################################################

@@ -9,8 +9,10 @@ import pkg/storage/manifest
 import pkg/storage/merkletree
 import pkg/storage/blockexchange
 import pkg/storage/rng
+import pkg/storage/units
 import pkg/storage/utils
 
+import ./examples
 import ./helpers/nodeutils
 import ./helpers/datasetutils
 import ./helpers/randomchunker
@@ -68,25 +70,39 @@ proc makeWantList*(
     full: full,
   )
 
+proc testManifestDesc*(
+    treeCid: Cid, blockSize: uint32, blocksCount: int
+): ManifestDescriptor =
+  let manifest = Manifest.new(
+    treeCid = treeCid,
+    blockSize = blockSize.NBytes,
+    datasetSize = (blockSize.int * blocksCount).NBytes,
+  )
+  ManifestDescriptor(manifest: manifest, manifestCid: Cid.example)
+
 proc storeDataGetManifest*(
     store: BlockStore, blocks: seq[Block]
-): Future[Manifest] {.async.} =
+): Future[ManifestDescriptor] {.async.} =
   for blk in blocks:
     (await store.putBlock(blk)).tryGet()
 
   let
-    (_, tree, manifest) = makeDataset(blocks).tryGet()
+    (_, tree, manifest, manifestCid) = makeDataset(blocks).tryGet()
     treeCid = tree.rootCid.tryGet()
+    manifestBlock =
+      Block.new(manifest.encode().tryGet(), codec = ManifestCodec).tryGet()
+
+  (await store.putBlock(manifestBlock)).tryGet()
 
   for i in 0 ..< tree.leavesCount:
     let proof = tree.getProof(i).tryGet()
     (await store.putCidAndProof(treeCid, i, blocks[i].cid, proof)).tryGet()
 
-  return manifest
+  return ManifestDescriptor(manifest: manifest, manifestCid: manifestCid)
 
 proc storeDataGetManifest*(
     store: BlockStore, chunker: Chunker
-): Future[Manifest] {.async.} =
+): Future[ManifestDescriptor] {.async.} =
   var blocks = newSeq[Block]()
 
   while (let chunk = await chunker.getBytes(); chunk.len > 0):

@@ -7,6 +7,7 @@ import pkg/storage/blockexchange/engine/downloadcontext {.all.}
 import pkg/storage/blockexchange/engine/scheduler {.all.}
 
 import ../../examples
+import ../../helpers
 
 suite "Random Window Cursor":
   test "Produces all windows exactly once (full permutation)":
@@ -88,8 +89,9 @@ suite "Random Window Cursor":
 suite "DownloadContext Random Windows":
   test "initRandomWindows sets up first window":
     let
+      md = testManifestDesc(Cid.example, 65536, 100000)
       ctx = DownloadContext.new(
-        toDownloadDesc(Cid.example, 100000, 65536, selectionPolicy = spRandomWindow)
+        DownloadDesc(md: md, count: 100000, selectionPolicy: spRandomWindow)
       )
       (start, count) = ctx.currentPresenceWindow()
     check count > 0
@@ -101,10 +103,9 @@ suite "DownloadContext Random Windows":
       blockSize = 65536'u32
       windowSize = computeWindowSize(blockSize)
       totalBlocks = windowSize * 5
+      md = testManifestDesc(Cid.example, blockSize, totalBlocks.int)
       ctx = DownloadContext.new(
-        toDownloadDesc(
-          Cid.example, totalBlocks, blockSize, selectionPolicy = spRandomWindow
-        )
+        DownloadDesc(md: md, count: totalBlocks, selectionPolicy: spRandomWindow)
       )
 
     var windowStarts = initHashSet[uint64]()
@@ -125,9 +126,11 @@ suite "DownloadContext Random Windows":
     check not ctx.needsNextPresenceWindow()
 
   test "scheduler.isEmpty returns true when all batches complete":
-    let ctx = DownloadContext.new(
-      toDownloadDesc(Cid.example, 100, 65536, selectionPolicy = spRandomWindow)
-    )
+    let
+      md = testManifestDesc(Cid.example, 65536, 100)
+      ctx = DownloadContext.new(
+        DownloadDesc(md: md, count: 100, selectionPolicy: spRandomWindow)
+      )
     while true:
       let batch = ctx.scheduler.take()
       if batch.isNone:
@@ -140,10 +143,9 @@ suite "DownloadContext Random Windows":
       blockSize = 65536'u32
       windowSize = computeWindowSize(blockSize)
       totalBlocks = windowSize div 2
+      md = testManifestDesc(Cid.example, blockSize, totalBlocks.int)
       ctx = DownloadContext.new(
-        toDownloadDesc(
-          Cid.example, totalBlocks, blockSize, selectionPolicy = spRandomWindow
-        )
+        DownloadDesc(md: md, count: totalBlocks, selectionPolicy: spRandomWindow)
       )
       (start, count) = ctx.currentPresenceWindow()
 
@@ -156,10 +158,9 @@ suite "DownloadContext Random Windows":
       blockSize = 65536'u32
       windowSize = computeWindowSize(blockSize)
       totalBlocks = windowSize * 3
+      md = testManifestDesc(Cid.example, blockSize, totalBlocks.int)
       ctx = DownloadContext.new(
-        toDownloadDesc(
-          Cid.example, totalBlocks, blockSize, selectionPolicy = spRandomWindow
-        )
+        DownloadDesc(md: md, count: totalBlocks, selectionPolicy: spRandomWindow)
       )
 
     var count = 1

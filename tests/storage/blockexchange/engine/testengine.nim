@@ -166,9 +166,9 @@ asyncchecksuite "NetworkStore engine handlers":
       BlockExcNetwork(request: BlockExcRequest(sendWantList: sendWantList))
 
     let
-      blockCid = blocks[0].cid
-      address = BlockAddress(treeCid: blockCid, index: 0)
-      desc = toDownloadDesc(address, DefaultBlockSize.uint32)
+      md = testManifestDesc(blocks[0].cid, DefaultBlockSize.uint32, 1)
+      address = BlockAddress(treeCid: md.manifest.treeCid, index: 0)
+      desc = DownloadDesc(md: md, startIndex: address.index.uint64, count: 1)
       download = engine.downloadManager.startDownload(desc)
 
     discard download.getWantHandle(address)

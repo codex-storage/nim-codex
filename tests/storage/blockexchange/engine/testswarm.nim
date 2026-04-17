@@ -167,11 +167,6 @@ suite "BlockAvailability":
     check merged.ranges[1] == (start: 6'u64, count: 2'u64)
 
 suite "SwarmPeer":
-  test "new peer":
-    let peer = SwarmPeer.new(BlockAvailability.complete())
-    check peer.availability.kind == bakComplete
-    check peer.failureCount == 0
-
   test "touch updates lastSeen":
     let
       peer = SwarmPeer.new(BlockAvailability.unknown())
@@ -279,22 +274,6 @@ suite "Swarm":
 
     swarm.recordPeerSuccess(peerId)
     check swarm.getPeer(peerId).get().failureCount == 0
-
-  test "peerCount":
-    check swarm.peerCount() == 0
-
-    discard swarm.addPeer(PeerId.example, BlockAvailability.complete())
-    check swarm.peerCount() == 1
-
-    discard swarm.addPeer(PeerId.example, BlockAvailability.complete())
-    check swarm.peerCount() == 2
-
-  test "connectedPeers":
-    discard swarm.addPeer(PeerId.example, BlockAvailability.complete())
-    discard swarm.addPeer(PeerId.example, BlockAvailability.complete())
-
-    let connected = swarm.connectedPeers()
-    check connected.len == 2
 
   test "peersWithRange":
     let

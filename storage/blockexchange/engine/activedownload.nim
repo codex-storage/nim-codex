@@ -16,7 +16,6 @@ import pkg/libp2p
 import pkg/metrics
 import pkg/questionable
 
-import ../protocol/message
 import ../../blocktype
 import ../../logutils
 import ../../stores/blockstore
@@ -57,7 +56,6 @@ type
 
   ActiveDownload* = ref object
     id*: uint64 # for request/response correlation - echoed in protocol
-    treeCid*: Cid
     ctx*: DownloadContext
     blocks*: Table[BlockAddress, BlockReq] # per-download block requests
     pendingBatches*: Table[uint64, PendingBatch] # batch start -> pending info
@@ -84,6 +82,12 @@ proc signalCompletionIfDone(download: ActiveDownload, error: ref StorageError = 
     download.completionFuture.complete(void.failure(error))
   elif download.ctx.isComplete:
     download.completionFuture.complete(success())
+
+proc treeCid*(download: ActiveDownload): Cid =
+  download.ctx.md.manifest.treeCid
+
+proc manifestCid*(download: ActiveDownload): Cid =
+  download.ctx.md.manifestCid
 
 proc makeBlockAddress*(download: ActiveDownload, index: uint64): BlockAddress =
   BlockAddress(treeCid: download.treeCid, index: index.int)

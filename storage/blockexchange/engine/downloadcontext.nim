@@ -16,13 +16,13 @@ import pkg/libp2p/peerid
 import ./scheduler
 import ./swarm
 import ../peers/peercontext
+import ../../manifest
 import ../../storagetypes
 import ../../blocktype
-import ../protocol/message
 import ../protocol/constants
 import ../utils
 
-export scheduler, peercontext
+export scheduler, peercontext, manifest
 
 const
   PresenceWindowBytes*: uint64 = 1024 * 1024 * 1024
@@ -49,8 +49,7 @@ type
     bytesTransferred*: uint64
 
   DownloadDesc* = object
-    treeCid*: Cid
-    blockSize*: uint32
+    md*: ManifestDescriptor
     startIndex*: uint64
     count*: uint64
     selectionPolicy*: SelectionPolicy
@@ -67,8 +66,7 @@ type
       pendingRanges: seq[tuple[start: uint64, count: uint64]]
 
   DownloadContext* = ref object
-    treeCid*: Cid
-    blockSize*: uint32
+    md*: ManifestDescriptor
     totalBlocks*: uint64
     received*: uint64
     blocksReturned*: uint64
@@ -130,39 +128,6 @@ proc addPendingRange(
   of spSequential:
     discard
 
-proc toDownloadDesc*(
-    treeCid: Cid,
-    totalBlocks: uint64,
-    blockSize: uint32,
-    selectionPolicy: SelectionPolicy = spSequential,
-    isBackground: bool = false,
-    fetchLocal: bool = false,
-): DownloadDesc =
-  DownloadDesc(
-    treeCid: treeCid,
-    blockSize: blockSize,
-    startIndex: 0,
-    count: totalBlocks,
-    selectionPolicy: selectionPolicy,
-    isBackground: isBackground,
-    fetchLocal: fetchLocal,
-  )
-
-proc toDownloadDesc*(
-    treeCid: Cid, startIndex: uint64, count: uint64, blockSize: uint32
-): DownloadDesc =
-  DownloadDesc(
-    treeCid: treeCid, blockSize: blockSize, startIndex: startIndex, count: count
-  )
-
-proc toDownloadDesc*(address: BlockAddress, blockSize: uint32): DownloadDesc =
-  DownloadDesc(
-    treeCid: address.treeCid,
-    blockSize: blockSize,
-    startIndex: address.index.uint64,
-    count: 1,
-  )
-
 proc currentPresenceWindow*(ctx: DownloadContext): tuple[start: uint64, count: uint64] =
   ctx.scheduler.currentPresenceWindow()
 
@@ -174,20 +139,23 @@ proc advancePresenceWindow*(ctx: DownloadContext): tuple[start: uint64, count: u
   discard ctx.scheduler.advancePresenceWindow()
   ctx.scheduler.currentPresenceWindow()
 
+proc blockSize*(ctx: DownloadContext): uint32 =
+  ctx.md.manifest.blockSize.uint32
+
 proc new*(
     T: type DownloadContext, desc: DownloadDesc, missingBlocks: seq[uint64] = @[]
 ): DownloadContext =
-  doAssert desc.blockSize > 0, "blockSize must be known at download creation"
+  doAssert desc.md != nil, "ManifestDescriptor must be provided"
+  let blockSize = desc.md.manifest.blockSize.uint32
+  doAssert blockSize > 0, "blockSize must be known at download creation"
 
   let
     totalBlocks = desc.startIndex + desc.count
-    blockSize = desc.blockSize
     batchSize = computeBatchSize(blockSize)
     windowSize = computeWindowSize(blockSize)
 
   result = DownloadContext(
-    treeCid: desc.treeCid,
-    blockSize: blockSize,
+    md: desc.md,
     totalBlocks: totalBlocks,
     scheduler: Scheduler.new(),
     swarm: Swarm.new(),

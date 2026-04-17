@@ -1,6 +1,7 @@
 import std/random
 
 import pkg/chronos
+import pkg/libp2p/cid
 import pkg/storage/blocktype as bt
 import pkg/storage/merkletree
 import pkg/storage/manifest
@@ -9,7 +10,12 @@ import pkg/storage/rng
 import ./randomchunker
 
 type TestDataset* =
-  tuple[blocks: seq[Block], tree: StorageMerkleTree, manifest: Manifest]
+  tuple[
+    blocks: seq[Block], tree: StorageMerkleTree, manifest: Manifest, manifestCid: Cid
+  ]
+
+proc manifestDesc*(ds: TestDataset): ManifestDescriptor =
+  ManifestDescriptor(manifest: ds.manifest, manifestCid: ds.manifestCid)
 
 proc makeRandomBlock*(size: NBytes): Block =
   let bytes = newSeqWith(size.int, rand(uint8))
@@ -42,5 +48,6 @@ proc makeDataset*(blocks: seq[Block]): ?!TestDataset =
       blockSize = NBytes(blockSize),
       datasetSize = NBytes(datasetSize),
     )
+    manifestBlock = ?Block.new(?manifest.encode(), codec = ManifestCodec)
 
-  return success((blocks, tree, manifest))
+  return success((blocks, tree, manifest, manifestBlock.cid))

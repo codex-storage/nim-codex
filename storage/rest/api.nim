@@ -352,9 +352,9 @@ proc initDataApi(node: StorageNodeRef, repoStore: RepoStore, router: var RestRou
       return RestApiResponse.error(Http404, err.msg, headers = headers)
 
     # Start fetching the dataset in the background
+    let md = ManifestDescriptor(manifest: manifest, manifestCid: cid.get())
     without downloadId =?
-      (await node.startBackgroundDownload(manifest, selectionPolicy = spRandomWindow)),
-      err:
+      (await node.startBackgroundDownload(md, selectionPolicy = spRandomWindow)), err:
       return RestApiResponse.error(Http409, err.msg, headers = headers)
 
     var json = %formatManifest(cid.get(), manifest)

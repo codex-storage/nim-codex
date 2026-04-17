@@ -323,11 +323,7 @@ proc downloadDataset*(
 ): Future[void] {.async.} =
   # This is the same as fetchBatched, but we don't construct StorageNodes so I can't use
   # it here.
-  let
-    treeCid = dataset.manifest.treeCid
-    totalBlocks = dataset.manifest.blocksCount.uint64
-    blockSize = dataset.manifest.blockSize.uint32
-    handleResult = node.engine.startTreeDownload(treeCid, blockSize, totalBlocks)
+  let handleResult = node.engine.startTreeDownload(dataset.manifestDesc)
 
   doAssert handleResult.isOk, "Failed to start download"
   let

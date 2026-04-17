@@ -51,7 +51,7 @@ asyncchecksuite "Block Advertising and Discovery":
     peerStore = PeerContextStore.new()
     downloadManager = DownloadManager.new()
 
-    (_, tree, manifest) = makeDataset(blocks).tryGet()
+    (_, tree, manifest, _) = makeDataset(blocks).tryGet()
     manifestBlock =
       bt.Block.new(manifest.encode().tryGet(), codec = ManifestCodec).tryGet()
 
@@ -74,7 +74,8 @@ asyncchecksuite "Block Advertising and Discovery":
     for blk in blocks:
       let
         address = BlockAddress.init(blk.cid, 0)
-        desc = toDownloadDesc(address, DefaultBlockSize.uint32)
+        md = testManifestDesc(blk.cid, DefaultBlockSize.uint32, 1)
+        desc = DownloadDesc(md: md, startIndex: address.index.uint64, count: 1)
         download = engine.downloadManager.startDownload(desc)
       handles.add(download.getWantHandle(address))
 
@@ -101,8 +102,8 @@ asyncchecksuite "Block Advertising and Discovery":
 
     await engine.stop()
 
-  test "Should advertise trees":
-    let cids = @[manifest.treeCid]
+  test "Should advertise manifests":
+    let cids = @[manifestBlock.cid]
     var advertised = initTable.collect:
       for cid in cids:
         {cid: newFuture[void]()}

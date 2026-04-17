@@ -45,39 +45,33 @@ asyncchecksuite "Test Node - Basic":
     taskPool.shutdown()
 
   test "Fetch Manifest":
-    let
-      manifest = await storeDataGetManifest(localStore, chunker)
+    let md = await storeDataGetManifest(localStore, chunker)
 
-      manifestBlock =
-        bt.Block.new(manifest.encode().tryGet(), codec = ManifestCodec).tryGet()
-
-    (await localStore.putBlock(manifestBlock)).tryGet()
-
-    let fetched = (await node.fetchManifest(manifestBlock.cid)).tryGet()
+    let fetched = (await node.fetchManifest(md.manifestCid)).tryGet()
 
     check:
-      fetched == manifest
+      fetched == md.manifest
 
   test "Fetch Dataset":
-    let manifest = await storeDataGetManifest(localStore, chunker)
+    let md = await storeDataGetManifest(localStore, chunker)
 
     # Fetch the dataset using the download manager
-    (await node.fetchDatasetAsync(manifest, fetchLocal = true)).tryGet()
+    (await node.fetchDatasetAsync(md, fetchLocal = true)).tryGet()
 
     # Verify all blocks are accessible from local store
-    for i in 0 ..< manifest.blocksCount:
-      let blk = (await localStore.getBlock(manifest.treeCid, i)).tryGet()
+    for i in 0 ..< md.manifest.blocksCount:
+      let blk = (await localStore.getBlock(md.manifest.treeCid, i)).tryGet()
       check blk.data[].len > 0
 
   test "Fetch Dataset with fetchLocal fails when block missing":
     let
       blocks = await makeRandomBlocks(datasetSize = 2048, blockSize = 256'nb)
-      manifest = await storeDataGetManifest(localStore, blocks)
+      md = await storeDataGetManifest(localStore, blocks)
 
     # Delete one block so it's missing locally
-    (await localStore.delBlock(manifest.treeCid, 0)).tryGet()
+    (await localStore.delBlock(md.manifest.treeCid, 0)).tryGet()
 
-    let res = await node.fetchDatasetAsync(manifest, fetchLocal = true)
+    let res = await node.fetchDatasetAsync(md, fetchLocal = true)
     check res.isErr
     check res.error of BlockNotFoundError
 
@@ -114,33 +108,25 @@ asyncchecksuite "Test Node - Basic":
       sha256.digest(data) == sha256.digest(original)
 
   test "Should retrieve a Data Stream":
-    let
-      manifest = await storeDataGetManifest(localStore, chunker)
-      manifestBlk =
-        bt.Block.new(data = manifest.encode().tryGet, codec = ManifestCodec).tryGet()
+    let md = await storeDataGetManifest(localStore, chunker)
 
-    (await localStore.putBlock(manifestBlk)).tryGet()
-    let data = await ((await node.retrieve(manifestBlk.cid)).tryGet()).drain()
+    let data = await ((await node.retrieve(md.manifestCid)).tryGet()).drain()
 
     var storedData: seq[byte]
-    for i in 0 ..< manifest.blocksCount:
-      let blk = (await localStore.getBlock(manifest.treeCid, i)).tryGet()
+    for i in 0 ..< md.manifest.blocksCount:
+      let blk = (await localStore.getBlock(md.manifest.treeCid, i)).tryGet()
       storedData &= blk.data[]
 
-    storedData.setLen(manifest.datasetSize.int) # truncate data to original size
+    storedData.setLen(md.manifest.datasetSize.int) # truncate data to original size
     check:
       storedData == data
 
   test "Stream blocks with fetchLocal succeeds when all local":
     let
       blocks = await makeRandomBlocks(datasetSize = 2048, blockSize = 256'nb)
-      manifest = await storeDataGetManifest(localStore, blocks)
-      treeCid = manifest.treeCid
-      totalBlocks = manifest.blocksCount.uint64
-      blockSize = manifest.blockSize.uint32
-      handle = engine
-        .startTreeDownload(treeCid, blockSize, totalBlocks, fetchLocal = true)
-        .tryGet()
+      md = await storeDataGetManifest(localStore, blocks)
+      totalBlocks = md.manifest.blocksCount.uint64
+      handle = engine.startTreeDownload(md, fetchLocal = true).tryGet()
 
     defer:
       engine.releaseDownload(handle)
@@ -155,17 +141,12 @@ asyncchecksuite "Test Node - Basic":
   test "Stream blocks with fetchLocal fails when block missing":
     let
       blocks = await makeRandomBlocks(datasetSize = 2048, blockSize = 256'nb)
-      manifest = await storeDataGetManifest(localStore, blocks)
-      treeCid = manifest.treeCid
-      totalBlocks = manifest.blocksCount.uint64
-      blockSize = manifest.blockSize.uint32
+      md = await storeDataGetManifest(localStore, blocks)
 
     # Delete one block so it's missing locally
-    (await localStore.delBlock(treeCid, 0)).tryGet()
+    (await localStore.delBlock(md.manifest.treeCid, 0)).tryGet()
 
-    let handle = engine
-      .startTreeDownload(treeCid, blockSize, totalBlocks, fetchLocal = true)
-      .tryGet()
+    let handle = engine.startTreeDownload(md, fetchLocal = true).tryGet()
     defer:
       engine.releaseDownload(handle)
 
@@ -176,21 +157,16 @@ asyncchecksuite "Test Node - Basic":
   test "Stream blocks with fetchLocal=false fails when retries exhausted":
     let
       blocks = await makeRandomBlocks(datasetSize = 2048, blockSize = 256'nb)
-      manifest = await storeDataGetManifest(localStore, blocks)
-      treeCid = manifest.treeCid
-      totalBlocks = manifest.blocksCount.uint64
-      blockSize = manifest.blockSize.uint32
+      md = await storeDataGetManifest(localStore, blocks)
 
     # Delete one block so it's missing locally
-    (await localStore.delBlock(treeCid, 0)).tryGet()
+    (await localStore.delBlock(md.manifest.treeCid, 0)).tryGet()
 
     # Configure low retries so the test completes quickly (no peers to fetch from)
     downloadManager.blockRetries = 1
     downloadManager.retryInterval = 10.milliseconds
 
-    let handle = engine
-      .startTreeDownload(treeCid, blockSize, totalBlocks, fetchLocal = false)
-      .tryGet()
+    let handle = engine.startTreeDownload(md, fetchLocal = false).tryGet()
     defer:
       engine.releaseDownload(handle)
 
@@ -223,9 +199,8 @@ asyncchecksuite "Test Node - Basic":
   test "Should delete an entire dataset":
     let
       blocks = await makeRandomBlocks(datasetSize = 2048, blockSize = 256'nb)
-      manifest = await storeDataGetManifest(localStore, blocks)
-      manifestBlock = (await store.storeManifest(manifest)).tryGet()
-      manifestCid = manifestBlock.cid
+      md = await storeDataGetManifest(localStore, blocks)
+      manifestCid = md.manifestCid
 
     check await manifestCid in localStore
     for blk in blocks:
@@ -240,11 +215,9 @@ asyncchecksuite "Test Node - Basic":
   test "Should return true when a cid is already in the local store":
     let
       blocks = await makeRandomBlocks(datasetSize = 1024, blockSize = 256'nb)
-      manifest = await storeDataGetManifest(localStore, blocks)
-      manifestBlock = (await store.storeManifest(manifest)).tryGet()
-      manifestCid = manifestBlock.cid
+      md = await storeDataGetManifest(localStore, blocks)
 
-    check (await node.hasLocalBlock(manifestCid)) == true
+    check (await node.hasLocalBlock(md.manifestCid)) == true
 
   test "Should returns false when a cid is not in the local store":
     let randomBlock = bt.Block.new("Random block".toBytes).tryGet()

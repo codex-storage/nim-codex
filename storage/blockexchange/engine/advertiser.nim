@@ -59,17 +59,8 @@ proc advertiseBlock(b: Advertiser, cid: Cid) {.async: (raises: [CancelledError])
 
   try:
     if isM:
-      without blk =? await b.localStore.getBlock(cid), err:
-        error "Error retrieving manifest block", cid, err = err.msg
-        return
-
-      without manifest =? Manifest.decode(blk), err:
-        error "Unable to decode as manifest", err = err.msg
-        return
-
-      # announce manifest cid and tree cid
+      # announce manifest cid
       await b.addCidToQueue(cid)
-      await b.addCidToQueue(manifest.treeCid)
   except CancelledError as exc:
     trace "Cancelled advertise block", cid
     raise exc

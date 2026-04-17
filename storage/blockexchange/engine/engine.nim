@@ -22,6 +22,7 @@ import ../../blocktype
 import ../../utils
 import ../../utils/trackedfutures
 import ../../merkletree
+import ../../manifest
 import ../../logutils
 import ../protocol/message
 import ../protocol/presence
@@ -174,7 +175,7 @@ proc banAndDropPeer(
   download.ctx.swarm.banPeer(peerId)
   download.handlePeerFailure(peerId)
   if download.ctx.swarm.needsPeers():
-    self.searchForNewPeers(download.treeCid)
+    self.searchForNewPeers(download.manifestCid)
   await self.network.dropPeer(peerId)
 
 proc evictPeer(self: BlockExcEngine, peer: PeerId) =
@@ -283,7 +284,7 @@ proc sendWantBlocksRequest(
       download.handlePeerFailure(peer.id)
 
       if swarm.needsPeers():
-        self.searchForNewPeers(treeCid)
+        self.searchForNewPeers(download.manifestCid)
     else:
       # we can requeue immediately (cancels timeout), no benefit waiting for timeout.
       download.requeueBatch(start, count, front = true)
@@ -504,7 +505,7 @@ proc downloadWorker(
       trace "Initial broadcast sent, proceeding to batch loop"
     else:
       trace "No connected peers for initial broadcast, triggering discovery"
-      self.searchForNewPeers(treeCid)
+      self.searchForNewPeers(download.manifestCid)
 
     while not download.cancelled and not download.isDownloadComplete():
       for peerId in download.inFlightBatches.keys.toSeq:
@@ -640,7 +641,7 @@ proc downloadWorker(
       if peersNeeded > 0:
         trace "Swarm below target, triggering discovery",
           active = swarm.activePeerCount(), needed = peersNeeded
-        self.searchForNewPeers(treeCid)
+        self.searchForNewPeers(download.manifestCid)
 
       if swarm.peersWithRange(start, count).len == 0:
         shouldBroadcast = true
@@ -660,13 +661,13 @@ proc downloadWorker(
           await sleepAsync(50.milliseconds)
         else:
           trace "No connected peers, searching for new peers"
-          self.searchForNewPeers(treeCid)
+          self.searchForNewPeers(download.manifestCid)
           await download.handleBatchRetry(start, count, retryInterval)
           continue
 
       if self.peers.len == 0:
         trace "No connected peers available for batch, searching"
-        self.searchForNewPeers(treeCid)
+        self.searchForNewPeers(download.manifestCid)
         await download.handleBatchRetry(start, count, 100.milliseconds)
         continue
 
@@ -780,11 +781,24 @@ proc downloadWorker(
   except CatchableError as exc:
     error "Error in batch download loop", err = exc.msg
 
+proc toDownloadDesc*(
+    md: ManifestDescriptor,
+    selectionPolicy: SelectionPolicy = spSequential,
+    isBackground: bool = false,
+    fetchLocal: bool = false,
+): DownloadDesc =
+  DownloadDesc(
+    md: md,
+    startIndex: 0,
+    count: md.manifest.blocksCount.uint64,
+    selectionPolicy: selectionPolicy,
+    isBackground: isBackground,
+    fetchLocal: fetchLocal,
+  )
+
 proc startTreeDownloadGeneric[T: Block | void](
     self: BlockExcEngine,
-    treeCid: Cid,
-    blockSize: uint32,
-    totalBlocks: uint64,
+    md: ManifestDescriptor,
     selectionPolicy: SelectionPolicy = spSequential,
     isBackground: bool = false,
     fetchLocal: bool = false,
@@ -794,14 +808,14 @@ proc startTreeDownloadGeneric[T: Block | void](
 
   let
     desc = toDownloadDesc(
-      treeCid,
-      totalBlocks,
-      blockSize,
+      md,
       selectionPolicy = selectionPolicy,
       isBackground = isBackground,
       fetchLocal = fetchLocal,
     )
     activeDownload = self.startDownload(desc)
+    treeCid = md.manifest.treeCid
+    totalBlocks = md.manifest.blocksCount.uint64
 
   when T is Block:
     trace "Started tree block download", treeCid = treeCid, totalBlocks = totalBlocks
@@ -838,7 +852,7 @@ proc startTreeDownloadGeneric[T: Block | void](
         if exists:
           discard activeDownload.completeWantHandle(address)
         elif fetchLocal:
-          handle.cancel()
+          handle.cancelSoon()
           return failure(
             newException(BlockNotFoundError, "Block not found locally: " & $address)
           )
@@ -847,7 +861,7 @@ proc startTreeDownloadGeneric[T: Block | void](
         if blkResult.isOk:
           discard activeDownload.completeWantHandle(address, some(blkResult.get))
         elif not (blkResult.error of BlockNotFoundError) or fetchLocal:
-          handle.cancel()
+          handle.cancelSoon()
           return failure(blkResult.error)
 
       pendingHandle = some(handle)
@@ -870,30 +884,20 @@ proc startTreeDownloadGeneric[T: Block | void](
   )
 
 proc startTreeDownload*(
-    self: BlockExcEngine,
-    treeCid: Cid,
-    blockSize: uint32,
-    totalBlocks: uint64,
-    fetchLocal: bool = false,
+    self: BlockExcEngine, md: ManifestDescriptor, fetchLocal: bool = false
 ): ?!DownloadHandle =
-  startTreeDownloadGeneric[Block](
-    self, treeCid, blockSize, totalBlocks, fetchLocal = fetchLocal
-  )
+  startTreeDownloadGeneric[Block](self, md, fetchLocal = fetchLocal)
 
 proc startTreeDownloadOpaque*(
     self: BlockExcEngine,
-    treeCid: Cid,
-    blockSize: uint32,
-    totalBlocks: uint64,
+    md: ManifestDescriptor,
     selectionPolicy: SelectionPolicy = spSequential,
     isBackground: bool = false,
     fetchLocal: bool = false,
 ): ?!DownloadHandleOpaque =
   startTreeDownloadGeneric[void](
     self,
-    treeCid,
-    blockSize,
-    totalBlocks,
+    md,
     selectionPolicy = selectionPolicy,
     isBackground = isBackground,
     fetchLocal = fetchLocal,
