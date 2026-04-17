@@ -2,24 +2,6 @@ import pkg/unittest2
 
 import pkg/storage/utils
 
-suite "findIt":
-  setup:
-    type AnObject = object
-      attribute1*: int
-
-    var objList = @[
-      AnObject(attribute1: 1),
-      AnObject(attribute1: 3),
-      AnObject(attribute1: 5),
-      AnObject(attribute1: 3),
-    ]
-
-  test "should retur index of first object matching predicate":
-    assert objList.findIt(it.attribute1 == 3) == 1
-
-  test "should return -1 when no object matches predicate":
-    assert objList.findIt(it.attribute1 == 15) == -1
-
 suite "parseDuration":
   test "should parse durations":
     var res: Duration # caller must still know if 'b' refers to bytes|bits
