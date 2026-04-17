@@ -80,8 +80,8 @@ proc start*(s: StorageServer) {.async.} =
 
   if not s.config.allowPrivateAddress.get(false):
     var hasPublicAddr = false
-    for ma in announceAddrs:
-      let (maybeIp, _) = getAddressAndPort(ma)
+    for announceAddr in announceAddrs:
+      let (maybeIp, _) = getAddressAndPort(announceAddr)
       if maybeIp.isSome and maybeIp.get.isGlobalUnicast():
         hasPublicAddr = true
         break
