@@ -2,7 +2,6 @@ import std/times
 
 import pkg/unittest2
 import pkg/storage/systemclock
-import ./helpers
 
 suite "SystemClock":
   test "Should get now":

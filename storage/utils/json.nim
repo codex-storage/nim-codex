@@ -1,4 +1,3 @@
-import std/options
 import std/typetraits
 from pkg/libp2p import
   Cid, PeerId, SignedPeerRecord, MultiAddress, AddressInfo, init, `$`
