@@ -11,6 +11,7 @@ import std/os
 import std/tables
 import std/cpuinfo
 import std/net
+import std/sequtils
 
 import pkg/chronos
 import pkg/taskpools
@@ -78,16 +79,19 @@ proc start*(s: StorageServer) {.async.} =
     s.config.nat, s.storageNode.switch.peerInfo.addrs, s.config.discoveryPort
   )
 
-  if not s.config.allowPrivateAddress.get(false):
-    var hasPublicAddr = false
-    for announceAddr in announceAddrs:
-      let (maybeIp, _) = getAddressAndPort(announceAddr)
-      if maybeIp.isSome and maybeIp.get.isGlobalUnicast():
-        hasPublicAddr = true
-        break
-    if not hasPublicAddr:
+  var hasPublicAddr = false
+  for announceAddr in announceAddrs:
+    let (maybeIp, _) = getAddressAndPort(announceAddr)
+    if maybeIp.isSome and maybeIp.get.isGlobalUnicast():
+      hasPublicAddr = true
+      break
+
+  if not hasPublicAddr:
+    if not s.config.allowPrivateAddress.get(false):
       fatal "Node has no public addresses. Use --allow-private-address to allow starting with only private addresses."
       raise newException(StorageError, "Node has no public addresses")
+    else:
+      warn "Unable to determine a public IP address. This node will only be reachable on a private network. Use --allow-private-address=false to restrict usage to publicly reachable nodes."
 
   s.storageNode.discovery.updateAnnounceRecord(announceAddrs)
   s.storageNode.discovery.updateDhtRecord(discoveryAddrs)
@@ -122,7 +126,10 @@ proc stop*(s: StorageServer) {.async.} =
 
   if res.failure.len > 0:
     error "Failed to stop Storage node", failures = res.failure.len
-    raise newException(StorageError, "Failed to stop Storage node")
+    raise newException(
+      StorageError,
+      "Failed to stop Storage node: " & res.failure.mapIt(it.error.msg).join(", "),
+    )
 
 proc close*(s: StorageServer) {.async.} =
   var futures =
@@ -149,7 +156,10 @@ proc close*(s: StorageServer) {.async.} =
 
   if res.failure.len > 0:
     error "Failed to close Storage node", failures = res.failure.len
-    raise newException(StorageError, "Failed to close Storage node")
+    raise newException(
+      StorageError,
+      "Failed to close Storage node: " & res.failure.mapIt(it.error.msg).join(", "),
+    )
 
 proc shutdown*(server: StorageServer) {.async.} =
   await server.stop()
