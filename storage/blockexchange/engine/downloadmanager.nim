@@ -33,7 +33,7 @@ const
 
 type DownloadManager* = ref object of RootObj
   nextDownloadId*: uint64 = 1 # 0 is invalid
-  blockRetries*: int
+  maxBlockRetries*: int
   retryInterval*: Duration
   downloads*: Table[Cid, Table[uint64, ActiveDownload]]
   peerTracker*: PeerInFlightTracker # peer-wide in-flight tracking
@@ -133,7 +133,7 @@ proc startDownload*(
     blocks: initTable[BlockAddress, BlockReq](),
     pendingBatches: initTable[uint64, PendingBatch](),
     exhaustedBlocks: initHashSet[BlockAddress](),
-    blockRetries: self.blockRetries,
+    maxBlockRetries: self.maxBlockRetries,
     retryInterval: self.retryInterval,
     isBackground: desc.isBackground,
     fetchLocal: desc.fetchLocal,
@@ -175,7 +175,7 @@ proc new*(
     interval = DefaultRetryInterval,
 ): DownloadManager =
   DownloadManager(
-    blockRetries: retries,
+    maxBlockRetries: retries,
     retryInterval: interval,
     downloads: initTable[Cid, Table[uint64, ActiveDownload]](),
     peerTracker: PeerInFlightTracker.new(),

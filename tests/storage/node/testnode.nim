@@ -163,7 +163,7 @@ asyncchecksuite "Test Node - Basic":
     (await localStore.delBlock(md.manifest.treeCid, 0)).tryGet()
 
     # Configure low retries so the test completes quickly (no peers to fetch from)
-    downloadManager.blockRetries = 1
+    downloadManager.maxBlockRetries = 1
     downloadManager.retryInterval = 10.milliseconds
 
     let handle = engine.startTreeDownload(md, fetchLocal = false).tryGet()

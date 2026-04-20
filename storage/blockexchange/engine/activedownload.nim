@@ -61,7 +61,7 @@ type
     pendingBatches*: Table[uint64, PendingBatch] # batch start -> pending info
     exhaustedBlocks*: HashSet[BlockAddress]
       # blocks that exhausted retries - failed permanently
-    blockRetries*: int
+    maxBlockRetries*: int
     retryInterval*: Duration
     cancelled*: bool
     isBackground*: bool
@@ -97,7 +97,7 @@ proc getOrCreateBlockReq(download: ActiveDownload, address: BlockAddress): Block
     let blkReq = BlockReq(
       handle: BlockHandle.init("ActiveDownload.getWantHandle"),
       opaqueHandle: BlockHandleOpaque.init("ActiveDownload.getWantHandleOpaque"),
-      blockRetries: download.blockRetries,
+      blockRetries: download.maxBlockRetries,
       startTime: getMonoTime().ticks,
     )
     download.blocks[address] = blkReq
@@ -196,7 +196,7 @@ proc failExhaustedBlocks*(download: ActiveDownload, addresses: seq[BlockAddress]
     download.ctx.received += 1
 
   let error = (ref RetriesExhaustedError)(
-    msg: "Block retries exhausted after " & $download.blockRetries & " attempts"
+    msg: "Block retries exhausted after " & $download.maxBlockRetries & " attempts"
   )
   for address in addresses:
     download.failWantHandle(address, error)
