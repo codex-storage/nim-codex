@@ -147,10 +147,6 @@ proc createStorage(
   else:
     debug "Rest API is enabled!"
 
-  if conf.allowPrivateAddress.isNone:
-    # Default to true so the node starts out of the box.
-    conf.allowPrivateAddress = true.some
-
   let server =
     try:
       StorageServer.new(conf, pk, logFile)

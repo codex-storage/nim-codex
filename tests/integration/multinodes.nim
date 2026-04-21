@@ -38,7 +38,6 @@ const TestId {.strdefine.}: string = "TestId"
 const StorageLogToFile {.booldefine.}: bool = false
 const StorageLogLevel {.strdefine.}: string = ""
 const StorageLogsDir {.strdefine.}: string = ""
-const StorageAllowPrivateAddress {.booldefine.}: bool = true
 
 proc raiseMultiNodeSuiteError(
     msg: string, parent: ref CatchableError = nil
@@ -118,9 +117,6 @@ template multinodesuite*(suiteName: string, body: untyped) =
 
         when StorageLogLevel != "":
           config.addCliOption("--log-level", StorageLogLevel)
-
-        when StorageAllowPrivateAddress:
-          config.addCliOption("--allow-private-address", "true")
 
         var apiPort, discPort: int
         withLock(storagePortLock):

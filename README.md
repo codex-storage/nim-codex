@@ -43,18 +43,6 @@ The order of priority is the same as above: CLI options --> Environment variable
 
 Please check `build/storage --help` for more information.
 
-### Local-only mode
-
-By default, the node will refuse to start if it cannot determine a public IP address.
-
-If you are running on a local network only (no public IP, behind NAT without UPnP/PMP), use the `--allow-private-address` flag:
-
-```bash
-build/storage --allow-private-address
-```
-
-Note: when using the C library (`libstorage`), this flag is enabled by default.
-
 ## API
 
 The client exposes a REST API that can be used to interact with the clients. Overview of the API can be found on [api.codex.storage](https://api.codex.storage).

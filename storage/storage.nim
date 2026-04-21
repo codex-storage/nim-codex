@@ -87,11 +87,7 @@ proc start*(s: StorageServer) {.async.} =
       break
 
   if not hasPublicAddr:
-    if not s.config.allowPrivateAddress.get(false):
-      fatal "Node has no public addresses. Use --allow-private-address to allow starting with only private addresses."
-      raise newException(StorageError, "Node has no public addresses")
-    else:
-      warn "Unable to determine a public IP address. This node will only be reachable on a private network. Use --allow-private-address=false to restrict usage to publicly reachable nodes."
+      warn "Unable to determine a public IP address. This node will only be reachable on a private network."
 
   s.storageNode.discovery.updateAnnounceRecord(announceAddrs)
   s.storageNode.discovery.updateDhtRecord(discoveryAddrs)
