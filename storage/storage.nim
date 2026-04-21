@@ -87,7 +87,7 @@ proc start*(s: StorageServer) {.async.} =
       break
 
   if not hasPublicAddr:
-      warn "Unable to determine a public IP address. This node will only be reachable on a private network."
+    warn "Unable to determine a public IP address. This node will only be reachable on a private network."
 
   s.storageNode.discovery.updateAnnounceRecord(announceAddrs)
   s.storageNode.discovery.updateDhtRecord(discoveryAddrs)
