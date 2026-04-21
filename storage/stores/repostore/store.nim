@@ -339,16 +339,12 @@ method listBlocks*(
       iter.finish
     else:
       let res = await queryIter.next()
-      if res.isOk:
-        let pair = res.value
-        if pair.key.isSome:
-          doAssert pair.data.len == 0
-          # safe: isSome checked above
-          let cid = pair.key.unsafeGet()
-          trace "Retrieved record from repo", cid
-          return Cid.init(cid.value).mapFailure
-        else:
-          return Cid.failure("No or invalid Cid")
+      if pair =? res and cid =? pair.key:
+        doAssert pair.data.len == 0
+        trace "Retrieved record from repo", cid
+        return Cid.init(cid.value).mapFailure
+      else:
+        return Cid.failure("No or invalid Cid")
 
   iter.next = next
   return success iter
