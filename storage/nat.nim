@@ -17,10 +17,12 @@ import
 import pkg/chronos
 import pkg/chronicles
 import pkg/libp2p
+import pkg/libp2p/protocols/connectivity/autonatv2/service
 
 import ./utils
 import ./utils/natutils
 import ./utils/addrutils
+import ./discovery
 
 const
   UPNP_TIMEOUT = 200 # ms
@@ -60,6 +62,16 @@ type PrefSrcStatus = enum
   PrefSrcIsPrivate
   BindAddressIsPublic
   BindAddressIsPrivate
+
+type NatMapper* = ref object of RootObj
+
+method mapNatAddresses*(
+    m: NatMapper, addrs: seq[MultiAddress], discoveryPort: Port
+): tuple[libp2p, discovery: seq[MultiAddress]] {.base, gcsafe, raises: [].} =
+  raiseAssert "mapNatAddresses not implemented"
+
+type DefaultNatMapper* = ref object of NatMapper
+  natConfig*: NatConfig
 
 ## Also does threadvar initialisation.
 ## Must be called before redirectPorts() in each thread.
@@ -437,3 +449,31 @@ proc nattedAddress*(
         # Invalid multiaddress format - return as is
         it
   (newAddrs, discoveryAddrs)
+
+method mapNatAddresses*(
+    m: DefaultNatMapper, addrs: seq[MultiAddress], discoveryPort: Port
+): tuple[libp2p, discovery: seq[MultiAddress]] {.gcsafe, raises: [].} =
+  nattedAddress(m.natConfig, addrs, discoveryPort)
+
+proc handleNatStatus*(
+    networkReachability: NetworkReachability,
+    confidence: Opt[float],
+    mapper: NatMapper,
+    listenAddrs: seq[MultiAddress],
+    discoveryPort: Port,
+    discovery: Discovery,
+) {.async: (raises: [CancelledError]).} =
+  debug "AutoNAT status", reachability = networkReachability, confidence
+
+  case networkReachability
+  of Reachable:
+    # TODO: switch DHT to server mode, stop relay if running
+    discard
+  of NotReachable:
+    let (announceAddrs, discoveryAddrs) =
+      mapper.mapNatAddresses(listenAddrs, discoveryPort)
+    discovery.updateAnnounceRecord(announceAddrs)
+    discovery.updateDhtRecord(announceAddrs & discoveryAddrs)
+  of Unknown:
+    # Nothing to do here, not enough confidence score result
+    discard

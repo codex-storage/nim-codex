@@ -357,15 +357,15 @@ proc new*(
   switch.mount(network)
   switch.mount(manifestProto)
 
+  let natMapper = DefaultNatMapper(natConfig: config.nat)
   autonatService.setStatusAndConfidenceHandler(
     proc(
         networkReachability: NetworkReachability, confidence: Opt[float]
     ) {.async: (raises: [CancelledError]).} =
-      if networkReachability == NotReachable:
-        let (announceAddrs, discoveryAddrs) =
-          nattedAddress(config.nat, switch.peerInfo.addrs, config.discoveryPort)
-        discovery.updateAnnounceRecord(announceAddrs)
-        discovery.updateDhtRecord(announceAddrs & discoveryAddrs)
+      await handleNatStatus(
+        networkReachability, confidence, natMapper, switch.peerInfo.addrs,
+        config.discoveryPort, discovery,
+      )
   )
 
   StorageServer(
