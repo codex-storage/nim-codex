@@ -265,17 +265,6 @@ suite "Swarm":
     check swarm.recordPeerFailure(peerId) == false
     check swarm.recordPeerFailure(peerId) == true
 
-  test "recordPeerSuccess resets failures":
-    let peerId = PeerId.example
-    discard swarm.addPeer(peerId, BlockAvailability.complete())
-
-    discard swarm.recordPeerFailure(peerId)
-    discard swarm.recordPeerFailure(peerId)
-    check swarm.getPeer(peerId).get().failureCount == 2
-
-    swarm.recordPeerSuccess(peerId)
-    check swarm.getPeer(peerId).get().failureCount == 0
-
   test "peersWithRange":
     let
       peer1 = PeerId.example

@@ -158,11 +158,6 @@ proc recordPeerTimeout*(swarm: Swarm, peerId: PeerId): bool =
     return peer[].timeoutCount >= swarm.config.maxPeerTimeouts
   return false
 
-proc recordPeerSuccess*(swarm: Swarm, peerId: PeerId) =
-  swarm.peers.withValue(peerId, peer):
-    peer[].resetFailures()
-    peer[].touch()
-
 proc recordBatchSuccess*(
     swarm: Swarm, peer: PeerContext, rttMicros: uint64, totalBytes: uint64
 ) =

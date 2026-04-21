@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/[options, random]
+import std/[options, random, sets]
 
 import pkg/chronos
 import pkg/libp2p/cid
@@ -60,6 +60,8 @@ type
     case policy: SelectionPolicy
     of spSequential:
       lastBroadcastedWatermark: uint64
+      broadcastedOutOfOrder: HashSet[uint64]
+      pendingOOOSnapshot: HashSet[uint64]
       lastBroadcastTime: Moment
       broadcastInterval: Duration
     of spRandomWindow:
@@ -86,35 +88,63 @@ proc randomBroadcastInterval(): Duration =
       PresenceBroadcastIntervalMax.milliseconds.int
   ).milliseconds
 
-proc shouldBroadcast(t: BroadcastAvailabilityTracker, watermark: uint64): bool =
+proc hasNewOutOfOrder(t: BroadcastAvailabilityTracker, scheduler: Scheduler): bool =
+  for batchStart in scheduler.completedOutOfOrderItems:
+    if batchStart notin t.broadcastedOutOfOrder:
+      return true
+  false
+
+proc shouldBroadcast(t: BroadcastAvailabilityTracker, scheduler: Scheduler): bool =
   case t.policy
   of spRandomWindow:
     t.pendingRanges.len > 0
   of spSequential:
-    let newBlocks = watermark - t.lastBroadcastedWatermark
-    if newBlocks == 0:
+    let
+      newBlocks = scheduler.completedWatermark() - t.lastBroadcastedWatermark
+      hasNewOOO = t.hasNewOutOfOrder(scheduler)
+    if newBlocks == 0 and not hasNewOOO:
       return false
     let timeSinceLast = Moment.now() - t.lastBroadcastTime
-    newBlocks >= PresenceBroadcastBlockThreshold or timeSinceLast >= t.broadcastInterval
+    newBlocks >= PresenceBroadcastBlockThreshold or timeSinceLast >= t.broadcastInterval or
+      hasNewOOO
 
 proc getRanges(
-    t: BroadcastAvailabilityTracker, watermark: uint64
+    t: var BroadcastAvailabilityTracker, scheduler: Scheduler
 ): seq[tuple[start: uint64, count: uint64]] =
   case t.policy
   of spRandomWindow:
     t.pendingRanges
   of spSequential:
-    let count = watermark - t.lastBroadcastedWatermark
-    if count > 0:
-      @[(start: t.lastBroadcastedWatermark, count: count)]
-    else:
-      @[]
+    let watermark = scheduler.completedWatermark()
+    var ranges: seq[tuple[start: uint64, count: uint64]] = @[]
+    if watermark > t.lastBroadcastedWatermark:
+      ranges.add(
+        (
+          start: t.lastBroadcastedWatermark,
+          count: watermark - t.lastBroadcastedWatermark,
+        )
+      )
+    t.pendingOOOSnapshot.clear()
+    for batchStart in scheduler.completedOutOfOrderItems:
+      if batchStart notin t.broadcastedOutOfOrder:
+        ranges.add((start: batchStart, count: scheduler.batchSizeCount))
+        t.pendingOOOSnapshot.incl(batchStart)
+    ranges
 
-proc markBroadcasted(t: var BroadcastAvailabilityTracker, watermark: uint64) =
+proc markBroadcasted(t: var BroadcastAvailabilityTracker, scheduler: Scheduler) =
   case t.policy
   of spRandomWindow:
     t.pendingRanges.setLen(0)
   of spSequential:
+    let watermark = scheduler.completedWatermark()
+    for batchStart in t.pendingOOOSnapshot:
+      t.broadcastedOutOfOrder.incl(batchStart)
+    var toRemove: seq[uint64] = @[]
+    for batchStart in t.broadcastedOutOfOrder:
+      if batchStart < watermark:
+        toRemove.add(batchStart)
+    for batchStart in toRemove:
+      t.broadcastedOutOfOrder.excl(batchStart)
     t.lastBroadcastedWatermark = watermark
     t.lastBroadcastTime = Moment.now()
     t.broadcastInterval = randomBroadcastInterval()
@@ -166,6 +196,8 @@ proc new*(
     result.availabilityTracker = BroadcastAvailabilityTracker(
       policy: spSequential,
       lastBroadcastedWatermark: 0,
+      broadcastedOutOfOrder: initHashSet[uint64](),
+      pendingOOOSnapshot: initHashSet[uint64](),
       lastBroadcastTime: Moment.now(),
       broadcastInterval: randomBroadcastInterval(),
     )
@@ -226,15 +258,15 @@ proc trimPresenceBeforeWatermark*(ctx: DownloadContext) =
         peer.availability = BlockAvailability.fromRanges(newRanges)
 
 proc shouldBroadcastAvailability*(ctx: DownloadContext): bool =
-  ctx.availabilityTracker.shouldBroadcast(ctx.scheduler.completedWatermark())
+  ctx.availabilityTracker.shouldBroadcast(ctx.scheduler)
 
 proc getAvailabilityBroadcast*(
     ctx: DownloadContext
 ): seq[tuple[start: uint64, count: uint64]] =
-  ctx.availabilityTracker.getRanges(ctx.scheduler.completedWatermark())
+  ctx.availabilityTracker.getRanges(ctx.scheduler)
 
 proc markAvailabilityBroadcasted*(ctx: DownloadContext) =
-  ctx.availabilityTracker.markBroadcasted(ctx.scheduler.completedWatermark())
+  ctx.availabilityTracker.markBroadcasted(ctx.scheduler)
 
 proc batchBytes*(ctx: DownloadContext): uint64 =
   ctx.scheduler.batchSizeCount.uint64 * ctx.blockSize.uint64

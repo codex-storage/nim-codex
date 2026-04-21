@@ -459,6 +459,10 @@ proc totalBlockCount*(self: Scheduler): uint64 =
 proc batchSizeCount*(self: Scheduler): uint64 =
   self.batchSize
 
+iterator completedOutOfOrderItems*(self: Scheduler): uint64 =
+  for batchStart in self.completedOutOfOrder:
+    yield batchStart
+
 proc batchEnd*(batch: BlockBatch): uint64 =
   batch.start + batch.count
 
