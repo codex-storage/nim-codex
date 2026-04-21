@@ -92,23 +92,10 @@ type
   DownloadHandle* = DownloadHandleGeneric[Block]
   DownloadHandleOpaque* = DownloadHandleGeneric[void]
 
-proc finished*[T](h: DownloadHandleGeneric[T]): bool =
-  h.iter.finished
-
-proc next*[T](
-    h: DownloadHandleGeneric[T]
-): Future[?!T] {.async: (raw: true, raises: [CancelledError]).} =
-  h.iter.next()
-
 proc waitForComplete*[T](
     h: DownloadHandleGeneric[T]
 ): Future[?!void] {.async: (raises: [CancelledError]).} =
   return await h.completionFuture
-
-proc nextBlock*(
-    h: DownloadHandle
-): Future[?!Block] {.async: (raw: true, raises: [CancelledError]).} =
-  h.iter.next()
 
 proc requestWantBlocks*(
   self: BlockExcEngine, peer: PeerId, blockRange: BlockRange
@@ -615,13 +602,17 @@ proc downloadWorker(
               warn "Error checking block existence", address = address, error = e.msg
               false
 
+          var missing = not exists
           if exists:
-            localBlockCount += 1
-            if address in download.blocks:
-              let blkResult = await self.localStore.getBlock(address)
-              if blkResult.isOk:
+            let blkResult = await self.localStore.getBlock(address)
+            if blkResult.isOk:
+              localBlockCount += 1
+              if address in download.blocks:
                 discard download.completeWantHandle(address, some(blkResult.get))
-          else:
+            else:
+              missing = true
+
+          if missing:
             if download.fetchLocal:
               download.failLocalMissing(address)
               bailFetchLocal = true

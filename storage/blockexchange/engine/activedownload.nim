@@ -36,6 +36,7 @@ declareGauge(
 
 type
   RetriesExhaustedError* = object of StorageError
+  DownloadTerminatedError* = object of StorageError
   BlockHandle* = Future[?!Block].Raising([CancelledError])
   BlockHandleOpaque* = Future[?!void].Raising([CancelledError])
 
@@ -78,6 +79,11 @@ proc signalCompletionIfDone(download: ActiveDownload, error: ref StorageError = 
     return
   if error != nil:
     download.completionFuture.complete(void.failure(error))
+    let termErr = (ref DownloadTerminatedError)(msg: "Download terminated")
+    for _, blockReq in download.blocks:
+      if not blockReq.handle.finished:
+        blockReq.handle.complete(Block.failure(termErr))
+        blockReq.opaqueHandle.complete(Result[void, ref CatchableError].err(termErr))
   elif download.ctx.isComplete:
     download.completionFuture.complete(success())
 
@@ -118,7 +124,12 @@ proc getOrCreateBlockReq(download: ActiveDownload, address: BlockAddress): Block
 proc getWantHandle*(
     download: ActiveDownload, address: BlockAddress
 ): Future[?!Block] {.async: (raw: true, raises: [CancelledError]).} =
-  download.getOrCreateBlockReq(address).handle
+  let blkReq = download.getOrCreateBlockReq(address)
+  if download.completionFuture.finished and not blkReq.handle.finished:
+    let err = (ref DownloadTerminatedError)(msg: "Download terminated")
+    blkReq.handle.complete(Block.failure(err))
+    blkReq.opaqueHandle.complete(Result[void, ref CatchableError].err(err))
+  blkReq.handle
 
 proc getWantHandleOpaque*(
     download: ActiveDownload, address: BlockAddress

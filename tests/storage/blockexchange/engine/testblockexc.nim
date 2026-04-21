@@ -265,7 +265,9 @@ asyncchecksuite "BlockExchange - Download Lifecycle":
     check leecher.downloadManager.getDownload(treeCid).isNone
 
   test "Two concurrent full downloads for same CID should both complete":
-    let totalBlocks = dataset.blocks.len.uint64
+    let
+      treeCid = dataset.manifest.treeCid
+      totalBlocks = dataset.blocks.len.uint64
 
     let handle1 = leecher.engine.startTreeDownload(dataset.manifestDesc)
     require handle1.isOk == true
@@ -281,14 +283,12 @@ asyncchecksuite "BlockExchange - Download Lifecycle":
       blocksReceived1 = 0
       blocksReceived2 = 0
 
-    while not h1.finished:
-      let blk = await h1.next()
-      if blk.isOk:
+    for i in 0 ..< totalBlocks.int:
+      if (await leecher.networkStore.getBlock(treeCid, i.Natural)).isOk:
         blocksReceived1 += 1
 
-    while not h2.finished:
-      let blk = await h2.next()
-      if blk.isOk:
+    for i in 0 ..< totalBlocks.int:
+      if (await leecher.networkStore.getBlock(treeCid, i.Natural)).isOk:
         blocksReceived2 += 1
 
     check blocksReceived1 == totalBlocks.int
@@ -315,9 +315,8 @@ asyncchecksuite "BlockExchange - Download Lifecycle":
     check leecher.downloadManager.getDownload(treeCid).isSome
 
     var blocksReceived = 0
-    while not h2.finished:
-      let blk = await h2.next()
-      if blk.isOk:
+    for i in 0 ..< totalBlocks.int:
+      if (await leecher.networkStore.getBlock(treeCid, i.Natural)).isOk:
         blocksReceived += 1
 
     check blocksReceived == totalBlocks.int

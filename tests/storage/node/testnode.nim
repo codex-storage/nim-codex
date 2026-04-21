@@ -126,14 +126,15 @@ asyncchecksuite "Test Node - Basic":
       blocks = await makeRandomBlocks(datasetSize = 2048, blockSize = 256'nb)
       md = await storeDataGetManifest(localStore, blocks)
       totalBlocks = md.manifest.blocksCount.uint64
+      treeCid = md.manifest.treeCid
       handle = engine.startTreeDownload(md, fetchLocal = true).tryGet()
 
     defer:
       engine.releaseDownload(handle)
 
     var count = 0
-    while not handle.finished:
-      let blk = (await handle.next()).tryGet()
+    for i in 0 ..< totalBlocks.int:
+      let blk = (await store.getBlock(treeCid, i.Natural)).tryGet()
       check blk.data[].len > 0
       count += 1
     check count.uint64 == totalBlocks
@@ -142,25 +143,31 @@ asyncchecksuite "Test Node - Basic":
     let
       blocks = await makeRandomBlocks(datasetSize = 2048, blockSize = 256'nb)
       md = await storeDataGetManifest(localStore, blocks)
+      treeCid = md.manifest.treeCid
 
     # Delete one block so it's missing locally
-    (await localStore.delBlock(md.manifest.treeCid, 0)).tryGet()
+    (await localStore.delBlock(treeCid, 0)).tryGet()
 
     let handle = engine.startTreeDownload(md, fetchLocal = true).tryGet()
     defer:
       engine.releaseDownload(handle)
 
-    let res = await handle.next()
+    let res = await store.getBlock(treeCid, 0.Natural)
     check res.isErr
-    check res.error of BlockNotFoundError
+    check (res.error of BlockNotFoundError) or (res.error of DownloadTerminatedError)
+
+    let completion = await handle.waitForComplete()
+    check completion.isErr
+    check completion.error of BlockNotFoundError
 
   test "Stream blocks with fetchLocal=false fails when retries exhausted":
     let
       blocks = await makeRandomBlocks(datasetSize = 2048, blockSize = 256'nb)
       md = await storeDataGetManifest(localStore, blocks)
+      treeCid = md.manifest.treeCid
 
     # Delete one block so it's missing locally
-    (await localStore.delBlock(md.manifest.treeCid, 0)).tryGet()
+    (await localStore.delBlock(treeCid, 0)).tryGet()
 
     # Configure low retries so the test completes quickly (no peers to fetch from)
     downloadManager.maxBlockRetries = 1
@@ -170,9 +177,13 @@ asyncchecksuite "Test Node - Basic":
     defer:
       engine.releaseDownload(handle)
 
-    let res = await handle.next()
+    let res = await store.getBlock(treeCid, 0.Natural)
     check res.isErr
-    check res.error of RetriesExhaustedError
+    check (res.error of RetriesExhaustedError) or (res.error of DownloadTerminatedError)
+
+    let completion = await handle.waitForComplete()
+    check completion.isErr
+    check completion.error of RetriesExhaustedError
 
   test "Retrieve One Block":
     let

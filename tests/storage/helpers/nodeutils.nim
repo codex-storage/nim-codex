@@ -321,18 +321,16 @@ proc linearTopology*(nodes: seq[NodesComponents]) {.async.} =
 proc downloadDataset*(
     node: NodesComponents, dataset: TestDataset
 ): Future[void] {.async.} =
-  # This is the same as fetchBatched, but we don't construct StorageNodes so I can't use
-  # it here.
   let handleResult = node.engine.startTreeDownload(dataset.manifestDesc)
-
   doAssert handleResult.isOk, "Failed to start download"
   let
     handle = handleResult.get()
+    treeCid = dataset.manifest.treeCid
     blockCids = dataset.blocks.mapIt(it.cid).toHashSet()
 
   var count = 0
-  while not handle.finished:
-    let blk = (await handle.next()).tryGet()
+  for i in 0 ..< dataset.blocks.len:
+    let blk = (await node.networkStore.getBlock(treeCid, i.Natural)).tryGet()
     assert blk.cid in blockCids, "Unknown block CID: " & $blk.cid
     count += 1
 
