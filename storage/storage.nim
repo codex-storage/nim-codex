@@ -198,7 +198,7 @@ proc new*(
   ## create StorageServer including setting up datastore, repostore, etc
   let listenMultiAddr = getMultiAddrWithIpAndTcpPort(config.listenIp, config.listenPort)
 
-  let relayClient = relayClientModule.RelayClient.new()
+  let relayClient = relayClientModule.RelayClient.new(canHop = config.relay)
 
   let autonatClient = AutonatV2Client.new(random.Rng.instance())
   let autonatService = AutonatV2Service.new(
