@@ -2,7 +2,7 @@
 module "gke" {
   source = "../modules/gke"
 
-  name                       = "logos-storage-dist-tests"
+  name                       = "logos-storage-rel-tests"
   project                    = var.project
   region                     = var.region
   kubernetes_release_channel = "STABLE"
