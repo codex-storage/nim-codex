@@ -206,26 +206,28 @@ jobs:
     if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
     needs: build-docker-dist-tests
     env:
-      TF_VAR_region: ams3
-      TF_VAR_do_token: ${{ secrets.RELEASE_TESTS_DO_TOKEN }}
-      AWS_ACCESS_KEY_ID: ${{ secrets.RELEASE_TESTS_SPACES_ACCESS_KEY }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.RELEASE_TESTS_SPACES_SECRET_KEY }}
+      TF_VAR_project: ${{ secrets.RELEASE_TESTS_GCP_PROJECT }}
+      TF_VAR_region: europe-west4
       STORAGEDOCKERIMAGE: ${{ needs.build-docker-dist-tests.outputs.logos_storage_image }}
       TEST_TYPE: release-tests
       BRANCH: ${{ inputs.branch || 'master' }}
       SOURCE: https://github.com/logos-storage/logos-storage-nim-cs-dist-tests
-      TF_DIR: .github/release/clusters/logos-storage-dist-tests-do-ams3
+      TF_DIR: .github/release/clusters/logos-storage-dist-tests-gcp-europe-west4
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.RELEASE_TESTS_GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.RELEASE_TESTS_GCP_SERVICE_ACCOUNT }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
-
-      - name: Setup doctl
-        uses: digitalocean/action-doctl@v2
-        with:
-          token: ${{ secrets.RELEASE_TESTS_DO_TOKEN }}
 
       - name: Setup kubectl
         uses: azure/setup-kubectl@v4
@@ -234,14 +236,18 @@ jobs:
 
       - name: Terraform init
         working-directory: ${{ env.TF_DIR }}
-        run: terraform init
+        run: terraform init -backend-config="bucket=${{ secrets.RELEASE_TESTS_TF_STATE_BUCKET }}"
 
       - name: Terraform apply
+        id: tf-apply
         working-directory: ${{ env.TF_DIR }}
         run: terraform apply -auto-approve
 
       - name: Get kubeconfig
-        run: doctl kubernetes cluster kubeconfig save logos-storage-dist-tests-do-ams3
+        run: |
+          gcloud container clusters get-credentials logos-storage-dist-tests-gcp-europe-west4 \
+            --region europe-west4 \
+            --project ${{ secrets.RELEASE_TESTS_GCP_PROJECT }}
 
       - name: Create in-cluster app kubeconfig secret
         run: |
@@ -291,7 +297,7 @@ jobs:
           [[ "$job_status" == "SuccessCriteriaMet" ]] || exit 1
 
       - name: Terraform destroy
-        if: always()
+        if: always() && steps.tf-apply.conclusion != 'skipped'
         working-directory: ${{ env.TF_DIR }}
         run: terraform destroy -auto-approve
 
