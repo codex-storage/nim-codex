@@ -336,6 +336,12 @@ type
       name: "nat-min-confidence"
     .}: float
 
+    natMaxRelays* {.
+      desc: "Maximum number of relay servers to reserve slots on simultaneously",
+      defaultValue: 2,
+      name: "nat-max-relays"
+    .}: int
+
 func defaultAddress*(conf: StorageConf): IpAddress =
   result = static parseIpAddress("127.0.0.1")
 
