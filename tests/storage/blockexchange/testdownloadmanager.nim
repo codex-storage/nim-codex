@@ -183,7 +183,7 @@ asyncchecksuite "DownloadManager - Download Lifecycle":
 
     discard dm.startDownload(desc)
 
-    dm.releaseDownload(treeCid)
+    dm.cancelDownload(treeCid)
     check dm.getDownload(treeCid).isNone
 
   test "Should cancel download":
@@ -251,7 +251,7 @@ asyncchecksuite "DownloadManager - Download Lifecycle":
 
     check downloadRef.cancelled == false
 
-    dm.releaseDownload(treeCid)
+    dm.cancelDownload(treeCid)
 
     check dm.getDownload(treeCid).isNone
 

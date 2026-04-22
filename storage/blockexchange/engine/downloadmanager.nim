@@ -93,9 +93,6 @@ proc cancelDownload*(self: DownloadManager, treeCid: Cid) =
     for download in toCancel:
       self.cancelDownload(download)
 
-proc releaseDownload*(self: DownloadManager, treeCid: Cid) =
-  self.cancelDownload(treeCid)
-
 proc releaseDownload*(self: DownloadManager, downloadId: uint64, treeCid: Cid) =
   let download = self.getDownload(downloadId, treeCid)
   if download.isSome:
