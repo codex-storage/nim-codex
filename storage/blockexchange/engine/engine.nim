@@ -590,12 +590,7 @@ proc downloadWorker(
           if download.isBlockExhausted(address):
             continue
 
-          let exists =
-            try:
-              await address in self.localStore
-            except CatchableError as e:
-              warn "Error checking block existence", address = address, error = e.msg
-              false
+          let exists = await address in self.localStore
 
           var missing = not exists
           if exists:
