@@ -50,6 +50,11 @@ type
     maxPeerFailures*: uint32
     maxPeerTimeouts*: uint32
 
+  SwarmHealth* = enum
+    shHealthy
+    shBelowTarget
+    shBelowMin
+
   PeerSelectionKind* = enum
     pskFound
     pskAtCapacity
@@ -174,15 +179,14 @@ proc activePeerCount*(swarm: Swarm): int =
 proc peerCount*(swarm: Swarm): int =
   swarm.peers.len
 
-proc needsPeers*(swarm: Swarm): bool =
-  swarm.activePeerCount() < swarm.config.deltaMin
-
-proc peersNeeded*(swarm: Swarm): int =
+proc peersNeeded*(swarm: Swarm): SwarmHealth =
   let active = swarm.activePeerCount()
-  if active >= swarm.config.deltaTarget:
-    0
+  if active < swarm.config.deltaMin:
+    shBelowMin
+  elif active < swarm.config.deltaTarget:
+    shBelowTarget
   else:
-    swarm.config.deltaTarget - active
+    shHealthy
 
 proc connectedPeers*(swarm: Swarm): seq[PeerId] =
   for peerId in swarm.peers.keys:

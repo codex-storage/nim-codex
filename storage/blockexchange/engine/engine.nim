@@ -174,8 +174,6 @@ proc banAndDropPeer(
 ) {.async: (raises: [CancelledError]).} =
   download.ctx.swarm.banPeer(peerId)
   download.handlePeerFailure(peerId)
-  if download.ctx.swarm.needsPeers():
-    self.searchForNewPeers(download.manifestCid)
   await self.network.dropPeer(peerId)
 
 proc evictPeer(self: BlockExcEngine, peer: PeerId) =
@@ -283,9 +281,6 @@ proc sendWantBlocksRequest(
         trace "Peer was not in swarm", peer = peer.id
 
       download.handlePeerFailure(peer.id)
-
-      if swarm.needsPeers():
-        self.searchForNewPeers(download.manifestCid)
     else:
       # we can requeue immediately (cancels timeout), no benefit waiting for timeout.
       download.requeueBatch(start, count, front = true)
@@ -632,10 +627,7 @@ proc downloadWorker(
       let swarm = download.ctx.swarm
       var shouldBroadcast = false
 
-      let peersNeeded = swarm.peersNeeded()
-      if peersNeeded > 0:
-        trace "Swarm below target, triggering discovery",
-          active = swarm.activePeerCount(), needed = peersNeeded
+      if swarm.peersNeeded() != shHealthy:
         self.searchForNewPeers(download.manifestCid)
 
       if swarm.peersWithRange(start, count).len == 0:
@@ -655,15 +647,11 @@ proc downloadWorker(
           # Give peers a short time to respond with presence
           await sleepAsync(50.milliseconds)
         else:
-          trace "No connected peers, searching for new peers"
-          self.searchForNewPeers(download.manifestCid)
           await download.handleBatchRetry(start, count, retryInterval)
           continue
 
       if self.peers.len == 0:
-        trace "No connected peers available for batch, searching"
-        self.searchForNewPeers(download.manifestCid)
-        await download.handleBatchRetry(start, count, 100.milliseconds)
+        await download.handleBatchRetry(start, count, DiscoveryRateLimit)
         continue
 
       let staleUnknown = swarm.staleUnknownPeers()
@@ -709,7 +697,7 @@ proc downloadWorker(
         trace "No peer with range, searching for new peers"
         let
           hasActivePeers = swarm.activePeerCount() > 0
-          waitTime = if hasActivePeers: retryInterval else: 100.milliseconds
+          waitTime = if hasActivePeers: retryInterval else: DiscoveryRateLimit
         await download.handleBatchRetry(start, count, waitTime)
         continue
 

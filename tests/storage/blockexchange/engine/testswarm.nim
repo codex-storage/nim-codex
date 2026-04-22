@@ -302,34 +302,23 @@ suite "Swarm":
     let peers3 = swarm.peersWithAnyInRange(60, 30)
     check peers3.len == 0
 
-  test "needsPeers":
-    let config =
-      SwarmConfig(deltaMin: 2, deltaMax: 10, deltaTarget: 5, maxPeerFailures: 3)
-    swarm = Swarm.new(config)
-
-    check swarm.needsPeers() == true
-
-    discard swarm.addPeer(PeerId.example, BlockAvailability.complete())
-    check swarm.needsPeers() == true
-
-    discard swarm.addPeer(PeerId.example, BlockAvailability.complete())
-    check swarm.needsPeers() == false
-
   test "peersNeeded":
     let config =
       SwarmConfig(deltaMin: 2, deltaMax: 10, deltaTarget: 5, maxPeerFailures: 3)
     swarm = Swarm.new(config)
 
-    check swarm.peersNeeded() == 5
+    check swarm.peersNeeded() == shBelowMin
 
     discard swarm.addPeer(PeerId.example, BlockAvailability.complete())
-    check swarm.peersNeeded() == 4
+    check swarm.peersNeeded() == shBelowMin
+
+    discard swarm.addPeer(PeerId.example, BlockAvailability.complete())
+    check swarm.peersNeeded() == shBelowTarget
 
     discard swarm.addPeer(PeerId.example, BlockAvailability.complete())
     discard swarm.addPeer(PeerId.example, BlockAvailability.complete())
     discard swarm.addPeer(PeerId.example, BlockAvailability.complete())
-    discard swarm.addPeer(PeerId.example, BlockAvailability.complete())
-    check swarm.peersNeeded() == 0
+    check swarm.peersNeeded() == shHealthy
 
 suite "BDP Peer Selection":
   var peerCtxs: seq[PeerContext]
