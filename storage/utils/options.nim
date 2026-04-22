@@ -15,8 +15,7 @@ proc `as`*[T](value: T, U: type): ?U =
   # In that case, we do not need to do anything, just return the value as it is.
   when value is Option[U]:
     return value
-
-  when value is U:
+  elif value is U:
     return some value
   elif value is ref object:
     if value of U:

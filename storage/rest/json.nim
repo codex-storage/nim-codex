@@ -1,5 +1,4 @@
 import pkg/questionable
-import pkg/stew/byteutils
 import pkg/libp2p
 import pkg/codexdht/discv5/node as dn
 import pkg/codexdht/discv5/routing_table as rt

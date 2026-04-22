@@ -115,7 +115,8 @@ proc createStorage(
   except ValueError as err:
     return err("Failed to create Storage: invalid value for log level: " & err.msg)
 
-  conf.setupMetrics()
+  if err =? conf.setupMetrics().errorOption:
+    return err("Failed to start metrics server: " & err.msg)
 
   if not (checkAndCreateDataDir((conf.dataDir).string)):
     # We are unable to access/create data folder or data folder's

@@ -20,7 +20,7 @@ proc new*(
 
 method getBlock*(
     self: CountingStore, address: BlockAddress
-): Future[?!Block] {.async.} =
+): Future[?!Block] {.async: (raises: [CancelledError]).} =
   self.lookups.mgetOrPut(address.cid, 0).inc
   await procCall getBlock(NetworkStore(self), address)
 

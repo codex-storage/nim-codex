@@ -119,7 +119,7 @@ proc retrieveCid(
 
     while not stream.atEof:
       var
-        buff = newSeqUninitialized[byte](DefaultBlockSize.int)
+        buff = newSeqUninit[byte](DefaultBlockSize.int)
         len = await stream.readOnce(addr buff[0], buff.len)
 
       buff.setLen(len)

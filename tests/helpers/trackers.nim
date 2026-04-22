@@ -1,31 +1,13 @@
 import pkg/storage/streams/storestream
 import pkg/unittest2
 
-# From lip2p/tests/helpers
 const trackerNames = [StoreStreamTrackerName]
 
-iterator testTrackers*(extras: openArray[string] = []): TrackerBase =
-  for name in trackerNames:
-    let t = getTracker(name)
-    if not isNil(t):
-      yield t
-  for name in extras:
-    let t = getTracker(name)
-    if not isNil(t):
-      yield t
-
-proc checkTracker*(name: string) =
-  var tracker = getTracker(name)
-  if tracker.isLeaked():
-    checkpoint tracker.dump()
-    fail()
-
 proc checkTrackers*() =
-  for tracker in testTrackers():
-    if tracker.isLeaked():
-      checkpoint tracker.dump()
+  for name in trackerNames:
+    let counter = getTrackerCounter(name)
+    if counter.opened != counter.closed:
+      # show how many streams were opened vs closed to help diagnose the leak
+      checkpoint name & ": opened=" & $counter.opened & ", closed=" & $counter.closed
       fail()
-  try:
-    GC_fullCollect()
-  except:
-    discard
+  GC_fullCollect()

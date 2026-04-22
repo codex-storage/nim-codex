@@ -338,7 +338,8 @@ method listBlocks*(
     if queryIter.finished:
       iter.finish
     else:
-      if pair =? (await queryIter.next()) and cid =? pair.key:
+      let res = await queryIter.next()
+      if pair =? res and cid =? pair.key:
         doAssert pair.data.len == 0
         trace "Retrieved record from repo", cid
         return Cid.init(cid.value).mapFailure
