@@ -18,6 +18,8 @@ import pkg/taskpools
 import pkg/presto
 import pkg/libp2p
 import pkg/libp2p/protocols/connectivity/autonatv2/[service, client]
+import pkg/libp2p/protocols/connectivity/relay/client as relayClientModule
+import pkg/libp2p/services/autorelayservice
 import pkg/confutils
 import pkg/confutils/defs
 import pkg/stew/io2
@@ -54,6 +56,7 @@ type
     maintenance: BlockMaintainer
     taskpool: Taskpool
     autonatService*: AutonatV2Service
+    autoRelayService: AutoRelayService
     isStarted: bool
 
   StoragePrivateKey* = libp2p.PrivateKey # alias
@@ -195,6 +198,8 @@ proc new*(
   ## create StorageServer including setting up datastore, repostore, etc
   let listenMultiAddr = getMultiAddrWithIpAndTcpPort(config.listenIp, config.listenPort)
 
+  let relayClient = relayClientModule.RelayClient.new()
+
   let autonatClient = AutonatV2Client.new(random.Rng.instance())
   let autonatService = AutonatV2Service.new(
     rng = random.Rng.instance(),
@@ -221,6 +226,7 @@ proc new*(
     .withSignedPeerRecord(true)
     .withTcpTransport({ServerFlags.ReuseAddr, ServerFlags.TcpNoDelay})
     .withAutonatV2Server()
+    .withCircuitRelay(relayClient)
     .withServices(@[Service(autonatService)])
     .build()
 
@@ -340,6 +346,16 @@ proc new*(
       taskPool = taskPool,
     )
 
+    autoRelayService = AutoRelayService.new(
+      maxNumRelays = config.natMaxRelays,
+      client = relayClient,
+      onReservation = proc(addresses: seq[MultiAddress]) {.gcsafe, raises: [].} =
+        debug "Relay reservation updated", addresses
+        discovery.updateAnnounceRecord(addresses)
+        discovery.updateDhtRecord(addresses),
+      rng = random.Rng.instance(),
+    )
+
   var restServer: RestServerRef = nil
 
   if config.apiBindAddress.isSome:
@@ -357,14 +373,15 @@ proc new*(
   switch.mount(network)
   switch.mount(manifestProto)
 
-  let natMapper = DefaultNatMapper(natConfig: config.nat)
+  let natMapper =
+    DefaultNatMapper(natConfig: config.nat, discoveryPort: config.discoveryPort)
   autonatService.setStatusAndConfidenceHandler(
     proc(
         networkReachability: NetworkReachability, confidence: Opt[float]
     ) {.async: (raises: [CancelledError]).} =
+      debug "AutoNAT status", reachability = networkReachability, confidence
       await handleNatStatus(
-        networkReachability, confidence, natMapper, switch.peerInfo.addrs,
-        config.discoveryPort, discovery,
+        networkReachability, natMapper, discovery, switch, autoRelayService
       )
   )
 
@@ -377,4 +394,5 @@ proc new*(
     taskPool: taskPool,
     logFile: logFile,
     autonatService: autonatService,
+    autoRelayService: autoRelayService,
   )

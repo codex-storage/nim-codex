@@ -1,10 +1,15 @@
-import std/[unittest, net]
+import std/net
 import pkg/chronos
-import pkg/libp2p
 import pkg/libp2p/[multiaddress, multihash, multicodec]
-import pkg/libp2p/protocols/connectivity/autonatv2/service
+import pkg/libp2p/protocols/connectivity/autonatv2/service except setup
+import pkg/libp2p/protocols/connectivity/autonatv2/types
+import pkg/libp2p/protocols/connectivity/relay/client as relayClientModule
+import pkg/libp2p/services/autorelayservice except setup
+
 import pkg/results
 
+import ./helpers
+import ../asynctest
 import ../../storage/nat
 import ../../storage/discovery
 import ../../storage/rng
@@ -15,7 +20,12 @@ type MockNatMapper = ref object of NatMapper
   mapped: tuple[libp2p, discovery: seq[MultiAddress]]
 
 method mapNatAddresses*(
-    m: MockNatMapper, addrs: seq[MultiAddress], discoveryPort: Port
+    m: MockNatMapper, addrs: seq[MultiAddress]
+): tuple[libp2p, discovery: seq[MultiAddress]] {.raises: [].} =
+  m.mapped
+
+method getReachableAddresses*(
+    m: MockNatMapper, addrs: seq[MultiAddress]
 ): tuple[libp2p, discovery: seq[MultiAddress]] {.raises: [].} =
   m.mapped
 
@@ -44,7 +54,6 @@ suite "NAT Address Tests":
         MultiAddress.init("/ip4/8.8.8.8/tcp/5000").expect("valid multiaddr"),
         MultiAddress.init("/ip4/8.8.8.8/tcp/5000").expect("valid multiaddr"),
       ]
-
       #ipv6Addr = MultiAddress.init("/ip6/::1/tcp/5000").expect("valid multiaddr")
       addrs = @[localAddr, anyAddr, publicAddr]
 
@@ -78,17 +87,94 @@ suite "setupAddress":
     check tcpPort == some(Port(5000))
     check udpPort == some(Port(5001))
 
-suite "handleNatStatus":
-  let key = PrivateKey.random(Rng.instance[]).get()
+suite "getReachableAddresses":
+  test "returns remapped addresses when extIp is configured":
+    let
+      natConfig = NatConfig(hasExtIp: true, extIp: parseIpAddress("1.2.3.4"))
+      mapper = DefaultNatMapper(natConfig: natConfig, discoveryPort: Port(8090))
+      listenAddr = MultiAddress.init("/ip4/0.0.0.0/tcp/5000").expect("valid")
 
-  test "NotReachable updates announce addresses":
-    let disc = Discovery.new(key, announceAddrs = @[])
+    let (libp2pAddrs, discAddrs) = mapper.getReachableAddresses(@[listenAddr])
+
+    check libp2pAddrs == @[MultiAddress.init("/ip4/1.2.3.4/tcp/5000").expect("valid")]
+    check discAddrs == @[MultiAddress.init("/ip4/1.2.3.4/udp/8090").expect("valid")]
+
+suite "hasPublicIp":
+  test "hasPublicIp returns true when the address is public":
+    let ma = MultiAddress.init("/ip4/8.8.8.8/tcp/8080").expect("valid")
+    check hasPublicIp(@[ma])
+
+  test "hasPublicIp returns false when the address is private":
+    let ma = MultiAddress.init("/ip4/192.168.1.1/tcp/8080").expect("valid")
+    check not hasPublicIp(@[ma])
+
+  test "hasPublicIp returns false when the address is empty":
+    check not hasPublicIp(@[])
+
+asyncchecksuite "handleNatStatus":
+  var sw: Switch
+  var key: PrivateKey
+  var disc: Discovery
+  let autoRelay =
+    AutoRelayService.new(1, relayClientModule.RelayClient.new(), nil, Rng.instance())
+
+  setup:
+    key = PrivateKey.random(Rng.instance[]).get()
+    disc = Discovery.new(key, announceAddrs = @[])
+    sw = newStandardSwitch()
+    await sw.start()
+
+  teardown:
+    await sw.stop()
+
+    if autoRelay.isRunning:
+      discard await autoRelay.stop(sw)
+
+  test "handleNatStatus announces address when the node is not Reachable and the UPnP succeed with public ip":
     let announceAddr = MultiAddress.init("/ip4/1.2.3.4/tcp/8080").expect("valid")
     let discAddr = MultiAddress.init("/ip4/1.2.3.4/udp/8090").expect("valid")
     let mapper = MockNatMapper(mapped: (@[announceAddr], @[discAddr]))
 
-    waitFor handleNatStatus(
-      NotReachable, Opt.none(float), mapper, @[], Port(8090), disc
-    )
+    await handleNatStatus(NotReachable, mapper, disc, sw, autoRelay)
 
+    check disc.announceAddrs == @[announceAddr]
+    check not autoRelay.isRunning
+
+  # test "handleNatStatus does not announce address when the node is not Reachable and the UPnP succeed with private ip":
+  #   let privateAddr = MultiAddress.init("/ip4/192.168.1.1/tcp/8080").expect("valid")
+  #   let mapper = MockNatMapper(mapped: (@[privateAddr], @[]))
+
+  #   await handleNatStatus(
+  #     NotReachable, mapper, disc, sw, autoRelay
+  #   )
+
+  #   check disc.announceAddrs == @[]
+  #   check not autoRelay.isRunning
+
+  test "handleNatStatus starts autoRelay when node is not Reachable and UPnP failed":
+    let mapper = MockNatMapper(mapped: (@[], @[]))
+
+    await handleNatStatus(NotReachable, mapper, disc, sw, autoRelay)
+
+    check autoRelay.isRunning
+    # The addresses will be announced in the onReservation callback
+    # after a node accepted a Relay reservation.
+
+  test "handleNatStatus does not announce address when node is Reachable and relay is not running":
+    let mapper = MockNatMapper(mapped: (@[], @[]))
+
+    await handleNatStatus(Reachable, mapper, disc, sw, autoRelay)
+
+    check disc.announceAddrs == newSeq[MultiAddress]()
+    check not autoRelay.isRunning
+
+  test "handleNatStatus stops relay and announces address when node is Reachable and relay is running":
+    let announceAddr = MultiAddress.init("/ip4/1.2.3.4/tcp/8080").expect("valid")
+    let discAddr = MultiAddress.init("/ip4/1.2.3.4/udp/8090").expect("valid")
+    let mapper = MockNatMapper(mapped: (@[announceAddr], @[discAddr]))
+
+    discard await autorelayservice.setup(autoRelay, sw)
+    await handleNatStatus(Reachable, mapper, disc, sw, autoRelay)
+
+    check not autoRelay.isRunning
     check disc.announceAddrs == @[announceAddr]

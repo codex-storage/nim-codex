@@ -18,6 +18,7 @@ import pkg/chronos
 import pkg/chronicles
 import pkg/libp2p
 import pkg/libp2p/protocols/connectivity/autonatv2/service
+import pkg/libp2p/services/autorelayservice
 
 import ./utils
 import ./utils/natutils
@@ -66,12 +67,18 @@ type PrefSrcStatus = enum
 type NatMapper* = ref object of RootObj
 
 method mapNatAddresses*(
-    m: NatMapper, addrs: seq[MultiAddress], discoveryPort: Port
+    m: NatMapper, addrs: seq[MultiAddress]
 ): tuple[libp2p, discovery: seq[MultiAddress]] {.base, gcsafe, raises: [].} =
   raiseAssert "mapNatAddresses not implemented"
 
+method getReachableAddresses*(
+    m: NatMapper, addrs: seq[MultiAddress]
+): tuple[libp2p, discovery: seq[MultiAddress]] {.base, gcsafe, raises: [].} =
+  raiseAssert "getReachableAddresses not implemented"
+
 type DefaultNatMapper* = ref object of NatMapper
   natConfig*: NatConfig
+  discoveryPort*: Port
 
 ## Also does threadvar initialisation.
 ## Must be called before redirectPorts() in each thread.
@@ -451,29 +458,70 @@ proc nattedAddress*(
   (newAddrs, discoveryAddrs)
 
 method mapNatAddresses*(
-    m: DefaultNatMapper, addrs: seq[MultiAddress], discoveryPort: Port
+    m: DefaultNatMapper, addrs: seq[MultiAddress]
 ): tuple[libp2p, discovery: seq[MultiAddress]] {.gcsafe, raises: [].} =
-  nattedAddress(m.natConfig, addrs, discoveryPort)
+  nattedAddress(m.natConfig, addrs, m.discoveryPort)
+
+method getReachableAddresses*(
+    m: DefaultNatMapper, addrs: seq[MultiAddress]
+): tuple[libp2p, discovery: seq[MultiAddress]] {.gcsafe, raises: [].} =
+  let ip =
+    if m.natConfig.hasExtIp:
+      some(m.natConfig.extIp)
+    else:
+      let (routeIp, _) = getRoutePrefSrc(static parseIpAddress("0.0.0.0"))
+      routeIp
+  if ip.isNone:
+    return (@[], @[])
+  let announceAddrs =
+    addrs.mapIt(it.remapAddr(ip = ip, port = none(Port))).deduplicate()
+  (announceAddrs, @[getMultiAddrWithIPAndUDPPort(ip.get, m.discoveryPort)])
+
+proc hasPublicIp*(addrs: seq[MultiAddress]): bool =
+  for addr in addrs:
+    let (ip, _) = getAddressAndPort(addr)
+    if ip.isSome and isGlobalUnicast(ip.get):
+      return true
 
 proc handleNatStatus*(
     networkReachability: NetworkReachability,
-    confidence: Opt[float],
     mapper: NatMapper,
-    listenAddrs: seq[MultiAddress],
-    discoveryPort: Port,
     discovery: Discovery,
+    switch: Switch,
+    autoRelayService: AutoRelayService,
 ) {.async: (raises: [CancelledError]).} =
-  debug "AutoNAT status", reachability = networkReachability, confidence
-
   case networkReachability
-  of Reachable:
-    # TODO: switch DHT to server mode, stop relay if running
-    discard
-  of NotReachable:
-    let (announceAddrs, discoveryAddrs) =
-      mapper.mapNatAddresses(listenAddrs, discoveryPort)
-    discovery.updateAnnounceRecord(announceAddrs)
-    discovery.updateDhtRecord(announceAddrs & discoveryAddrs)
   of Unknown:
     # Nothing to do here, not enough confidence score result
     discard
+  of Reachable:
+    # For UPnP, it the mapping was a success,
+    # the autorelay service has been stopped
+    # and the address was already announced
+    if autoRelayService.isRunning:
+      if not await autoRelayService.stop(switch):
+        debug "AutoRelayService stop method returned false"
+
+      let (announceAddrs, discoveryAddrs) =
+        mapper.getReachableAddresses(switch.peerInfo.addrs)
+      discovery.updateAnnounceRecord(announceAddrs)
+      discovery.updateDhtRecord(announceAddrs & discoveryAddrs)
+    # TODO: switch DHT to server mode
+  of NotReachable:
+    let (announceAddrs, discoveryAddrs) = mapper.mapNatAddresses(switch.peerInfo.addrs)
+
+    # With a UPnP / NatPmP successful mapping,
+    # we suppose that having a public IP make it Reachable.
+    # If not, the state will be updated in the next Autonat iteration.
+    # TODO: Do we need to manually call dialMe to make sure we are Reachable ?
+    if hasPublicIp(announceAddrs):
+      discovery.updateAnnounceRecord(announceAddrs)
+      discovery.updateDhtRecord(announceAddrs & discoveryAddrs)
+
+      if autoRelayService.isRunning:
+        if not await autoRelayService.stop(switch):
+          debug "AutoRelayService stop method returned false"
+    else:
+      if not autoRelayService.isRunning:
+        if not await autoRelayService.setup(switch):
+          debug "AutoRelayService setup method returned false"
