@@ -229,6 +229,7 @@ proc sendWantBlocksRequest(
 
   let treeCid = download.treeCid
 
+  # missingIndices must be sorted ascending with no duplicates for correct coalescing
   var ranges: seq[tuple[start: uint64, count: uint64]] = @[]
   if missingIndices.len > 0:
     var
