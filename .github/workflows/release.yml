@@ -205,6 +205,9 @@ jobs:
     runs-on: ubuntu-latest
     if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
     needs: build-docker-dist-tests
+    permissions:
+      id-token: write
+      contents: read
     env:
       TF_VAR_project: ${{ secrets.RELEASE_TESTS_GCP_PROJECT }}
       TF_VAR_region: europe-west4
