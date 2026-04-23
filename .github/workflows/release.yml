@@ -215,7 +215,7 @@ jobs:
       TEST_TYPE: release-tests
       BRANCH: ${{ inputs.branch || 'master' }}
       SOURCE: https://github.com/logos-storage/logos-storage-nim-cs-dist-tests
-      TF_DIR: .github/release/clusters/logos-storage-dist-tests-gcp-europe-west4
+      TF_DIR: .github/release/clusters/logos-storage-rel-tests-gcp-europe-west4
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -248,7 +248,7 @@ jobs:
 
       - name: Get kubeconfig
         run: |
-          gcloud container clusters get-credentials logos-storage-dist-tests-gcp-europe-west4 \
+          gcloud container clusters get-credentials logos-storage-rel-tests-gcp-europe-west4 \
             --region europe-west4 \
             --project ${{ secrets.RELEASE_TESTS_GCP_PROJECT }}
 
