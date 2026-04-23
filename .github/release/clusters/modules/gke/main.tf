@@ -1,7 +1,7 @@
 # Kubernetes cluster
 resource "google_container_cluster" "this" {
   name     = local.name
-  location = var.region
+  location = var.zone
   project  = var.project
 
   # Create an empty cluster — all node pools are managed as separate resources
@@ -28,7 +28,7 @@ resource "google_container_cluster" "this" {
 resource "google_container_node_pool" "default" {
   name     = var.node_pool_name
   cluster  = google_container_cluster.this.id
-  location = var.region
+  location = var.zone
   project  = var.project
 
   autoscaling {

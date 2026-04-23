@@ -11,7 +11,12 @@ variable "project" {
 
 variable "region" {
   type        = string
-  description = "The GCP region for the cluster (regional cluster spans 3 zones)."
+  description = "The GCP region (used for the provider and node pool location)."
+}
+
+variable "zone" {
+  type        = string
+  description = "The GCP zone for the cluster. Using a single zone avoids the longer provisioning time of a regional (multi-zone) cluster."
 }
 
 # Kubernetes Control Plane

@@ -211,6 +211,7 @@ jobs:
     env:
       TF_VAR_project: ${{ secrets.RELEASE_TESTS_GCP_PROJECT }}
       TF_VAR_region: europe-west4
+      TF_VAR_zone: europe-west4-b
       STORAGEDOCKERIMAGE: ${{ needs.build-docker-dist-tests.outputs.logos_storage_image }}
       TEST_TYPE: release-tests
       BRANCH: ${{ inputs.branch || 'master' }}
@@ -249,7 +250,7 @@ jobs:
       - name: Get kubeconfig
         run: |
           gcloud container clusters get-credentials logos-storage-rel-tests-gcp-europe-west4 \
-            --region europe-west4 \
+            --zone europe-west4-b \
             --project ${{ secrets.RELEASE_TESTS_GCP_PROJECT }}
 
       - name: Create in-cluster app kubeconfig secret

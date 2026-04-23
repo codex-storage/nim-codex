@@ -5,6 +5,7 @@ module "gke" {
   name                       = "logos-storage-rel-tests"
   project                    = var.project
   region                     = var.region
+  zone                       = var.zone
   kubernetes_release_channel = "STABLE"
   node_pool_name             = "infra-e2-standard-4"
   node_pool_machine_type     = "e2-standard-4"
@@ -21,7 +22,7 @@ module "gke" {
 resource "google_container_node_pool" "runners-ci" {
   name     = "runners-ci-e2-standard-2"
   cluster  = module.gke.kubernetes_cluster_id
-  location = var.region
+  location = var.zone
   project  = var.project
 
   autoscaling {
@@ -47,7 +48,7 @@ resource "google_container_node_pool" "runners-ci" {
 resource "google_container_node_pool" "tests-pods" {
   name     = "tests-e2-medium"
   cluster  = module.gke.kubernetes_cluster_id
-  location = var.region
+  location = var.zone
   project  = var.project
 
   autoscaling {
