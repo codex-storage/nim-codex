@@ -7,6 +7,8 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
+import std/math
+
 import pkg/libp2p
 import pkg/chronos
 import pkg/questionable
@@ -14,12 +16,34 @@ import pkg/questionable
 import ./peerstats
 
 const
-  ThroughputScoreBaseline* = 12_500_000.0 # 100 Mbps baseline for throughput scoring
+  WeightCapacity* = 0.30
+  WeightThroughput* = 0.25
+  WeightRtt* = 0.25
+  WeightPenalty* = 0.20
+
+  BestRatio* = 0.0
+  WorstRatio* = 1.0
+
+  # Absolute reference points for normalization. Peers far beyond these
+  # saturate at BestRatio or WorstRatio.
+  RefMaxBps* = 104_857_600.0 # 100 MiB/s — peer implementation's peak throughput
+  RefMaxRttMicros* = 500_000.0 # 500 ms
+  RefMaxPenalty* = 15.0 # e.g. ~5 failures at TimeoutPenaltyWeight=3
+
+  # Fallback ratios used when a peer lacks a specific metric.
+  # 0.5 places the peer mid-range so it's neither preferred nor punished.
+  FallbackThroughputRatio* = 0.5
+  FallbackRttRatio* = 0.5
+
   DefaultBatchTimeout* = 30.seconds # fallback when no BDP stats available
   TimeoutSafetyFactor* = 3.0
     # multiplier to account for variance (network jitter, congestion, GC pauses )
   MinBatchTimeout* = 5.seconds # min to avoid too aggressive timeouts
   MaxBatchTimeout* = 45.seconds # max to handle high contention scenarios
+
+static:
+  doAssert (WeightCapacity + WeightThroughput + WeightRtt + WeightPenalty) == 1.0,
+    "BDP score weights must sum to 1.0"
 
 type PeerContext* = ref object of RootObj
   id*: PeerId
@@ -66,28 +90,37 @@ proc batchTimeout*(self: PeerContext, batchBytes: uint64): Duration =
 proc evalBDPScore*(
     self: PeerContext, batchBytes: uint64, currentLoad: int, penalty: float
 ): float =
+  ## Weighted sum of normalized components. Each component is in [0, 1]
+  ## where 0 = best and 1 = worst. Lower final score is better.
   let
     pipelineDepth = self.optimalPipelineDepth(batchBytes)
-    capacityScore =
+    capacityRatio =
       if currentLoad >= pipelineDepth:
-        100.0
+        WorstRatio
+      elif pipelineDepth > 0:
+        currentLoad.float / pipelineDepth.float
       else:
-        (currentLoad.float / pipelineDepth.float) * 10.0
+        WorstRatio
 
-    throughputScore =
+    throughputRatio =
       if self.stats.throughputBps().isSome:
         let bps = self.stats.throughputBps().get().float
-        if bps > 0:
-          ThroughputScoreBaseline / bps
+        if bps <= 0:
+          WorstRatio
         else:
-          50.0
+          clamp(WorstRatio - bps / RefMaxBps, BestRatio, WorstRatio)
       else:
-        25.0 # normalization fallback
+        FallbackThroughputRatio
 
-    rttScore =
+    rttRatio =
       if self.stats.avgRttMicros().isSome:
-        self.stats.avgRttMicros().get().float / 10000.0
+        clamp(
+          self.stats.avgRttMicros().get().float / RefMaxRttMicros, BestRatio, WorstRatio
+        )
       else:
-        5.0 # normalization fallback
+        FallbackRttRatio
 
-  return capacityScore + throughputScore + rttScore + penalty
+    penaltyRatio = clamp(penalty / RefMaxPenalty, BestRatio, WorstRatio)
+
+  WeightCapacity * capacityRatio + WeightThroughput * throughputRatio +
+    WeightRtt * rttRatio + WeightPenalty * penaltyRatio
