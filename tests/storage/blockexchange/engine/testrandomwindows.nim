@@ -1,4 +1,4 @@
-import std/[sets, options, hashes, random]
+import std/[sets, options]
 
 import pkg/unittest2
 import pkg/libp2p/cid

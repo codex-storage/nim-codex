@@ -1,6 +1,3 @@
-import std/sequtils
-import std/algorithm
-
 import pkg/chronos
 import pkg/storage/stores
 import pkg/storage/blockexchange
@@ -11,7 +8,6 @@ import pkg/storage/blockexchange/engine/activedownload {.all.}
 import pkg/storage/chunker
 import pkg/storage/discovery
 import pkg/storage/blocktype as bt
-import pkg/storage/utils/safeasynciter
 
 import ../../../asynctest
 import ../../examples

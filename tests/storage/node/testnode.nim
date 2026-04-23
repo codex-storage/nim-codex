@@ -27,7 +27,6 @@ import ../../asynctest
 import ../examples
 import ../helpers
 import ../helpers/mockclock
-import ../slots/helpers
 
 import ./helpers
 

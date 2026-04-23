@@ -12,7 +12,6 @@ import pkg/storage/blockexchange
 import pkg/storage/systemclock
 import pkg/storage/nat
 import pkg/storage/utils/natutils
-import pkg/storage/utils/safeasynciter
 import pkg/storage/merkletree
 import pkg/storage/manifest
 

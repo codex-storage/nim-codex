@@ -1,7 +1,6 @@
 import std/strutils
 
 from pkg/libp2p import Cid, `$`, init
-import pkg/stint
 import pkg/questionable/results
 import pkg/chronos/apps/http/[httpserver, shttpserver, httpclient, httptable]
 import pkg/storage/logutils

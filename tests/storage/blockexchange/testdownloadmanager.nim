@@ -1,11 +1,10 @@
-import std/[sequtils, algorithm, options]
+import std/options
 
 import pkg/chronos
 import pkg/stew/byteutils
 import pkg/libp2p/peerid
 import pkg/libp2p/cid
 
-import pkg/storage/merkletree
 import pkg/storage/blocktype as bt
 import pkg/storage/blockexchange
 import pkg/storage/blockexchange/engine/downloadcontext {.all.}

@@ -1,5 +1,3 @@
-import std/sequtils
-
 import pkg/chronos
 
 import pkg/storage/rng

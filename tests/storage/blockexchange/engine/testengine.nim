@@ -1,4 +1,4 @@
-import std/[sequtils, options, algorithm]
+import std/[sequtils, options]
 
 import pkg/chronos
 import pkg/libp2p/routing_record
