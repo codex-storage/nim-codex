@@ -5,7 +5,7 @@
 
 import std/[options, json, strutils, net, os]
 import codexdht/discv5/spr
-import stew/shims/parseutils
+import std/parseutils
 import contractabi/address
 import chronos
 import chronicles
