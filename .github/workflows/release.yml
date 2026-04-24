@@ -298,7 +298,14 @@ jobs:
           echo "TESTID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
 
       - name: Deploy test job
-        run: envsubst < .github/release/job-release-tests.yaml | kubectl apply -f -
+        run: |
+          envsubst < .github/release/job-release-tests.yaml | kubectl apply -f -
+          echo "--- Job ---"
+          kubectl get job $NAMEPREFIX -n default
+          echo "--- Pods ---"
+          kubectl get pods -n default
+          echo "--- Job events ---"
+          kubectl describe job $NAMEPREFIX -n default
 
       - name: Print storage node log link
         run: |
@@ -322,6 +329,7 @@ jobs:
         run: |
           echo "Waiting for test pod to reach Running state..."
           deadline=$((SECONDS + 300))
+          last_describe=0
           while [[ $SECONDS -lt $deadline ]]; do
             phase=$(kubectl get pods \
               -l job-name=$NAMEPREFIX \
@@ -329,6 +337,11 @@ jobs:
               -o jsonpath='{range .items[*]}{.status.phase}{end}' 2>/dev/null)
             echo "Pod phase: ${phase:-not yet created}"
             if [[ "$phase" == "Running" ]]; then break; fi
+            if [[ $((SECONDS - last_describe)) -ge 60 ]]; then
+              echo "--- kubectl describe job $NAMEPREFIX ---"
+              kubectl describe job $NAMEPREFIX -n default
+              last_describe=$SECONDS
+            fi
             sleep 10
           done
           if [[ "$phase" != "Running" ]]; then
