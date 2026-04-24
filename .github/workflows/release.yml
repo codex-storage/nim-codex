@@ -264,6 +264,14 @@ jobs:
             --zone europe-west4-b \
             --project ${{ vars.RELEASE_TESTS_GCP_PROJECT }}
 
+      - name: Wait for runners-ci node to be Ready
+        run: |
+          kubectl wait \
+            --for=condition=Ready \
+            node \
+            -l workload-type=tests-runners-ci \
+            --timeout=300s
+
       - name: Create in-cluster app kubeconfig secret
         run: |
           kubectl create serviceaccount release-tests-runner -n default
