@@ -325,10 +325,13 @@ jobs:
               -n default \
               -o jsonpath='{.items[0].status.phase}' 2>/dev/null)
             echo "Pod phase: ${phase:-not yet created}"
-            [[ "$phase" == "Running" ]] && break
+            if [[ "$phase" == "Running" ]]; then break; fi
             sleep 10
           done
-          [[ "$phase" == "Running" ]] || { echo "Timed out waiting for pod to reach Running state"; exit 1; }
+          if [[ "$phase" != "Running" ]]; then
+            echo "Timed out waiting for pod to reach Running state"
+            exit 1
+          fi
 
       - name: Stream test logs
         run: |
