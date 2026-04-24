@@ -294,7 +294,7 @@ jobs:
           kubectl wait pod \
             -l job-name=$NAMEPREFIX \
             -n default \
-            --for=exists \
+            --for=create \
             --timeout=120s
           kubectl wait pod \
             -l job-name=$NAMEPREFIX \
