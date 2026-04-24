@@ -347,48 +347,48 @@ jobs:
         run: terraform destroy -auto-approve
 
   # Release
-  release:
-    runs-on: ubuntu-latest
-    needs: [build, release-tests]
-    if: needs.build.result == 'success' && needs.release-tests.result == 'success'
-    steps:
-      - name: Set conditional env variables
-        shell: bash
-        run: |
-          if [[ "${{ github.ref_type }}" == "tag" ]]; then
-            echo "VERSION=${{ github.ref_name }}" >> $GITHUB_ENV
-            echo "TAGGED_RELEASE=true" >> $GITHUB_ENV
-          else
-            echo "VERSION=${GITHUB_SHA::7}" >> $GITHUB_ENV
-            echo "TAGGED_RELEASE=false" >> $GITHUB_ENV
-          fi
-      - name: Download binaries from workflow artifacts into temp folder
-        uses: actions/download-artifact@v4
-        with:
-          pattern: ${{ env.storage_binary_base }}*
-          merge-multiple: true
-          path: /tmp/release
+  # release:
+  #   runs-on: ubuntu-latest
+  #   needs: [build, release-tests]
+  #   if: needs.build.result == 'success' && needs.release-tests.result == 'success'
+  #   steps:
+  #     - name: Set conditional env variables
+  #       shell: bash
+  #       run: |
+  #         if [[ "${{ github.ref_type }}" == "tag" ]]; then
+  #           echo "VERSION=${{ github.ref_name }}" >> $GITHUB_ENV
+  #           echo "TAGGED_RELEASE=true" >> $GITHUB_ENV
+  #         else
+  #           echo "VERSION=${GITHUB_SHA::7}" >> $GITHUB_ENV
+  #           echo "TAGGED_RELEASE=false" >> $GITHUB_ENV
+  #         fi
+  #     - name: Download binaries from workflow artifacts into temp folder
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         pattern: ${{ env.storage_binary_base }}*
+  #         merge-multiple: true
+  #         path: /tmp/release
 
-      - name: Download ${{ env.c_bindings_lib_base }} from workflow artifacts into temp folder
-        uses: actions/download-artifact@v5
-        with:
-          pattern: ${{ env.c_bindings_lib_base }}*
-          merge-multiple: true
-          path: /tmp/release
+  #     - name: Download ${{ env.c_bindings_lib_base }} from workflow artifacts into temp folder
+  #       uses: actions/download-artifact@v5
+  #       with:
+  #         pattern: ${{ env.c_bindings_lib_base }}*
+  #         merge-multiple: true
+  #         path: /tmp/release
 
-      - name: Create GH release
-        uses: softprops/action-gh-release@v2
-        if: env.TAGGED_RELEASE == 'true'
-        with:
-          files: |
-            /tmp/release/*-*
-          make_latest: true
+  #     - name: Create GH release
+  #       uses: softprops/action-gh-release@v2
+  #       if: env.TAGGED_RELEASE == 'true'
+  #       with:
+  #         files: |
+  #           /tmp/release/*-*
+  #         make_latest: true
 
-      - name: Generate Python SDK
-        uses: peter-evans/repository-dispatch@v3
-        if: env.TAGGED_RELEASE == 'true'
-        with:
-          token: ${{ secrets.DISPATCH_PAT }}
-          repository: logos-storage/logos-storage-py-api-client
-          event-type: generate
-          client-payload: '{"openapi_url": "https://raw.githubusercontent.com/logos-storage/logos-storage-nim/${{ github.ref }}/openapi.yaml"}'
+  #     - name: Generate Python SDK
+  #       uses: peter-evans/repository-dispatch@v3
+  #       if: env.TAGGED_RELEASE == 'true'
+  #       with:
+  #         token: ${{ secrets.DISPATCH_PAT }}
+  #         repository: logos-storage/logos-storage-py-api-client
+  #         event-type: generate
+  #         client-payload: '{"openapi_url": "https://raw.githubusercontent.com/logos-storage/logos-storage-nim/${{ github.ref }}/openapi.yaml"}'
