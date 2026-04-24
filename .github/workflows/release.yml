@@ -223,15 +223,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Create Terraform plugin cache dir
+        run: mkdir -p ~/.terraform.d/plugin-cache
+
       - name: Cache Terraform plugins
         uses: actions/cache@v4
         with:
           path: ~/.terraform.d/plugin-cache
           key: terraform-google-${{ hashFiles(format('{0}/.terraform.lock.hcl', env.TF_DIR)) }}
           restore-keys: terraform-google-
-
-      - name: Create Terraform plugin cache dir
-        run: mkdir -p ~/.terraform.d/plugin-cache
 
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v2
