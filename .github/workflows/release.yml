@@ -326,7 +326,7 @@ jobs:
             phase=$(kubectl get pods \
               -l job-name=$NAMEPREFIX \
               -n default \
-              -o jsonpath='{.items[0].status.phase}' 2>/dev/null)
+              -o jsonpath='{range .items[*]}{.status.phase}{end}' 2>/dev/null)
             echo "Pod phase: ${phase:-not yet created}"
             if [[ "$phase" == "Running" ]]; then break; fi
             sleep 10
