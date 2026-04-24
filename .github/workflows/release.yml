@@ -317,9 +317,13 @@ jobs:
 
       - name: Wait for test pod to start
         run: |
-          echo "Waiting for pod to be created..."
-          timeout 120 bash -c \
-            'until kubectl get pod -l job-name=$NAMEPREFIX -n default --no-headers 2>/dev/null | grep -q .; do sleep 5; done'
+          echo "Waiting for job to have an active pod..."
+          deadline=$((SECONDS + 120))
+          while [[ $SECONDS -lt $deadline ]]; do
+            active=$(kubectl get job $NAMEPREFIX -n default -o jsonpath='{.status.active}' 2>/dev/null)
+            [[ "$active" == "1" ]] && break
+            sleep 5
+          done
           kubectl wait \
             --for=condition=Ready \
             pod \
