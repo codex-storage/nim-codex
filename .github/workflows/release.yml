@@ -230,6 +230,9 @@ jobs:
           key: terraform-google-${{ hashFiles(format('{0}/.terraform.lock.hcl', env.TF_DIR)) }}
           restore-keys: terraform-google-
 
+      - name: Create Terraform plugin cache dir
+        run: mkdir -p ~/.terraform.d/plugin-cache
+
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v2
         with:
