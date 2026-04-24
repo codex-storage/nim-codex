@@ -309,15 +309,17 @@ jobs:
 
       - name: Wait for test pod to start
         run: |
-          kubectl wait pod \
-            -l job-name=$NAMEPREFIX \
-            -n default \
+          kubectl wait \
             --for=create \
-            --timeout=120s
-          kubectl wait pod \
+            pod \
             -l job-name=$NAMEPREFIX \
             -n default \
+            --timeout=120s
+          kubectl wait \
             --for=condition=Ready \
+            pod \
+            -l job-name=$NAMEPREFIX \
+            -n default \
             --timeout=300s
 
       - name: Stream test logs
