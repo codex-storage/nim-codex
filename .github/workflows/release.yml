@@ -204,7 +204,7 @@ jobs:
     name: Release Tests
     runs-on: ubuntu-latest
     if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
-    needs: build-docker-dist-tests
+    # needs: build-docker-dist-tests
     timeout-minutes: 60
     permissions:
       id-token: write
