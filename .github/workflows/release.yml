@@ -254,7 +254,7 @@ jobs:
 
       - name: Terraform init
         working-directory: ${{ env.TF_DIR }}
-        run: terraform init -backend-config="bucket=${{ secrets.RELEASE_TESTS_TF_STATE_BUCKET }}"
+        run: terraform init -backend-config="bucket=${{ vars.RELEASE_TESTS_TF_STATE_BUCKET }}"
 
       - name: Terraform apply
         id: tf-apply
