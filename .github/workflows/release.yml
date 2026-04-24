@@ -294,6 +294,11 @@ jobs:
           kubectl wait pod \
             -l job-name=$NAMEPREFIX \
             -n default \
+            --for=exists \
+            --timeout=120s
+          kubectl wait pod \
+            -l job-name=$NAMEPREFIX \
+            -n default \
             --for=condition=Ready \
             --timeout=300s
 
