@@ -247,7 +247,7 @@ jobs:
       - name: Setup kubectl
         uses: azure/setup-kubectl@v4
         with:
-          version: v1.30.5
+          version: v1.36.0
 
       - name: Terraform init
         working-directory: ${{ env.TF_DIR }}
