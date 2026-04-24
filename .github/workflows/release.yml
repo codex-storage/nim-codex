@@ -317,19 +317,18 @@ jobs:
 
       - name: Wait for test pod to start
         run: |
-          echo "Waiting for job to have an active pod..."
-          deadline=$((SECONDS + 120))
+          echo "Waiting for test pod to reach Running state..."
+          deadline=$((SECONDS + 300))
           while [[ $SECONDS -lt $deadline ]]; do
-            active=$(kubectl get job $NAMEPREFIX -n default -o jsonpath='{.status.active}' 2>/dev/null)
-            [[ "$active" == "1" ]] && break
-            sleep 5
+            phase=$(kubectl get pods \
+              -l job-name=$NAMEPREFIX \
+              -n default \
+              -o jsonpath='{.items[0].status.phase}' 2>/dev/null)
+            echo "Pod phase: ${phase:-not yet created}"
+            [[ "$phase" == "Running" ]] && break
+            sleep 10
           done
-          kubectl wait \
-            --for=condition=Ready \
-            pod \
-            -l job-name=$NAMEPREFIX \
-            -n default \
-            --timeout=300s
+          [[ "$phase" == "Running" ]] || { echo "Timed out waiting for pod to reach Running state"; exit 1; }
 
       - name: Stream test logs
         run: |
