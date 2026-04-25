@@ -38,7 +38,7 @@ proc commonBlockStoreTests*(
       newBlock2 = Block.new("2".repeat(100).toBytes()).tryGet()
       newBlock3 = Block.new("3".repeat(100).toBytes()).tryGet()
 
-      (_, tree, manifest) =
+      (_, tree, manifest, _) =
         makeDataset(@[newBlock, newBlock1, newBlock2, newBlock3]).tryGet()
 
       if not isNil(before):

@@ -1,5 +1,5 @@
-import std/random
-import std/sequtils
+import std/[random, sequtils]
+
 import pkg/libp2p
 import pkg/stint
 import pkg/storage/rng
@@ -19,15 +19,14 @@ proc example*(_: type PeerId): PeerId =
   let key = PrivateKey.random(Rng.instance[]).get
   PeerId.init(key.getPublicKey().get).get
 
-proc example*(_: type BlockExcPeerCtx): BlockExcPeerCtx =
-  BlockExcPeerCtx(id: PeerId.example)
+proc example*(_: type PeerContext): PeerContext =
+  PeerContext(id: PeerId.example)
 
 proc example*(_: type Cid): Cid =
   bt.Block.example.cid
 
 proc example*(_: type BlockAddress): BlockAddress =
-  let cid = Cid.example
-  BlockAddress.init(cid)
+  BlockAddress.init(Cid.example, 0)
 
 proc example*(_: type Manifest): Manifest =
   Manifest.new(

@@ -94,8 +94,7 @@ method readOnce*(
           self.manifest.blockSize.int - blockOffset,
         ]
       )
-      address =
-        BlockAddress(leaf: true, treeCid: self.manifest.treeCid, index: blockNum)
+      address = BlockAddress(treeCid: self.manifest.treeCid, index: blockNum)
 
     # Read contents of block `blockNum`
     without blk =? (await self.store.getBlock(address)).tryGet.catch, error:
@@ -113,7 +112,7 @@ method readOnce*(
     if blk.isEmpty:
       zeroMem(pbytes.offset(read), readBytes)
     else:
-      copyMem(pbytes.offset(read), blk.data[blockOffset].unsafeAddr, readBytes)
+      copyMem(pbytes.offset(read), blk.data[][blockOffset].unsafeAddr, readBytes)
 
     # Update current positions in the stream and outbuf
     self.offset += readBytes

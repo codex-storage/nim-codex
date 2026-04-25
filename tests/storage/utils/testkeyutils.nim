@@ -8,7 +8,7 @@ import ../helpers
 when defined(windows):
   import stew/windows/acl
 
-suite "keyutils":
+suite "Keyutils":
   let path = getTempDir() / "StorageTest"
 
   setup:

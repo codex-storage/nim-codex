@@ -44,7 +44,7 @@ import ./utils
 import ./nat
 import ./utils/natutils
 
-from ./blockexchange/engine/pendingblocks import DefaultBlockRetries
+from ./blockexchange/engine/downloadmanager import DefaultBlockRetries
 
 export units, net, storagetypes, logutils, completeCmdArg, parseCmdArg, NatConfig
 

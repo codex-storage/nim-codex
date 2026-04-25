@@ -109,7 +109,9 @@ proc fetch(
     if manifest.isErr:
       return err("Failed to fetch the data: " & manifest.error.msg)
 
-    node.fetchDatasetAsyncTask(manifest.get())
+    node.fetchDatasetAsyncTask(
+      ManifestDescriptor(manifest: manifest.get(), manifestCid: cid.get())
+    )
 
     return ok(serde.toJson(manifest.get()))
   except CancelledError:

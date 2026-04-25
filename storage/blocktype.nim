@@ -7,11 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/tables
-import std/sugar
-import std/hashes
-
-export tables
+import std/[tables, sugar, hashes]
 
 {.push raises: [], gcsafe.}
 
@@ -32,61 +28,34 @@ export errors, logutils, units, storagetypes
 type
   Block* = ref object of RootObj
     cid*: Cid
-    data*: seq[byte]
+    data*: ref seq[byte]
 
   BlockAddress* = object
-    case leaf*: bool
-    of true:
-      treeCid* {.serialize.}: Cid
-      index* {.serialize.}: Natural
-    else:
-      cid* {.serialize.}: Cid
+    treeCid* {.serialize.}: Cid
+    index* {.serialize.}: Natural
 
 logutils.formatIt(LogFormat.textLines, BlockAddress):
-  if it.leaf:
-    "treeCid: " & shortLog($it.treeCid) & ", index: " & $it.index
-  else:
-    "cid: " & shortLog($it.cid)
+  "treeCid: " & shortLog($it.treeCid) & ", index: " & $it.index
 
 logutils.formatIt(LogFormat.json, BlockAddress):
   %it
 
 proc `==`*(a, b: BlockAddress): bool =
-  a.leaf == b.leaf and (
-    if a.leaf:
-      a.treeCid == b.treeCid and a.index == b.index
-    else:
-      a.cid == b.cid
-  )
+  a.treeCid == b.treeCid and a.index == b.index
 
 proc `$`*(a: BlockAddress): string =
-  if a.leaf:
-    "treeCid: " & $a.treeCid & ", index: " & $a.index
-  else:
-    "cid: " & $a.cid
+  "treeCid: " & $a.treeCid & ", index: " & $a.index
 
 proc hash*(a: BlockAddress): Hash =
-  if a.leaf:
-    let data = a.treeCid.data.buffer & @(a.index.uint64.toBytesBE)
-    hash(data)
-  else:
-    hash(a.cid.data.buffer)
-
-proc cidOrTreeCid*(a: BlockAddress): Cid =
-  if a.leaf: a.treeCid else: a.cid
-
-proc address*(b: Block): BlockAddress =
-  BlockAddress(leaf: false, cid: b.cid)
-
-proc init*(_: type BlockAddress, cid: Cid): BlockAddress =
-  BlockAddress(leaf: false, cid: cid)
+  let data = a.treeCid.data.buffer & @(a.index.uint64.toBytesBE)
+  hash(data)
 
 proc init*(_: type BlockAddress, treeCid: Cid, index: Natural): BlockAddress =
-  BlockAddress(leaf: true, treeCid: treeCid, index: index)
+  BlockAddress(treeCid: treeCid, index: index)
 
 proc `$`*(b: Block): string =
   result &= "cid: " & $b.cid
-  result &= "\ndata: " & string.fromBytes(b.data)
+  result &= "\ndata: " & string.fromBytes(b.data[])
 
 func new*(
     T: type Block,
@@ -96,7 +65,6 @@ func new*(
     codec = BlockCodec,
 ): ?!Block =
   ## creates a new block for both storage and network IO
-  ##
 
   let
     hash = ?MultiHash.digest($mcodec, data).mapFailure
@@ -105,13 +73,14 @@ func new*(
   # TODO: If the hash is `>=` to the data,
   # use the Cid as a container!
 
-  Block(cid: cid, data: @data).success
+  var dataRef: ref seq[byte]
+  new(dataRef)
+  dataRef[] = @data
+  Block(cid: cid, data: dataRef).success
 
-proc new*(
-    T: type Block, cid: Cid, data: openArray[byte], verify: bool = true
-): ?!Block =
+proc new*(T: type Block, cid: Cid, data: sink seq[byte], verify: bool = true): ?!Block =
   ## creates a new block for both storage and network IO
-  ##
+  ## takes ownership of the data seq to avoid copying
 
   if verify:
     let
@@ -121,7 +90,16 @@ proc new*(
     if computedCid != cid:
       return "Cid doesn't match the data".failure
 
-  return Block(cid: cid, data: @data).success
+  var dataRef: ref seq[byte]
+  new(dataRef)
+  dataRef[] = move(data)
+  return Block(cid: cid, data: dataRef).success
+
+proc new*(
+    T: type Block, cid: Cid, data: openArray[byte], verify: bool = true
+): ?!Block =
+  ## creates a new block for both storage and network IO
+  Block.new(cid, @data, verify)
 
 proc emptyBlock*(version: CidVersion, hcodec: MultiCodec): ?!Block =
   emptyCid(version, hcodec, BlockCodec).flatMap(

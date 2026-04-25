@@ -24,6 +24,7 @@ import pkg/datastore
 import pkg/stew/io2
 
 import ./node
+import ./manifest/protocol
 import ./conf
 import ./rng as random
 import ./rest/api
@@ -176,7 +177,7 @@ proc new*(
     .withAddresses(@[listenMultiAddr])
     .withRng(random.Rng.instance())
     .withNoise()
-    .withMplex(5.minutes, 5.minutes)
+    .withYamux()
     .withMaxConnections(config.maxPeers)
     .withAgentVersion(config.agentString)
     .withSignedPeerRecord(true)
@@ -265,21 +266,22 @@ proc new*(
       numberOfBlocksPerInterval = config.blockMaintenanceNumberOfBlocks,
     )
 
-    peerStore = PeerCtxStore.new()
-    pendingBlocks = PendingBlocksManager.new(retries = config.blockRetries)
+    peerStore = PeerContextStore.new()
+    downloadManager = DownloadManager.new(retries = config.blockRetries)
     advertiser = Advertiser.new(repoStore, discovery)
-    blockDiscovery =
-      DiscoveryEngine.new(repoStore, peerStore, network, discovery, pendingBlocks)
+    blockDiscovery = DiscoveryEngine.new(repoStore, peerStore, network, discovery)
     engine = BlockExcEngine.new(
-      repoStore, network, blockDiscovery, advertiser, peerStore, pendingBlocks
+      repoStore, network, blockDiscovery, advertiser, peerStore, downloadManager
     )
     store = NetworkStore.new(engine, repoStore)
+    manifestProto = ManifestProtocol.new(switch, repoStore, discovery)
 
     storageNode = StorageNodeRef.new(
       switch = switch,
       networkStore = store,
       engine = engine,
       discovery = discovery,
+      manifestProto = manifestProto,
       taskPool = taskPool,
     )
 
@@ -296,6 +298,7 @@ proc new*(
       .expect("Should create rest server!")
 
   switch.mount(network)
+  switch.mount(manifestProto)
 
   StorageServer(
     config: config,

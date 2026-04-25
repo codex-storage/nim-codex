@@ -1,4 +1,5 @@
 import ./peers/peerctxstore
 import ./peers/peercontext
+import ./peers/peerstats
 
-export peerctxstore, peercontext
+export peerctxstore, peercontext, peerstats

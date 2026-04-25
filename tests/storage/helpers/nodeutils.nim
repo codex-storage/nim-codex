@@ -1,5 +1,4 @@
-import std/sequtils
-import std/sets
+import std/[sequtils, sets]
 
 import pkg/chronos
 import pkg/taskpools
@@ -13,7 +12,6 @@ import pkg/storage/blockexchange
 import pkg/storage/systemclock
 import pkg/storage/nat
 import pkg/storage/utils/natutils
-import pkg/storage/utils/safeasynciter
 import pkg/storage/merkletree
 import pkg/storage/manifest
 
@@ -44,8 +42,8 @@ type
     blockDiscovery*: Discovery
     network*: BlockExcNetwork
     localStore*: BlockStore
-    peerStore*: PeerCtxStore
-    pendingBlocks*: PendingBlocksManager
+    peerStore*: PeerContextStore
+    downloadManager*: DownloadManager
     discovery*: DiscoveryEngine
     engine*: BlockExcEngine
     networkStore*: NetworkStore
@@ -71,15 +69,15 @@ converter toTuple*(
   blockDiscovery: Discovery,
   network: BlockExcNetwork,
   localStore: BlockStore,
-  peerStore: PeerCtxStore,
-  pendingBlocks: PendingBlocksManager,
+  peerStore: PeerContextStore,
+  downloadManager: DownloadManager,
   discovery: DiscoveryEngine,
   engine: BlockExcEngine,
   networkStore: NetworkStore,
 ] =
   (
     nc.switch, nc.blockDiscovery, nc.network, nc.localStore, nc.peerStore,
-    nc.pendingBlocks, nc.discovery, nc.engine, nc.networkStore,
+    nc.downloadManager, nc.discovery, nc.engine, nc.networkStore,
   )
 
 converter toComponents*(cluster: NodesCluster): seq[NodesComponents] =
@@ -162,8 +160,8 @@ proc generateNodes*(
       )
 
       network = BlockExcNetwork.new(switch)
-      peerStore = PeerCtxStore.new()
-      pendingBlocks = PendingBlocksManager.new()
+      peerStore = PeerContextStore.new()
+      downloadManager = DownloadManager.new()
 
     let (localStore, tempDbs, blockDiscovery) =
       if config.useRepoStore:
@@ -196,16 +194,16 @@ proc generateNodes*(
         (store.BlockStore, newSeq[TempLevelDb](), discovery)
 
     let
-      discovery = DiscoveryEngine.new(
-        localStore, peerStore, network, blockDiscovery, pendingBlocks
-      )
+      discovery = DiscoveryEngine.new(localStore, peerStore, network, blockDiscovery)
       advertiser = Advertiser.new(localStore, blockDiscovery)
       engine = BlockExcEngine.new(
-        localStore, network, discovery, advertiser, peerStore, pendingBlocks
+        localStore, network, discovery, advertiser, peerStore, downloadManager
       )
       networkStore = NetworkStore.new(engine, localStore)
+      manifestProto = ManifestProtocol.new(switch, localStore, blockDiscovery)
 
     switch.mount(network)
+    switch.mount(manifestProto)
 
     let node =
       if config.createFullNode:
@@ -214,6 +212,7 @@ proc generateNodes*(
           networkStore = networkStore,
           engine = engine,
           discovery = blockDiscovery,
+          manifestProto = manifestProto,
           taskpool = taskpool,
         )
 
@@ -239,7 +238,7 @@ proc generateNodes*(
       network: network,
       localStore: localStore,
       peerStore: peerStore,
-      pendingBlocks: pendingBlocks,
+      downloadManager: downloadManager,
       discovery: discovery,
       engine: engine,
       networkStore: networkStore,
@@ -321,18 +320,18 @@ proc linearTopology*(nodes: seq[NodesComponents]) {.async.} =
 proc downloadDataset*(
     node: NodesComponents, dataset: TestDataset
 ): Future[void] {.async.} =
-  # This is the same as fetchBatched, but we don't construct StorageNodes so I can't use
-  # it here.
-  let requestAddresses = collect:
-    for i in 0 ..< dataset.manifest.blocksCount:
-      BlockAddress.init(dataset.manifest.treeCid, i)
-
-  let blockCids = dataset.blocks.mapIt(it.cid).toHashSet()
+  let handleResult = node.engine.startTreeDownload(dataset.manifestDesc)
+  doAssert handleResult.isOk, "Failed to start download"
+  let
+    handle = handleResult.get()
+    treeCid = dataset.manifest.treeCid
+    blockCids = dataset.blocks.mapIt(it.cid).toHashSet()
 
   var count = 0
-  for blockFut in (await node.networkStore.getBlocks(requestAddresses)):
-    let blk = (await blockFut).tryGet()
+  for i in 0 ..< dataset.blocks.len:
+    let blk = (await node.networkStore.getBlock(treeCid, i.Natural)).tryGet()
     assert blk.cid in blockCids, "Unknown block CID: " & $blk.cid
     count += 1
 
   assert count == dataset.blocks.len, "Incorrect number of blocks downloaded"
+  node.engine.releaseDownload(handle)
