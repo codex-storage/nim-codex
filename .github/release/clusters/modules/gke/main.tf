@@ -10,7 +10,7 @@ resource "google_container_cluster" "this" {
 
   # Send pod stdout/stderr to Cloud Logging automatically
   logging_service    = "logging.googleapis.com/kubernetes"
-  monitoring_service = "none"
+  monitoring_service = "monitoring.googleapis.com/kubernetes"
 
   node_pool {
     name               = var.node_pool_name
