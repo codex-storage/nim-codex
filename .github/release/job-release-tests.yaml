@@ -49,7 +49,7 @@ spec:
           subPath: kubeconfig.yaml
         - name: logs
           mountPath: /var/log/storage-${TEST_TYPE}
-        args: ["dotnet", "test", "Tests/LogosStorageReleaseTests"]
+        args: ["dotnet", "test", "Tests/LogosStorageReleaseTests", "-p:BuildInParallel=false"]
       restartPolicy: Never
       volumes:
         - name: kubeconfig
