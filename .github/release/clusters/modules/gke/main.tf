@@ -7,18 +7,9 @@ resource "google_container_cluster" "this" {
 
   deletion_protection = false
 
-  release_channel {
-    channel = var.kubernetes_release_channel
-  }
-
-  # Enable Workload Identity
-  workload_identity_config {
-    workload_pool = "${var.project}.svc.id.goog"
-  }
-
   # Send pod stdout/stderr to Cloud Logging automatically
   logging_service    = "logging.googleapis.com/kubernetes"
-  monitoring_service = "monitoring.googleapis.com/kubernetes"
+  monitoring_service = "none"
 
   node_pool {
     name               = var.node_pool_name

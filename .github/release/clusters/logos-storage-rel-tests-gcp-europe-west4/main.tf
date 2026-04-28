@@ -6,7 +6,6 @@ module "gke" {
   project                    = var.project
   region                     = var.region
   zone                       = var.zone
-  kubernetes_release_channel = "STABLE"
   node_pool_name             = "runners-ci-e2-standard-2"
   node_pool_machine_type     = "e2-standard-2"
   node_pool_min              = 1

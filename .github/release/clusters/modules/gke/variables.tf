@@ -19,13 +19,6 @@ variable "zone" {
   description = "The GCP zone for the cluster. Using a single zone avoids the longer provisioning time of a regional (multi-zone) cluster."
 }
 
-# Kubernetes Control Plane
-variable "kubernetes_release_channel" {
-  type        = string
-  description = "The GKE release channel: RAPID, REGULAR, or STABLE."
-  default     = "STABLE"
-}
-
 # Kubernetes default Node Pool
 variable "node_pool_name" {
   type        = string

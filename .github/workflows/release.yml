@@ -213,7 +213,7 @@ jobs:
       TF_VAR_project: ${{ vars.RELEASE_TESTS_GCP_PROJECT }}
       TF_VAR_region: europe-west4
       TF_VAR_zone: europe-west4-b
-      TF_PLUGIN_CACHE_DIR: ~/.terraform.d/plugin-cache
+      TF_PLUGIN_CACHE_DIR: /home/runner/.terraform.d/plugin-cache
       STORAGEDOCKERIMAGE: ${{ github.ref_type == 'tag' && format('logosstorage/logos-storage-nim:{0}-dist-tests', github.ref_name) || 'logosstorage/logos-storage-nim:latest-dist-tests' }}
       TEST_TYPE: release-tests
       BRANCH: ${{ inputs.branch || 'master' }}
@@ -224,7 +224,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Create Terraform plugin cache dir
-        run: mkdir -p ~/.terraform.d/plugin-cache
+        run: mkdir -p /home/runner/.terraform.d/plugin-cache
 
       - name: Cache Terraform plugins
         uses: actions/cache@v4
