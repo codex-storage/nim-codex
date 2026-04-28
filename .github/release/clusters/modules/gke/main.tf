@@ -12,6 +12,10 @@ resource "google_container_cluster" "this" {
   logging_service    = "logging.googleapis.com/kubernetes"
   monitoring_service = "monitoring.googleapis.com/kubernetes"
 
+  timeouts {
+    create = "20m"
+  }
+
   node_pool {
     name               = var.node_pool_name
     initial_node_count = var.node_pool_min
