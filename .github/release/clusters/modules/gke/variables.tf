@@ -48,3 +48,25 @@ variable "node_pool_labels" {
     scaling-type = "auto"
   }
 }
+
+# Tests node pool (spot, scales to zero)
+variable "tests_pool_name" {
+  type        = string
+  description = "Name for the tests node pool."
+}
+
+variable "tests_pool_machine_type" {
+  type        = string
+  description = "The GCE machine type for nodes in the tests pool."
+}
+
+variable "tests_pool_max" {
+  type        = number
+  description = "Maximum number of nodes in the tests pool."
+}
+
+variable "tests_pool_labels" {
+  type        = map(string)
+  description = "Kubernetes labels to apply to nodes in the tests pool."
+  default     = {}
+}
