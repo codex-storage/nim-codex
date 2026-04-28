@@ -212,7 +212,7 @@ jobs:
     env:
       TF_VAR_project: ${{ vars.RELEASE_TESTS_GCP_PROJECT }}
       TF_VAR_region: europe-west4
-      TF_VAR_zone: europe-west4-b
+      TF_VAR_zone: europe-west4-a
       TF_PLUGIN_CACHE_DIR: /home/runner/.terraform.d/plugin-cache
       STORAGEDOCKERIMAGE: ${{ github.ref_type == 'tag' && format('logosstorage/logos-storage-nim:{0}-dist-tests', github.ref_name) || 'logosstorage/logos-storage-nim:latest-dist-tests' }}
       TEST_TYPE: release-tests
@@ -264,7 +264,7 @@ jobs:
       - name: Get kubeconfig
         run: |
           gcloud container clusters get-credentials logos-storage-rel-tests-gcp-europe-west4 \
-            --zone europe-west4-b \
+            --zone ${{ env.TF_VAR_zone }} \
             --project ${{ vars.RELEASE_TESTS_GCP_PROJECT }}
 
       - name: Wait for runners-ci node to be Ready
