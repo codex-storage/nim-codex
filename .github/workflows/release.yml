@@ -309,11 +309,10 @@ jobs:
 
       - name: Print storage node log link
         run: |
-          QUERY=$(printf '%s\n%s\n%s\n%s' \
+          QUERY=$(printf '%s\n%s\n%s' \
             'resource.type="k8s_container"' \
             'resource.labels.cluster_name="logos-storage-rel-tests-gcp-europe-west4"' \
-            'resource.labels.namespace_name=~"^storage-"' \
-            'resource.labels.container_name="storage"')
+            "labels.\"k8s-pod/runid\"=\"${RUNID}\"")
           ENCODED=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.stdin.read()))" <<< "$QUERY")
           URL="https://console.cloud.google.com/logs/query;query=${ENCODED};project=${{ vars.RELEASE_TESTS_GCP_PROJECT }}"
           echo "Storage node logs: $URL"
@@ -323,7 +322,7 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "[View in Cloud Logging]($URL)" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Filters: namespaces matching \`storage-*\`, container \`storage\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "Filter: \`labels.\"k8s-pod/runid\"=\"${RUNID}\"\`" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Wait for test pod to start
         run: |
