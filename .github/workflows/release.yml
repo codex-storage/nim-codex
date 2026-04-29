@@ -313,8 +313,8 @@ jobs:
             'resource.type="k8s_container"' \
             'resource.labels.cluster_name="logos-storage-rel-tests-gcp-europe-west4"' \
             "labels.\"k8s-pod/runid\"=\"${RUNID}\"")
-          ENCODED=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.stdin.read()))" <<< "$QUERY")
-          URL="https://console.cloud.google.com/logs/query;query=${ENCODED};project=${{ vars.RELEASE_TESTS_GCP_PROJECT }}"
+          ENCODED=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.stdin.read(), safe=''))" <<< "$QUERY")
+          URL="https://console.cloud.google.com/logs/query;query=${ENCODED}?project=${{ vars.RELEASE_TESTS_GCP_PROJECT }}"
           echo "Storage node logs: $URL"
           echo "## Storage Node Logs" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
