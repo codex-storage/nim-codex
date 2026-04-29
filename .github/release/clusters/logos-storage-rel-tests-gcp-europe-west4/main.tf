@@ -12,19 +12,17 @@ module "gke" {
   node_pool_min          = 1
   node_pool_max          = 5
   node_pool_labels = {
-    allow-tests-pods = "false"
-    default-pool     = "true"
-    scaling-type     = "auto"
-    workload-type    = "tests-runners-ci"
+    default-pool  = "true"
+    scaling-type  = "auto"
+    workload-type = "tests-runners-ci"
   }
 
   tests_pool_name         = "tests-e2-medium"
   tests_pool_machine_type = "e2-medium"
   tests_pool_max          = 10
   tests_pool_labels = {
-    allow-tests-pods = "true"
-    default-pool     = "false"
-    scaling-type     = "auto"
-    workload-type    = "tests-pods"
+    default-pool  = "false"
+    scaling-type  = "auto"
+    workload-type = "tests-pods"
   }
 }
