@@ -362,6 +362,13 @@ jobs:
           echo "Job status: $job_status"
           [[ "$job_status" == "SuccessCriteriaMet" ]] || exit 1
 
+      - name: Delete PVCs before cluster teardown
+        if: always() && steps.tf-apply.conclusion != 'skipped'
+        run: |
+          # Delete all PVCs so the CSI driver can release GCE PDs before the cluster is destroyed.
+          # Without this, terraform destroy orphans the PDs and they consume SSD quota indefinitely.
+          kubectl delete pvc --all --all-namespaces --wait=false 2>/dev/null || true
+
       - name: Terraform destroy
         if: always() && steps.tf-apply.conclusion != 'skipped'
         working-directory: ${{ env.TF_DIR }}
