@@ -296,6 +296,7 @@ jobs:
           echo "RUNID=${RUNID}" >> $GITHUB_ENV
           echo "NAMEPREFIX=r-tests-${RUNID}" >> $GITHUB_ENV
           echo "TESTID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+          echo "JOB_START_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> $GITHUB_ENV
 
       - name: Deploy test job
         run: |
@@ -314,15 +315,15 @@ jobs:
             'resource.labels.cluster_name="logos-storage-rel-tests-gcp-europe-west4"' \
             "labels.\"k8s-pod/runid\"=\"${RUNID}\"")
           ENCODED=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.stdin.read(), safe=''))" <<< "$QUERY")
-          URL="https://console.cloud.google.com/logs/query;query=${ENCODED}?project=${{ vars.RELEASE_TESTS_GCP_PROJECT }}"
+          URL="https://console.cloud.google.com/logs/query;query=${ENCODED};startTime=${JOB_START_TIME}?project=${{ vars.RELEASE_TESTS_GCP_PROJECT }}"
           echo "Storage node logs: $URL"
           echo "## Storage Node Logs" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Run ID: \`${RUNID}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "Run ID: \`${RUNID}\`" >> "$GITHUB_STEP_SUMMARY" `
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "[View in Cloud Logging]($URL)" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Filter: \`labels.\"k8s-pod/runid\"=\"${RUNID}\"\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "Filter: \`labels.\"k8s-pod/runid\"=\"${RUNID}\"\`" >> "$GITHUB_STEP_SUMMARY"`
 
       - name: Wait for test pod to start
         run: |
