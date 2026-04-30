@@ -49,7 +49,6 @@ resource "google_container_cluster" "this" {
     node_config {
       machine_type    = var.tests_pool_machine_type
       disk_size_gb    = 20
-      spot            = true
       labels          = var.tests_pool_labels
 
       oauth_scopes = [
