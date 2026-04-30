@@ -320,11 +320,11 @@ jobs:
           echo "Storage node logs: $URL"
           echo "## Storage Node Logs" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Run ID: \`${RUNID}\`" >> "$GITHUB_STEP_SUMMARY" `
+          echo "Run ID: \`${RUNID}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "[View in Cloud Logging]($URL)" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Filter: \`labels.\"k8s-pod/runid\"=\"${RUNID}\"\`" >> "$GITHUB_STEP_SUMMARY"`
+          echo "Filter: \`labels.\"k8s-pod/runid\"=\"${RUNID}\"\`" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Wait for test pod to start
         run: |
