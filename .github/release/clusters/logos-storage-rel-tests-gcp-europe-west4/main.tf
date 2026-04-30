@@ -20,6 +20,7 @@ module "gke" {
   tests_pool_name         = "tests-e2-medium"
   tests_pool_machine_type = "e2-medium"
   tests_pool_max          = 5
+  tests_pool_zones        = ["europe-west4-a", "europe-west4-b", "europe-west4-c"]
   tests_pool_labels = {
     default-pool  = "false"
     scaling-type  = "auto"

@@ -70,3 +70,9 @@ variable "tests_pool_labels" {
   description = "Kubernetes labels to apply to nodes in the tests pool."
   default     = {}
 }
+
+variable "tests_pool_zones" {
+  type        = list(string)
+  description = "Zones for the tests node pool. Spanning multiple zones increases spot instance availability."
+  default     = []
+}
