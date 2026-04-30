@@ -364,12 +364,11 @@ jobs:
           # kubectl logs may have exited early (API server closed the stream).
           # Wait for the job to reach a terminal state before checking the result.
           kubectl wait job/$NAMEPREFIX -n default \
-            --for=condition=complete,failed \
-            --timeout=3300s
-          # Give the Cloud Logging agent time to export the final log burst
-          # (NUnit pass/fail lines written near pod exit) before Terraform
-          # destroy removes the cluster.
-          sleep 60
+            --for=condition=Complete \
+            --timeout=300s \
+          || kubectl wait job/$NAMEPREFIX -n default \
+            --for=condition=Failed \
+            --timeout=0s
           job_status=$(kubectl get jobs $NAMEPREFIX -n default \
             -o jsonpath='{.status.conditions[0].type}')
           echo "Job status: $job_status"
