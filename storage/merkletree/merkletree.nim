@@ -70,9 +70,6 @@ func verify*(self: StorageMerkleProof, leaf: MultiHash, root: MultiHash): ?!bool
 
   self.verify(leafBytes, rootBytes)
 
-func verify*(self: StorageMerkleProof, leaf: Cid, root: Cid): ?!bool =
-  self.verify(?leaf.mhash.mapFailure, ?leaf.mhash.mapFailure)
-
 proc rootCid*(
     self: StorageMerkleTree, version = CIDv1, dataCodec = DatasetRootCodec
 ): ?!Cid =
