@@ -219,6 +219,7 @@ jobs:
       BRANCH: ${{ inputs.branch || 'master' }}
       SOURCE: https://github.com/logos-storage/logos-storage-nim-cs-dist-tests
       TF_DIR: .github/release/clusters/logos-storage-rel-tests-gcp-europe-west4
+      CLUSTER_NAME: logos-storage-rel-tests-gcp-europe-west4 # should always match the cluster_name variable in TF_DIR
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -263,7 +264,7 @@ jobs:
 
       - name: Get kubeconfig
         run: |
-          gcloud container clusters get-credentials logos-storage-rel-tests-gcp-europe-west4 \
+          gcloud container clusters get-credentials $CLUSTER_NAME \
             --zone ${{ env.TF_VAR_zone }} \
             --project ${{ vars.RELEASE_TESTS_GCP_PROJECT }}
 
@@ -312,7 +313,7 @@ jobs:
         run: |
           QUERY=$(printf '%s\n%s\n%s' \
             'resource.type="k8s_container"' \
-            'resource.labels.cluster_name="logos-storage-rel-tests-gcp-europe-west4"' \
+            "resource.labels.cluster_name=\"${CLUSTER_NAME}\"" \
             "labels.\"k8s-pod/runid\"=\"${RUNID}\"")
           ENCODED=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.stdin.read(), safe=''))" <<< "$QUERY")
           URL="https://console.cloud.google.com/logs/query;query=${ENCODED};startTime=${JOB_START_TIME}?project=${{ vars.RELEASE_TESTS_GCP_PROJECT }}"
