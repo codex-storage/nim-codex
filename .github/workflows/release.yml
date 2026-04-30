@@ -370,10 +370,39 @@ jobs:
           || kubectl wait job/$NAMEPREFIX -n default \
             --for=condition=Failed \
             --timeout=0s
+
           job_status=$(kubectl get jobs $NAMEPREFIX -n default \
             -o jsonpath='{.status.conditions[0].type}')
           echo "Job status: $job_status"
           [[ "$job_status" == "SuccessCriteriaMet" ]] || exit 1
+
+      - name: Generate test summary
+        if: always() && steps.tf-apply.conclusion == 'success'
+        env:
+          GCP_PROJECT: ${{ vars.RELEASE_TESTS_GCP_PROJECT }}
+        run: |
+          export JOB_START=$(kubectl get job "$NAMEPREFIX" -n default \
+            -o jsonpath='{.status.startTime}' 2>/dev/null || true)
+          export JOB_END=$(kubectl get job "$NAMEPREFIX" -n default \
+            -o jsonpath='{.status.completionTime}' 2>/dev/null || true)
+
+          FILTER="resource.type=\"k8s_container\""
+          FILTER+=" AND resource.labels.namespace_name=\"default\""
+          FILTER+=" AND resource.labels.container_name=\"runner\""
+          FILTER+=" AND labels.\"k8s-pod/runid\"=\"${RUNID}\""
+          FILTER+=" AND jsonPayload.type=\"test-result\""
+
+          export ENTRIES_FILE=$(mktemp)
+          for attempt in $(seq 1 12); do
+            gcloud logging read "$FILTER" --order=asc --limit=1000 --format=json \
+              --project="$GCP_PROJECT" > "$ENTRIES_FILE" 2>/dev/null || echo "[]" > "$ENTRIES_FILE"
+            [[ $(cat "$ENTRIES_FILE") != "[]" ]] && break
+            echo "Attempt $attempt/12: waiting for test results in Cloud Logging..."
+            [[ $attempt -lt 12 ]] && sleep 10
+          done
+
+          python3 .github/scripts/generate_test_summary.py
+          rm -f "$ENTRIES_FILE"
 
       - name: Delete PVCs before cluster teardown
         if: always() && steps.tf-apply.conclusion != 'skipped'
