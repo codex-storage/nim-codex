@@ -65,7 +65,7 @@ func verify*(self: StorageMerkleProof, leaf: MultiHash, root: MultiHash): ?!bool
   if self.mcodec != root.mcodec or self.mcodec != leaf.mcodec:
     return failure "Hash codec mismatch"
 
-  if rootBytes.len != root.size and leafBytes.len != leaf.size:
+  if rootBytes.len != root.size or leafBytes.len != leaf.size:
     return failure "Invalid hash length"
 
   self.verify(leafBytes, rootBytes)
