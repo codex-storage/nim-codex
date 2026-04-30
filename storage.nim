@@ -53,7 +53,8 @@ when isMainModule:
         sources.addConfigFile(Toml, configFile)
     ,
   )
-  config.setupLogging()
+
+  let logFile = config.setupLogging()
 
   try:
     updateLogLevel(config.logLevel)
@@ -64,7 +65,9 @@ when isMainModule:
       echo "Invalid value for --log-level. " & err.msg
     quit QuitFailure
 
-  config.setupMetrics()
+  if err =? config.setupMetrics().errorOption:
+    fatal "Failed to start metrics server", err = err.msg
+    quit QuitFailure
 
   if not (checkAndCreateDataDir((config.dataDir).string)):
     # We are unable to access/create data folder or data folder's
@@ -92,9 +95,10 @@ when isMainModule:
         config.dataDir / config.netPrivKeyFile
 
     privateKey = setupKey(keyPath).expect("Should setup private key!")
+
     server =
       try:
-        StorageServer.new(config, privateKey)
+        StorageServer.new(config, privateKey, logFile)
       except Exception as exc:
         error "Failed to start Logos Storage", msg = exc.msg
         quit QuitFailure

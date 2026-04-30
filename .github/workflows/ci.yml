@@ -9,7 +9,7 @@ on:
 
 env:
   cache_nonce: 0 # Allows for easily busting actions/cache caches
-  nim_version: v2.2.4
+  nim_version: v2.2.8
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
@@ -76,7 +76,7 @@ jobs:
         shell: bash
 
       - name: Upload coverage data to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           directory: ./coverage/
           fail_ci_if_error: true

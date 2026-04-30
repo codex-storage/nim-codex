@@ -14,12 +14,8 @@ import pkg/questionable/results
 import pkg/libp2p
 import pkg/storage/blocktype as bt
 import pkg/storage/stores/repostore
-import pkg/storage/clock
 
 import ../../asynctest
-import ../helpers/mocktimer
-import ../helpers/mockrepostore
-import ../helpers/mockclock
 import ../examples
 
 import storage/namespaces

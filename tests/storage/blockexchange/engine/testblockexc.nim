@@ -1,12 +1,10 @@
-import std/sequtils
-import std/algorithm
-import std/importutils
-
 import pkg/chronos
-import pkg/stew/byteutils
-
 import pkg/storage/stores
 import pkg/storage/blockexchange
+import pkg/storage/blockexchange/engine/engine {.all.}
+import pkg/storage/blockexchange/engine/scheduler {.all.}
+import pkg/storage/blockexchange/engine/downloadmanager {.all.}
+import pkg/storage/blockexchange/engine/activedownload {.all.}
 import pkg/storage/chunker
 import pkg/storage/discovery
 import pkg/storage/blocktype as bt
@@ -15,186 +13,547 @@ import ../../../asynctest
 import ../../examples
 import ../../helpers
 
-asyncchecksuite "NetworkStore engine - 2 nodes":
+proc waitForPeerInSwarm(
+    download: ActiveDownload,
+    peerId: PeerId,
+    timeout = 5.seconds,
+    pollInterval = 50.milliseconds,
+): Future[bool] {.async.} =
+  let deadline = Moment.now() + timeout
+  while Moment.now() < deadline:
+    if download.getSwarm().getPeer(peerId).isSome:
+      return true
+    await sleepAsync(pollInterval)
+  return false
+
+asyncchecksuite "BlockExchange - Basic Block Transfer":
   var
-    nodeCmps1, nodeCmps2: NodesComponents
-    peerCtx1, peerCtx2: BlockExcPeerCtx
-    blocks1, blocks2: seq[bt.Block]
-    pendingBlocks1, pendingBlocks2: seq[BlockHandle]
+    cluster: NodesCluster
+    seeder: NodesComponents
+    leecher: NodesComponents
+    dataset: TestDataset
 
   setup:
-    blocks1 = await makeRandomBlocks(datasetSize = 2048, blockSize = 256'nb)
-    blocks2 = await makeRandomBlocks(datasetSize = 2048, blockSize = 256'nb)
-    nodeCmps1 = generateNodes(1, blocks1).components[0]
-    nodeCmps2 = generateNodes(1, blocks2).components[0]
+    # Create two nodes
+    cluster = generateNodes(2, config = NodeConfig(findFreePorts: true))
+    seeder = cluster.components[0]
+    leecher = cluster.components[1]
 
-    await allFuturesThrowing(nodeCmps1.start(), nodeCmps2.start())
+    # Create test dataset (small - 4 blocks)
+    let blocks = await makeRandomBlocks(4 * 1024, 1024.NBytes)
+    dataset = makeDataset(blocks).tryGet()
 
-    # initialize our want lists
-    pendingBlocks1 =
-      blocks2[0 .. 3].mapIt(nodeCmps1.pendingBlocks.getWantHandle(it.cid))
+    # Assign all blocks to seeder
+    await seeder.assignBlocks(dataset)
 
-    pendingBlocks2 =
-      blocks1[0 .. 3].mapIt(nodeCmps2.pendingBlocks.getWantHandle(it.cid))
-
-    await nodeCmps1.switch.connect(
-      nodeCmps2.switch.peerInfo.peerId, nodeCmps2.switch.peerInfo.addrs
-    )
-
-    await sleepAsync(100.millis) # give some time to exchange lists
-    peerCtx2 = nodeCmps1.peerStore.get(nodeCmps2.switch.peerInfo.peerId)
-    peerCtx1 = nodeCmps2.peerStore.get(nodeCmps1.switch.peerInfo.peerId)
-
-    check isNil(peerCtx1).not
-    check isNil(peerCtx2).not
+    # Start nodes and connect them
+    await cluster.components.start()
+    await connectNodes(cluster)
 
   teardown:
-    await allFuturesThrowing(nodeCmps1.stop(), nodeCmps2.stop())
+    await cluster.components.stop()
 
-  test "Should exchange blocks on connect":
-    await allFuturesThrowing(allFinished(pendingBlocks1)).wait(10.seconds)
-    await allFuturesThrowing(allFinished(pendingBlocks2)).wait(10.seconds)
+  test "Should download dataset using networkStore":
+    await leecher.downloadDataset(dataset)
 
-    check:
-      (await allFinished(blocks1[0 .. 3].mapIt(nodeCmps2.localStore.getBlock(it.cid))))
-        .filterIt(it.completed and it.read.isOk)
-        .mapIt($it.read.get.cid)
-        .sorted(cmp[string]) == blocks1[0 .. 3].mapIt($it.cid).sorted(cmp[string])
+    for blk in dataset.blocks:
+      let hasBlock = await blk.cid in leecher.localStore
+      check hasBlock
 
-      (await allFinished(blocks2[0 .. 3].mapIt(nodeCmps1.localStore.getBlock(it.cid))))
-        .filterIt(it.completed and it.read.isOk)
-        .mapIt($it.read.get.cid)
-        .sorted(cmp[string]) == blocks2[0 .. 3].mapIt($it.cid).sorted(cmp[string])
-
-  test "Should send want-have for block":
-    let blk = bt.Block.new("Block 1".toBytes).tryGet()
-    let blkFut = nodeCmps1.pendingBlocks.getWantHandle(blk.cid)
-    peerCtx2.blockRequestScheduled(blk.address)
-
-    (await nodeCmps2.localStore.putBlock(blk)).tryGet()
-
-    peerCtx1.wantedBlocks.incl(blk.address)
-    check nodeCmps2.engine.taskQueue.pushOrUpdateNoWait(peerCtx1).isOk
-
-    check eventually (await nodeCmps1.localStore.hasBlock(blk.cid)).tryGet()
-    check eventually (await blkFut) == blk
-
-  test "Should get blocks from remote":
-    let blocks =
-      await allFinished(blocks2[4 .. 7].mapIt(nodeCmps1.networkStore.getBlock(it.cid)))
-
-    check blocks.mapIt(it.read().tryGet()) == blocks2[4 .. 7]
-
-  test "Remote should send blocks when available":
-    let blk = bt.Block.new("Block 1".toBytes).tryGet()
-
-    # should fail retrieving block from remote
-    check not await blk.cid in nodeCmps1.networkStore
-
-    # second trigger blockexc to resolve any pending requests
-    # for the block
-    (await nodeCmps2.networkStore.putBlock(blk)).tryGet()
-
-    # should succeed retrieving block from remote
-    check await nodeCmps1.networkStore.getBlock(blk.cid).withTimeout(100.millis)
-      # should succeed
-
-asyncchecksuite "NetworkStore - multiple nodes":
+asyncchecksuite "BlockExchange - Presence Discovery":
   var
-    nodes: seq[NodesComponents]
-    blocks: seq[bt.Block]
+    cluster: NodesCluster
+    seeder: NodesComponents
+    leecher: NodesComponents
+    dataset: TestDataset
 
   setup:
-    blocks = await makeRandomBlocks(datasetSize = 4096, blockSize = 256'nb)
-    nodes = generateNodes(5)
-    for e in nodes:
-      await e.engine.start()
+    cluster = generateNodes(2, config = NodeConfig(findFreePorts: true))
+    seeder = cluster.components[0]
+    leecher = cluster.components[1]
 
-    await allFuturesThrowing(nodes.mapIt(it.switch.start()))
+    let blocks = await makeRandomBlocks(4 * 1024, 1024.NBytes)
+    dataset = makeDataset(blocks).tryGet()
 
-  teardown:
-    await allFuturesThrowing(nodes.mapIt(it.switch.stop()))
-
-    nodes = @[]
-
-  test "Should receive blocks for own want list":
-    let
-      downloader = nodes[4].networkStore
-      engine = downloader.engine
-
-    # Add blocks from 1st peer to want list
-    let
-      downloadCids = blocks[0 .. 3].mapIt(it.cid) & blocks[12 .. 15].mapIt(it.cid)
-
-      pendingBlocks = downloadCids.mapIt(engine.pendingBlocks.getWantHandle(it))
-
-    for i in 0 .. 15:
-      (await nodes[i div 4].networkStore.engine.localStore.putBlock(blocks[i])).tryGet()
-
-    await connectNodes(nodes)
-    await sleepAsync(100.millis)
-
-    await allFuturesThrowing(allFinished(pendingBlocks))
-
-    check:
-      (await allFinished(downloadCids.mapIt(downloader.localStore.getBlock(it))))
-        .filterIt(it.completed and it.read.isOk)
-        .mapIt($it.read.get.cid)
-        .sorted(cmp[string]) == downloadCids.mapIt($it).sorted(cmp[string])
-
-  test "Should exchange blocks with multiple nodes":
-    let
-      downloader = nodes[4].networkStore
-      engine = downloader.engine
-
-    # Add blocks from 1st peer to want list
-    let
-      pendingBlocks1 = blocks[0 .. 3].mapIt(engine.pendingBlocks.getWantHandle(it.cid))
-      pendingBlocks2 =
-        blocks[12 .. 15].mapIt(engine.pendingBlocks.getWantHandle(it.cid))
-
-    for i in 0 .. 15:
-      (await nodes[i div 4].networkStore.engine.localStore.putBlock(blocks[i])).tryGet()
-
-    await connectNodes(nodes)
-    await sleepAsync(100.millis)
-
-    await allFuturesThrowing(allFinished(pendingBlocks1), allFinished(pendingBlocks2))
-
-    check pendingBlocks1.mapIt(it.read) == blocks[0 .. 3]
-    check pendingBlocks2.mapIt(it.read) == blocks[12 .. 15]
-
-asyncchecksuite "NetworkStore - dissemination":
-  var nodes: seq[NodesComponents]
+    await seeder.assignBlocks(dataset)
+    await cluster.components.start()
+    await connectNodes(cluster)
 
   teardown:
-    if nodes.len > 0:
-      await nodes.stop()
+    await cluster.components.stop()
 
-  test "Should disseminate blocks across large diameter swarm":
-    let dataset = makeDataset(await makeRandomBlocks(60 * 256, 256'nb)).tryGet()
+  test "Should receive presence response for blocks peer has":
+    let
+      manifestCid = dataset.manifestCid
+      treeCid = dataset.manifest.treeCid
+      totalBlocks = dataset.blocks.len.uint64
+      blockSize = dataset.manifest.blockSize.uint32
+      desc = DownloadDesc(md: dataset.manifestDesc, count: totalBlocks)
+      download = leecher.downloadManager.startDownload(desc)
+      address = BlockAddress(treeCid: treeCid, index: 0)
 
-    nodes = generateNodes(
-      6,
-      config = NodeConfig(
-        useRepoStore: false,
-        findFreePorts: false,
-        basePort: 8080,
-        createFullNode: false,
-        enableBootstrap: false,
-        enableDiscovery: true,
-      ),
+    await leecher.network.request.sendWantList(
+      seeder.switch.peerInfo.peerId,
+      @[address],
+      priority = 0,
+      cancel = false,
+      wantType = WantType.WantHave,
+      full = false,
+      sendDontHave = false,
+      rangeCount = totalBlocks,
+      downloadId = download.id,
     )
 
-    await assignBlocks(nodes[0], dataset, 0 .. 9)
-    await assignBlocks(nodes[1], dataset, 10 .. 19)
-    await assignBlocks(nodes[2], dataset, 20 .. 29)
-    await assignBlocks(nodes[3], dataset, 30 .. 39)
-    await assignBlocks(nodes[4], dataset, 40 .. 49)
-    await assignBlocks(nodes[5], dataset, 50 .. 59)
+    let seederId = seeder.switch.peerInfo.peerId
+    check await download.waitForPeerInSwarm(seederId)
 
-    await nodes.start()
-    await nodes.linearTopology()
+    leecher.downloadManager.cancelDownload(treeCid)
 
-    let downloads = nodes.mapIt(downloadDataset(it, dataset))
-    await allFuturesThrowing(downloads).wait(30.seconds)
+  test "Peer availability should propagate across downloads for same CID":
+    let
+      manifestCid = dataset.manifestCid
+      treeCid = dataset.manifest.treeCid
+      totalBlocks = dataset.blocks.len.uint64
+      blockSize = dataset.manifest.blockSize.uint32
+      desc = DownloadDesc(md: dataset.manifestDesc, count: totalBlocks)
+      download1 = leecher.engine.startDownload(desc)
+      download2 = leecher.engine.startDownload(desc)
+      address = BlockAddress(treeCid: treeCid, index: 0)
+
+    await leecher.network.request.sendWantList(
+      seeder.switch.peerInfo.peerId,
+      @[address],
+      priority = 0,
+      cancel = false,
+      wantType = WantType.WantHave,
+      full = false,
+      sendDontHave = false,
+      rangeCount = totalBlocks,
+      downloadId = download1.id,
+    )
+
+    let seederId = seeder.switch.peerInfo.peerId
+    check await download1.waitForPeerInSwarm(seederId)
+    check download2.getSwarm().getPeer(seederId).isSome
+    leecher.downloadManager.cancelDownload(treeCid)
+
+  test "Should update swarm when peer reports availability":
+    let
+      manifestCid = dataset.manifestCid
+      treeCid = dataset.manifest.treeCid
+      blockSize = dataset.manifest.blockSize.uint32
+      desc = DownloadDesc(md: dataset.manifestDesc, count: dataset.blocks.len.uint64)
+      download = leecher.downloadManager.startDownload(desc)
+      availability = BlockAvailability.complete()
+
+    download.updatePeerAvailability(seeder.switch.peerInfo.peerId, availability)
+
+    let swarm = download.getSwarm()
+    check swarm.activePeerCount() == 1
+
+    let peerOpt = swarm.getPeer(seeder.switch.peerInfo.peerId)
+    check peerOpt.isSome
+    check peerOpt.get().availability.kind == bakComplete
+
+    leecher.downloadManager.cancelDownload(treeCid)
+
+asyncchecksuite "BlockExchange - Multi-Peer Download":
+  var
+    cluster: NodesCluster
+    seeder1: NodesComponents
+    seeder2: NodesComponents
+    leecher: NodesComponents
+    dataset: TestDataset
+
+  setup:
+    cluster = generateNodes(3, config = NodeConfig(findFreePorts: true))
+    seeder1 = cluster.components[0]
+    seeder2 = cluster.components[1]
+    leecher = cluster.components[2]
+
+    let blocks = await makeRandomBlocks(8 * 1024, 1024.NBytes)
+    dataset = makeDataset(blocks).tryGet()
+
+    let halfPoint = dataset.blocks.len div 2
+    await seeder1.assignBlocks(dataset, 0 ..< halfPoint)
+    await seeder2.assignBlocks(dataset, halfPoint ..< dataset.blocks.len)
+
+    await cluster.components.start()
+    await connectNodes(cluster)
+
+  teardown:
+    await cluster.components.stop()
+
+  test "Should download blocks from multiple peers":
+    await leecher.downloadDataset(dataset)
+
+    for blk in dataset.blocks:
+      let hasBlock = await blk.cid in leecher.localStore
+      check hasBlock
+
+  test "Should handle partial availability from peers":
+    let
+      manifestCid = dataset.manifestCid
+      treeCid = dataset.manifest.treeCid
+      blockSize = dataset.manifest.blockSize.uint32
+      desc = DownloadDesc(md: dataset.manifestDesc, count: dataset.blocks.len.uint64)
+      download = leecher.downloadManager.startDownload(desc)
+      halfPoint = (dataset.blocks.len div 2).uint64
+      ranges1 = @[(start: 0'u64, count: halfPoint)]
+
+    download.updatePeerAvailability(
+      seeder1.switch.peerInfo.peerId, BlockAvailability.fromRanges(ranges1)
+    )
+
+    let ranges2 = @[(start: halfPoint, count: dataset.blocks.len.uint64 - halfPoint)]
+    download.updatePeerAvailability(
+      seeder2.switch.peerInfo.peerId, BlockAvailability.fromRanges(ranges2)
+    )
+
+    let swarm = download.getSwarm()
+    check swarm.activePeerCount() == 2
+
+    let peersForFirst = swarm.peersWithRange(0, halfPoint)
+    check seeder1.switch.peerInfo.peerId in peersForFirst
+
+    let peersForSecond =
+      swarm.peersWithRange(halfPoint, dataset.blocks.len.uint64 - halfPoint)
+    check seeder2.switch.peerInfo.peerId in peersForSecond
+
+    leecher.downloadManager.cancelDownload(treeCid)
+
+asyncchecksuite "BlockExchange - Download Lifecycle":
+  var
+    cluster: NodesCluster
+    seeder: NodesComponents
+    leecher: NodesComponents
+    dataset: TestDataset
+
+  setup:
+    cluster = generateNodes(2, config = NodeConfig(findFreePorts: true))
+    seeder = cluster.components[0]
+    leecher = cluster.components[1]
+
+    let blocks = await makeRandomBlocks(4 * 1024, 1024.NBytes)
+    dataset = makeDataset(blocks).tryGet()
+
+    await seeder.assignBlocks(dataset)
+    await cluster.components.start()
+    await connectNodes(cluster)
+
+  teardown:
+    await cluster.components.stop()
+
+  test "Should allow multiple downloads for same CID":
+    let
+      manifestCid = dataset.manifestCid
+      treeCid = dataset.manifest.treeCid
+      totalBlocks = dataset.blocks.len.uint64
+      blockSize = dataset.manifest.blockSize.uint32
+      desc = DownloadDesc(md: dataset.manifestDesc, count: totalBlocks)
+      download1 = leecher.downloadManager.startDownload(desc)
+      download2 = leecher.downloadManager.startDownload(desc)
+
+    check download1.id != download2.id
+    check download1.treeCid == download2.treeCid
+
+    leecher.downloadManager.cancelDownload(treeCid)
+    check leecher.downloadManager.getDownload(treeCid).isNone
+
+  test "Two concurrent full downloads for same CID should both complete":
+    let
+      treeCid = dataset.manifest.treeCid
+      totalBlocks = dataset.blocks.len.uint64
+
+    let handle1 = leecher.engine.startTreeDownload(dataset.manifestDesc)
+    require handle1.isOk == true
+
+    let handle2 = leecher.engine.startTreeDownload(dataset.manifestDesc)
+    require handle2.isOk == true
+
+    let
+      h1 = handle1.get()
+      h2 = handle2.get()
+
+    var
+      blocksReceived1 = 0
+      blocksReceived2 = 0
+
+    for i in 0 ..< totalBlocks.int:
+      if (await leecher.networkStore.getBlock(treeCid, i.Natural)).isOk:
+        blocksReceived1 += 1
+
+    for i in 0 ..< totalBlocks.int:
+      if (await leecher.networkStore.getBlock(treeCid, i.Natural)).isOk:
+        blocksReceived2 += 1
+
+    check blocksReceived1 == totalBlocks.int
+    check blocksReceived2 == totalBlocks.int
+
+    leecher.engine.releaseDownload(h1)
+    leecher.engine.releaseDownload(h2)
+
+  test "Releasing one download should not cancel other downloads for same CID":
+    let
+      treeCid = dataset.manifest.treeCid
+      totalBlocks = dataset.blocks.len.uint64
+
+    let handle1 = leecher.engine.startTreeDownload(dataset.manifestDesc)
+    require handle1.isOk
+    let h1 = handle1.get()
+
+    let handle2 = leecher.engine.startTreeDownload(dataset.manifestDesc)
+    require handle2.isOk
+    let h2 = handle2.get()
+
+    leecher.engine.releaseDownload(h1)
+
+    check leecher.downloadManager.getDownload(treeCid).isSome
+
+    var blocksReceived = 0
+    for i in 0 ..< totalBlocks.int:
+      if (await leecher.networkStore.getBlock(treeCid, i.Natural)).isOk:
+        blocksReceived += 1
+
+    check blocksReceived == totalBlocks.int
+
+    leecher.engine.releaseDownload(h2)
+    check leecher.downloadManager.getDownload(treeCid).isNone
+
+  test "Should cancel download":
+    let
+      manifestCid = dataset.manifestCid
+      treeCid = dataset.manifest.treeCid
+      totalBlocks = dataset.blocks.len.uint64
+      blockSize = dataset.manifest.blockSize.uint32
+      desc = DownloadDesc(md: dataset.manifestDesc, count: totalBlocks)
+
+    discard leecher.downloadManager.startDownload(desc)
+
+    leecher.downloadManager.cancelDownload(treeCid)
+
+    check leecher.downloadManager.getDownload(treeCid).isNone
+
+asyncchecksuite "BlockExchange - Error Handling":
+  var
+    cluster: NodesCluster
+    seeder: NodesComponents
+    leecher: NodesComponents
+    dataset: TestDataset
+
+  setup:
+    cluster = generateNodes(2, config = NodeConfig(findFreePorts: true))
+    seeder = cluster.components[0]
+    leecher = cluster.components[1]
+
+    let blocks = await makeRandomBlocks(4 * 1024, 1024.NBytes)
+    dataset = makeDataset(blocks).tryGet()
+
+    await seeder.assignBlocks(dataset, 0 ..< 2)
+
+    await cluster.components.start()
+    await connectNodes(cluster)
+
+  teardown:
+    await cluster.components.stop()
+
+  test "Should handle peer with partial blocks in swarm":
+    let
+      manifestCid = dataset.manifestCid
+      treeCid = dataset.manifest.treeCid
+      blockSize = dataset.manifest.blockSize.uint32
+      desc = DownloadDesc(md: dataset.manifestDesc, count: dataset.blocks.len.uint64)
+      download = leecher.downloadManager.startDownload(desc)
+      ranges = @[(start: 0'u64, count: 2'u64)]
+
+    download.updatePeerAvailability(
+      seeder.switch.peerInfo.peerId, BlockAvailability.fromRanges(ranges)
+    )
+
+    let
+      swarm = download.getSwarm()
+      candidates = swarm.peersWithRange(0, 2)
+    check seeder.switch.peerInfo.peerId in candidates
+
+    let candidatesForMissing = swarm.peersWithRange(2, 2)
+    check seeder.switch.peerInfo.peerId notin candidatesForMissing
+
+    leecher.downloadManager.cancelDownload(treeCid)
+
+  test "Should requeue batch on peer failure":
+    let
+      manifestCid = dataset.manifestCid
+      treeCid = dataset.manifest.treeCid
+      blockSize = dataset.manifest.blockSize.uint32
+      desc = DownloadDesc(md: dataset.manifestDesc, count: dataset.blocks.len.uint64)
+      download = leecher.downloadManager.startDownload(desc)
+      batch = leecher.downloadManager.getNextBatch(download)
+    check batch.isSome
+
+    download.markBatchInFlight(
+      batch.get.start, batch.get.count, 0, seeder.switch.peerInfo.peerId
+    )
+
+    check download.pendingBatchCount() == 1
+
+    download.handlePeerFailure(seeder.switch.peerInfo.peerId)
+
+    check download.pendingBatchCount() == 0
+    check download.ctx.scheduler.requeuedCount() == 1
+
+    leecher.downloadManager.cancelDownload(treeCid)
+
+asyncchecksuite "BlockExchange - Local Block Resolution":
+  var
+    cluster: NodesCluster
+    node1: NodesComponents
+    dataset: TestDataset
+
+  setup:
+    cluster = generateNodes(1, config = NodeConfig(findFreePorts: true))
+    node1 = cluster.components[0]
+
+    let blocks = await makeRandomBlocks(4 * 1024, 1024.NBytes)
+    dataset = makeDataset(blocks).tryGet()
+
+    await node1.assignBlocks(dataset)
+    await cluster.components.start()
+
+  teardown:
+    await cluster.components.stop()
+
+  test "Download worker should complete wantHandles when all blocks are local":
+    let
+      manifestCid = dataset.manifestCid
+      treeCid = dataset.manifest.treeCid
+      totalBlocks = dataset.blocks.len.uint64
+      blockSize = dataset.manifest.blockSize.uint32
+      desc = DownloadDesc(md: dataset.manifestDesc, count: totalBlocks)
+      download = node1.downloadManager.startDownload(desc)
+
+    var handles: seq[BlockHandle] = @[]
+    for i in 0'u64 ..< totalBlocks:
+      let address = download.makeBlockAddress(i)
+      handles.add(download.getWantHandle(address))
+
+    await node1.engine.downloadWorker(download)
+
+    for handle in handles:
+      check handle.finished
+      let blk = await handle
+      check blk.isOk
+
+    node1.downloadManager.cancelDownload(treeCid)
+
+asyncchecksuite "BlockExchange - Mixed Local and Network":
+  var
+    cluster: NodesCluster
+    seeder: NodesComponents
+    leecher: NodesComponents
+    dataset: TestDataset
+
+  setup:
+    cluster = generateNodes(2, config = NodeConfig(findFreePorts: true))
+    seeder = cluster.components[0]
+    leecher = cluster.components[1]
+
+    let blocks = await makeRandomBlocks(8 * 1024, 1024.NBytes)
+    dataset = makeDataset(blocks).tryGet()
+
+    await seeder.assignBlocks(dataset)
+
+    let halfPoint = dataset.blocks.len div 2
+    await leecher.assignBlocks(dataset, 0 ..< halfPoint)
+
+    await cluster.components.start()
+    await connectNodes(cluster)
+
+  teardown:
+    await cluster.components.stop()
+
+  test "Should download dataset with some blocks local and some from network":
+    await leecher.downloadDataset(dataset)
+
+    for blk in dataset.blocks:
+      let hasBlock = await blk.cid in leecher.localStore
+      check hasBlock
+
+  test "Should handle interleaved local and network blocks":
+    for i, blk in dataset.blocks:
+      if i mod 2 == 0:
+        (await leecher.localStore.putBlock(blk)).tryGet()
+
+    await leecher.downloadDataset(dataset)
+
+    for blk in dataset.blocks:
+      let hasBlock = await blk.cid in leecher.localStore
+      check hasBlock
+
+asyncchecksuite "BlockExchange - Re-download from Local":
+  var
+    cluster: NodesCluster
+    seeder: NodesComponents
+    leecher: NodesComponents
+    dataset: TestDataset
+
+  setup:
+    cluster = generateNodes(2, config = NodeConfig(findFreePorts: true))
+    seeder = cluster.components[0]
+    leecher = cluster.components[1]
+
+    let blocks = await makeRandomBlocks(4 * 1024, 1024.NBytes)
+    dataset = makeDataset(blocks).tryGet()
+
+    await seeder.assignBlocks(dataset)
+
+    await cluster.components.start()
+    await connectNodes(cluster)
+
+  teardown:
+    await cluster.components.stop()
+
+  test "Should re-download from local after network download":
+    await leecher.downloadDataset(dataset)
+
+    for blk in dataset.blocks:
+      let hasBlock = await blk.cid in leecher.localStore
+      check hasBlock
+
+    await leecher.downloadDataset(dataset)
+
+    for blk in dataset.blocks:
+      let hasBlock = await blk.cid in leecher.localStore
+      check hasBlock
+
+asyncchecksuite "BlockExchange - NetworkStore getBlocks":
+  var
+    cluster: NodesCluster
+    seeder: NodesComponents
+    leecher: NodesComponents
+    dataset: TestDataset
+
+  setup:
+    cluster = generateNodes(2, config = NodeConfig(findFreePorts: true))
+    seeder = cluster.components[0]
+    leecher = cluster.components[1]
+
+    let blocks = await makeRandomBlocks(4 * 1024, 1024.NBytes)
+    dataset = makeDataset(blocks).tryGet()
+
+    await seeder.assignBlocks(dataset)
+    await cluster.components.start()
+    await connectNodes(cluster)
+
+  teardown:
+    await cluster.components.stop()
+
+  test "getBlocks all local":
+    await leecher.assignBlocks(dataset)
+    await leecher.downloadDataset(dataset)
+
+  test "getBlocks all from network":
+    await leecher.downloadDataset(dataset)
+
+  test "getBlocks mixed local and network":
+    await leecher.assignBlocks(dataset, 0 ..< 2)
+    await leecher.downloadDataset(dataset)

@@ -7,12 +7,11 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/sequtils
-import std/strutils
 import std/os
 import std/tables
 import std/cpuinfo
 import std/net
+import std/sequtils
 
 import pkg/chronos
 import pkg/taskpools
@@ -25,6 +24,7 @@ import pkg/datastore
 import pkg/stew/io2
 
 import ./node
+import ./manifest/protocol
 import ./conf
 import ./rng as random
 import ./rest/api
@@ -32,8 +32,8 @@ import ./stores
 import ./blockexchange
 import ./utils/fileutils
 import ./discovery
-import ./systemclock
 import ./utils/addrutils
+import ./utils/natutils
 import ./namespaces
 import ./storagetypes
 import ./logutils
@@ -45,6 +45,7 @@ logScope:
 type
   StorageServer* = ref object
     config: StorageConf
+    logFile*: Option[IoHandle]
     restServer: RestServerRef
     storageNode: StorageNodeRef
     repoStore: RepoStore
@@ -79,6 +80,16 @@ proc start*(s: StorageServer) {.async.} =
     s.config.nat, s.storageNode.switch.peerInfo.addrs, s.config.discoveryPort
   )
 
+  var hasPublicAddr = false
+  for announceAddr in announceAddrs:
+    let (maybeIp, _) = getAddressAndPort(announceAddr)
+    if maybeIp.isSome and maybeIp.get.isGlobalUnicast():
+      hasPublicAddr = true
+      break
+
+  if not hasPublicAddr:
+    warn "Unable to determine a public IP address. This node will only be reachable on a private network."
+
   s.storageNode.discovery.updateAnnounceRecord(announceAddrs)
   s.storageNode.discovery.updateDhtRecord(discoveryAddrs)
 
@@ -112,7 +123,10 @@ proc stop*(s: StorageServer) {.async.} =
 
   if res.failure.len > 0:
     error "Failed to stop Storage node", failures = res.failure.len
-    raiseAssert "Failed to stop Storage node"
+    raise newException(
+      StorageError,
+      "Failed to stop Storage node: " & res.failure.mapIt(it.error.msg).join(", "),
+    )
 
 proc close*(s: StorageServer) {.async.} =
   var futures =
@@ -125,18 +139,34 @@ proc close*(s: StorageServer) {.async.} =
       s.taskpool.shutdown()
     except Exception as exc:
       error "Failed to stop the taskpool", failures = res.failure.len
-      raiseAssert("Failure in taskpool shutdown:" & exc.msg)
+      raise newException(StorageError, "Failure in taskpool shutdown: " & exc.msg)
+
+  when defaultChroniclesStream.outputs.type.arity >= 3:
+    proc noOutput(logLevel: LogLevel, msg: LogOutputStr) =
+      discard
+
+    defaultChroniclesStream.outputs[2].writer = noOutput
+
+  if s.logFile.isSome:
+    if error =? closeFile(s.logFile.get()).errorOption:
+      error "Failed to close log file", errorCode = $error
 
   if res.failure.len > 0:
     error "Failed to close Storage node", failures = res.failure.len
-    raiseAssert "Failed to close Storage node"
+    raise newException(
+      StorageError,
+      "Failed to close Storage node: " & res.failure.mapIt(it.error.msg).join(", "),
+    )
 
 proc shutdown*(server: StorageServer) {.async.} =
   await server.stop()
   await server.close()
 
 proc new*(
-    T: type StorageServer, config: StorageConf, privateKey: StoragePrivateKey
+    T: type StorageServer,
+    config: StorageConf,
+    privateKey: StoragePrivateKey,
+    logFile: Option[IoHandle] = IoHandle.none,
 ): StorageServer =
   ## create StorageServer including setting up datastore, repostore, etc
   let listenMultiAddr = getMultiAddrWithIpAndTcpPort(config.listenIp, config.listenPort)
@@ -147,7 +177,7 @@ proc new*(
     .withAddresses(@[listenMultiAddr])
     .withRng(random.Rng.instance())
     .withNoise()
-    .withMplex(5.minutes, 5.minutes)
+    .withYamux()
     .withMaxConnections(config.maxPeers)
     .withAgentVersion(config.agentString)
     .withSignedPeerRecord(true)
@@ -236,21 +266,22 @@ proc new*(
       numberOfBlocksPerInterval = config.blockMaintenanceNumberOfBlocks,
     )
 
-    peerStore = PeerCtxStore.new()
-    pendingBlocks = PendingBlocksManager.new(retries = config.blockRetries)
+    peerStore = PeerContextStore.new()
+    downloadManager = DownloadManager.new(retries = config.blockRetries)
     advertiser = Advertiser.new(repoStore, discovery)
-    blockDiscovery =
-      DiscoveryEngine.new(repoStore, peerStore, network, discovery, pendingBlocks)
+    blockDiscovery = DiscoveryEngine.new(repoStore, peerStore, network, discovery)
     engine = BlockExcEngine.new(
-      repoStore, network, blockDiscovery, advertiser, peerStore, pendingBlocks
+      repoStore, network, blockDiscovery, advertiser, peerStore, downloadManager
     )
     store = NetworkStore.new(engine, repoStore)
+    manifestProto = ManifestProtocol.new(switch, repoStore, discovery)
 
     storageNode = StorageNodeRef.new(
       switch = switch,
       networkStore = store,
       engine = engine,
       discovery = discovery,
+      manifestProto = manifestProto,
       taskPool = taskPool,
     )
 
@@ -267,6 +298,7 @@ proc new*(
       .expect("Should create rest server!")
 
   switch.mount(network)
+  switch.mount(manifestProto)
 
   StorageServer(
     config: config,
@@ -275,4 +307,5 @@ proc new*(
     repoStore: repoStore,
     maintenance: maintenance,
     taskPool: taskPool,
+    logFile: logFile,
   )

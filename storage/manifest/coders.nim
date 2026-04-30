@@ -14,7 +14,6 @@ import times
 {.push raises: [].}
 
 import std/tables
-import std/sequtils
 
 import pkg/libp2p
 import pkg/questionable
@@ -38,31 +37,32 @@ proc encode*(manifest: Manifest): ?!seq[byte] =
   #
   # ```protobuf
   #   Message Header {
-  #     optional bytes treeCid = 1;       # cid (root) of the tree
-  #     optional uint32 blockSize = 2;    # size of a single block
-  #     optional uint64 datasetSize = 3;  # size of the dataset
-  #     optional codec: MultiCodec = 4;   # Dataset codec
-  #     optional hcodec: MultiCodec = 5   # Multihash codec
-  #     optional version: CidVersion = 6; # Cid version
-  #     optional filename: ?string = 7;    # original filename
-  #     optional mimetype: ?string = 8;    # original mimetype
+  #     required uint32 manifestVersion = 1; # manifest format version
+  #     optional bytes treeCid = 2;          # cid (root) of the tree
+  #     optional uint32 blockSize = 3;       # size of a single block
+  #     optional uint64 datasetSize = 4;     # size of the dataset
+  #     optional codec: MultiCodec = 5;      # Dataset codec
+  #     optional hcodec: MultiCodec = 6;     # Multihash codec
+  #     optional version: CidVersion = 7;    # Cid version
+  #     optional filename: string = 8;       # original filename
+  #     optional mimetype: string = 9;       # original mimetype
   #   }
   # ```
   #
-  # var treeRootVBuf = initVBuffer()
   var header = initProtoBuffer()
-  header.write(1, manifest.treeCid.data.buffer)
-  header.write(2, manifest.blockSize.uint32)
-  header.write(3, manifest.datasetSize.uint64)
-  header.write(4, manifest.codec.uint32)
-  header.write(5, manifest.hcodec.uint32)
-  header.write(6, manifest.version.uint32)
+  header.write(1, manifest.manifestVersion)
+  header.write(2, manifest.treeCid.data.buffer)
+  header.write(3, manifest.blockSize.uint32)
+  header.write(4, manifest.datasetSize.uint64)
+  header.write(5, manifest.codec.uint32)
+  header.write(6, manifest.hcodec.uint32)
+  header.write(7, manifest.version.uint32)
 
   if manifest.filename.isSome:
-    header.write(7, manifest.filename.get())
+    header.write(8, manifest.filename.get())
 
   if manifest.mimetype.isSome:
-    header.write(8, manifest.mimetype.get())
+    header.write(9, manifest.mimetype.get())
 
   pbNode.write(1, header) # set the treeCid as the data field
   pbNode.finish()
@@ -82,6 +82,7 @@ proc decode*(_: type Manifest, data: openArray[byte]): ?!Manifest =
     hcodec: uint32
     version: uint32
     blockSize: uint32
+    manifestVersion: uint32
     filename: string
     mimetype: string
 
@@ -90,29 +91,35 @@ proc decode*(_: type Manifest, data: openArray[byte]): ?!Manifest =
     return failure("Unable to decode `Header` from dag-pb manifest!")
 
   # Decode `Header` contents
-  if pbHeader.getField(1, treeCidBuf).isErr:
+  if pbHeader.getField(1, manifestVersion).isErr:
+    return failure("Unable to decode `manifestVersion` from manifest!")
+
+  if pbHeader.getField(2, treeCidBuf).isErr:
     return failure("Unable to decode `treeCid` from manifest!")
 
-  if pbHeader.getField(2, blockSize).isErr:
+  if pbHeader.getField(3, blockSize).isErr:
     return failure("Unable to decode `blockSize` from manifest!")
 
-  if pbHeader.getField(3, datasetSize).isErr:
+  if pbHeader.getField(4, datasetSize).isErr:
     return failure("Unable to decode `datasetSize` from manifest!")
 
-  if pbHeader.getField(4, codec).isErr:
+  if pbHeader.getField(5, codec).isErr:
     return failure("Unable to decode `codec` from manifest!")
 
-  if pbHeader.getField(5, hcodec).isErr:
+  if pbHeader.getField(6, hcodec).isErr:
     return failure("Unable to decode `hcodec` from manifest!")
 
-  if pbHeader.getField(6, version).isErr:
+  if pbHeader.getField(7, version).isErr:
     return failure("Unable to decode `version` from manifest!")
 
-  if pbHeader.getField(7, filename).isErr:
+  if pbHeader.getField(8, filename).isErr:
     return failure("Unable to decode `filename` from manifest!")
 
-  if pbHeader.getField(8, mimetype).isErr:
+  if pbHeader.getField(9, mimetype).isErr:
     return failure("Unable to decode `mimetype` from manifest!")
+
+  if manifestVersion != 0:
+    return failure("Unsupported manifest version: " & $manifestVersion)
 
   let treeCid = ?Cid.init(treeCidBuf).mapFailure
 
@@ -128,6 +135,7 @@ proc decode*(_: type Manifest, data: openArray[byte]): ?!Manifest =
     codec = codec.MultiCodec,
     filename = filenameOption,
     mimetype = mimetypeOption,
+    manifestVersion = manifestVersion,
   )
 
   self.success
@@ -139,4 +147,4 @@ func decode*(_: type Manifest, blk: Block): ?!Manifest =
   if not ?blk.cid.isManifest:
     return failure "Cid not a manifest codec"
 
-  Manifest.decode(blk.data)
+  Manifest.decode(blk.data[])

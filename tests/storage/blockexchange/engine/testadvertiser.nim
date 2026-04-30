@@ -55,15 +55,15 @@ asyncchecksuite "Advertiser":
     check:
       manifestBlk.cid in advertised
 
-  test "blockStored should queue tree Cid for advertising":
+  test "blockStored should not queue tree Cid for advertising":
     (await localStore.putBlock(manifestBlk)).tryGet()
 
     await waitTillQueueEmpty()
 
     check:
-      manifest.treeCid in advertised
+      manifest.treeCid notin advertised
 
-  test "blockStored should not queue non-manifest non-tree CIDs for discovery":
+  test "blockStored should not queue non-manifest CIDs for discovery":
     let blk = bt.Block.example
 
     (await localStore.putBlock(blk)).tryGet()
@@ -79,11 +79,10 @@ asyncchecksuite "Advertiser":
 
     await waitTillQueueEmpty()
 
-    check eventually advertised.len == 2
+    check eventually advertised.len == 1
     check manifestBlk.cid in advertised
-    check manifest.treeCid in advertised
 
-  test "Should advertise existing manifests and their trees":
+  test "Should advertise existing manifests":
     let newStore = CacheStore.new([manifestBlk])
 
     await advertiser.stop()
@@ -91,7 +90,7 @@ asyncchecksuite "Advertiser":
     await advertiser.start()
 
     check eventually manifestBlk.cid in advertised
-    check eventually manifest.treeCid in advertised
+    check manifest.treeCid notin advertised
 
   test "Stop should clear onBlockStored callback":
     await advertiser.stop()

@@ -11,7 +11,7 @@
 
 import std/os
 
-{.push warning[UnusedImport]: on.}
+{.push warning[UnusedImport]: off.}
 import std/terminal # Is not used in tests
 {.pop.}
 
@@ -44,7 +44,7 @@ import ./utils
 import ./nat
 import ./utils/natutils
 
-from ./blockexchange/engine/pendingblocks import DefaultBlockRetries
+from ./blockexchange/engine/downloadmanager import DefaultBlockRetries
 
 export units, net, storagetypes, logutils, completeCmdArg, parseCmdArg, NatConfig
 
@@ -542,11 +542,27 @@ proc updateLogLevel*(logLevel: string) {.raises: [ValueError].} =
       if not setTopicState(topicName, settings.state, settings.logLevel):
         warn "Unrecognized logging topic", topic = topicName
 
-proc setupLogging*(conf: StorageConf) =
+proc openLogFile(conf: StorageConf): Option[IoHandle] =
+  if logFilePath =? conf.logFile and logFilePath.len > 0:
+    let logFileHandle =
+      openFile(logFilePath, {OpenFlags.Write, OpenFlags.Create, OpenFlags.Truncate})
+    if logFileHandle.isErr:
+      error "failed to open log file",
+        path = logFilePath, errorCode = $logFileHandle.error
+    else:
+      return logFileHandle.option
+  return IoHandle.none
+
+proc setupLogging*(conf: StorageConf): Option[IoHandle] =
+  let ioHandle =
+    if conf.logFile.isSome:
+      conf.openLogFile()
+    else:
+      IoHandle.none
+
   when defaultChroniclesStream.outputs.type.arity != 3:
     warn "Logging configuration options not enabled in the current build"
   else:
-    var logFile: ?IoHandle
     proc noOutput(logLevel: LogLevel, msg: LogOutputStr) =
       discard
 
@@ -564,20 +580,13 @@ proc setupLogging*(conf: StorageConf) =
       writeAndFlush(stdout, stripAnsi(msg))
 
     proc fileFlush(logLevel: LogLevel, msg: LogOutputStr) =
-      if file =? logFile:
+      if file =? ioHandle:
         if error =? file.writeFile(stripAnsi(msg).toBytes).errorOption:
           error "failed to write to log file", errorCode = $error
 
     defaultChroniclesStream.outputs[2].writer = noOutput
-    if logFilePath =? conf.logFile and logFilePath.len > 0:
-      let logFileHandle =
-        openFile(logFilePath, {OpenFlags.Write, OpenFlags.Create, OpenFlags.Truncate})
-      if logFileHandle.isErr:
-        error "failed to open log file",
-          path = logFilePath, errorCode = $logFileHandle.error
-      else:
-        logFile = logFileHandle.option
-        defaultChroniclesStream.outputs[2].writer = fileFlush
+    if ioHandle.isSome:
+      defaultChroniclesStream.outputs[2].writer = fileFlush
 
     defaultChroniclesStream.outputs[1].writer = noOutput
 
@@ -606,14 +615,19 @@ proc setupLogging*(conf: StorageConf) =
     else:
       defaultChroniclesStream.outputs[0].writer = writer
 
-proc setupMetrics*(config: StorageConf) =
+    return ioHandle
+
+proc setupMetrics*(config: StorageConf): ?!void =
   if config.metricsEnabled:
     let metricsAddress = config.metricsAddress
     notice "Starting metrics HTTP server",
       url = "http://" & $metricsAddress & ":" & $config.metricsPort & "/metrics"
+    let server = MetricsHttpServerRef.new($metricsAddress, config.metricsPort).valueOr:
+      return failure($error)
     try:
-      startMetricsHttpServer($metricsAddress, config.metricsPort)
-    except CatchableError as exc:
-      raiseAssert exc.msg
-    except Exception as exc:
-      raiseAssert exc.msg # TODO fix metrics
+      waitFor server.start()
+    except MetricsError as exc:
+      return failure(exc.msg)
+    except CancelledError:
+      return failure("Metrics server start was cancelled")
+  success()

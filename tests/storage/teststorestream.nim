@@ -34,9 +34,11 @@ asyncchecksuite "StoreStream":
 
   setup:
     store = CacheStore.new()
-    manifest = await storeDataGetManifest(
-      store, MockChunker.new(dataset = data, chunkSize = chunkSize)
-    )
+    manifest = (
+      await storeDataGetManifest(
+        store, MockChunker.new(dataset = data, chunkSize = chunkSize)
+      )
+    ).manifest
     stream = StoreStream.new(store, manifest)
 
   test "Read all blocks < blockSize":

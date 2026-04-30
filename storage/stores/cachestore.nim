@@ -117,10 +117,7 @@ method getBlockAndProof*(
 method getBlock*(
     self: CacheStore, address: BlockAddress
 ): Future[?!Block] {.async: (raw: true, raises: [CancelledError]).} =
-  if address.leaf:
-    self.getBlock(address.treeCid, address.index)
-  else:
-    self.getBlock(address.cid)
+  self.getBlock(address.treeCid, address.index)
 
 method hasBlock*(
     self: CacheStore, cid: Cid
@@ -188,7 +185,7 @@ method listBlocks*(
   success(iter)
 
 func putBlockSync(self: CacheStore, blk: Block): bool =
-  let blkSize = blk.data.len.NBytes # in bytes
+  let blkSize = blk.data[].len.NBytes # in bytes
 
   if blkSize > self.size:
     trace "Block size is larger than cache size", blk = blkSize, cache = self.size
@@ -197,7 +194,7 @@ func putBlockSync(self: CacheStore, blk: Block): bool =
   while self.currentSize + blkSize > self.size:
     try:
       let removed = self.cache.removeLru()
-      self.currentSize -= removed.data.len.NBytes
+      self.currentSize -= removed.data[].len.NBytes
     except EmptyLruCacheError as exc:
       # if the cache is empty, can't remove anything, so break and add item
       # to the cache
@@ -264,7 +261,7 @@ method delBlock*(
 
   let removed = self.cache.del(cid)
   if removed.isSome:
-    self.currentSize -= removed.get.data.len.NBytes
+    self.currentSize -= removed.get.data[].len.NBytes
 
   return success()
 
@@ -277,9 +274,6 @@ method delBlock*(
     return await self.delBlock(removed[0])
 
   return success()
-
-method completeBlock*(self: CacheStore, address: BlockAddress, blk: Block) {.gcsafe.} =
-  discard
 
 method close*(self: CacheStore): Future[void] {.async: (raises: []).} =
   ## Close the blockstore, a no-op for this implementation

@@ -10,7 +10,6 @@
 
 {.push raises: [].}
 
-import std/enumerate
 import std/parseutils
 import std/options
 
@@ -40,24 +39,6 @@ func roundUp*[T](a, b: T): T =
 
 proc orElse*[A](a, b: Option[A]): Option[A] =
   if (a.isSome()): a else: b
-
-template findIt*(s, pred: untyped): untyped =
-  ## Returns the index of the first object matching a predicate, or -1 if no
-  ## object matches it.
-  runnableExamples:
-    type MyType = object
-      att: int
-
-    var s = @[MyType(att: 1), MyType(att: 2), MyType(att: 3)]
-    doAssert s.findIt(it.att == 2) == 1
-    doAssert s.findIt(it.att == 4) == -1
-
-  var index = -1
-  for i, it {.inject.} in enumerate(items(s)):
-    if pred:
-      index = i
-      break
-  index
 
 when not declared(parseDuration): # Odd code formatting to minimize diff v. mainLine
   const Whitespace = {' ', '\t', '\v', '\r', '\l', '\f'}

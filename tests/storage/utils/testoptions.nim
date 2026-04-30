@@ -3,7 +3,7 @@ import pkg/storage/utils/options
 
 import ../helpers
 
-suite "optional casts":
+suite "Optional casts":
   test "casting value to same type works":
     check 42 as int == some 42
 

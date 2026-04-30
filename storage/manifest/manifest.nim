@@ -25,6 +25,7 @@ import ../logutils
 # TODO: Manifest should be reworked to more concrete types,
 # perhaps using inheritance
 type Manifest* = ref object of RootObj
+  manifestVersion {.serialize.}: uint32 # Manifest format version
   treeCid {.serialize.}: Cid # Root of the merkle tree
   datasetSize {.serialize.}: NBytes # Total size of all blocks
   blockSize {.serialize.}: NBytes
@@ -34,6 +35,10 @@ type Manifest* = ref object of RootObj
   version: CidVersion # Cid version
   filename {.serialize.}: ?string # The filename of the content uploaded (optional)
   mimetype {.serialize.}: ?string # The mimetype of the content uploaded (optional)
+
+type ManifestDescriptor* = ref object
+  manifest*: Manifest
+  manifestCid*: Cid
 
 ############################################################
 # Accessors
@@ -66,6 +71,9 @@ func filename*(self: Manifest): ?string =
 func mimetype*(self: Manifest): ?string =
   self.mimetype
 
+func manifestVersion*(self: Manifest): uint32 =
+  self.manifestVersion
+
 ############################################################
 # Operations on block list
 ############################################################
@@ -83,7 +91,8 @@ func isManifest*(mc: MultiCodec): ?!bool =
 func `==`*(a, b: Manifest): bool =
   (a.treeCid == b.treeCid) and (a.datasetSize == b.datasetSize) and
     (a.blockSize == b.blockSize) and (a.version == b.version) and (a.hcodec == b.hcodec) and
-    (a.codec == b.codec) and (a.filename == b.filename) and (a.mimetype == b.mimetype)
+    (a.codec == b.codec) and (a.filename == b.filename) and (a.mimetype == b.mimetype) and
+    (a.manifestVersion == b.manifestVersion)
 
 func `$`*(self: Manifest): string =
   result =
@@ -113,6 +122,7 @@ func new*(
     codec = BlockCodec,
     filename: ?string = string.none,
     mimetype: ?string = string.none,
+    manifestVersion: uint32 = 0,
 ): Manifest =
   T(
     treeCid: treeCid,
@@ -123,6 +133,7 @@ func new*(
     hcodec: hcodec,
     filename: filename,
     mimetype: mimetype,
+    manifestVersion: manifestVersion,
   )
 
 func new*(T: type Manifest, data: openArray[byte]): ?!Manifest =

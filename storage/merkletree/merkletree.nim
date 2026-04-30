@@ -10,7 +10,7 @@
 {.push raises: [].}
 
 import std/bitops
-import std/[atomics, sequtils]
+import std/sequtils
 
 import pkg/questionable
 import pkg/questionable/results

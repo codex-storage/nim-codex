@@ -1,4 +1,5 @@
 import ./manifest/coders
 import ./manifest/manifest
+import ./manifest/protocol
 
-export manifest, coders
+export manifest, coders, protocol

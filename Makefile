@@ -15,7 +15,7 @@
 #
 # If NIM_COMMIT is set to "nimbusbuild", this will use the
 # version pinned by nimbus-build-system.
-PINNED_NIM_VERSION := v2.2.4
+PINNED_NIM_VERSION := v2.2.8
 
 ifeq ($(NIM_COMMIT),)
 NIM_COMMIT := $(PINNED_NIM_VERSION)
@@ -145,7 +145,7 @@ test: | build deps
 # Builds and runs the integration tests
 testIntegration: | build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
-		$(ENV_SCRIPT) nim testIntegration $(TEST_PARAMS) $(NIM_PARAMS) --define:ws_resubscribe=240 build.nims
+		$(ENV_SCRIPT) nim testIntegration $(TEST_PARAMS) $(NIM_PARAMS) build.nims
 
 # Builds a C example that uses the libstorage C library and runs it
 testLibstorage: | build deps
@@ -216,7 +216,7 @@ build-nph:
 ifeq ("$(wildcard $(NPH))","")
 	cd vendor/nph && \
 	nimble setup -l && \
-	nimble build && \
+	nimble build -d:disable_libbacktrace && \
 	mv ./nph ../../$(shell dirname $(NPH)) && \
 	echo "nph utility is available at " $(NPH)
 endif

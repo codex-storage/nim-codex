@@ -1,5 +1,4 @@
-import std/sequtils
-import std/tables
+import std/[sequtils, tables]
 
 import pkg/chronos
 
@@ -7,6 +6,7 @@ import pkg/storage/rng
 import pkg/storage/chunker
 import pkg/storage/blocktype as bt
 import pkg/storage/blockexchange
+import pkg/storage/blockexchange/protocol/wantblocks
 
 import ../../asynctest
 import ../examples
@@ -45,13 +45,13 @@ asyncchecksuite "Network - Handlers":
     discard await networkPeer.connect()
 
   test "Want List handler":
+    let treeCid = Cid.example
+
     proc wantListHandler(peer: PeerId, wantList: WantList) {.async: (raises: []).} =
-      # check that we got the correct amount of entries
       check wantList.entries.len == 4
 
-      for b in blocks:
-        check b.address in wantList.entries
-        let entry = wantList.entries[wantList.entries.find(b.address)]
+      for entry in wantList.entries:
+        check entry.address.treeCid == treeCid
         check entry.wantType == WantType.WantHave
         check entry.priority == 1
         check entry.cancel == true
@@ -62,35 +62,24 @@ asyncchecksuite "Network - Handlers":
     network.handlers.onWantList = wantListHandler
 
     let wantList =
-      makeWantList(blocks.mapIt(it.cid), 1, true, WantType.WantHave, true, true)
+      makeWantList(treeCid, blocks.len, 1, true, WantType.WantHave, true, true)
 
     let msg = Message(wantlist: wantList)
-    await buffer.pushData(lenPrefix(protobufEncode(msg)))
-
-    await done.wait(500.millis)
-
-  test "Blocks Handler":
-    proc blocksDeliveryHandler(
-        peer: PeerId, blocksDelivery: seq[BlockDelivery]
-    ) {.async: (raises: []).} =
-      check blocks == blocksDelivery.mapIt(it.blk)
-      done.complete()
-
-    network.handlers.onBlocksDelivery = blocksDeliveryHandler
-
-    let msg =
-      Message(payload: blocks.mapIt(BlockDelivery(blk: it, address: it.address)))
-    await buffer.pushData(lenPrefix(protobufEncode(msg)))
+    await buffer.pushData(frameProtobufMessage(protobufEncode(msg)))
 
     await done.wait(500.millis)
 
   test "Presence Handler":
+    let
+      treeCid = Cid.example
+      addresses = (0 ..< blocks.len).mapIt(BlockAddress(treeCid: treeCid, index: it))
+
     proc presenceHandler(
         peer: PeerId, presence: seq[BlockPresence]
     ) {.async: (raises: []).} =
-      for b in blocks:
-        check:
-          b.address in presence
+      check presence.len == blocks.len
+      for p in presence:
+        check p.address.treeCid == treeCid
 
       done.complete()
 
@@ -98,9 +87,9 @@ asyncchecksuite "Network - Handlers":
 
     let msg = Message(
       blockPresences:
-        blocks.mapIt(BlockPresence(address: it.address, type: BlockPresenceType.Have))
+        addresses.mapIt(BlockPresence(address: it, kind: BlockPresenceType.HaveRange))
     )
-    await buffer.pushData(lenPrefix(protobufEncode(msg)))
+    await buffer.pushData(frameProtobufMessage(protobufEncode(msg)))
 
     await done.wait(500.millis)
 
@@ -139,13 +128,15 @@ asyncchecksuite "Network - Senders":
     await allFuturesThrowing(switch1.stop(), switch2.stop())
 
   test "Send want list":
+    let
+      treeCid = Cid.example
+      addresses = (0 ..< blocks.len).mapIt(BlockAddress(treeCid: treeCid, index: it))
+
     proc wantListHandler(peer: PeerId, wantList: WantList) {.async: (raises: []).} =
-      # check that we got the correct amount of entries
       check wantList.entries.len == 4
 
-      for b in blocks:
-        check b.address in wantList.entries
-        let entry = wantList.entries[wantList.entries.find(b.address)]
+      for entry in wantList.entries:
+        check entry.address.treeCid == treeCid
         check entry.wantType == WantType.WantHave
         check entry.priority == 1
         check entry.cancel == true
@@ -155,38 +146,22 @@ asyncchecksuite "Network - Senders":
 
     network2.handlers.onWantList = wantListHandler
     await network1.sendWantList(
-      switch2.peerInfo.peerId,
-      blocks.mapIt(it.address),
-      1,
-      true,
-      WantType.WantHave,
-      true,
-      true,
-    )
-
-    await done.wait(500.millis)
-
-  test "send blocks":
-    proc blocksDeliveryHandler(
-        peer: PeerId, blocksDelivery: seq[BlockDelivery]
-    ) {.async: (raises: []).} =
-      check blocks == blocksDelivery.mapIt(it.blk)
-      done.complete()
-
-    network2.handlers.onBlocksDelivery = blocksDeliveryHandler
-    await network1.sendBlocksDelivery(
-      switch2.peerInfo.peerId, blocks.mapIt(BlockDelivery(blk: it, address: it.address))
+      switch2.peerInfo.peerId, addresses, 1, true, WantType.WantHave, true, true
     )
 
     await done.wait(500.millis)
 
   test "send presence":
+    let
+      treeCid = Cid.example
+      addresses = (0 ..< blocks.len).mapIt(BlockAddress(treeCid: treeCid, index: it))
+
     proc presenceHandler(
         peer: PeerId, precense: seq[BlockPresence]
     ) {.async: (raises: []).} =
-      for b in blocks:
-        check:
-          b.address in precense
+      check precense.len == blocks.len
+      for p in precense:
+        check p.address.treeCid == treeCid
 
       done.complete()
 
@@ -194,7 +169,7 @@ asyncchecksuite "Network - Senders":
 
     await network1.sendBlockPresence(
       switch2.peerInfo.peerId,
-      blocks.mapIt(BlockPresence(address: it.address, type: BlockPresenceType.Have)),
+      addresses.mapIt(BlockPresence(address: it, kind: BlockPresenceType.HaveRange)),
     )
 
     await done.wait(500.millis)

@@ -61,7 +61,7 @@ suite "Cache Store":
       not (await store.hasBlock(newBlock1.cid)).tryGet()
       (await store.hasBlock(newBlock2.cid)).tryGet()
       (await store.hasBlock(newBlock2.cid)).tryGet()
-      store.currentSize.int == newBlock2.data.len + newBlock3.data.len # 200
+      store.currentSize.int == newBlock2.data[].len + newBlock3.data[].len # 200
 
 commonBlockStoreTests(
   "Cache",

@@ -44,7 +44,7 @@ method onMoveToNextStateEvent(state: State2): ?State =
 method onMoveToNextStateEvent(state: State3): ?State =
   some State(State1.new())
 
-asyncchecksuite "async state machines":
+asyncchecksuite "Async state machines":
   var machine: Machine
 
   proc moveToNextStateEvent(state: State): ?State =

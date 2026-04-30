@@ -19,7 +19,6 @@ import pkg/chronos
 import pkg/presto except toJson
 import pkg/metrics except toJson
 import pkg/stew/base10
-import pkg/stew/byteutils
 import pkg/confutils
 
 import pkg/libp2p
@@ -29,10 +28,14 @@ import pkg/codexdht/discv5/spr as spr
 import ../logutils
 import ../node
 import ../blocktype
+import ../storagetypes
 import ../conf
 import ../manifest
 import ../streams/asyncstreamwrapper
 import ../stores
+import ../stores/repostore
+import ../blockexchange
+import ../units
 import ../utils/options
 
 import ./coders
@@ -120,7 +123,7 @@ proc retrieveCid(
 
     while not stream.atEof:
       var
-        buff = newSeqUninitialized[byte](DefaultBlockSize.int)
+        buff = newSeqUninit[byte](manifest.blockSize.int)
         len = await stream.readOnce(addr buff[0], buff.len)
 
       buff.setLen(len)
@@ -191,8 +194,29 @@ proc initDataApi(node: StorageNodeRef, repoStore: RepoStore, router: var RestRou
   router.rawApi(MethodPost, "/api/storage/v1/data") do() -> RestApiResponse:
     ## Upload a file in a streaming manner
     ##
+    ## Optional query parameter:
+    ##   blockSize - size of blocks in bytes (default: 64KiB, min: 4KiB, max: 512KiB)
+    ##
 
     trace "Handling file upload"
+
+    # Parse blockSize query parameter
+    var blockSize = DefaultBlockSize
+    let blockSizeStr = request.query.getString("blockSize", "")
+    if blockSizeStr != "":
+      let parsedSize = Base10.decode(uint64, blockSizeStr)
+      if parsedSize.isErr:
+        return RestApiResponse.error(Http400, "Invalid blockSize parameter")
+      let size = parsedSize.get()
+      # Validate block size
+      if size < MinBlockSize or size > MaxBlockSize or not isPowerOfTwo(size):
+        return RestApiResponse.error(
+          Http400,
+          "blockSize must be a power of two between " & $MinBlockSize & " and " &
+            $MaxBlockSize & " bytes",
+        )
+      blockSize = NBytes(size)
+
     var bodyReader = request.getBodyReader()
     if bodyReader.isErr():
       return RestApiResponse.error(Http500, msg = bodyReader.error())
@@ -223,6 +247,16 @@ proc initDataApi(node: StorageNodeRef, repoStore: RepoStore, router: var RestRou
     if filename.isSome and not isValidFilename(filename.get()):
       return RestApiResponse.error(Http422, "The filename is not valid.")
 
+    if filename.isSome and filename.get().len > MaxFilenameSize:
+      return RestApiResponse.error(
+        Http422, "Filename exceeds maximum size of " & $MaxFilenameSize & " bytes"
+      )
+
+    if mimetype.isSome and mimetype.get().len > MaxMimetypeSize:
+      return RestApiResponse.error(
+        Http422, "Mimetype exceeds maximum size of " & $MaxMimetypeSize & " bytes"
+      )
+
     # Here we could check if the extension matches the filename if needed
 
     let reader = bodyReader.get()
@@ -233,13 +267,14 @@ proc initDataApi(node: StorageNodeRef, repoStore: RepoStore, router: var RestRou
           AsyncStreamWrapper.new(reader = AsyncStreamReader(reader)),
           filename = filename,
           mimetype = mimetype,
+          blockSize = blockSize,
         )
       ), error:
         error "Error uploading file", exc = error.msg
         return RestApiResponse.error(Http500, error.msg)
 
       storage_api_uploads.inc()
-      trace "Uploaded file", cid
+      trace "Uploaded file", cid, blockSize
       return RestApiResponse.response($cid)
     except CancelledError:
       trace "Upload cancelled error"
@@ -304,9 +339,10 @@ proc initDataApi(node: StorageNodeRef, repoStore: RepoStore, router: var RestRou
     cid: Cid, resp: HttpResponseRef
   ) -> RestApiResponse:
     ## Download a file from the network to the local node
+    ## Returns the download ID for progress tracking and cancellation.
     ##
 
-    var headers = buildCorsHeaders("GET", allowedOrigin)
+    var headers = buildCorsHeaders("POST", allowedOrigin)
 
     if cid.isErr:
       return RestApiResponse.error(Http400, $cid.error(), headers = headers)
@@ -316,10 +352,64 @@ proc initDataApi(node: StorageNodeRef, repoStore: RepoStore, router: var RestRou
       return RestApiResponse.error(Http404, err.msg, headers = headers)
 
     # Start fetching the dataset in the background
-    node.fetchDatasetAsyncTask(manifest)
+    let md = ManifestDescriptor(manifest: manifest, manifestCid: cid.get())
+    without downloadId =?
+      (await node.startBackgroundDownload(md, selectionPolicy = spRandomWindow)), err:
+      return RestApiResponse.error(Http409, err.msg, headers = headers)
 
-    let json = %formatManifest(cid.get(), manifest)
+    var json = %formatManifest(cid.get(), manifest)
+    json["downloadId"] = %downloadId
     return RestApiResponse.response($json, contentType = "application/json")
+
+  router.api(MethodDelete, "/api/storage/v1/data/{cid}/network/{downloadId}") do(
+    cid: Cid, downloadId: uint64, resp: HttpResponseRef
+  ) -> RestApiResponse:
+    ## Cancel a specific background download
+    ##
+
+    var headers = buildCorsHeaders("DELETE", allowedOrigin)
+
+    if cid.isErr:
+      return RestApiResponse.error(Http400, $cid.error(), headers = headers)
+
+    if downloadId.isErr:
+      return RestApiResponse.error(Http400, "Invalid download ID", headers = headers)
+
+    if not node.cancelBackgroundDownload(downloadId.get(), cid.get()):
+      return RestApiResponse.error(
+        Http404, "Background download not found", headers = headers
+      )
+
+    resp.status = Http204
+    await resp.sendBody("")
+
+  router.api(MethodGet, "/api/storage/v1/data/{cid}/network/progress/{downloadId}") do(
+    cid: Cid, downloadId: uint64, resp: HttpResponseRef
+  ) -> RestApiResponse:
+    ## Get progress of a specific background download
+    ##
+    var headers = buildCorsHeaders("GET", allowedOrigin)
+
+    if cid.isErr:
+      return RestApiResponse.error(Http400, $cid.error(), headers = headers)
+
+    if downloadId.isErr:
+      return RestApiResponse.error(Http400, "Invalid download ID", headers = headers)
+
+    let progress = node.getDownloadProgress(downloadId.get(), cid.get())
+    if progress.isSome:
+      let
+        p = progress.get()
+        json = %*{
+          "active": true,
+          "received": p.blocksCompleted,
+          "total": p.totalBlocks,
+          "bytes": p.bytesTransferred,
+        }
+      return RestApiResponse.response($json, contentType = "application/json")
+    else:
+      let json = %*{"active": false}
+      return RestApiResponse.response($json, contentType = "application/json")
 
   router.api(MethodGet, "/api/storage/v1/data/{cid}/network/stream") do(
     cid: Cid, resp: HttpResponseRef
@@ -477,6 +567,7 @@ proc initDebugApi(node: StorageNodeRef, conf: StorageConf, router: var RestRoute
 
     try:
       let table = RestRoutingTable.init(node.discovery.protocol.routingTable)
+
       let json = %*{
         "id": $node.switch.peerInfo.peerId,
         "addrs": node.switch.peerInfo.addrs.mapIt($it),

@@ -92,6 +92,7 @@ import std/sugar
 import std/typetraits
 
 import pkg/chronicles except toJson, `%`
+import json_serialization/writer as json_serialization_writer
 from pkg/chronos import TransportAddress
 from pkg/libp2p import Cid, MultiAddress, `$`
 import pkg/questionable
@@ -170,33 +171,28 @@ template formatIt*(format: LogFormat, T: typedesc, body: untyped) =
         return jObj
       json.`%`(body)
 
-    proc setProperty*(r: var JsonRecord, key: string, res: ?!T) =
+    proc writeValue*(w: var JsonWriter, res: ?!T) {.raises: [IOError].} =
       var it {.inject, used.}: T
-      setProperty(r, key, res.formatJsonResult)
+      w.writeValue(res.formatJsonResult)
 
-    proc setProperty*(r: var JsonRecord, key: string, opt: ?T) =
+    proc writeValue*(w: var JsonWriter, opt: ?T) {.raises: [IOError].} =
       var it {.inject, used.}: T
-      let v = opt.formatJsonOption
-      setProperty(r, key, v)
+      w.writeValue(opt.formatJsonOption)
 
-    proc setProperty*(r: var JsonRecord, key: string, opts: seq[?T]) =
+    proc writeValue*(w: var JsonWriter, opts: seq[?T]) {.raises: [IOError].} =
       var it {.inject, used.}: T
       let v = opts.map(opt => opt.formatJsonOption)
-      setProperty(r, key, json.`%`(v))
+      w.writeValue(json.`%`(v))
 
-    proc setProperty*(
-        r: var JsonRecord, key: string, val: seq[T]
-    ) {.raises: [ValueError, IOError].} =
+    proc writeValue*(w: var JsonWriter, val: seq[T]) {.raises: [IOError].} =
       var it {.inject, used.}: T
       let v = val.map(it => body)
-      setProperty(r, key, json.`%`(v))
+      w.writeValue(json.`%`(v))
 
-    proc setProperty*(
-        r: var JsonRecord, key: string, val: T
-    ) {.raises: [ValueError, IOError].} =
+    proc writeValue*(w: var JsonWriter, val: T) {.raises: [IOError].} =
       var it {.inject, used.}: T = val
       let v = body
-      setProperty(r, key, json.`%`(v))
+      w.writeValue(json.`%`(v))
 
   elif format == LogFormat.textLines:
     proc formatTextLineOption*(val: ?T): string =
@@ -210,29 +206,29 @@ template formatIt*(format: LogFormat, T: typedesc, body: untyped) =
         return "Error: " & error.msg
       $(body)
 
-    proc setProperty*(r: var TextLineRecord, key: string, res: ?!T) =
+    proc setProperty*(r: var TextLogRecord, key: string, res: ?!T) =
       var it {.inject, used.}: T
       setProperty(r, key, res.formatTextLineResult)
 
-    proc setProperty*(r: var TextLineRecord, key: string, opt: ?T) =
+    proc setProperty*(r: var TextLogRecord, key: string, opt: ?T) =
       var it {.inject, used.}: T
       let v = opt.formatTextLineOption
       setProperty(r, key, v)
 
-    proc setProperty*(r: var TextLineRecord, key: string, opts: seq[?T]) =
+    proc setProperty*(r: var TextLogRecord, key: string, opts: seq[?T]) =
       var it {.inject, used.}: T
       let v = opts.map(opt => opt.formatTextLineOption)
       setProperty(r, key, v.formatTextLineSeq)
 
     proc setProperty*(
-        r: var TextLineRecord, key: string, val: seq[T]
+        r: var TextLogRecord, key: string, val: seq[T]
     ) {.raises: [ValueError, IOError].} =
       var it {.inject, used.}: T
       let v = val.map(it => body)
       setProperty(r, key, v.formatTextLineSeq)
 
     proc setProperty*(
-        r: var TextLineRecord, key: string, val: T
+        r: var TextLogRecord, key: string, val: T
     ) {.raises: [ValueError, IOError].} =
       var it {.inject, used.}: T = val
       let v = body

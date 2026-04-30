@@ -70,15 +70,18 @@ method getBlock*(
     trace "Error getting key from provider", err = err.msg
     return failure(err)
 
-  without data =? await self.repoDs.get(key), err:
+  # Manual pattern to avoid questionable copy
+  var dataResult = await self.repoDs.get(key)
+  if dataResult.isErr:
+    let err = dataResult.error
     if not (err of DatastoreKeyNotFound):
       trace "Error getting block from datastore", err = err.msg, key
       return failure(err)
-
     return failure(newException(BlockNotFoundError, err.msg))
 
   trace "Got block for cid", cid
-  return Block.new(cid, data, verify = true)
+  # Zero-copy: move data out of Result, then into Block
+  return Block.new(cid, move(dataResult.unsafeGet()), verify = true)
 
 method getBlockAndProof*(
     self: RepoStore, treeCid: Cid, index: Natural
@@ -86,10 +89,12 @@ method getBlockAndProof*(
   without leafMd =? await self.getLeafMetadata(treeCid, index), err:
     return failure(err)
 
-  without blk =? await self.getBlock(leafMd.blkCid), err:
-    return failure(err)
+  # Manual pattern to avoid questionable copy for Block (contains seq[byte])
+  var blkResult = await self.getBlock(leafMd.blkCid)
+  if blkResult.isErr:
+    return failure(blkResult.error)
 
-  success((blk, leafMd.proof))
+  success((move(blkResult.unsafeGet()), leafMd.proof))
 
 method getBlock*(
     self: RepoStore, treeCid: Cid, index: Natural
@@ -105,10 +110,7 @@ method getBlock*(
   ## Get a block from the blockstore
   ##
 
-  if address.leaf:
-    self.getBlock(address.treeCid, address.index)
-  else:
-    self.getBlock(address.cid)
+  self.getBlock(address.treeCid, address.index)
 
 method ensureExpiry*(
     self: RepoStore, cid: Cid, expiry: SecondsSince1970
@@ -338,7 +340,8 @@ method listBlocks*(
     if queryIter.finished:
       iter.finish
     else:
-      if pair =? (await queryIter.next()) and cid =? pair.key:
+      let res = await queryIter.next()
+      if pair =? res and cid =? pair.key:
         doAssert pair.data.len == 0
         trace "Retrieved record from repo", cid
         return Cid.init(cid.value).mapFailure
