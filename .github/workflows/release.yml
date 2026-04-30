@@ -416,6 +416,13 @@ jobs:
         working-directory: ${{ env.TF_DIR }}
         run: terraform destroy -auto-approve
 
+      - name: Release Terraform state lock
+        if: always()
+        run: |
+          gcloud storage rm \
+            "gs://${{ vars.RELEASE_TESTS_TF_STATE_BUCKET }}/clusters/${CLUSTER_NAME}/default.tflock" \
+            2>/dev/null || true
+
   # Release
   # release:
   #   runs-on: ubuntu-latest
