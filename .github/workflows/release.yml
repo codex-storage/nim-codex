@@ -351,13 +351,25 @@ jobs:
 
       - name: Stream test logs
         run: |
-          kubectl logs -l job-name=$NAMEPREFIX \
-            -n default \
-            --follow
+          POD=$(kubectl get pods -l job-name=$NAMEPREFIX -n default \
+            -o jsonpath='{.items[0].metadata.name}')
+          echo "Streaming logs for pod: $POD"
+          # Use pod name (not label selector) so the stream survives long silences
+          # between test completions. || true so the step doesn't fail if the
+          # API server closes the connection before the pod exits.
+          kubectl logs $POD -n default --follow || true
 
       - name: Check job status
         run: |
-          sleep 5
+          # kubectl logs may have exited early (API server closed the stream).
+          # Wait for the job to reach a terminal state before checking the result.
+          kubectl wait job/$NAMEPREFIX -n default \
+            --for=condition=complete,failed \
+            --timeout=3300s
+          # Give the Cloud Logging agent time to export the final log burst
+          # (NUnit pass/fail lines written near pod exit) before Terraform
+          # destroy removes the cluster.
+          sleep 60
           job_status=$(kubectl get jobs $NAMEPREFIX -n default \
             -o jsonpath='{.status.conditions[0].type}')
           echo "Job status: $job_status"
