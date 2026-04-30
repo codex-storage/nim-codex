@@ -377,7 +377,6 @@ jobs:
           [[ "$job_status" == "SuccessCriteriaMet" ]] || exit 1
 
       - name: Generate test summary
-        if: always() && steps.tf-apply.conclusion == 'success'
         env:
           GCP_PROJECT: ${{ vars.RELEASE_TESTS_GCP_PROJECT }}
         run: |
