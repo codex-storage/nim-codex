@@ -326,9 +326,9 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "Filter: \`labels.\"k8s-pod/runid\"=\"${RUNID}\"\`" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Wait for test pod to start
+      - name: Wait for runner pod to start
         run: |
-          echo "Waiting for test pod to reach Running state..."
+          echo "Waiting for runner pod to reach Running state..."
           deadline=$((SECONDS + 300))
           last_describe=0
           while [[ $SECONDS -lt $deadline ]]; do
