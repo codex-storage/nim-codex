@@ -81,8 +81,8 @@ in stdenv.mkDerivation rec {
     mkdir dist
     cp -r ${callPackage ./nimble.nix {}}    dist/nimble
     cp -r ${callPackage ./checksums.nix {}} dist/checksums
-    cp -r ${callPackage ./csources.nix {}}  csources_v2
-    chmod 777 -R dist/nimble csources_v2
+    cp -r ${callPackage ./csources.nix {}}  csources_v3
+    chmod 777 -R dist/nimble csources_v3
     popd
   '';
 
