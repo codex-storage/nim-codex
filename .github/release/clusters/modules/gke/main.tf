@@ -38,11 +38,11 @@ resource "google_container_cluster" "this" {
 
   node_pool {
     name               = var.tests_pool_name
-    initial_node_count = 0
+    initial_node_count = 1
     node_locations     = length(var.tests_pool_zones) > 0 ? var.tests_pool_zones : null
 
     autoscaling {
-      min_node_count = 0
+      min_node_count = 1
       max_node_count = var.tests_pool_max
     }
 
