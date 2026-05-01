@@ -25,7 +25,9 @@ spec:
         imagePullPolicy: Always
         resources:
           requests:
-            memory: "1Gi"
+            memory: "4Gi"
+          limits:
+            memory: "6Gi"
         env:
         - name: KUBECONFIG
           value: "/opt/kubeconfig.yaml"
