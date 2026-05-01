@@ -360,22 +360,6 @@ jobs:
           # API server closes the connection before the pod exits.
           kubectl logs $POD -n default --follow || true
 
-      - name: Check job status
-        run: |
-          # kubectl logs may have exited early (API server closed the stream).
-          # Wait for the job to reach a terminal state before checking the result.
-          kubectl wait job/$NAMEPREFIX -n default \
-            --for=condition=Complete \
-            --timeout=300s \
-          || kubectl wait job/$NAMEPREFIX -n default \
-            --for=condition=Failed \
-            --timeout=0s
-
-          job_status=$(kubectl get jobs $NAMEPREFIX -n default \
-            -o jsonpath='{.status.conditions[0].type}')
-          echo "Job status: $job_status"
-          [[ "$job_status" == "SuccessCriteriaMet" ]] || exit 1
-
       - name: Generate test summary
         env:
           GCP_PROJECT: ${{ vars.RELEASE_TESTS_GCP_PROJECT }}
@@ -402,6 +386,22 @@ jobs:
 
           python3 .github/scripts/generate_test_summary.py
           rm -f "$ENTRIES_FILE"
+
+      - name: Check job status
+        run: |
+          # kubectl logs may have exited early (API server closed the stream).
+          # Wait for the job to reach a terminal state before checking the result.
+          kubectl wait job/$NAMEPREFIX -n default \
+            --for=condition=Complete \
+            --timeout=300s \
+          || kubectl wait job/$NAMEPREFIX -n default \
+            --for=condition=Failed \
+            --timeout=0s
+
+          job_status=$(kubectl get jobs $NAMEPREFIX -n default \
+            -o jsonpath='{.status.conditions[0].type}')
+          echo "Job status: $job_status"
+          [[ "$job_status" == "SuccessCriteriaMet" ]] || exit 1
 
       - name: Delete PVCs before cluster teardown
         if: always() && steps.tf-apply.conclusion != 'skipped'
