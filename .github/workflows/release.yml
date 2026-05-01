@@ -406,9 +406,11 @@ jobs:
       - name: Delete PVCs before cluster teardown
         if: always() && steps.tf-apply.conclusion != 'skipped'
         run: |
-          # Delete all PVCs so the CSI driver can release GCE PDs before the cluster is destroyed.
-          # Without this, terraform destroy orphans the PDs and they consume SSD quota indefinitely.
-          kubectl delete pvc --all --all-namespaces --wait=false 2>/dev/null || true
+          # Delete PVCs and wait for the CSI driver to release the backing GCE PDs.
+          # --wait=false skips the wait and terraform destroy then kills the cluster before
+          # the CSI driver can clean up, orphaning the disks and consuming SSD quota.
+          kubectl delete pvc --all --all-namespaces 2>/dev/null || true
+          kubectl wait --for=delete pvc --all --all-namespaces --timeout=300s 2>/dev/null || true
 
       - name: Terraform destroy
         if: always() && steps.tf-apply.conclusion != 'skipped'
