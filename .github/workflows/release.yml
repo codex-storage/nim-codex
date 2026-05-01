@@ -406,16 +406,35 @@ jobs:
       - name: Delete PVCs before cluster teardown
         if: always() && steps.tf-apply.conclusion != 'skipped'
         run: |
-          # Delete PVCs and wait for the CSI driver to release the backing GCE PDs.
-          # --wait=false skips the wait and terraform destroy then kills the cluster before
-          # the CSI driver can clean up, orphaning the disks and consuming SSD quota.
-          kubectl delete pvc --all --all-namespaces 2>/dev/null || true
-          kubectl wait --for=delete pvc --all --all-namespaces --timeout=300s 2>/dev/null || true
+          # Best-effort: trigger PVC deletion so the CSI driver can release GCE PDs before
+          # terraform destroy kills the cluster. --wait=false avoids hanging when pods are
+          # still running (e.g. runner was OOM-killed and never ran its own cleanup).
+          # Any disks the CSI driver doesn't finish releasing are caught by the
+          # "Delete orphaned GCE disks" step that runs after terraform destroy.
+          kubectl delete pvc --all --all-namespaces --wait=false 2>/dev/null || true
 
       - name: Terraform destroy
         if: always() && steps.tf-apply.conclusion != 'skipped'
         working-directory: ${{ env.TF_DIR }}
         run: terraform destroy -auto-approve
+
+      - name: Delete orphaned GCE disks
+        if: always() && steps.tf-apply.conclusion != 'skipped'
+        env:
+          GCP_PROJECT: ${{ vars.RELEASE_TESTS_GCP_PROJECT }}
+        run: |
+          # Safety net: delete any pvc-* disks left unattached after cluster teardown.
+          # These are GCE PDs whose PVC was deleted but the CSI driver didn't finish before
+          # the cluster was destroyed.
+          gcloud compute disks list \
+            --project="$GCP_PROJECT" \
+            --filter="name~^pvc- AND -users:*" \
+            --format="value(name,zone.basename())" 2>/dev/null \
+          | while IFS=$'\t' read -r name zone; do
+              [[ -n "$name" && -n "$zone" ]] || continue
+              gcloud compute disks delete "$name" --zone="$zone" \
+                --project="$GCP_PROJECT" --quiet 2>/dev/null || true
+            done
 
       - name: Release Terraform state lock
         if: always()
