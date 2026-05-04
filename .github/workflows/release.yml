@@ -369,20 +369,11 @@ jobs:
           export JOB_END=$(kubectl get job "$NAMEPREFIX" -n default \
             -o jsonpath='{.status.completionTime}' 2>/dev/null || true)
 
-          FILTER="resource.type=\"k8s_container\""
-          FILTER+=" AND resource.labels.namespace_name=\"default\""
-          FILTER+=" AND resource.labels.container_name=\"runner\""
-          FILTER+=" AND labels.\"k8s-pod/runid\"=\"${RUNID}\""
-          FILTER+=" AND jsonPayload.type=\"test-result\""
-
           export ENTRIES_FILE=$(mktemp)
-          for attempt in $(seq 1 12); do
-            gcloud logging read "$FILTER" --order=asc --limit=1000 --format=json \
-              --project="$GCP_PROJECT" > "$ENTRIES_FILE" 2>/dev/null || echo "[]" > "$ENTRIES_FILE"
-            [[ $(cat "$ENTRIES_FILE") != "[]" ]] && break
-            echo "Attempt $attempt/12: waiting for test results in Cloud Logging..."
-            [[ $attempt -lt 12 ]] && sleep 10
-          done
+          # Read test results written by TearDownDistTest directly into ConfigMaps.
+          kubectl get configmaps -n default -l "runid=${RUNID},app=test-result" \
+            -o jsonpath='{range .items[*]}{.data.result}{"\n"}{end}' 2>/dev/null \
+          | jq -s '[.[] | {jsonPayload: .}]' > "$ENTRIES_FILE" || echo "[]" > "$ENTRIES_FILE"
 
           python3 .github/scripts/generate_test_summary.py
           rm -f "$ENTRIES_FILE"
