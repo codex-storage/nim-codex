@@ -48,7 +48,7 @@ type NatConfig* = object
 var
   upnp {.threadvar.}: Miniupnp
   npmp {.threadvar.}: NatPmp
-  strategy = NatStrategy.NatAny
+  strategy = NatStrategy.NatAuto
   natClosed: Atomic[bool]
   extIp: Option[IpAddress]
   activeMappings: seq[PortMappings]
@@ -85,7 +85,7 @@ type DefaultNatMapper* = ref object of NatMapper
 proc getExternalIP*(natStrategy: NatStrategy, quiet = false): Option[IpAddress] =
   var externalIP: IpAddress
 
-  if natStrategy == NatStrategy.NatAny or natStrategy == NatStrategy.NatUpnp:
+  if natStrategy == NatStrategy.NatAuto or natStrategy == NatStrategy.NatUpnp:
     if upnp == nil:
       upnp = newMiniupnp()
 
@@ -127,7 +127,7 @@ proc getExternalIP*(natStrategy: NatStrategy, quiet = false): Option[IpAddress] 
             error "parseIpAddress() exception", err = e.msg
             return
 
-  if natStrategy == NatStrategy.NatAny or natStrategy == NatStrategy.NatPmp:
+  if natStrategy == NatStrategy.NatAuto or natStrategy == NatStrategy.NatPmp:
     if npmp == nil:
       npmp = newNatPmp()
     let nres = npmp.init()
@@ -397,7 +397,7 @@ proc setupAddress*(
     return (some(natConfig.extIp), some(tcpPort), some(udpPort))
 
   case natConfig.nat
-  of NatStrategy.NatAny:
+  of NatStrategy.NatAuto:
     let (prefSrcIp, prefSrcStatus) = getRoutePrefSrc(bindIp)
 
     case prefSrcStatus

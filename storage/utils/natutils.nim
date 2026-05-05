@@ -5,7 +5,7 @@ import std/[net, tables, hashes, options], pkg/results, chronos, chronicles
 import pkg/libp2p
 
 type NatStrategy* = enum
-  NatAny
+  NatAuto
   NatUpnp
   NatPmp
 

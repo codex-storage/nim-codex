@@ -158,10 +158,9 @@ type
     nat* {.
       desc:
         "Specify method to use for determining public address. " &
-        "Must be one of: any, upnp, pmp, extip:<IP>. " &
-        "If connecting to peers on a local network only, use 'none'.",
+        "Must be one of: auto, upnp, pmp, extip:<IP>.",
       defaultValue: defaultNatConfig(),
-      defaultValueDesc: "any",
+      defaultValueDesc: "auto",
       name: "nat"
     .}: NatConfig
 
@@ -352,7 +351,7 @@ func defaultAddress*(conf: StorageConf): IpAddress =
   result = static parseIpAddress("127.0.0.1")
 
 func defaultNatConfig*(): NatConfig =
-  result = NatConfig(hasExtIp: false, nat: NatStrategy.NatAny)
+  result = NatConfig(hasExtIp: false, nat: NatStrategy.NatAuto)
 
 proc getStorageVersion(): string =
   let tag = strip(staticExec("git describe --tags --abbrev=0"))
@@ -418,8 +417,8 @@ proc parseCmdArg*(T: type SignedPeerRecord, uri: string): T =
 
 func parse*(T: type NatConfig, p: string): Result[NatConfig, string] =
   case p.toLowerAscii
-  of "any":
-    return ok(NatConfig(hasExtIp: false, nat: NatStrategy.NatAny))
+  of "auto":
+    return ok(NatConfig(hasExtIp: false, nat: NatStrategy.NatAuto))
   of "upnp":
     return ok(NatConfig(hasExtIp: false, nat: NatStrategy.NatUpnp))
   of "pmp":
