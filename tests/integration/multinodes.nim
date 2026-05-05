@@ -131,7 +131,6 @@ template multinodesuite*(suiteName: string, body: untyped) =
           config.addCliOption("--bootstrap-node", bootstrapNode)
 
         config.addCliOption("--data-dir", datadir)
-        config.addCliOption("--nat", "none")
       except StorageConfigError as e:
         raiseMultiNodeSuiteError "invalid cli option, error: " & e.msg
 

@@ -48,7 +48,7 @@ type NatConfig* = object
 var
   upnp {.threadvar.}: Miniupnp
   npmp {.threadvar.}: NatPmp
-  strategy = NatStrategy.NatNone
+  strategy = NatStrategy.NatAny
   natClosed: Atomic[bool]
   extIp: Option[IpAddress]
   activeMappings: seq[PortMappings]
@@ -405,18 +405,6 @@ proc setupAddress*(
       return (prefSrcIp, some(tcpPort), some(udpPort))
     of PrefSrcIsPrivate, BindAddressIsPrivate:
       return setupNat(natConfig.nat, tcpPort, udpPort, clientId)
-  of NatStrategy.NatNone:
-    let (prefSrcIp, prefSrcStatus) = getRoutePrefSrc(bindIp)
-
-    case prefSrcStatus
-    of NoRoutingInfo, PrefSrcIsPublic, BindAddressIsPublic:
-      return (prefSrcIp, some(tcpPort), some(udpPort))
-    of PrefSrcIsPrivate:
-      error "No public IP address found. Should not use --nat:none option"
-      return (none(IpAddress), some(tcpPort), some(udpPort))
-    of BindAddressIsPrivate:
-      error "Bind IP is not a public IP address. Should not use --nat:none option"
-      return (none(IpAddress), some(tcpPort), some(udpPort))
   of NatStrategy.NatUpnp, NatStrategy.NatPmp:
     return setupNat(natConfig.nat, tcpPort, udpPort, clientId)
 

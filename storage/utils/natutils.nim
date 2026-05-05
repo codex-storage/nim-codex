@@ -8,7 +8,6 @@ type NatStrategy* = enum
   NatAny
   NatUpnp
   NatPmp
-  NatNone
 
 func isGlobalUnicast*(address: TransportAddress): bool =
   if address.isGlobal() and address.isUnicast(): true else: false

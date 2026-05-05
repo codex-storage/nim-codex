@@ -158,7 +158,7 @@ type
     nat* {.
       desc:
         "Specify method to use for determining public address. " &
-        "Must be one of: any, none, upnp, pmp, extip:<IP>. " &
+        "Must be one of: any, upnp, pmp, extip:<IP>. " &
         "If connecting to peers on a local network only, use 'none'.",
       defaultValue: defaultNatConfig(),
       defaultValueDesc: "any",
@@ -420,8 +420,6 @@ func parse*(T: type NatConfig, p: string): Result[NatConfig, string] =
   case p.toLowerAscii
   of "any":
     return ok(NatConfig(hasExtIp: false, nat: NatStrategy.NatAny))
-  of "none":
-    return ok(NatConfig(hasExtIp: false, nat: NatStrategy.NatNone))
   of "upnp":
     return ok(NatConfig(hasExtIp: false, nat: NatStrategy.NatUpnp))
   of "pmp":

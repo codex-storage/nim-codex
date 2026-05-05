@@ -64,29 +64,6 @@ suite "NAT Address Tests":
     check(discoveryAddrs == expectedDiscoveryAddrs)
     check(libp2pAddrs == expectedlibp2pAddrs)
 
-suite "setupAddress":
-  test "public bind IP with NatNone returns bind IP":
-    let
-      bindIp = parseIpAddress("8.8.8.8")
-      natConfig = NatConfig(hasExtIp: false, nat: NatStrategy.NatNone)
-      (ip, tcpPort, udpPort) =
-        setupAddress(natConfig, bindIp, Port(5000), Port(5001), "test")
-
-    check ip == some(bindIp)
-    check tcpPort == some(Port(5000))
-    check udpPort == some(Port(5001))
-
-  test "private bind IP with NatNone returns no IP":
-    let
-      bindIp = parseIpAddress("192.168.1.1")
-      natConfig = NatConfig(hasExtIp: false, nat: NatStrategy.NatNone)
-      (ip, tcpPort, udpPort) =
-        setupAddress(natConfig, bindIp, Port(5000), Port(5001), "test")
-
-    check ip == none(IpAddress)
-    check tcpPort == some(Port(5000))
-    check udpPort == some(Port(5001))
-
 suite "getReachableAddresses":
   test "returns remapped addresses when extIp is configured":
     let
