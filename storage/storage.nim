@@ -373,15 +373,19 @@ proc new*(
   switch.mount(network)
   switch.mount(manifestProto)
 
-  let natMapper =
-    DefaultNatMapper(natConfig: config.nat, discoveryPort: config.discoveryPort)
+  let natMapper = DefaultNatMapper(
+    natConfig: config.nat,
+    tcpPort: config.listenPort,
+    discoveryPort: config.discoveryPort,
+  )
   autonatService.setStatusAndConfidenceHandler(
     proc(
         networkReachability: NetworkReachability, confidence: Opt[float]
     ) {.async: (raises: [CancelledError]).} =
       debug "AutoNAT status", reachability = networkReachability, confidence
       await handleNatStatus(
-        networkReachability, natMapper, discovery, switch, autoRelayService
+        networkReachability, addrs, config.discoveryPort, natMapper, discovery, switch,
+        autoRelayService,
       )
   )
 

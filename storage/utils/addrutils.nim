@@ -20,8 +20,9 @@ func remapAddr*(
     address: MultiAddress,
     ip: Option[IpAddress] = IpAddress.none,
     port: Option[Port] = Port.none,
+    protocol: Option[string] = string.none,
 ): MultiAddress =
-  ## Remap addresses to new IP and/or Port
+  ## Remap addresses to new IP, port, and/or transport protocol (e.g. "tcp" → "udp")
   ##
 
   var parts = ($address).split("/")
@@ -31,6 +32,12 @@ func remapAddr*(
       $ip.get
     else:
       parts[2]
+
+  parts[3] =
+    if protocol.isSome:
+      protocol.get
+    else:
+      parts[3]
 
   parts[4] =
     if port.isSome:

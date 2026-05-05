@@ -9,15 +9,14 @@
 {.push raises: [].}
 
 import
-  std/[options, os, times, net, atomics, exitprocs],
+  std/[options, os, times, atomics, exitprocs],
   nat_traversal/[miniupnpc, natpmp],
-  json_serialization/std/net,
   results
 
 import pkg/chronos
 import pkg/chronicles
 import pkg/libp2p
-import pkg/libp2p/protocols/connectivity/autonatv2/service
+import pkg/libp2p/protocols/connectivity/autonat/types
 import pkg/libp2p/services/autorelayservice
 
 import ./utils
@@ -50,41 +49,25 @@ var
   npmp {.threadvar.}: NatPmp
   strategy = NatStrategy.NatAuto
   natClosed: Atomic[bool]
-  extIp: Option[IpAddress]
   activeMappings: seq[PortMappings]
   natThreads: seq[Thread[PortMappingArgs]] = @[]
 
 logScope:
   topics = "nat"
 
-type PrefSrcStatus = enum
-  NoRoutingInfo
-  PrefSrcIsPublic
-  PrefSrcIsPrivate
-  BindAddressIsPublic
-  BindAddressIsPrivate
-
 type NatMapper* = ref object of RootObj
 
-method mapNatAddresses*(
-    m: NatMapper, addrs: seq[MultiAddress]
-): tuple[libp2p, discovery: seq[MultiAddress]] {.base, gcsafe, raises: [].} =
-  raiseAssert "mapNatAddresses not implemented"
-
-method getReachableAddresses*(
-    m: NatMapper, addrs: seq[MultiAddress]
-): tuple[libp2p, discovery: seq[MultiAddress]] {.base, gcsafe, raises: [].} =
-  raiseAssert "getReachableAddresses not implemented"
+method mapNatPorts*(m: NatMapper): Option[(Port, Port)] {.base, gcsafe, raises: [].} =
+  raiseAssert "mapNatPorts not implemented"
 
 type DefaultNatMapper* = ref object of NatMapper
   natConfig*: NatConfig
+  tcpPort*: Port
   discoveryPort*: Port
 
-## Also does threadvar initialisation.
+## Initialises the UPnP or NAT-PMP threadvar and sets the `strategy` threadvar.
 ## Must be called before redirectPorts() in each thread.
-proc getExternalIP*(natStrategy: NatStrategy, quiet = false): Option[IpAddress] =
-  var externalIP: IpAddress
-
+proc initNatDevice(natStrategy: NatStrategy, quiet = false): bool =
   if natStrategy == NatStrategy.NatAuto or natStrategy == NatStrategy.NatUpnp:
     if upnp == nil:
       upnp = newMiniupnp()
@@ -114,18 +97,8 @@ proc getExternalIP*(natStrategy: NatStrategy, quiet = false): Option[IpAddress] 
       if not quiet:
         debug "UPnP", msg
       if canContinue:
-        let ires = upnp.externalIPAddress()
-        if ires.isErr:
-          debug "UPnP", msg = ires.error
-        else:
-          # if we got this far, UPnP is working and we don't need to try NAT-PMP
-          try:
-            externalIP = parseIpAddress(ires.value)
-            strategy = NatStrategy.NatUpnp
-            return some(externalIP)
-          except ValueError as e:
-            error "parseIpAddress() exception", err = e.msg
-            return
+        strategy = NatStrategy.NatUpnp
+        return true
 
   if natStrategy == NatStrategy.NatAuto or natStrategy == NatStrategy.NatPmp:
     if npmp == nil:
@@ -134,61 +107,10 @@ proc getExternalIP*(natStrategy: NatStrategy, quiet = false): Option[IpAddress] 
     if nres.isErr:
       debug "NAT-PMP", msg = nres.error
     else:
-      let nires = npmp.externalIPAddress()
-      if nires.isErr:
-        debug "NAT-PMP", msg = nires.error
-      else:
-        try:
-          externalIP = parseIpAddress($(nires.value))
-          strategy = NatStrategy.NatPmp
-          return some(externalIP)
-        except ValueError as e:
-          error "parseIpAddress() exception", err = e.msg
-          return
+      strategy = NatStrategy.NatPmp
+      return true
 
-# This queries the routing table to get the "preferred source" attribute and
-# checks if it's a public IP. If so, then it's our public IP.
-#
-# Further more, we check if the bind address (user provided, or a "0.0.0.0"
-# default) is a public IP. That's a long shot, because code paths involving a
-# user-provided bind address are not supposed to get here.
-proc getRoutePrefSrc(bindIp: IpAddress): (Option[IpAddress], PrefSrcStatus) =
-  let bindAddress = initTAddress(bindIp, Port(0))
-
-  if bindAddress.isAnyLocal():
-    let ip =
-      if bindIp.family == IpAddressFamily.IPv6:
-        getRouteIpv6()
-      else:
-        getRouteIpv4()
-
-    if ip.isErr():
-      # No route was found, log error and continue without IP.
-      error "No routable IP address found, check your network connection",
-        error = ip.error
-      return (none(IpAddress), NoRoutingInfo)
-    elif ip.get().isGlobalUnicast():
-      return (some(ip.get()), PrefSrcIsPublic)
-    else:
-      return (none(IpAddress), PrefSrcIsPrivate)
-  elif bindAddress.isGlobalUnicast():
-    return (some(bindIp), BindAddressIsPublic)
-  else:
-    return (none(IpAddress), BindAddressIsPrivate)
-
-# Try to detect a public IP assigned to this host, before trying NAT traversal.
-proc getPublicRoutePrefSrcOrExternalIP*(
-    natStrategy: NatStrategy, bindIp: IpAddress, quiet = true
-): Option[IpAddress] =
-  let (prefSrcIp, prefSrcStatus) = getRoutePrefSrc(bindIp)
-
-  case prefSrcStatus
-  of NoRoutingInfo, PrefSrcIsPublic, BindAddressIsPublic:
-    return prefSrcIp
-  of PrefSrcIsPrivate, BindAddressIsPrivate:
-    let extIp = getExternalIP(natStrategy, quiet)
-    if extIp.isSome:
-      return some(extIp.get)
+  return false
 
 proc doPortMapping(
     strategy: NatStrategy, tcpPort, udpPort: Port, description: string
@@ -262,10 +184,8 @@ proc repeatPortMapping(args: PortMappingArgs) {.thread, raises: [ValueError].} =
 
   # We can't use copies of Miniupnp and NatPmp objects in this thread, because they share
   # C pointers with other instances that have already been garbage collected, so
-  # we use threadvars instead and initialise them again with getExternalIP(),
-  # even though we don't need the external IP's value.
-  let ipres = getExternalIP(strategy, quiet = true)
-  if ipres.isSome:
+  # we use threadvars instead and initialise them again here.
+  if initNatDevice(strategy, quiet = true):
     while natClosed.load() == false:
       let currTime = now()
       if currTime >= (lastUpdate + interval):
@@ -292,8 +212,7 @@ proc stopNatThreads() {.noconv.} =
   # In Windows, a new thread is created for the signal handler, so we need to
   # initialise our threadvars again.
 
-  let ipres = getExternalIP(strategy, quiet = true)
-  if ipres.isSome:
+  if initNatDevice(strategy, quiet = true):
     if strategy == NatStrategy.NatUpnp:
       for entry in activeMappings:
         for t in [
@@ -358,55 +277,23 @@ proc redirectPorts*(
 
 proc setupNat*(
     natStrategy: NatStrategy, tcpPort, udpPort: Port, clientId: string
-): tuple[ip: Option[IpAddress], tcpPort, udpPort: Option[Port]] =
-  ## Setup NAT port mapping and get external IP address.
-  ## If any of this fails, we don't return any IP address but do return the
-  ## original ports as best effort.
+): Option[(Port, Port)] =
+  ## Setup NAT port mapping.
+  ## Returns the external (tcpPort, udpPort) if port mapping succeeded, none otherwise.
   ## TODO: Allow for tcp or udp port mapping to be optional.
-  if extIp.isNone:
-    extIp = getExternalIP(natStrategy)
-  if extIp.isSome:
-    let ip = extIp.get
-    let extPorts = (
-      {.gcsafe.}:
-        redirectPorts(
-          strategy, tcpPort = tcpPort, udpPort = udpPort, description = clientId
-        )
-    )
-    if extPorts.isSome:
-      let (extTcpPort, extUdpPort) = extPorts.get()
-      (ip: some(ip), tcpPort: some(extTcpPort), udpPort: some(extUdpPort))
-    else:
-      warn "UPnP/NAT-PMP available but port forwarding failed"
-      (ip: none(IpAddress), tcpPort: some(tcpPort), udpPort: some(udpPort))
-  else:
+  if not initNatDevice(natStrategy):
     warn "UPnP/NAT-PMP not available"
-    (ip: none(IpAddress), tcpPort: some(tcpPort), udpPort: some(udpPort))
+    return none((Port, Port))
 
-proc setupAddress*(
-    natConfig: NatConfig, bindIp: IpAddress, tcpPort, udpPort: Port, clientId: string
-): tuple[ip: Option[IpAddress], tcpPort, udpPort: Option[Port]] {.gcsafe.} =
-  ## Set-up of the external address via any of the ways as configured in
-  ## `NatConfig`. In case all fails an error is logged and the bind ports are
-  ## selected also as external ports, as best effort and in hope that the
-  ## external IP can be figured out by other means at a later stage.
-  ## TODO: Allow for tcp or udp bind ports to be optional.
-
-  if natConfig.hasExtIp:
-    # any required port redirection must be done by hand
-    return (some(natConfig.extIp), some(tcpPort), some(udpPort))
-
-  case natConfig.nat
-  of NatStrategy.NatAuto:
-    let (prefSrcIp, prefSrcStatus) = getRoutePrefSrc(bindIp)
-
-    case prefSrcStatus
-    of NoRoutingInfo, PrefSrcIsPublic, BindAddressIsPublic:
-      return (prefSrcIp, some(tcpPort), some(udpPort))
-    of PrefSrcIsPrivate, BindAddressIsPrivate:
-      return setupNat(natConfig.nat, tcpPort, udpPort, clientId)
-  of NatStrategy.NatUpnp, NatStrategy.NatPmp:
-    return setupNat(natConfig.nat, tcpPort, udpPort, clientId)
+  let extPorts = (
+    {.gcsafe.}:
+      redirectPorts(
+        strategy, tcpPort = tcpPort, udpPort = udpPort, description = clientId
+      )
+  )
+  if extPorts.isNone:
+    warn "UPnP/NAT-PMP available but port forwarding failed"
+  extPorts
 
 proc findReachableNodes*(bootstrapNodes: seq[SignedPeerRecord]): seq[SignedPeerRecord] =
   ## Returns the list of nodes known to be directly reachable.
@@ -414,56 +301,13 @@ proc findReachableNodes*(bootstrapNodes: seq[SignedPeerRecord]): seq[SignedPeerR
   ## confirmed reachable by AutoNAT could be included.
   bootstrapNodes
 
-proc nattedAddress*(
-    natConfig: NatConfig, addrs: seq[MultiAddress], udpPort: Port
-): tuple[libp2p, discovery: seq[MultiAddress]] =
-  ## Takes a NAT configuration, sequence of multiaddresses and UDP port and returns:
-  ## - Modified multiaddresses with NAT-mapped addresses for libp2p
-  ## - Discovery addresses with NAT-mapped UDP ports
+proc nattedPorts*(natConfig: NatConfig, tcpPort, udpPort: Port): Option[(Port, Port)] =
+  if natConfig.hasExtIp:
+    return none((Port, Port)) # manual setup, no port mapping needed
+  setupNat(natConfig.nat, tcpPort, udpPort, "storage")
 
-  var discoveryAddrs = newSeq[MultiAddress](0)
-  let newAddrs = addrs.mapIt:
-    block:
-      # Extract IP address and port from the multiaddress
-      let (ipPart, port) = getAddressAndPort(it)
-      if ipPart.isSome and port.isSome:
-        # Try to setup NAT mapping for the address
-        let (newIP, tcp, udp) =
-          setupAddress(natConfig, ipPart.get, port.get, udpPort, "storage")
-        if newIP.isSome:
-          # NAT mapping successful - add discovery address with mapped UDP port
-          discoveryAddrs.add(getMultiAddrWithIPAndUDPPort(newIP.get, udp.get))
-          # Remap original address with NAT IP and TCP port
-          it.remapAddr(ip = newIP, port = tcp)
-        else:
-          # NAT mapping failed - use original address
-          echo "Failed to get external IP, using original address", it
-          discoveryAddrs.add(getMultiAddrWithIPAndUDPPort(ipPart.get, udpPort))
-          it
-      else:
-        # Invalid multiaddress format - return as is
-        it
-  (newAddrs, discoveryAddrs)
-
-method mapNatAddresses*(
-    m: DefaultNatMapper, addrs: seq[MultiAddress]
-): tuple[libp2p, discovery: seq[MultiAddress]] {.gcsafe, raises: [].} =
-  nattedAddress(m.natConfig, addrs, m.discoveryPort)
-
-method getReachableAddresses*(
-    m: DefaultNatMapper, addrs: seq[MultiAddress]
-): tuple[libp2p, discovery: seq[MultiAddress]] {.gcsafe, raises: [].} =
-  let ip =
-    if m.natConfig.hasExtIp:
-      some(m.natConfig.extIp)
-    else:
-      let (routeIp, _) = getRoutePrefSrc(static parseIpAddress("0.0.0.0"))
-      routeIp
-  if ip.isNone:
-    return (@[], @[])
-  let announceAddrs =
-    addrs.mapIt(it.remapAddr(ip = ip, port = none(Port))).deduplicate()
-  (announceAddrs, @[getMultiAddrWithIPAndUDPPort(ip.get, m.discoveryPort)])
+method mapNatPorts*(m: DefaultNatMapper): Option[(Port, Port)] {.gcsafe, raises: [].} =
+  nattedPorts(m.natConfig, m.tcpPort, m.discoveryPort)
 
 proc hasPublicIp*(addrs: seq[MultiAddress]): bool =
   for addr in addrs:
@@ -473,6 +317,8 @@ proc hasPublicIp*(addrs: seq[MultiAddress]): bool =
 
 proc handleNatStatus*(
     networkReachability: NetworkReachability,
+    dialBackAddr: Opt[MultiAddress],
+    discoveryPort: Port,
     mapper: NatMapper,
     discovery: Discovery,
     switch: Switch,
@@ -483,33 +329,42 @@ proc handleNatStatus*(
     # Nothing to do here, not enough confidence score result
     discard
   of Reachable:
-    # For UPnP, it the mapping was a success,
-    # the autorelay service has been stopped
-    # and the address was already announced
+    if dialBackAddr.isNone:
+      warn "Got empty dialback address in AutoNat when node is Reachable"
+      return
+
     if autoRelayService.isRunning:
       if not await autoRelayService.stop(switch):
         debug "AutoRelayService stop method returned false"
 
-      let (announceAddrs, discoveryAddrs) =
-        mapper.getReachableAddresses(switch.peerInfo.addrs)
-      discovery.updateAnnounceRecord(announceAddrs)
-      discovery.updateDhtRecord(announceAddrs & discoveryAddrs)
+    let discAddr =
+      dialBackAddr.get.remapAddr(protocol = some("udp"), port = some(discoveryPort))
+    discovery.updateAnnounceRecord(@[dialBackAddr.get])
+    discovery.updateDhtRecord(@[dialBackAddr.get, discAddr])
     # TODO: switch DHT to server mode
   of NotReachable:
-    let (announceAddrs, discoveryAddrs) = mapper.mapNatAddresses(switch.peerInfo.addrs)
+    var hasPortMapping = false
 
-    # With a UPnP / NatPmP successful mapping,
-    # we suppose that having a public IP make it Reachable.
-    # If not, the state will be updated in the next Autonat iteration.
-    # TODO: Do we need to manually call dialMe to make sure we are Reachable ?
-    if hasPublicIp(announceAddrs):
-      discovery.updateAnnounceRecord(announceAddrs)
-      discovery.updateDhtRecord(announceAddrs & discoveryAddrs)
+    if dialBackAddr.isSome:
+      let maybePorts = mapper.mapNatPorts()
 
-      if autoRelayService.isRunning:
-        if not await autoRelayService.stop(switch):
-          debug "AutoRelayService stop method returned false"
-    else:
-      if not autoRelayService.isRunning:
-        if not await autoRelayService.setup(switch):
-          debug "AutoRelayService setup method returned false"
+      if maybePorts.isSome:
+        let (tcpPort, udpPort) = maybePorts.get()
+        let announceAddr = dialBackAddr.get.remapAddr(port = some(tcpPort))
+        let discAddr =
+          dialBackAddr.get.remapAddr(protocol = some("udp"), port = some(udpPort))
+
+        # TODO: Try a dial me to make sure we are reachable
+
+        if autoRelayService.isRunning:
+          if not await autoRelayService.stop(switch):
+            debug "AutoRelayService stop method returned false"
+
+        discovery.updateAnnounceRecord(@[announceAddr])
+        discovery.updateDhtRecord(@[announceAddr, discAddr])
+
+        hasPortMapping = true
+
+    if not hasPortMapping and not autoRelayService.isRunning:
+      if not await autoRelayService.setup(switch):
+        debug "AutoRelayService setup method returned false"
