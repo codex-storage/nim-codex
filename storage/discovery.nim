@@ -266,6 +266,7 @@ proc new*(
     key: key, peerId: PeerId.init(key).expect("Should construct PeerId"), store: store
   )
 
+  # Update with empty values to get a valid SPR
   self.updateRecords(@[], Port(0))
 
   let discoveryConfig =
