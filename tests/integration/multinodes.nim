@@ -213,6 +213,7 @@ template multinodesuite*(suiteName: string, body: untyped) =
       trace "Setting up test", suite = suiteName, test = currentTestName, nodeConfigs
       if var clients =? nodeConfigs.clients:
         failAndTeardownOnError "failed to start client nodes":
+          clients = clients.withExtIp()
           for config in clients.configs:
             let node = await startClientNode(config)
             running.add RunningNode(role: Role.Client, node: node)

@@ -16,7 +16,6 @@ import
 import pkg/chronos
 import pkg/chronicles
 import pkg/libp2p
-import pkg/libp2p/protocols/connectivity/autonatv2/service
 import pkg/libp2p/services/autorelayservice
 
 import ./utils
@@ -332,10 +331,7 @@ proc handleNatStatus*(
       if not await autoRelayService.stop(switch):
         debug "AutoRelayService stop method returned false"
 
-    let discAddr =
-      dialBackAddr.get.remapAddr(protocol = some("udp"), port = some(discoveryPort))
-    discovery.updateAnnounceRecord(@[dialBackAddr.get])
-    discovery.updateDhtRecord(@[discAddr])
+    discovery.updateRecords(@[dialBackAddr.get], discoveryPort)
     # TODO: switch DHT to server mode
   of NotReachable:
     var hasPortMapping = false
@@ -348,8 +344,6 @@ proc handleNatStatus*(
       if maybePorts.isSome:
         let (tcpPort, udpPort) = maybePorts.get()
         let announceAddress = dialBackAddr.get.remapAddr(port = some(tcpPort))
-        let discoveryAddrs =
-          dialBackAddr.get.remapAddr(protocol = some("udp"), port = some(udpPort))
 
         # TODO: Try a dial me to make sure we are reachable
 
@@ -357,8 +351,7 @@ proc handleNatStatus*(
           if not await autoRelayService.stop(switch):
             debug "AutoRelayService stop method returned false"
 
-        discovery.updateAnnounceRecord(@[announceAddress])
-        discovery.updateDhtRecord(@[discoveryAddrs])
+        discovery.updateRecords(@[announceAddress], udpPort)
 
         hasPortMapping = true
 

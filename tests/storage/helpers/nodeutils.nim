@@ -11,8 +11,6 @@ import pkg/storage/stores
 import pkg/storage/blocktype as bt
 import pkg/storage/blockexchange
 import pkg/storage/systemclock
-import pkg/storage/nat
-import pkg/storage/utils/natutils
 import pkg/storage/merkletree
 import pkg/storage/manifest
 
@@ -226,8 +224,7 @@ proc generateNodes*(
 
         if config.enableBootstrap:
           waitFor switch.peerInfo.update()
-          blockDiscovery.updateAnnounceRecord(switch.peerInfo.addrs)
-          blockDiscovery.updateDhtRecord(switch.peerInfo.addrs)
+          blockDiscovery.updateRecords(switch.peerInfo.addrs, bindPort.Port)
           if blockDiscovery.dhtRecord.isSome:
             bootstrapNodes.add !blockDiscovery.dhtRecord
 

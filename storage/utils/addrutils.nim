@@ -14,7 +14,6 @@ import std/strutils
 import std/options
 
 import pkg/libp2p
-import pkg/stew/endians2
 
 func remapAddr*(
     address: MultiAddress,

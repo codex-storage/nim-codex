@@ -14,7 +14,6 @@ import ../../storage/nat
 import ../../storage/discovery
 import ../../storage/rng
 import ../../storage/utils
-import ../../storage/utils/natutils
 import ../../storage/utils/addrutils
 
 type MockNatMapper = ref object of NatMapper
@@ -43,18 +42,6 @@ suite "nattedPorts":
   test "returns none when extIp is configured (manual setup)":
     let natConfig = NatConfig(hasExtIp: true, extIp: parseIpAddress("8.8.8.8"))
     check nattedPorts(natConfig, Port(5000), Port(1234)).isNone
-
-suite "hasPublicIp":
-  test "hasPublicIp returns true when the address is public":
-    let ma = MultiAddress.init("/ip4/8.8.8.8/tcp/8080").expect("valid")
-    check hasPublicIp(@[ma])
-
-  test "hasPublicIp returns false when the address is private":
-    let ma = MultiAddress.init("/ip4/192.168.1.1/tcp/8080").expect("valid")
-    check not hasPublicIp(@[ma])
-
-  test "hasPublicIp returns false when the address is empty":
-    check not hasPublicIp(@[])
 
 asyncchecksuite "handleNatStatus":
   var sw: Switch

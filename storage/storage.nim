@@ -36,7 +36,6 @@ import ./blockexchange
 import ./utils/fileutils
 import ./discovery
 import ./utils/addrutils
-import ./utils/natutils
 import ./namespaces
 import ./storagetypes
 import ./logutils
@@ -81,22 +80,26 @@ proc start*(s: StorageServer) {.async.} =
 
   await s.storageNode.switch.start()
 
-  let announceIp =
+  let announceAddrs =
     if s.config.nat.hasExtIp:
-      some(s.config.nat.extIp)
+      # extip means that we assume the IP is reachable
+      # So we just take the first peer addr and remap it with extip to keep the port only
+      @[
+        s.storageNode.switch.peerInfo.addrs[0].remapAddr(
+          ip = some(s.config.nat.extIp), port = none(Port)
+        )
+      ]
     else:
-      getBestLocalAddress(s.config.listenIp)
+      # If extip is not set, we have 2 choices:
+      # 1- Announce the peer addrs contains detected addresses on the machine.
+      # 2- Wait for AutoNat
+      # The probleme with 1 is that you will certainly announce private addresses
+      # and if you advertise a CID, you will advertise these private addresses.
+      # TODO: DHT client mode
+      #s.storageNode.switch.peerInfo.addrs
+      @[]
 
-  if announceIp.isSome:
-    let ip = announceIp.get
-    let announceAddrs = s.storageNode.switch.peerInfo.addrs
-      .mapIt(it.remapAddr(ip = some(ip), port = none(Port)))
-      .deduplicate()
-    let discAddr = getMultiAddrWithIPAndUDPPort(ip, s.config.discoveryPort)
-    s.storageNode.discovery.updateAnnounceRecord(announceAddrs)
-    s.storageNode.discovery.updateDhtRecord(announceAddrs & @[discAddr])
-  else:
-    warn "Unable to determine a local IP address to announce"
+  s.storageNode.discovery.updateRecords(announceAddrs, s.config.discoveryPort)
 
   await s.storageNode.start()
 
@@ -337,8 +340,8 @@ proc new*(
       client = relayClient,
       onReservation = proc(addresses: seq[MultiAddress]) {.gcsafe, raises: [].} =
         debug "Relay reservation updated", addresses
-        discovery.updateAnnounceRecord(addresses)
-        discovery.updateDhtRecord(addresses),
+        # relay addresses are for download traffic only, not DHT routing
+        discovery.updateAnnounceRecord(addresses),
       rng = random.Rng.instance(),
     )
 

@@ -22,6 +22,7 @@ import pkg/codexdht/discv5/[routing_table, protocol as discv5]
 from pkg/nimcrypto import keccak256
 
 import ./rng as storage_rng
+import ./utils/addrutils
 import ./errors
 import ./logutils
 
@@ -175,29 +176,45 @@ method removeProvider*(
     warn "Error removing provider", peerId = peerId, exc = exc.msg
     raiseAssert("Unexpected Exception in removeProvider")
 
+proc updateRecords*(
+    d: Discovery, announceAddrs: openArray[MultiAddress], discoveryPort: Port
+) =
+  ## Update both provider and DHT records from TCP announce addresses.
+  ## Discovery (UDP) addresses are derived by remapping announceAddrs to UDP with discoveryPort.
+  ## Updates the discv5 SPR once with the full set of addresses.
+  let tcpAddrs = @announceAddrs
+  let udpAddrs =
+    tcpAddrs.mapIt(it.remapAddr(protocol = some("udp"), port = some(discoveryPort)))
+
+  debug "Updating addresses", tcpAddrs, udpAddrs
+
+  d.announceAddrs = tcpAddrs
+  d.providerRecord = SignedPeerRecord
+    .init(d.key, PeerRecord.init(d.peerId, tcpAddrs))
+    .expect("Should construct signed record").some
+  d.dhtRecord = SignedPeerRecord
+    .init(d.key, PeerRecord.init(d.peerId, tcpAddrs & udpAddrs))
+    .expect("Should construct signed record").some
+
+  if not d.protocol.isNil:
+    d.protocol.updateRecord(d.dhtRecord).expect("Should update SPR")
+
 proc updateAnnounceRecord*(d: Discovery, addrs: openArray[MultiAddress]) =
-  ## Update providers record
-  ##
-
   d.announceAddrs = @addrs
-
   info "Updating announce record", addrs = d.announceAddrs
   d.providerRecord = SignedPeerRecord
     .init(d.key, PeerRecord.init(d.peerId, d.announceAddrs))
     .expect("Should construct signed record").some
-
   if not d.protocol.isNil:
     d.protocol.updateRecord(d.providerRecord).expect("Should update SPR")
 
-proc updateDhtRecord*(d: Discovery, addrs: openArray[MultiAddress]) =
-  ## Update providers record
-  ##
-
+proc updateDhtRecord*(
+    d: Discovery, addrs: openArray[MultiAddress]
+) {.deprecated: "use updateRecords instead".} =
   info "Updating Dht record", addrs = addrs
   d.dhtRecord = SignedPeerRecord
     .init(d.key, PeerRecord.init(d.peerId, @addrs))
     .expect("Should construct signed record").some
-
   if not d.protocol.isNil:
     d.protocol.updateRecord(d.dhtRecord).expect("Should update SPR")
 
@@ -249,7 +266,7 @@ proc new*(
     key: key, peerId: PeerId.init(key).expect("Should construct PeerId"), store: store
   )
 
-  self.updateAnnounceRecord(announceAddrs)
+  self.updateRecords(@[], Port(0))
 
   let discoveryConfig =
     DiscoveryConfig(tableIpLimits: tableIpLimits, bitsPerHop: DefaultBitsPerHop)

@@ -323,6 +323,15 @@ proc withNatScheduleInterval*(
   return startConfig
 
 proc withExtIp*(
+    self: StorageConfigs, idx: int, ip = "127.0.0.1"
+): StorageConfigs {.raises: [StorageConfigError].} =
+  self.checkBounds idx
+
+  var startConfig = self
+  startConfig.configs[idx].addCliOption("--nat", "extip:" & ip)
+  return startConfig
+
+proc withExtIp*(
     self: StorageConfigs, ip = "127.0.0.1"
 ): StorageConfigs {.raises: [StorageConfigError].} =
   var startConfig = self
