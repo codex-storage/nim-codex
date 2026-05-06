@@ -8,10 +8,8 @@
 ## - SPACE: get the amount of space used by the local node.
 ## - EXISTS: check the existence of a cid in a node (local store).
 
-import std/[options]
 import chronos
 import chronicles
-import libp2p/stream/[lpstream]
 import serde/json as serde
 import ../../alloc
 import ../../../storage/units
