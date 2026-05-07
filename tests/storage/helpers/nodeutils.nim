@@ -5,6 +5,7 @@ import pkg/taskpools
 import pkg/libp2p
 import pkg/libp2p/errors
 
+import pkg/codexdht/discv5/routing_table
 import pkg/storage/discovery
 import pkg/storage/stores
 import pkg/storage/blocktype as bt
@@ -180,6 +181,8 @@ proc generateNodes*(
                 bindPort = bindPort.Port,
                 store = blockDiscoveryStore,
                 bootstrapNodes = bootstrapNodes,
+                tableIpLimits =
+                  TableIpLimits(tableIpLimit: high(uint), bucketIpLimit: high(uint)),
               )
             else:
               nullDiscovery()
@@ -189,8 +192,12 @@ proc generateNodes*(
       else:
         let
           store = CacheStore.new(blocks.mapIt(it))
-          discovery =
-            Discovery.new(switch.peerInfo.privateKey, announceAddrs = @[listenAddr])
+          discovery = Discovery.new(
+            switch.peerInfo.privateKey,
+            announceAddrs = @[listenAddr],
+            tableIpLimits =
+              TableIpLimits(tableIpLimit: high(uint), bucketIpLimit: high(uint)),
+          )
         (store.BlockStore, newSeq[TempLevelDb](), discovery)
 
     let

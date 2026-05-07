@@ -272,15 +272,22 @@ type
       name: "block-retries"
     .}: int
 
-    cacheSize* {.
+    discoveryTableIpLimit* {.
+      desc: "Maximum number of nodes with the same IP in the discovery routing table",
+      defaultValue: 10'u,
+      defaultValueDesc: "10",
+      name: "discovery-table-ip-limit",
+      hidden
+    .}: uint
+
+    discoveryBucketIpLimit* {.
       desc:
-        "The size of the block cache, 0 disables the cache - " &
-        "might help on slow hardrives",
-      defaultValue: 0,
-      defaultValueDesc: "0",
-      name: "cache-size",
-      abbr: "c"
-    .}: NBytes
+        "Maximum number of nodes with the same IP per bucket in the discovery routing table",
+      defaultValue: 2'u,
+      defaultValueDesc: "2",
+      name: "discovery-bucket-ip-limit",
+      hidden
+    .}: uint
 
     logFile* {.
       desc: "Logs to file", defaultValue: string.none, name: "log-file", hidden
