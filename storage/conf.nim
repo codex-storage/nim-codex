@@ -158,7 +158,7 @@ type
     nat* {.
       desc:
         "Specify method to use for determining public address. " &
-        "Must be one of: auto, upnp, pmp, extip:<IP>.",
+        "Must be one of: auto, extip:<IP>.",
       defaultValue: defaultNatConfig(),
       defaultValueDesc: "auto",
       name: "nat"
@@ -419,10 +419,6 @@ func parse*(T: type NatConfig, p: string): Result[NatConfig, string] =
   case p.toLowerAscii
   of "auto":
     return ok(NatConfig(hasExtIp: false, nat: NatStrategy.NatAuto))
-  of "upnp":
-    return ok(NatConfig(hasExtIp: false, nat: NatStrategy.NatUpnp))
-  of "pmp":
-    return ok(NatConfig(hasExtIp: false, nat: NatStrategy.NatPmp))
   else:
     if p.startsWith("extip:"):
       try:

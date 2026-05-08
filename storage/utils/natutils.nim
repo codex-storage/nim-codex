@@ -15,8 +15,6 @@ const NATPMP_LIFETIME* = 60 * 60 # seconds
 
 type NatStrategy* = enum
   NatAuto
-  NatUpnp
-  NatPmp
 
 type NatIpProtocol* = enum
   Tcp

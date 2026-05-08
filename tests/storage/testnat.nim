@@ -143,6 +143,7 @@ suite "NAT - UPnP port mapping (requires NAT_TEST_UPNP=1)":
   test "mapPorts and cleanup":
     if getEnv("NAT_TEST_UPNP") != "1":
       skip()
+      return
 
     let res = UpnpDevice.init()
     check res.isOk
