@@ -37,7 +37,9 @@ method deletePortMapping*(
 type MockNatMapper = ref object of NatMapper
   mappedPorts: Option[(Port, Port)]
 
-method mapNatPorts*(m: MockNatMapper): Option[(Port, Port)] {.gcsafe, raises: [].} =
+method mapNatPorts*(
+    m: MockNatMapper
+): Future[Option[(Port, Port)]] {.async: (raises: [CancelledError]), gcsafe.} =
   m.mappedPorts
 
 suite "NatMapper.close":
