@@ -139,6 +139,8 @@ method handleNatStatus*(
     if autoRelayService.isRunning:
       if not await autoRelayService.stop(switch):
         debug "AutoRelayService stop method returned false"
+      else:
+        debug "AutoRelayService stopped"
 
     discovery.updateRecords(@[dialBackAddr.get], discoveryPort)
     # TODO: switch DHT to server mode
@@ -148,10 +150,15 @@ method handleNatStatus*(
     if dialBackAddr.isNone:
       warn "Got empty dialback address in AutoNat when node is NotReachable"
     else:
+      debug "Node is not reachable trying UPnP / PMP now"
+
       let maybePorts = await m.mapNatPorts()
 
       if maybePorts.isSome:
         let (tcpPort, udpPort) = maybePorts.get()
+
+        info "Port mapping created successfully", tcpPort, udpPort
+
         let announceAddress = dialBackAddr.get.remapAddr(port = some(tcpPort))
 
         # TODO: Try a dial me to make sure we are reachable
@@ -159,13 +166,19 @@ method handleNatStatus*(
         if autoRelayService.isRunning:
           if not await autoRelayService.stop(switch):
             debug "AutoRelayService stop method returned false"
+          else:
+            debug "AutoRelayService stopped"
 
         discovery.updateRecords(@[announceAddress], udpPort)
         hasPortMapping = true
 
     if not hasPortMapping and not autoRelayService.isRunning:
+      debug "No port mapping found let's start autorelay"
+
       if not await autoRelayService.setup(switch):
-        debug "AutoRelayService setup method returned false"
+        warn "Cannot start autorelay service"
+      else:
+        debug "AutoRelayService started"
 
 proc close*(m: NatMapper, device = UpnpDevice()) =
   # UPnP mappings are permanent (leaseDuration=0) and must be deleted explicitly.
