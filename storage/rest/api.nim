@@ -646,7 +646,8 @@ proc initDebugApi(
         RestApiResponse.error(Http400, "Missing filtering value", headers = headers)
 
     let behavior = FilteringBehavior.fromString(filtering).valueOr:
-      return RestApiResponse.error(Http400, "Invalid filtering value", headers = headers)
+      return
+        RestApiResponse.error(Http400, "Invalid filtering value", headers = headers)
 
     natSimulation.setFiltering(behavior)
     return RestApiResponse.response("", headers = headers)

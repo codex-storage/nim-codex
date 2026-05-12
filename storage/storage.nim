@@ -253,8 +253,9 @@ proc new*(
   var natRouter: Option[NatRouter]
   let switch =
     if config.natSimulation.isSome:
-      let filtering = FilteringBehavior.fromString(config.natSimulation.get)
-        .valueOr(AddressAndPortDependent)
+      let filtering = FilteringBehavior.fromString(config.natSimulation.get).valueOr(
+          AddressAndPortDependent
+        )
       let router = NatRouter.new(filtering)
       natRouter = some(router)
       switchBuilder

@@ -21,12 +21,18 @@ type NatTransport* = ref object of Transport
   tcp: TcpTransport
   router: NatRouter
 
-proc fromString*(T: type FilteringBehavior, s: string): Result[FilteringBehavior, string] =
+proc fromString*(
+    T: type FilteringBehavior, s: string
+): Result[FilteringBehavior, string] =
   case s
-  of "endpoint-independent": ok(EndpointIndependent)
-  of "address-dependent": ok(AddressDependent)
-  of "address-and-port-dependent": ok(AddressAndPortDependent)
-  else: err("Unknown filtering behavior: " & s)
+  of "endpoint-independent":
+    ok(EndpointIndependent)
+  of "address-dependent":
+    ok(AddressDependent)
+  of "address-and-port-dependent":
+    ok(AddressAndPortDependent)
+  else:
+    err("Unknown filtering behavior: " & s)
 
 proc new*(T: type NatRouter, filtering: FilteringBehavior): T =
   T(filtering: filtering)
