@@ -281,3 +281,23 @@ proc natReachability*(
     return info.get()["nat"]["reachability"].getStr().success
   except KeyError as e:
     return failure e.msg
+
+proc natRelayRunning*(
+    client: StorageClient
+): Future[?!bool] {.async: (raises: [CancelledError, HttpError]).} =
+  let info = await client.info()
+  if info.isErr:
+    return failure "Failed to get node info"
+  try:
+    return info.get()["nat"]["relayRunning"].getBool().success
+  except KeyError as e:
+    return failure e.msg
+
+proc setNatFiltering*(
+    client: StorageClient, filtering: string
+): Future[?!void] {.async: (raises: [CancelledError, HttpError]).} =
+  let response =
+    await client.post(client.baseurl & "/debug/nat/filtering?filtering=" & filtering)
+  if response.status != 200:
+    return failure "Failed to set NAT filtering: " & $response.status
+  return success()

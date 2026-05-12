@@ -338,3 +338,35 @@ proc withExtIp*(
   for config in startConfig.configs.mitems:
     config.addCliOption("--nat", "extip:" & ip)
   return startConfig
+
+proc withRelay*(
+    self: StorageConfigs, idx: int
+): StorageConfigs {.raises: [StorageConfigError].} =
+  self.checkBounds idx
+
+  var startConfig = self
+  startConfig.configs[idx].addCliOption("--relay")
+  return startConfig
+
+proc withRelay*(self: StorageConfigs): StorageConfigs {.raises: [StorageConfigError].} =
+  var startConfig = self
+  for config in startConfig.configs.mitems:
+    config.addCliOption("--relay")
+  return startConfig
+
+proc withNatSimulation*(
+    self: StorageConfigs, idx: int, filtering = "address-and-port-dependent"
+): StorageConfigs {.raises: [StorageConfigError].} =
+  self.checkBounds idx
+
+  var startConfig = self
+  startConfig.configs[idx].addCliOption("--nat-simulation", filtering)
+  return startConfig
+
+proc withNatSimulation*(
+    self: StorageConfigs, filtering = "address-and-port-dependent"
+): StorageConfigs {.raises: [StorageConfigError].} =
+  var startConfig = self
+  for config in startConfig.configs.mitems:
+    config.addCliOption("--nat-simulation", filtering)
+  return startConfig
