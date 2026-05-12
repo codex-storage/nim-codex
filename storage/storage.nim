@@ -57,7 +57,7 @@ type
     taskpool: Taskpool
     # Expose to make reachability accessible from rest api
     autonatService*: Option[AutonatV2Service]
-    autoRelayService: Option[AutoRelayService]
+    autoRelayService*: Option[AutoRelayService]
     natMapper: Option[NatMapper]
     natRouter*: Option[NatRouter]
     isStarted: bool

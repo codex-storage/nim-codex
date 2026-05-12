@@ -64,7 +64,9 @@ proc getDebug(
         if storage[].autonatService.isSome:
           $storage[].autonatService.get.networkReachability
         else:
-          "unknown"
+          "unknown",
+      "relayRunning":
+        storage[].autoRelayService.isSome and storage[].autoRelayService.get.isRunning,
     },
   }
 
