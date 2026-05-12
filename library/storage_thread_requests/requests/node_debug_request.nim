@@ -51,12 +51,12 @@ proc getDebug(
 ): Future[Result[string, string]] {.async: (raises: []).} =
   let node = storage[].node
   let table = RestRoutingTable.init(node.discovery.protocol.routingTable)
+  let nodeSpr = node.discovery.getSpr()
 
   let json = %*{
     "id": $node.switch.peerInfo.peerId,
     "addrs": node.switch.peerInfo.addrs.mapIt($it),
-    "spr":
-      if node.discovery.dhtRecord.isSome: node.discovery.dhtRecord.get.toURI else: "",
+    "spr": if nodeSpr.isSome: nodeSpr.get.toURI else: "",
     "announceAddresses": node.discovery.announceAddrs,
     "table": table,
     "nat": {

@@ -38,7 +38,7 @@ proc getRepo(
 proc getSpr(
     storage: ptr StorageServer
 ): Future[Result[string, string]] {.async: (raises: []).} =
-  let spr = storage[].node.discovery.dhtRecord
+  let spr = storage[].node.discovery.getSpr()
   if spr.isNone:
     return err("Failed to get SPR: no SPR record found.")
 

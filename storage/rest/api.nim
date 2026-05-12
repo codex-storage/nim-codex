@@ -25,10 +25,11 @@ import pkg/libp2p
 import pkg/libp2p/routing_record
 import pkg/libp2p/protocols/connectivity/autonatv2/service
 import pkg/libp2p/services/autorelayservice
-import pkg/codexdht/discv5/spr as spr
+import pkg/codexdht/discv5/spr
 
 import ../logutils
 import ../node
+import ../discovery
 import ../blocktype
 import ../storagetypes
 import ../conf
@@ -487,7 +488,7 @@ proc initNodeApi(node: StorageNodeRef, conf: StorageConf, router: var RestRouter
     var headers = buildCorsHeaders("GET", allowedOrigin)
 
     try:
-      without spr =? node.discovery.dhtRecord:
+      without spr =? node.discovery.getSpr():
         return RestApiResponse.response(
           "", status = Http503, contentType = "application/json", headers = headers
         )
@@ -577,13 +578,13 @@ proc initDebugApi(
 
     try:
       let table = RestRoutingTable.init(node.discovery.protocol.routingTable)
+      let nodeSpr = node.discovery.getSpr()
 
       let json = %*{
         "id": $node.switch.peerInfo.peerId,
         "addrs": node.switch.peerInfo.addrs.mapIt($it),
         "repo": $conf.dataDir,
-        "spr":
-          if node.discovery.dhtRecord.isSome: node.discovery.dhtRecord.get.toURI else: "",
+        "spr": if nodeSpr.isSome: nodeSpr.get.toURI else: "",
         "announceAddresses": node.discovery.announceAddrs,
         "table": table,
         "storage": {"version": $storageVersion, "revision": $storageRevision},

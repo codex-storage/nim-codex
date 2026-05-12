@@ -176,6 +176,27 @@ method removeProvider*(
     warn "Error removing provider", peerId = peerId, exc = exc.msg
     raiseAssert("Unexpected Exception in removeProvider")
 
+proc getSpr*(d: Discovery): ?SignedPeerRecord =
+  ## Combined TCP+UDP record for bootstrap use by connecting nodes.
+  without providerRecord =? d.providerRecord:
+    return none(SignedPeerRecord)
+
+  without dhtRecord =? d.dhtRecord:
+    return none(SignedPeerRecord)
+
+  let tcpAddrs = providerRecord.data.addresses.mapIt(it.address)
+  let udpAddrs = dhtRecord.data.addresses.mapIt(it.address)
+
+  SignedPeerRecord
+    .init(d.key, PeerRecord.init(d.peerId, tcpAddrs & udpAddrs))
+    .expect("Should construct signed record").some
+
+proc updateSpr(d: Discovery) =
+  if not d.protocol.isNil:
+    let spr = d.getSpr()
+    if spr.isSome:
+      d.protocol.updateRecord(spr).expect("Should update SPR")
+
 proc updateRecords*(
     d: Discovery, announceAddrs: openArray[MultiAddress], discoveryPort: Port
 ) =
@@ -193,11 +214,10 @@ proc updateRecords*(
     .init(d.key, PeerRecord.init(d.peerId, tcpAddrs))
     .expect("Should construct signed record").some
   d.dhtRecord = SignedPeerRecord
-    .init(d.key, PeerRecord.init(d.peerId, tcpAddrs & udpAddrs))
+    .init(d.key, PeerRecord.init(d.peerId, udpAddrs))
     .expect("Should construct signed record").some
 
-  if not d.protocol.isNil:
-    d.protocol.updateRecord(d.dhtRecord).expect("Should update SPR")
+  d.updateSpr()
 
 proc updateAnnounceRecord*(d: Discovery, addrs: openArray[MultiAddress]) =
   # Updates announce addresses only, not the DHT routing record.
@@ -207,8 +227,8 @@ proc updateAnnounceRecord*(d: Discovery, addrs: openArray[MultiAddress]) =
   d.providerRecord = SignedPeerRecord
     .init(d.key, PeerRecord.init(d.peerId, d.announceAddrs))
     .expect("Should construct signed record").some
-  if not d.protocol.isNil:
-    d.protocol.updateRecord(d.providerRecord).expect("Should update SPR")
+
+  d.updateSpr()
 
 proc updateDhtRecord*(
     d: Discovery, addrs: openArray[MultiAddress]
@@ -217,8 +237,8 @@ proc updateDhtRecord*(
   d.dhtRecord = SignedPeerRecord
     .init(d.key, PeerRecord.init(d.peerId, @addrs))
     .expect("Should construct signed record").some
-  if not d.protocol.isNil:
-    d.protocol.updateRecord(d.dhtRecord).expect("Should update SPR")
+
+  d.updateSpr()
 
 proc start*(d: Discovery) {.async: (raises: []).} =
   try:

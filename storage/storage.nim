@@ -98,13 +98,8 @@ proc start*(s: StorageServer) {.async.} =
         )
       ]
     else:
-      # If extip is not set, we have 2 choices:
-      # 1- Announce the peer addrs contains detected addresses on the machine.
-      # 2- Wait for AutoNat
-      # The problem with 1 is that you will certainly announce private addresses
-      # and if you advertise a CID, you will advertise these private addresses.
+      # Don't announce address and wait for AutoNat
       # TODO: DHT client mode
-      #s.storageNode.switch.peerInfo.addrs
       @[]
 
   s.storageNode.discovery.updateRecords(announceAddrs, s.config.discoveryPort)
@@ -114,6 +109,7 @@ proc start*(s: StorageServer) {.async.} =
   for spr in findReachableNodes(s.config.bootstrapNodes):
     try:
       let addrs = spr.data.addresses.mapIt(it.address)
+      echo "addrs", addrs
       await s.storageNode.switch.connect(spr.data.peerId, addrs)
     except CatchableError as e:
       warn "Cannot connect to bootstrap node", error = e.msg

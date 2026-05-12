@@ -225,8 +225,8 @@ proc generateNodes*(
         if config.enableBootstrap:
           waitFor switch.peerInfo.update()
           blockDiscovery.updateRecords(switch.peerInfo.addrs, bindPort.Port)
-          if blockDiscovery.dhtRecord.isSome:
-            bootstrapNodes.add !blockDiscovery.dhtRecord
+          if blockDiscovery.getSpr().isSome:
+            bootstrapNodes.add !blockDiscovery.getSpr()
 
         fullNode
       else:
