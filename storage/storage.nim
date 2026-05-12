@@ -109,7 +109,6 @@ proc start*(s: StorageServer) {.async.} =
   for spr in findReachableNodes(s.config.bootstrapNodes):
     try:
       let addrs = spr.data.addresses.mapIt(it.address)
-      echo "addrs", addrs
       await s.storageNode.switch.connect(spr.data.peerId, addrs)
     except CatchableError as e:
       warn "Cannot connect to bootstrap node", error = e.msg
