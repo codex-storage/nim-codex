@@ -24,6 +24,7 @@ import pkg/confutils
 import pkg/libp2p
 import pkg/libp2p/routing_record
 import pkg/libp2p/protocols/connectivity/autonatv2/service
+import pkg/libp2p/services/autorelayservice
 import pkg/codexdht/discv5/spr as spr
 
 import ../logutils
@@ -38,6 +39,7 @@ import ../stores/repostore
 import ../blockexchange
 import ../units
 import ../utils/options
+import ../utils/natsimulation
 
 import ./coders
 import ./json
@@ -562,6 +564,8 @@ proc initDebugApi(
     node: StorageNodeRef,
     conf: StorageConf,
     autonat: Option[AutonatV2Service],
+    autoRelay: Option[AutoRelayService],
+    natRouter: Option[NatRouter],
     router: var RestRouter,
 ) =
   let allowedOrigin = router.allowedOrigin
@@ -588,7 +592,8 @@ proc initDebugApi(
             if autonat.isSome:
               $autonat.get.networkReachability
             else:
-              "unknown"
+              "unknown",
+          "relayRunning": autoRelay.isSome and autoRelay.get.isRunning,
         },
       }
 
@@ -626,6 +631,26 @@ proc initDebugApi(
       trace "Excepting processing request", exc = exc.msg
       return RestApiResponse.error(Http500, headers = headers)
 
+  router.api(MethodPost, "/api/storage/v1/debug/nat/filtering") do(
+    filtering: Option[string]
+  ) -> RestApiResponse:
+    var headers = buildCorsHeaders("POST", allowedOrigin)
+
+    without natSimulation =? natRouter:
+      return RestApiResponse.error(
+        Http400, "NAT simulation not active on this node", headers = headers
+      )
+
+    without res =? filtering and filtering =? res:
+      return
+        RestApiResponse.error(Http400, "Missing filtering value", headers = headers)
+
+    let behavior = FilteringBehavior.fromString(filtering).valueOr:
+      return RestApiResponse.error(Http400, "Invalid filtering value", headers = headers)
+
+    natSimulation.setFiltering(behavior)
+    return RestApiResponse.response("", headers = headers)
+
   when storage_enable_api_debug_peers:
     router.api(MethodGet, "/api/storage/v1/debug/peer/{peerId}") do(
       peerId: PeerId
@@ -651,12 +676,14 @@ proc initRestApi*(
     conf: StorageConf,
     repoStore: RepoStore,
     autonat: Option[AutonatV2Service],
+    autoRelay: Option[AutoRelayService],
+    natRouter: Option[NatRouter],
     corsAllowedOrigin: ?string,
 ): RestRouter =
   var router = RestRouter.init(validate, corsAllowedOrigin)
 
   initDataApi(node, repoStore, router)
   initNodeApi(node, conf, router)
-  initDebugApi(node, conf, autonat, router)
+  initDebugApi(node, conf, autonat, autoRelay, natRouter, router)
 
   return router
