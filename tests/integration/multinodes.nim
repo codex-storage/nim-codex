@@ -219,7 +219,8 @@ template multinodesuite*(suiteName: string, body: untyped) =
           for config in clients.configs:
             let node = await startClientNode(config)
             running.add RunningNode(role: Role.Client, node: node)
-            await StorageProcess(node).updateBootstrapNodes()
+            if config.isBootstrapNode:
+              await StorageProcess(node).updateBootstrapNodes()
 
     teardown:
       await teardownImpl()

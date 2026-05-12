@@ -354,8 +354,21 @@ proc withRelay*(self: StorageConfigs): StorageConfigs {.raises: [StorageConfigEr
     config.addCliOption("--relay")
   return startConfig
 
+# For testing, a node with extip (not behind nat) is a bootstrap node
+proc isBootstrapNode*(config: StorageConfig): bool {.raises: [].} =
+  let opts = config.cliOptions.getOrDefault(StartUpCmd.noCmd)
+
+  try:
+    if "--nat" in opts and "extip" in opts["--nat"].value:
+      return true
+  except KeyError:
+    warn "Failed to look at the extip config"
+    return false
+
+  return false
+
 proc withNatSimulation*(
-    self: StorageConfigs, idx: int, filtering = "address-and-port-dependent"
+    self: StorageConfigs, idx: int, filtering: string
 ): StorageConfigs {.raises: [StorageConfigError].} =
   self.checkBounds idx
 
@@ -364,7 +377,7 @@ proc withNatSimulation*(
   return startConfig
 
 proc withNatSimulation*(
-    self: StorageConfigs, filtering = "address-and-port-dependent"
+    self: StorageConfigs, filtering: string
 ): StorageConfigs {.raises: [StorageConfigError].} =
   var startConfig = self
   for config in startConfig.configs.mitems:
