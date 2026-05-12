@@ -1,15 +1,14 @@
 import std/[net, importutils, envvars]
 import pkg/chronos
-import ../../storage/utils/natutils
 import pkg/libp2p/[multiaddress, multihash, multicodec]
 import pkg/libp2p/protocols/connectivity/autonat/types
 import pkg/libp2p/protocols/connectivity/relay/client as relayClientModule
 import pkg/libp2p/services/autorelayservice except setup
-
 import pkg/results
 
 import ./helpers
 import ../asynctest
+import ../../storage/utils/natutils
 import ../../storage/nat
 import ../../storage/discovery
 import ../../storage/rng
