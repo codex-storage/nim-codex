@@ -341,6 +341,14 @@ type
       name: "nat-max-relays"
     .}: int
 
+    natSimulation* {.
+      desc:
+        "Simulate NAT filtering behavior for testing: endpoint-independent, address-dependent, address-and-port-dependent",
+      defaultValue: string.none,
+      name: "nat-simulation",
+      hidden
+    .}: Option[string]
+
     relay* {.
       desc: "Enable circuit relay server (hop) - use on publicly reachable nodes only",
       defaultValue: false,
