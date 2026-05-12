@@ -9,12 +9,14 @@ import std/[options]
 import chronos
 import chronicles
 import codexdht/discv5/spr
+import pkg/libp2p/services/autorelayservice
 import ../../alloc
 import ../../../storage/conf
 import ../../../storage/rest/json
 import ../../../storage/node
 
 from ../../../storage/storage import StorageServer, node
+import ../../../storage/discovery
 
 logScope:
   topics = "libstorage libstoragedebug"

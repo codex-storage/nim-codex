@@ -10,6 +10,7 @@ import ../../../storage/rest/json
 import ../../../storage/node
 
 from ../../../storage/storage import StorageServer, config, node
+import ../../../storage/discovery
 
 logScope:
   topics = "libstorage libstorageinfo"
