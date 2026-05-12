@@ -128,6 +128,22 @@ components:
           $ref: "#/components/schemas/PeersTable"
         storage:
           $ref: "#/components/schemas/StorageVersion"
+        nat:
+          $ref: "#/components/schemas/NatInfo"
+
+    NatInfo:
+      type: object
+      required:
+        - reachability
+        - relayRunning
+      properties:
+        reachability:
+          type: string
+          enum: [Unknown, Reachable, NotReachable]
+          description: AutoNAT reachability status
+        relayRunning:
+          type: boolean
+          description: Whether the AutoRelay service is currently running
 
     DataList:
       type: object
@@ -533,6 +549,29 @@ paths:
           description: Invalid or missing log level
         "500":
           description: Well it was bad-bad
+
+  "/debug/nat/filtering":
+    post:
+      summary: "Set NAT simulation filtering behavior at runtime"
+      description: "Only available on nodes started with --nat-simulation. Used for testing NAT transitions."
+      tags: [Debug]
+      operationId: setNatFiltering
+
+      parameters:
+        - in: query
+          name: filtering
+          required: true
+          schema:
+            type: string
+            enum: [endpoint-independent, address-dependent, address-and-port-dependent]
+
+      responses:
+        "200":
+          description: Filtering behavior updated successfully
+        "400":
+          description: Missing or invalid filtering value, or NAT simulation not active
+        "500":
+          description: Internal error
 
   "/debug/info":
     get:
