@@ -46,9 +46,7 @@ multinodesuite "NAT download":
     let natNode = clients()[2]
 
     check eventuallySafe(
-      block:
-        let addrs = (await natNode.client.info()).get["addrs"].getElems.mapIt(it.getStr)
-        addrs.anyIt("p2p-circuit" in it),
+      (await natNode.client.natRelayRunning()).get(),
       timeout = RelayTimeout,
       pollInterval = PollInterval,
     )
