@@ -1141,6 +1141,20 @@ proc new*(
   proc wantBlocksRequestHandler(
       peer: PeerId, req: WantBlocksRequest
   ): Future[seq[BlockDelivery]] {.async: (raises: [CancelledError]).} =
+    let maxIndex = high(Natural).uint64
+    var totalCount: uint64 = 0
+    for r in req.ranges:
+      if r.count == 0 or r.start > maxIndex or r.count - 1 > maxIndex - r.start or
+          r.start > uint64.high - r.count or r.count > uint64.high - totalCount:
+        warn "Rejecting WantBlocks request: invalid range",
+          peer = peer, start = r.start, count = r.count
+        return @[]
+      totalCount += r.count
+      if totalCount > MaxBlocksPerBatch:
+        warn "Rejecting WantBlocks request: total blocks exceeds cap",
+          peer = peer, total = totalCount
+        return @[]
+
     var
       blockDeliveries: seq[BlockDelivery]
       notFoundCount = 0
