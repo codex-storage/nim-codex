@@ -56,7 +56,7 @@ suite "NAT - NatMapper.close":
       tcpPort: Port(8080),
       discoveryPort: Port(8090),
     )
-    mapper.hasUpnpMapping = true
+    mapper.portMappingType = UpnpMapping
     let device = MockUpnpDevice()
     mapper.close(device)
     check device.deletedPorts ==
@@ -137,23 +137,3 @@ asyncchecksuite "NAT - handleNatStatus":
 
     check not autoRelay.isRunning
     check disc.announceAddrs == @[dialBack]
-
-suite "NAT - UPnP port mapping (requires NAT_TEST_UPNP=1)":
-  test "mapPorts and cleanup":
-    if getEnv("NAT_TEST_UPNP") != "1":
-      skip()
-      return
-
-    let res = UpnpDevice.init()
-    check res.isOk
-
-    let device = res.value
-    let ports = device.mapPorts(Port(8101), Port(8090))
-    check ports.isSome
-
-    let (tcp, udp) = ports.get()
-    check tcp == Port(8101)
-    check udp == Port(8090)
-
-    check device.deletePortMapping(Port(8101), NatIpProtocol.Tcp).isOk
-    check device.deletePortMapping(Port(8090), NatIpProtocol.Udp).isOk

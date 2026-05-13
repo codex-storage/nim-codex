@@ -32,11 +32,16 @@ type NatConfig* = object
   of true: extIp*: IpAddress
   of false: nat*: NatStrategy
 
+type PortMappingType* = enum
+  NoMapping
+  UpnpMapping
+  PmpMapping
+
 type NatMapper* = ref object of RootObj
   natConfig*: NatConfig
   tcpPort*: Port
   discoveryPort*: Port
-  hasUpnpMapping: bool
+  portMappingType*: PortMappingType
 
 type MapNatPortsCtx = object
   natConfig: NatConfig
@@ -44,7 +49,7 @@ type MapNatPortsCtx = object
   discoveryPort: Port
   signal: ThreadSignalPtr
   result: Option[(Port, Port)]
-  hasUpnpMapping: bool
+  portMappingType: PortMappingType
 
 proc mapNatPortsThread(ctx: ptr MapNatPortsCtx) {.thread.} =
   if ctx.natConfig.hasExtIp:
@@ -57,7 +62,7 @@ proc mapNatPortsThread(ctx: ptr MapNatPortsCtx) {.thread.} =
   if upnpRes.isOk:
     let ports = upnpRes.value.mapPorts(ctx.tcpPort, ctx.discoveryPort)
     if ports.isSome:
-      ctx.hasUpnpMapping = true
+      ctx.portMappingType = UpnpMapping
       ctx.result = ports
       discard ctx.signal.fireSync()
       return
@@ -66,6 +71,7 @@ proc mapNatPortsThread(ctx: ptr MapNatPortsCtx) {.thread.} =
   if pmpRes.isOk:
     let ports = pmpRes.value.mapPorts(ctx.tcpPort, ctx.discoveryPort)
     if ports.isSome:
+      ctx.portMappingType = PmpMapping
       ctx.result = ports
 
   discard ctx.signal.fireSync()
@@ -95,8 +101,8 @@ method mapNatPorts*(
       # Always sync hasUpnpMapping back, even on timeout or cancellation.
       # If the thread mapped ports just after the timeout, close() will
       # still clean them up on the router.
-      if ctx.hasUpnpMapping:
-        m.hasUpnpMapping = true
+      if ctx.portMappingType != NoMapping:
+        m.portMappingType = ctx.portMappingType
     freeShared(ctx)
     discard signal.close()
 
@@ -183,7 +189,7 @@ method handleNatStatus*(
 proc close*(m: NatMapper, device = UpnpDevice()) =
   # UPnP mappings are permanent (leaseDuration=0) and must be deleted explicitly.
   # NAT-PMP mappings expire automatically after NATPMP_LIFETIME seconds.
-  if not m.hasUpnpMapping:
+  if m.portMappingType != UpnpMapping:
     return
 
   # deletePortMapping requires the IGD control URL set during init

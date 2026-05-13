@@ -290,6 +290,14 @@ proc withListenIp*(
     config.addCliOption("--listen-ip", ip)
   return startConfig
 
+proc withListenPort*(
+    self: StorageConfigs, idx: int, port: int
+): StorageConfigs {.raises: [StorageConfigError].} =
+  self.checkBounds idx
+  var startConfig = self
+  startConfig.configs[idx].addCliOption("--listen-port", $port)
+  return startConfig
+
 proc withNatNumPeersToAsk*(
     self: StorageConfigs, numPeersToAsk: int
 ): StorageConfigs {.raises: [StorageConfigError].} =

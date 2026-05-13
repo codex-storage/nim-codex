@@ -16,6 +16,7 @@ import ../../../storage/rest/json
 import ../../../storage/node
 
 from ../../../storage/storage import StorageServer, node
+import ../../../storage/nat
 import ../../../storage/discovery
 
 logScope:
@@ -69,6 +70,14 @@ proc getDebug(
           "unknown",
       "relayRunning":
         storage[].autoRelayService.isSome and storage[].autoRelayService.get.isRunning,
+      "portMapping":
+        if storage[].natMapper.isNone or
+            storage[].natMapper.get.portMappingType == NoMapping:
+          "none"
+        elif storage[].natMapper.get.portMappingType == UpnpMapping:
+          "upnp"
+        else:
+          "pmp",
     },
   }
 

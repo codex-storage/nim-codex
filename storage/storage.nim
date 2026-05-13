@@ -58,7 +58,7 @@ type
     # Expose to make reachability accessible from rest api
     autonatService*: Option[AutonatV2Service]
     autoRelayService*: Option[AutoRelayService]
-    natMapper: Option[NatMapper]
+    natMapper*: Option[NatMapper]
     natRouter*: Option[NatRouter]
     isStarted: bool
 
@@ -424,7 +424,7 @@ proc new*(
     restServer = RestServerRef
       .new(
         storageNode.initRestApi(
-          config, repoStore, autonatService, autoRelayService, natRouter,
+          config, repoStore, autonatService, autoRelayService, natMapper, natRouter,
           config.apiCorsAllowedOrigin,
         ),
         initTAddress(config.apiBindAddress.get(), config.apiPort),

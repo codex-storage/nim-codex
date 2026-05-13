@@ -293,6 +293,17 @@ proc natRelayRunning*(
   except KeyError as e:
     return failure e.msg
 
+proc natPortMapping*(
+    client: StorageClient
+): Future[?!string] {.async: (raises: [CancelledError, HttpError]).} =
+  let info = await client.info()
+  if info.isErr:
+    return failure "Failed to get node info"
+  try:
+    return info.get()["nat"]["portMapping"].getStr().success
+  except KeyError as e:
+    return failure e.msg
+
 proc setNatFiltering*(
     client: StorageClient, filtering: string
 ): Future[?!void] {.async: (raises: [CancelledError, HttpError]).} =

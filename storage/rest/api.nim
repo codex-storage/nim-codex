@@ -41,6 +41,7 @@ import ../blockexchange
 import ../units
 import ../utils/options
 import ../utils/natsimulation
+import ../nat
 
 import ./coders
 import ./json
@@ -566,6 +567,7 @@ proc initDebugApi(
     conf: StorageConf,
     autonat: Option[AutonatV2Service],
     autoRelay: Option[AutoRelayService],
+    natMapper: Option[NatMapper],
     natRouter: Option[NatRouter],
     router: var RestRouter,
 ) =
@@ -595,6 +597,13 @@ proc initDebugApi(
             else:
               "unknown",
           "relayRunning": autoRelay.isSome and autoRelay.get.isRunning,
+          "portMapping":
+            if natMapper.isNone or natMapper.get.portMappingType == NoMapping:
+              "none"
+            elif natMapper.get.portMappingType == UpnpMapping:
+              "upnp"
+            else:
+              "pmp",
         },
       }
 
@@ -679,6 +688,7 @@ proc initRestApi*(
     repoStore: RepoStore,
     autonat: Option[AutonatV2Service],
     autoRelay: Option[AutoRelayService],
+    natMapper: Option[NatMapper],
     natRouter: Option[NatRouter],
     corsAllowedOrigin: ?string,
 ): RestRouter =
@@ -686,6 +696,6 @@ proc initRestApi*(
 
   initDataApi(node, repoStore, router)
   initNodeApi(node, conf, router)
-  initDebugApi(node, conf, autonat, autoRelay, natRouter, router)
+  initDebugApi(node, conf, autonat, autoRelay, natMapper, natRouter, router)
 
   return router
