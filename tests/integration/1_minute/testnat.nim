@@ -14,10 +14,7 @@ const
   PollInterval = 1_000
 
 proc checkNatStatus*(
-    client: StorageClient,
-    reachability: string,
-    relayRunning: bool,
-    clientMode: bool,
+    client: StorageClient, reachability: string, relayRunning: bool, clientMode: bool
 ) {.async.} =
   check eventuallySafe(
     block:
