@@ -224,7 +224,7 @@ proc generateNodes*(
 
         if config.enableBootstrap:
           waitFor switch.peerInfo.update()
-          blockDiscovery.updateRecords(switch.peerInfo.addrs, bindPort.Port)
+          blockDiscovery.updateRecords(switch.peerInfo.addrs, udpPort = bindPort.Port)
           if blockDiscovery.getSpr().isSome:
             bootstrapNodes.add !blockDiscovery.getSpr()
 

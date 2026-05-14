@@ -106,7 +106,7 @@ proc start*(s: StorageServer) {.async.} =
     # It will be updated if reachable.
     s.storageNode.discovery.protocol.clientMode = true
 
-  s.storageNode.discovery.updateRecords(announceAddrs, s.config.discoveryPort)
+  s.storageNode.discovery.updateRecords(announceAddrs, udpPort = s.config.discoveryPort)
 
   await s.storageNode.start()
 

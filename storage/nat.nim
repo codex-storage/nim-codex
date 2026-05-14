@@ -148,7 +148,7 @@ method handleNatStatus*(
       else:
         debug "AutoRelayService stopped"
 
-    discovery.updateRecords(@[dialBackAddr.get], discoveryPort)
+    discovery.updateRecords(@[dialBackAddr.get], udpPort = discoveryPort)
     discovery.protocol.clientMode = false
   of NotReachable:
     var hasPortMapping = false
@@ -160,6 +160,9 @@ method handleNatStatus*(
     else:
       debug "Node is not reachable trying UPnP / PMP now"
 
+      # Here we should check first that a mapping exists.
+      # If it does exist but Autonat still report as Not Reachable
+      # we should fallback to relay.
       let maybePorts = await m.mapNatPorts()
 
       if maybePorts.isSome:
@@ -169,16 +172,19 @@ method handleNatStatus*(
 
         let announceAddress = dialBackAddr.get.remapAddr(port = some(tcpPort))
 
-        # TODO: Try a dial me to make sure we are reachable
-
         if autoRelayService.isRunning:
+          # Here we stop the relay because the node *should* be reachable
           if not await autoRelayService.stop(switch):
             debug "AutoRelayService stop method returned false"
           else:
             debug "AutoRelayService stopped"
 
-        discovery.updateRecords(@[announceAddress], udpPort)
-        discovery.protocol.clientMode = false
+        # Note that we update the DHT records but we don't set the client mode
+        # to false because we are not sure the node is reachable.
+        # The client mode will be updated on the next iteration of autonat.
+        # Trying to check manually that the node is reachable is not trivial,
+        # this is exactly what Autonat does.
+        discovery.updateRecords(@[announceAddress], udpPort = udpPort)
         hasPortMapping = true
 
     if not hasPortMapping and not autoRelayService.isRunning:

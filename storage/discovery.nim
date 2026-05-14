@@ -198,14 +198,12 @@ proc updateSpr(d: Discovery) =
       d.protocol.updateRecord(spr).expect("Should update SPR")
 
 proc updateRecords*(
-    d: Discovery, announceAddrs: openArray[MultiAddress], discoveryPort: Port
+    d: Discovery, announceAddrs: openArray[MultiAddress], udpPort: Port
 ) =
-  ## Update both provider and DHT records from TCP announce addresses.
-  ## Discovery (UDP) addresses are derived by remapping announceAddrs to UDP with discoveryPort.
-  ## Updates the discv5 SPR once with the full set of addresses.
+  # UDP addresses are derived from TCP announce addresses by remapping protocol and port.
   let tcpAddrs = @announceAddrs
   let udpAddrs =
-    tcpAddrs.mapIt(it.remapAddr(protocol = some("udp"), port = some(discoveryPort)))
+    tcpAddrs.mapIt(it.remapAddr(protocol = some("udp"), port = some(udpPort)))
 
   debug "Updating addresses", tcpAddrs, udpAddrs
 
@@ -289,7 +287,7 @@ proc new*(
     key: key, peerId: PeerId.init(key).expect("Should construct PeerId"), store: store
   )
 
-  self.updateRecords(announceAddrs, discoveryPort)
+  self.updateRecords(announceAddrs, udpPort = discoveryPort)
 
   let discoveryConfig =
     DiscoveryConfig(tableIpLimits: tableIpLimits, bitsPerHop: DefaultBitsPerHop)
