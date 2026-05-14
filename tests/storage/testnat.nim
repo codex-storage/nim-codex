@@ -95,7 +95,7 @@ asyncchecksuite "NAT - handleNatStatus":
     check disc.announceAddrs ==
       @[MultiAddress.init("/ip4/1.2.3.4/tcp/9000").expect("valid")]
     check not autoRelay.isRunning
-    check not disc.protocol.clientMode
+    check disc.protocol.clientMode
 
   test "handleNatStatus starts autoRelay when NotReachable and UPnP failed":
     let mapper = MockNatMapper(mappedPorts: none((Port, Port)))

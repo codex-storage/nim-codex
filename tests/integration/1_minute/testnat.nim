@@ -14,7 +14,10 @@ const
   PollInterval = 1_000
 
 proc checkNatStatus*(
-    client: StorageClient, reachability: string, relayRunning: bool
+    client: StorageClient,
+    reachability: string,
+    relayRunning: bool,
+    clientMode: bool,
 ) {.async.} =
   check eventuallySafe(
     block:
@@ -22,7 +25,7 @@ proc checkNatStatus*(
       let nat = info["nat"]
       let addrs = info["addrs"].getElems.mapIt(it.getStr)
       nat["reachability"].getStr() == reachability and
-        nat["clientMode"].getBool() == relayRunning and
+        nat["clientMode"].getBool() == clientMode and
         nat["relayRunning"].getBool() == relayRunning and
         addrs.anyIt("p2p-circuit" in it) == relayRunning,
     timeout = RelayTimeout,
@@ -30,7 +33,10 @@ proc checkNatStatus*(
   )
 
 proc checkNatStatus*(client: StorageClient, reachability: string) {.async.} =
-  await client.checkNatStatus(reachability, reachability == "NotReachable")
+  let notReachable = reachability == "NotReachable"
+  await client.checkNatStatus(
+    reachability, relayRunning = notReachable, clientMode = notReachable
+  )
 
 # Reminder: multinodesuite setup the first node as bootstrap node
 multinodesuite "AutoNAT detection":

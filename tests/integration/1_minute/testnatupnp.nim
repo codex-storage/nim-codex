@@ -39,8 +39,9 @@ multinodesuite "AutoNAT UPnP port mapping":
 
     let node2 = clients()[1]
 
-    let isRelayRunning = false
-    await node2.client.checkNatStatus("NotReachable", isRelayRunning)
+    await node2.client.checkNatStatus(
+      "NotReachable", relayRunning = false, clientMode = true
+    )
 
     check eventuallySafe(
       block:
@@ -52,8 +53,9 @@ multinodesuite "AutoNAT UPnP port mapping":
 
     # Ideally we should find a way to test that the node is Reachable now
 
-    let isRelayRunning = false
-    await node2.client.checkNatStatus("NotReachable", isRelayRunning)
+    await node2.client.checkNatStatus(
+      "NotReachable", relayRunning = false, clientMode = true
+    )
 
     # Extract mapped TCP port from announce addresses and verify it exists on the IGD
     let announceAddrs =
