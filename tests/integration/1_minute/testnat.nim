@@ -13,27 +13,24 @@ const
   RelayTimeout = 30_000
   PollInterval = 1_000
 
-proc checkNatReachability*(client: StorageClient, reachability: string) {.async.} =
-  check eventuallySafe(
-    (await client.natReachability()).get() == reachability,
-    timeout = RelayTimeout,
-    pollInterval = PollInterval,
-  )
-
-proc checkRelayIsRunning*(client: StorageClient, isRunning: bool) {.async.} =
-  check eventuallySafe(
-    (await client.natRelayRunning()).get() == isRunning,
-    timeout = RelayTimeout,
-    pollInterval = PollInterval,
-  )
-
+proc checkNatStatus*(
+    client: StorageClient, reachability: string, relayRunning: bool
+) {.async.} =
   check eventuallySafe(
     block:
-      let addrs = (await client.info()).get["addrs"].getElems.mapIt(it.getStr)
-      addrs.anyIt("p2p-circuit" in it) == isRunning,
+      let info = (await client.info()).get
+      let nat = info["nat"]
+      let addrs = info["addrs"].getElems.mapIt(it.getStr)
+      nat["reachability"].getStr() == reachability and
+        nat["clientMode"].getBool() == relayRunning and
+        nat["relayRunning"].getBool() == relayRunning and
+        addrs.anyIt("p2p-circuit" in it) == relayRunning,
     timeout = RelayTimeout,
     pollInterval = PollInterval,
   )
+
+proc checkNatStatus*(client: StorageClient, reachability: string) {.async.} =
+  await client.checkNatStatus(reachability, reachability == "NotReachable")
 
 # Reminder: multinodesuite setup the first node as bootstrap node
 multinodesuite "AutoNAT detection":
@@ -48,8 +45,7 @@ multinodesuite "AutoNAT detection":
   )
   test "node is reachable when using bootstrap node on same network", natConfig:
     let node2 = clients()[1]
-    await node2.client.checkNatReachability("Reachable")
-    await node2.client.checkRelayIsRunning(false)
+    await node2.client.checkNatStatus("Reachable")
 
   let endpointIndependentConfig = NodeConfigs(
     clients: StorageConfigs
@@ -64,8 +60,7 @@ multinodesuite "AutoNAT detection":
   # EIF = Endpoint Independent Filtering
   test "node with simulated EIF nat is detected as reachable", endpointIndependentConfig:
     let node2 = clients()[1]
-    await node2.client.checkNatReachability("Reachable")
-    await node2.client.checkRelayIsRunning(false)
+    await node2.client.checkNatStatus("Reachable")
 
   let autonatConfig = NodeConfigs(
     clients: StorageConfigs
@@ -81,8 +76,7 @@ multinodesuite "AutoNAT detection":
   test "node with simulated APDF nat is detected as not reachable and starts relay",
     autonatConfig:
     let node2 = clients()[1]
-    await node2.client.checkNatReachability("NotReachable")
-    await node2.client.checkRelayIsRunning(true)
+    await node2.client.checkNatStatus("NotReachable")
 
   let transitionConfig = NodeConfigs(
     clients: StorageConfigs
@@ -100,13 +94,11 @@ multinodesuite "AutoNAT detection":
     transitionConfig:
     let node2 = clients()[1]
 
-    await node2.client.checkNatReachability("NotReachable")
-    await node2.client.checkRelayIsRunning(true)
+    await node2.client.checkNatStatus("NotReachable")
 
     check (await node2.client.setNatFiltering("endpoint-independent")).isOk
 
-    await node2.client.checkNatReachability("Reachable")
-    await node2.client.checkRelayIsRunning(false)
+    await node2.client.checkNatStatus("Reachable")
 
   let natToSimConfig = NodeConfigs(
     clients: StorageConfigs
@@ -123,13 +115,11 @@ multinodesuite "AutoNAT detection":
     natToSimConfig:
     let node2 = clients()[1]
 
-    await node2.client.checkNatReachability("Reachable")
-    await node2.client.checkRelayIsRunning(false)
+    await node2.client.checkNatStatus("Reachable")
 
     check (await node2.client.setNatFiltering("address-and-port-dependent")).isOk
 
-    await node2.client.checkNatReachability("NotReachable")
-    await node2.client.checkRelayIsRunning(true)
+    await node2.client.checkNatStatus("NotReachable")
 
   let multiNatConfig = NodeConfigs(
     clients: StorageConfigs
@@ -148,7 +138,5 @@ multinodesuite "AutoNAT detection":
     let node2 = clients()[1]
     let node3 = clients()[2]
 
-    await node2.client.checkNatReachability("NotReachable")
-    await node3.client.checkNatReachability("NotReachable")
-    await node2.client.checkRelayIsRunning(true)
-    await node3.client.checkRelayIsRunning(true)
+    await node2.client.checkNatStatus("NotReachable")
+    await node3.client.checkNatStatus("NotReachable")

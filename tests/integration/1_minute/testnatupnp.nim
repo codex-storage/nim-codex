@@ -8,7 +8,7 @@ import ../storageclient
 import ../storageconfig
 import ../../../storage/utils/natutils
 
-from ./testnat.nim import checkNatReachability, checkRelayIsRunning
+from ./testnat.nim import checkNatStatus
 
 const
   DetectionTimeout = 15_000
@@ -39,7 +39,8 @@ multinodesuite "AutoNAT UPnP port mapping":
 
     let node2 = clients()[1]
 
-    await node2.client.checkNatReachability("NotReachable")
+    let isRelayRunning = false
+    await node2.client.checkNatStatus("NotReachable", isRelayRunning)
 
     check eventuallySafe(
       block:
@@ -51,7 +52,8 @@ multinodesuite "AutoNAT UPnP port mapping":
 
     # Ideally we should find a way to test that the node is Reachable now
 
-    await node2.client.checkRelayIsRunning(false)
+    let isRelayRunning = false
+    await node2.client.checkNatStatus("NotReachable", isRelayRunning)
 
     # Extract mapped TCP port from announce addresses and verify it exists on the IGD
     let announceAddrs =

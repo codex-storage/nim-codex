@@ -149,9 +149,11 @@ method handleNatStatus*(
         debug "AutoRelayService stopped"
 
     discovery.updateRecords(@[dialBackAddr.get], discoveryPort)
-    # TODO: switch DHT to server mode
+    discovery.protocol.clientMode = false
   of NotReachable:
     var hasPortMapping = false
+
+    discovery.protocol.clientMode = true
 
     if dialBackAddr.isNone:
       warn "Got empty dialback address in AutoNat when node is NotReachable"
@@ -176,6 +178,7 @@ method handleNatStatus*(
             debug "AutoRelayService stopped"
 
         discovery.updateRecords(@[announceAddress], udpPort)
+        discovery.protocol.clientMode = false
         hasPortMapping = true
 
     if not hasPortMapping and not autoRelayService.isRunning:

@@ -596,6 +596,7 @@ proc initDebugApi(
               $autonat.get.networkReachability
             else:
               "unknown",
+          "clientMode": node.discovery.protocol.clientMode,
           "relayRunning": autoRelay.isSome and autoRelay.get.isRunning,
           "portMapping":
             if natMapper.isNone or natMapper.get.portMappingType == NoMapping:

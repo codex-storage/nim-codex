@@ -1,4 +1,4 @@
-import std/[net, importutils, envvars]
+import std/[net, importutils]
 import pkg/chronos
 import pkg/libp2p/[multiaddress, multihash, multicodec]
 import pkg/libp2p/protocols/connectivity/autonat/types
@@ -95,6 +95,7 @@ asyncchecksuite "NAT - handleNatStatus":
     check disc.announceAddrs ==
       @[MultiAddress.init("/ip4/1.2.3.4/tcp/9000").expect("valid")]
     check not autoRelay.isRunning
+    check not disc.protocol.clientMode
 
   test "handleNatStatus starts autoRelay when NotReachable and UPnP failed":
     let mapper = MockNatMapper(mappedPorts: none((Port, Port)))
@@ -104,6 +105,7 @@ asyncchecksuite "NAT - handleNatStatus":
     )
 
     check autoRelay.isRunning
+    check disc.protocol.clientMode
 
   test "handleNatStatus starts autoRelay when NotReachable and mapping fails":
     let dialBack = MultiAddress.init("/ip4/1.2.3.4/tcp/8080").expect("valid")
@@ -115,6 +117,7 @@ asyncchecksuite "NAT - handleNatStatus":
 
     check autoRelay.isRunning
     check disc.announceAddrs == newSeq[MultiAddress]()
+    check disc.protocol.clientMode
 
   test "handleNatStatus does not announce address when Reachable and no dialBackAddr":
     let mapper = MockNatMapper(mappedPorts: none((Port, Port)))
@@ -125,6 +128,7 @@ asyncchecksuite "NAT - handleNatStatus":
 
     check disc.announceAddrs == newSeq[MultiAddress]()
     check not autoRelay.isRunning
+    check not disc.protocol.clientMode
 
   test "handleNatStatus stops relay and announces dialBackAddr when Reachable":
     let dialBack = MultiAddress.init("/ip4/1.2.3.4/tcp/8080").expect("valid")
@@ -137,3 +141,4 @@ asyncchecksuite "NAT - handleNatStatus":
 
     check not autoRelay.isRunning
     check disc.announceAddrs == @[dialBack]
+    check not disc.protocol.clientMode

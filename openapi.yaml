@@ -135,15 +135,24 @@ components:
       type: object
       required:
         - reachability
+        - clientMode
         - relayRunning
+        - portMapping
       properties:
         reachability:
           type: string
           enum: [Unknown, Reachable, NotReachable]
           description: AutoNAT reachability status
+        clientMode:
+          type: boolean
+          description: Whether the DHT is running in client mode (not added to remote routing tables)
         relayRunning:
           type: boolean
           description: Whether the AutoRelay service is currently running
+        portMapping:
+          type: string
+          enum: [none, upnp, pmp]
+          description: Active NAT port mapping type
 
     DataList:
       type: object

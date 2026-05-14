@@ -99,8 +99,12 @@ proc start*(s: StorageServer) {.async.} =
       ]
     else:
       # Don't announce address and wait for AutoNat
-      # TODO: DHT client mode
       @[]
+
+  if not s.config.nat.hasExtIp:
+    # Nodes with autonat start with client mode.
+    # It will be updated if reachable.
+    s.storageNode.discovery.protocol.clientMode = true
 
   s.storageNode.discovery.updateRecords(announceAddrs, s.config.discoveryPort)
 

@@ -271,17 +271,6 @@ proc connectPeer*(
   let response = await client.get(url)
   assert response.status == 200
 
-proc natReachability*(
-    client: StorageClient
-): Future[?!string] {.async: (raises: [CancelledError, HttpError]).} =
-  let info = await client.info()
-  if info.isErr:
-    return failure "Failed to get node info"
-  try:
-    return info.get()["nat"]["reachability"].getStr().success
-  except KeyError as e:
-    return failure e.msg
-
 proc natRelayRunning*(
     client: StorageClient
 ): Future[?!bool] {.async: (raises: [CancelledError, HttpError]).} =
