@@ -40,6 +40,18 @@ jobs:
       matrix: ${{ needs.matrix.outputs.matrix }}
       cache_nonce: ${{ needs.matrix.outputs.cache_nonce }}
 
+  nat-integration:
+    name: NAT integration tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Run NAT integration tests
+        run: make testNatIntegration
+
   linting:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'

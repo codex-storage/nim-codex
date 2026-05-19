@@ -128,7 +128,13 @@ deps: | libbacktrace
 endif
 
 libplum:
-	+ "$(MAKE)" -C vendor/nim-libplum/vendor/libplum libplum.a CC=$(CC) $(HANDLE_OUTPUT)
+	cmake -B vendor/nim-libplum/vendor/libplum/build \
+		-DCMAKE_BUILD_TYPE=Release \
+		-DBUILD_SHARED_LIBS=OFF \
+		vendor/nim-libplum/vendor/libplum $(HANDLE_OUTPUT)
+	+ $(MAKE) -C vendor/nim-libplum/vendor/libplum/build $(HANDLE_OUTPUT)
+	cp vendor/nim-libplum/vendor/libplum/build/libplum.a \
+		vendor/nim-libplum/vendor/libplum/libplum.a
 
 update: | update-common
 

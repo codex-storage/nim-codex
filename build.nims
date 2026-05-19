@@ -82,7 +82,7 @@ task testNatPortMapping, "Run UPnP NAT integration test (requires miniupnpd cont
   buildBinary "storage",
     outName = "storage",
     params = "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE"
-  putEnv("STORAGE_INTEGRATION_TEST_INCLUDES", "integration/1_minute/testnatupnp.nim")
+  putEnv("STORAGE_INTEGRATION_TEST_INCLUDES", "nat/testnatupnp.nim")
   test "testIntegration", outName = "testIntegrationNat"
 
 # Used to build the testing binarie in Docker
@@ -90,7 +90,7 @@ task buildNatPortMappingBinaries, "Build UPnP NAT test binaries without running 
   buildBinary "storage",
     outName = "storage",
     params = "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE"
-  putEnv("STORAGE_INTEGRATION_TEST_INCLUDES", "integration/1_minute/testnatupnp.nim")
+  putEnv("STORAGE_INTEGRATION_TEST_INCLUDES", "nat/testnatupnp.nim")
   buildBinary "testIntegration", outName = "testIntegrationNat", srcDir = "tests/"
 
 task build, "build Logos Storage binary":
