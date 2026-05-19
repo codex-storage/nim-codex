@@ -330,6 +330,30 @@ proc withNatScheduleInterval*(
     config.addCliOption("--nat-schedule-interval", $scheduleInterval)
   return startConfig
 
+proc withNatPortMappingDiscoverTimeout*(
+    self: StorageConfigs, timeout: int
+): StorageConfigs {.raises: [StorageConfigError].} =
+  var startConfig = self
+  for config in startConfig.configs.mitems:
+    config.addCliOption("--nat-port-mapping-discover-timeout", $timeout)
+  return startConfig
+
+proc withNatPortMappingTimeout*(
+    self: StorageConfigs, timeout: int
+): StorageConfigs {.raises: [StorageConfigError].} =
+  var startConfig = self
+  for config in startConfig.configs.mitems:
+    config.addCliOption("--nat-port-mapping-timeout", $timeout)
+  return startConfig
+
+proc withNatPortMappingRecheckPeriod*(
+    self: StorageConfigs, timeout: int
+): StorageConfigs {.raises: [StorageConfigError].} =
+  var startConfig = self
+  for config in startConfig.configs.mitems:
+    config.addCliOption("--nat-port-mapping-recheck-period", $timeout)
+  return startConfig
+
 proc withExtIp*(
     self: StorageConfigs, idx: int, ip = "127.0.0.1"
 ): StorageConfigs {.raises: [StorageConfigError].} =

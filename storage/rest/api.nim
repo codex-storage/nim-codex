@@ -535,8 +535,8 @@ proc initNodeApi(node: StorageNodeRef, conf: StorageConf, router: var RestRouter
     ## to invoke peer discovery, if it succeeds
     ## the returned addresses will be used to dial
     ##
-    ## `addrs` the listening addresses of the peers to dial, which is 
-    ## /ip4/0.0.0.0/tcp/<port>, where port is specified with the 
+    ## `addrs` the listening addresses of the peers to dial, which is
+    ## /ip4/0.0.0.0/tcp/<port>, where port is specified with the
     ## `--listen-port` CLI flag.
     ##
     var headers = buildCorsHeaders("GET", allowedOrigin)
@@ -591,20 +591,10 @@ proc initDebugApi(
         "table": table,
         "storage": {"version": $storageVersion, "revision": $storageRevision},
         "nat": {
-          "reachability":
-            if autonat.isSome:
-              $autonat.get.networkReachability
-            else:
-              "unknown",
+          "reachability": reachabilityStr(autonat),
           "clientMode": node.discovery.protocol.clientMode,
           "relayRunning": autoRelay.isSome and autoRelay.get.isRunning,
-          "portMapping":
-            if natMapper.isNone or natMapper.get.portMappingType == NoMapping:
-              "none"
-            elif natMapper.get.portMappingType == UpnpMapping:
-              "upnp"
-            else:
-              "pmp",
+          "portMapping": portMappingStr(natMapper),
         },
       }
 

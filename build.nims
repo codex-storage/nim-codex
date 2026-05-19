@@ -78,6 +78,21 @@ task testIntegration, "Run integration tests":
   # test "testIntegration", params = "-d:chronicles_sinks=textlines[notimestamps,stdout],textlines[dynamic] " &
   #   "-d:chronicles_enabled_topics:integration:TRACE"
 
+task testNatPortMapping, "Run UPnP NAT integration test (requires miniupnpd container)":
+  buildBinary "storage",
+    outName = "storage",
+    params = "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE"
+  putEnv("STORAGE_INTEGRATION_TEST_INCLUDES", "integration/1_minute/testnatupnp.nim")
+  test "testIntegration", outName = "testIntegrationNat"
+
+# Used to build the testing binarie in Docker
+task buildNatPortMappingBinaries, "Build UPnP NAT test binaries without running them":
+  buildBinary "storage",
+    outName = "storage",
+    params = "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE"
+  putEnv("STORAGE_INTEGRATION_TEST_INCLUDES", "integration/1_minute/testnatupnp.nim")
+  buildBinary "testIntegration", outName = "testIntegrationNat", srcDir = "tests/"
+
 task build, "build Logos Storage binary":
   storageTask()
 

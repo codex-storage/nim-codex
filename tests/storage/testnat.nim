@@ -1,4 +1,4 @@
-import std/[net, importutils]
+import std/[net]
 import pkg/chronos
 import pkg/libp2p/[multiaddress, multihash, multicodec]
 import pkg/libp2p/protocols/connectivity/autonat/types
@@ -14,53 +14,15 @@ import ../../storage/discovery
 import ../../storage/rng
 import ../../storage/utils
 
-privateAccess(NatMapper)
-
-type MockUpnpDevice = ref object of UpnpDevice
-  deletedPorts: seq[(Port, NatIpProtocol)]
-
-method discover*(d: MockUpnpDevice): Result[int, cstring] {.gcsafe.} =
-  ok(1)
-
-method selectIGD*(d: MockUpnpDevice): SelectIGDResult {.gcsafe.} =
-  IGDFound
-
-method deletePortMapping*(
-    d: MockUpnpDevice, port: Port, proto: NatIpProtocol
-): Result[void, string] {.gcsafe.} =
-  d.deletedPorts.add((port, proto))
-  ok()
-
 type MockNatMapper = ref object of NatMapper
-  mappedPorts: Option[(Port, Port)]
+  mappedPorts: Option[(Port, Port, MappingProtocol)]
 
 method mapNatPorts*(
     m: MockNatMapper
-): Future[Option[(Port, Port)]] {.async: (raises: [CancelledError]), gcsafe.} =
+): Future[Option[(Port, Port, MappingProtocol)]] {.
+    async: (raises: [CancelledError]), gcsafe
+.} =
   m.mappedPorts
-
-suite "NAT - NatMapper.close":
-  test "does nothing when no upnp mapping":
-    let mapper = MockNatMapper(
-      natConfig: NatConfig(hasExtIp: false, nat: NatAuto),
-      tcpPort: Port(8080),
-      discoveryPort: Port(8090),
-    )
-    let device = MockUpnpDevice()
-    mapper.close(device)
-    check device.deletedPorts.len == 0
-
-  test "deletes tcp and udp ports when upnp mapping exists":
-    let mapper = MockNatMapper(
-      natConfig: NatConfig(hasExtIp: false, nat: NatAuto),
-      tcpPort: Port(8080),
-      discoveryPort: Port(8090),
-    )
-    mapper.portMappingType = UpnpMapping
-    let device = MockUpnpDevice()
-    mapper.close(device)
-    check device.deletedPorts ==
-      @[(Port(8080), NatIpProtocol.Tcp), (Port(8090), NatIpProtocol.Udp)]
 
 asyncchecksuite "NAT - handleNatStatus":
   var sw: Switch
@@ -86,7 +48,8 @@ asyncchecksuite "NAT - handleNatStatus":
 
   test "handleNatStatus announces mapped address when NotReachable and UPnP succeeds":
     let dialBack = MultiAddress.init("/ip4/1.2.3.4/tcp/8080").expect("valid")
-    let mapper = MockNatMapper(mappedPorts: some((Port(9000), Port(9001))))
+    let mapper =
+      MockNatMapper(mappedPorts: some((Port(9000), Port(9001), MappingProtocol.UPnP)))
 
     await mapper.handleNatStatus(
       NotReachable, Opt.some(dialBack), discoveryPort, disc, sw, autoRelay
@@ -98,7 +61,7 @@ asyncchecksuite "NAT - handleNatStatus":
     check disc.protocol.clientMode
 
   test "handleNatStatus starts autoRelay when NotReachable and UPnP failed":
-    let mapper = MockNatMapper(mappedPorts: none((Port, Port)))
+    let mapper = MockNatMapper(mappedPorts: none((Port, Port, MappingProtocol)))
 
     await mapper.handleNatStatus(
       NotReachable, Opt.none(MultiAddress), discoveryPort, disc, sw, autoRelay
@@ -109,7 +72,7 @@ asyncchecksuite "NAT - handleNatStatus":
 
   test "handleNatStatus starts autoRelay when NotReachable and mapping fails":
     let dialBack = MultiAddress.init("/ip4/1.2.3.4/tcp/8080").expect("valid")
-    let mapper = MockNatMapper(mappedPorts: none((Port, Port)))
+    let mapper = MockNatMapper(mappedPorts: none((Port, Port, MappingProtocol)))
 
     await mapper.handleNatStatus(
       NotReachable, Opt.some(dialBack), discoveryPort, disc, sw, autoRelay
@@ -120,7 +83,7 @@ asyncchecksuite "NAT - handleNatStatus":
     check disc.protocol.clientMode
 
   test "handleNatStatus does not announce address when Reachable and no dialBackAddr":
-    let mapper = MockNatMapper(mappedPorts: none((Port, Port)))
+    let mapper = MockNatMapper(mappedPorts: none((Port, Port, MappingProtocol)))
 
     await mapper.handleNatStatus(
       Reachable, Opt.none(MultiAddress), discoveryPort, disc, sw, autoRelay
@@ -132,7 +95,7 @@ asyncchecksuite "NAT - handleNatStatus":
 
   test "handleNatStatus stops relay and announces dialBackAddr when Reachable":
     let dialBack = MultiAddress.init("/ip4/1.2.3.4/tcp/8080").expect("valid")
-    let mapper = MockNatMapper(mappedPorts: none((Port, Port)))
+    let mapper = MockNatMapper(mappedPorts: none((Port, Port, MappingProtocol)))
 
     discard await autorelayservice.setup(autoRelay, sw)
     await mapper.handleNatStatus(

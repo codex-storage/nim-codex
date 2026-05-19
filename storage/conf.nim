@@ -341,6 +341,24 @@ type
       name: "nat-max-relays"
     .}: int
 
+    natPortMappingDiscoverTimeout* {.
+      desc: "Timeout in milliseconds for UPnP/NAT-PMP/PCP device discovery",
+      defaultValue: 500,
+      name: "nat-port-mapping-discover-timeout"
+    .}: int
+
+    natPortMappingTimeout* {.
+      desc: "Timeout in milliseconds for creating a port mapping on the router",
+      defaultValue: 500,
+      name: "nat-port-mapping-timeout"
+    .}: int
+
+    natPortMappingRecheckPeriod* {.
+      desc: "Period in milliseconds between rechecks of existing port mappings",
+      defaultValue: 300000,
+      name: "nat-port-mapping-recheck-period"
+    .}: int
+
     natSimulation* {.
       desc:
         "Simulate NAT filtering behavior for testing: endpoint-independent, address-dependent, address-and-port-dependent",

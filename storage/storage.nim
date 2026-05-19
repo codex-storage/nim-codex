@@ -392,6 +392,9 @@ proc new*(
         natConfig: config.nat,
         tcpPort: config.listenPort,
         discoveryPort: config.discoveryPort,
+        discoverTimeout: config.natPortMappingDiscoverTimeout,
+        mappingTimeout: config.natPortMappingTimeout,
+        recheckPeriod: config.natPortMappingRecheckPeriod,
       )
     )
     let relayService = AutoRelayService.new(

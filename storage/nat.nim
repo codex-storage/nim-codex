@@ -12,10 +12,10 @@ import std/[options, net]
 import results
 
 import pkg/chronos
-import pkg/chronos/threadsync
 import pkg/chronicles
 import pkg/libp2p
 import pkg/libp2p/services/autorelayservice
+import pkg/libp2p/protocols/connectivity/autonatv2/service
 
 import ./utils
 import ./utils/natutils
@@ -25,105 +25,82 @@ import ./discovery
 logScope:
   topics = "nat"
 
-const NatPortMappingTimeout = 5.seconds
-
 type NatConfig* = object
   case hasExtIp*: bool
   of true: extIp*: IpAddress
   of false: nat*: NatStrategy
 
-type PortMappingType* = enum
-  NoMapping
-  UpnpMapping
-  PmpMapping
-
 type NatMapper* = ref object of RootObj
   natConfig*: NatConfig
   tcpPort*: Port
   discoveryPort*: Port
-  portMappingType*: PortMappingType
-
-type MapNatPortsCtx = object
-  natConfig: NatConfig
-  tcpPort: Port
-  discoveryPort: Port
-  signal: ThreadSignalPtr
-  result: Option[(Port, Port)]
-  portMappingType: PortMappingType
-
-proc mapNatPortsThread(ctx: ptr MapNatPortsCtx) {.thread.} =
-  if ctx.natConfig.hasExtIp:
-    discard ctx.signal.fireSync()
-    return
-
-  # Devices are recreated on each call: discover() costs ~200ms but only fires
-  # when AutoNAT reports NotReachable, which is exactly when we want a fresh scan.
-  let upnpRes = UpnpDevice.init()
-  if upnpRes.isOk:
-    let ports = upnpRes.value.mapPorts(ctx.tcpPort, ctx.discoveryPort)
-    if ports.isSome:
-      ctx.portMappingType = UpnpMapping
-      ctx.result = ports
-      discard ctx.signal.fireSync()
-      return
-
-  let pmpRes = PmpDevice.init()
-  if pmpRes.isOk:
-    let ports = pmpRes.value.mapPorts(ctx.tcpPort, ctx.discoveryPort)
-    if ports.isSome:
-      ctx.portMappingType = PmpMapping
-      ctx.result = ports
-
-  discard ctx.signal.fireSync()
+  discoverTimeout*: int
+  mappingTimeout*: int
+  recheckPeriod*: int
+  tcpMappingId: Option[cint]
+  udpMappingId: Option[cint]
+  activeMappingProtocol*: Option[MappingProtocol]
+  activeTcpPort: Option[Port]
+  activeUdpPort: Option[Port]
+  plumInitialized: bool
 
 method mapNatPorts*(
     m: NatMapper
-): Future[Option[(Port, Port)]] {.async: (raises: [CancelledError]), base, gcsafe.} =
-  let signal = ThreadSignalPtr.new().valueOr:
-    warn "Failed to create ThreadSignalPtr for NAT port mapping"
-    return none((Port, Port))
+): Future[Option[(Port, Port, MappingProtocol)]] {.
+    async: (raises: [CancelledError]), base, gcsafe
+.} =
+  if m.natConfig.hasExtIp:
+    return none((Port, Port, MappingProtocol))
 
-  var ctx = cast[ptr MapNatPortsCtx](createShared(MapNatPortsCtx))
-  ctx[] = MapNatPortsCtx(
-    natConfig: m.natConfig,
-    tcpPort: m.tcpPort,
-    discoveryPort: m.discoveryPort,
-    signal: signal,
-  )
+  # If both mappings are still active, return the stored ports without recreating.
+  if m.tcpMappingId.isSome and hasMapping(m.tcpMappingId.get) and m.udpMappingId.isSome and
+      hasMapping(m.udpMappingId.get):
+    return some((m.activeTcpPort.get, m.activeUdpPort.get, m.activeMappingProtocol.get))
 
-  var thread: Thread[ptr MapNatPortsCtx]
-  var threadStarted = false
-  defer:
-    if threadStarted:
-      # Blocking the event loop here is acceptable: UPnP discover() is bounded
-      # by UPNP_TIMEOUT (200ms), so the worst-case stall is ~200ms.
-      joinThread(thread)
-      # Always sync hasUpnpMapping back, even on timeout or cancellation.
-      # If the thread mapped ports just after the timeout, close() will
-      # still clean them up on the router.
-      if ctx.portMappingType != NoMapping:
-        m.portMappingType = ctx.portMappingType
-    freeShared(ctx)
-    discard signal.close()
+  if not m.plumInitialized:
+    # 5s matches the old NatPortMappingTimeout used with miniupnpc/libnatpmp.
+    let res = init(
+      discoverTimeout = m.discoverTimeout,
+      mappingTimeout = m.mappingTimeout,
+      recheckPeriod = m.recheckPeriod,
+    )
+    if res.isErr:
+      warn "Failed to initialize plum", msg = res.error
+      return none((Port, Port, MappingProtocol))
+    m.plumInitialized = true
 
-  try:
-    createThread(thread, mapNatPortsThread, ctx)
-    threadStarted = true
-  except ValueError, ResourceExhaustedError:
-    warn "Failed to create thread for NAT port mapping"
-    return none((Port, Port))
+  # If there is only one mapping, something went wrong somewhere
+  # so we delete the mappings to recreate them.
+  if m.tcpMappingId.isSome:
+    destroyMapping(m.tcpMappingId.get)
+    m.tcpMappingId = none(cint)
 
-  try:
-    if not await signal.wait().withTimeout(NatPortMappingTimeout):
-      warn "NAT port mapping thread timed out"
-      return none((Port, Port))
-  except CancelledError as exc:
-    raise exc
-  except AsyncError as exc:
-    warn "Error waiting for NAT port mapping thread", error = exc.msg
-    return none((Port, Port))
+  if m.udpMappingId.isSome:
+    destroyMapping(m.udpMappingId.get)
+    m.udpMappingId = none(cint)
 
-  return ctx.result
+  m.activeMappingProtocol = none(MappingProtocol)
+  m.activeTcpPort = none(Port)
+  m.activeUdpPort = none(Port)
+
+  let tcpRes = await createMapping(TCP, m.tcpPort.uint16)
+  if tcpRes.isErr:
+    warn "TCP port mapping failed", msg = tcpRes.error
+    return none((Port, Port, MappingProtocol))
+
+  let udpRes = await createMapping(UDP, m.discoveryPort.uint16)
+  if udpRes.isErr:
+    warn "UDP port mapping failed", msg = udpRes.error
+    destroyMapping(tcpRes.value.id)
+    return none((Port, Port, MappingProtocol))
+
+  m.tcpMappingId = some(tcpRes.value.id)
+  m.udpMappingId = some(udpRes.value.id)
+  m.activeMappingProtocol = some(tcpRes.value.mapping.mappingProtocol)
+  m.activeTcpPort = some(Port(tcpRes.value.mapping.externalPort))
+  m.activeUdpPort = some(Port(udpRes.value.mapping.externalPort))
+
+  some((m.activeTcpPort.get, m.activeUdpPort.get, m.activeMappingProtocol.get))
 
 method handleNatStatus*(
     m: NatMapper,
@@ -158,7 +135,7 @@ method handleNatStatus*(
     if dialBackAddr.isNone:
       warn "Got empty dialback address in AutoNat when node is NotReachable"
     else:
-      debug "Node is not reachable trying UPnP / PMP now"
+      debug "Node is not reachable trying port mapping now"
 
       # Here we should check first that a mapping exists.
       # If it does exist but Autonat still report as Not Reachable
@@ -166,9 +143,9 @@ method handleNatStatus*(
       let maybePorts = await m.mapNatPorts()
 
       if maybePorts.isSome:
-        let (tcpPort, udpPort) = maybePorts.get()
+        let (tcpPort, udpPort, protocol) = maybePorts.get()
 
-        info "Port mapping created successfully", tcpPort, udpPort
+        info "Port mapping created successfully", tcpPort, udpPort, protocol
 
         let announceAddress = dialBackAddr.get.remapAddr(port = some(tcpPort))
 
@@ -195,25 +172,32 @@ method handleNatStatus*(
       else:
         debug "AutoRelayService started"
 
-proc close*(m: NatMapper, device = UpnpDevice()) =
-  # UPnP mappings are permanent (leaseDuration=0) and must be deleted explicitly.
-  # NAT-PMP mappings expire automatically after NATPMP_LIFETIME seconds.
-  if m.portMappingType != UpnpMapping:
-    return
+proc close*(m: NatMapper) =
+  if m.tcpMappingId.isSome:
+    destroyMapping(m.tcpMappingId.get)
+    m.tcpMappingId = none(cint)
+  if m.udpMappingId.isSome:
+    destroyMapping(m.udpMappingId.get)
+    m.udpMappingId = none(cint)
+  if m.plumInitialized:
+    discard cleanup()
+    m.plumInitialized = false
 
-  # deletePortMapping requires the IGD control URL set during init
-  let deviceRes = device.init()
-  if deviceRes.isErr:
-    warn "UPnP reinit failed during cleanup, port mappings may remain",
-      msg = deviceRes.error
-    return
+proc reachabilityStr*(autonat: Option[AutonatV2Service]): string =
+  if autonat.isSome:
+    $autonat.get.networkReachability
+  else:
+    "unknown"
 
-  for (port, proto) in [
-    (m.tcpPort, NatIpProtocol.Tcp), (m.discoveryPort, NatIpProtocol.Udp)
-  ]:
-    let res = deviceRes.value.deletePortMapping(port, proto)
-    if res.isErr:
-      error "UPnP port mapping deletion failed", port, proto, msg = res.error
+proc portMappingStr*(natMapper: Option[NatMapper]): string =
+  if natMapper.isNone or natMapper.get.activeMappingProtocol.isNone:
+    return "none"
+  case natMapper.get.activeMappingProtocol.get
+  of MappingProtocol.UPnP: "upnp"
+  of MappingProtocol.NatPmp: "pmp"
+  of MappingProtocol.PCP: "pcp"
+  of MappingProtocol.Direct: "direct"
+  of MappingProtocol.Unknown: "none"
 
 proc findReachableNodes*(bootstrapNodes: seq[SignedPeerRecord]): seq[SignedPeerRecord] =
   ## Returns the list of nodes known to be directly reachable.

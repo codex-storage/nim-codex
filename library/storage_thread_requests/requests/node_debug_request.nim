@@ -63,21 +63,10 @@ proc getDebug(
     "announceAddresses": node.discovery.announceAddrs,
     "table": table,
     "nat": {
-      "reachability":
-        if storage[].autonatService.isSome:
-          $storage[].autonatService.get.networkReachability
-        else:
-          "unknown",
+      "reachability": reachabilityStr(storage[].autonatService),
       "relayRunning":
         storage[].autoRelayService.isSome and storage[].autoRelayService.get.isRunning,
-      "portMapping":
-        if storage[].natMapper.isNone or
-            storage[].natMapper.get.portMappingType == NoMapping:
-          "none"
-        elif storage[].natMapper.get.portMappingType == UpnpMapping:
-          "upnp"
-        else:
-          "pmp",
+      "portMapping": portMappingStr(storage[].natMapper),
     },
   }
 

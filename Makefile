@@ -82,10 +82,12 @@ endif
 	coverage \
 	deps \
 	libbacktrace \
+	libplum \
 	test \
 	testAll \
 	testIntegration \
 	testLibstorage \
+	testNatIntegration \
 	update
 
 ifeq ($(NIM_PARAMS),)
@@ -120,10 +122,13 @@ else
 NIM_PARAMS := $(NIM_PARAMS) -d:release
 endif
 
-deps: | deps-common nat-libs
+deps: | deps-common libplum
 ifneq ($(USE_LIBBACKTRACE), 0)
 deps: | libbacktrace
 endif
+
+libplum:
+	+ "$(MAKE)" -C vendor/nim-libplum/vendor/libplum libplum.a CC=$(CC) $(HANDLE_OUTPUT)
 
 update: | update-common
 
@@ -146,6 +151,12 @@ test: | build deps
 testIntegration: | build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
 		$(ENV_SCRIPT) nim testIntegration $(TEST_PARAMS) $(NIM_PARAMS) build.nims
+
+# Builds and runs the UPnP NAT integration test inside a miniupnpd container
+DOCKER := $(or $(shell which podman 2>/dev/null), $(shell which docker 2>/dev/null))
+testNatIntegration:
+	$(DOCKER) build -t miniupnpd-test -f tests/integration/nat/Dockerfile .
+	$(DOCKER) run --rm --cap-add NET_ADMIN miniupnpd-test
 
 # Builds a C example that uses the libstorage C library and runs it
 testLibstorage: | build deps
