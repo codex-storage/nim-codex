@@ -127,15 +127,6 @@ ifneq ($(USE_LIBBACKTRACE), 0)
 deps: | libbacktrace
 endif
 
-libplum:
-	cmake -B vendor/nim-libplum/vendor/libplum/build \
-		-DCMAKE_BUILD_TYPE=Release \
-		-DBUILD_SHARED_LIBS=OFF \
-		vendor/nim-libplum/vendor/libplum $(HANDLE_OUTPUT)
-	+ $(MAKE) -C vendor/nim-libplum/vendor/libplum/build $(HANDLE_OUTPUT)
-	cp vendor/nim-libplum/vendor/libplum/build/libplum.a \
-		vendor/nim-libplum/vendor/libplum/libplum.a
-
 update: | update-common
 
 # detecting the os
@@ -181,6 +172,23 @@ testAll: | build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
 		$(ENV_SCRIPT) nim testAll $(NIM_PARAMS) build.nims
 	$(MAKE) $(if $(ncpu),-j$(ncpu),) testLibstorage
+
+LIBPLUM_DIR := vendor/nim-libplum/vendor/libplum
+LIBPLUM_BUILD_DIR := $(LIBPLUM_DIR)/build
+LIBPLUM_CMAKE_FLAGS := -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF
+
+libplum:
+ifeq ($(detected_OS), Windows)
+ifneq ($(MSYSTEM),)
+	cmake -B $(LIBPLUM_BUILD_DIR) $(LIBPLUM_CMAKE_FLAGS) -G"MSYS Makefiles" $(LIBPLUM_DIR) $(HANDLE_OUTPUT)
+else
+	cmake -B $(LIBPLUM_BUILD_DIR) $(LIBPLUM_CMAKE_FLAGS) $(LIBPLUM_DIR) $(HANDLE_OUTPUT)
+endif
+else
+	cmake -B $(LIBPLUM_BUILD_DIR) $(LIBPLUM_CMAKE_FLAGS) $(LIBPLUM_DIR) $(HANDLE_OUTPUT)
+endif
+	+ $(MAKE) -C $(LIBPLUM_BUILD_DIR) $(HANDLE_OUTPUT)
+	cp $(LIBPLUM_BUILD_DIR)/libplum.a $(LIBPLUM_DIR)/libplum.a
 
 # nim-libbacktrace
 LIBBACKTRACE_MAKE_FLAGS := -C vendor/nim-libbacktrace --no-print-directory BUILD_CXX_LIB=0
