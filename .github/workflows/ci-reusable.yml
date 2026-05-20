@@ -68,6 +68,11 @@ jobs:
         if: matrix.tests == 'libstorage' || matrix.tests == 'all'
         run: make -j${ncpu} testLibstorage
 
+      ## Part 4 Tests ##
+      - name: NAT integration tests
+        if: matrix.tests == 'nat-integration'
+        run: make testNatIntegration
+
   status:
     if: always()
     needs: [build]
