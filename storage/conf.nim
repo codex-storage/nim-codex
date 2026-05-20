@@ -42,11 +42,12 @@ import ./stores
 import ./units
 import ./utils
 import ./nat
+import ./networkpresets
 import ./utils/natutils
 
 from ./blockexchange/engine/downloadmanager import DefaultBlockRetries
 
-export units, net, storagetypes, logutils, completeCmdArg, parseCmdArg, NatConfig
+export units, net, storagetypes, logutils, networkpresets, completeCmdArg, parseCmdArg, NatConfig
 
 export
   DefaultQuotaBytes, DefaultBlockTtl, DefaultBlockInterval, DefaultNumBlocksPerInterval,
@@ -179,10 +180,17 @@ type
     bootstrapNodes* {.
       desc:
         "Specifies one or more bootstrap nodes to use when " &
-        "connecting to the network",
+        "connecting to the network. When specified, overrides " &
+        "the network preset option.",
       abbr: "b",
       name: "bootstrap-node"
     .}: seq[SignedPeerRecord]
+
+    network* {.
+      desc: "The network to connect to. Options are: \n" & NetworkPresetsDescription,
+      name: "network",
+      defaultValue: DefaultNetworkPreset
+    .}: NetworkPreset
 
     maxPeers* {.
       desc: "The maximum number of peers to connect to",
@@ -346,16 +354,6 @@ proc parseCmdArg*(T: type ThreadCount, input: string): T =
     fatal "Cannot parse the thread count.", input = input, error = val.error()
     quit QuitFailure
   return val.get()
-
-proc parse*(T: type SignedPeerRecord, p: string): Result[SignedPeerRecord, string] =
-  var res: SignedPeerRecord
-  try:
-    if not res.fromURI(p):
-      return err("The uri is not a valid SignedPeerRecord: " & p)
-    return ok(res)
-  except LPError, Base64Error:
-    let e = getCurrentException()
-    return err(e.msg)
 
 proc parseCmdArg*(T: type SignedPeerRecord, uri: string): T =
   let res = SignedPeerRecord.parse(uri)
