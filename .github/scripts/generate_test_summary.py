@@ -76,7 +76,7 @@ def log_url(fixture):
 passed = sum(1 for s in fixtures.values() if s == "Passed")
 total  = len(fixtures)
 
-lines = ["## Test Results", ""]
+lines = ["## Test logs", ""]
 for fixture in order:
     icon = "✅" if fixtures[fixture] == "Passed" else "❌"
     lines.append(f"- {icon} [{fixture}]({log_url(fixture)})")
