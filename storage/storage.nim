@@ -216,12 +216,14 @@ proc new*(
     error "Failed to initialize discovery datastore",
       path = providersPath, err = discoveryStoreRes.error.msg
 
-  let bootstrapNodes = if config.bootstrapNodes.len > 0:
-    warn "Overriding network preset using custom bootstrap nodes", nodes = config.bootstrapNodes
-    config.bootstrapNodes
-  else:
-    info "Bootstrapping node using a predefined network", network = $config.network
-    config.network.bootstrapNodes
+  let bootstrapNodes =
+    if config.bootstrapNodes.len > 0:
+      warn "Overriding network preset using custom bootstrap nodes",
+        nodes = config.bootstrapNodes
+      config.bootstrapNodes
+    else:
+      info "Bootstrapping node using a predefined network", network = $config.network
+      config.network.bootstrapNodes
 
   let
     discoveryStore =

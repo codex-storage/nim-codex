@@ -47,7 +47,8 @@ import ./utils/natutils
 
 from ./blockexchange/engine/downloadmanager import DefaultBlockRetries
 
-export units, net, storagetypes, logutils, presets, completeCmdArg, parseCmdArg, NatConfig
+export
+  units, net, storagetypes, logutils, presets, completeCmdArg, parseCmdArg, NatConfig
 
 export
   DefaultQuotaBytes, DefaultBlockTtl, DefaultBlockInterval, DefaultNumBlocksPerInterval,

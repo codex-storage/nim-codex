@@ -20,16 +20,8 @@ const SPRs = [
 # on `init` runs properly in VM (e.g. parsing SPRs in VM is a
 # no-go because of: https://github.com/nim-lang/Nim/issues/23468)
 const Presets = [
-  NetworkPreset.init(
-    "preset1",
-    "a preset",
-    SPRs.toSeq,
-  ),
-  NetworkPreset.init(
-    "preset2",
-    "empty preset",
-    @[],
-  ),
+  NetworkPreset.init("preset1", "a preset", SPRs.toSeq),
+  NetworkPreset.init("preset2", "empty preset", @[]),
 ]
 
 type TestConfig = object
@@ -81,4 +73,3 @@ suite "Network presets":
     """
     expect SerializationError:
       discard Toml.decode(toml, TestConfig)
-
