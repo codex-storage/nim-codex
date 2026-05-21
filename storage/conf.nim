@@ -418,8 +418,8 @@ proc parseCmdArg*(T: type Duration, val: string): T =
 
 proc parseCmdArg*(T: type NetworkPreset, p: string): NetworkPreset =
   let res = NetworkPresets.find(p)
-  if res.isErr:
-    fatal "Cannot parse the network preset.", error = res.error(), input = p
+  if res.isNone:
+    fatal "Invalid network preset.", input = p
     quit QuitFailure
   return res.get()
 
@@ -492,8 +492,8 @@ proc readValue*(
   let
     str = r.readValue(string)
     preset = NetworkPresets.find(str)
-  if preset.isErr():
-    raise newException(SerializationError, preset.error())
+  if preset.isNone:
+    raise newException(SerializationError, "Invalid network preset: " & str)
 
   val = preset.get()
 

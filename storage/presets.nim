@@ -97,13 +97,11 @@ const
   NetworkPresetsDescription* = $NetworkPresets
   DefaultNetworkPreset* = NetworkPresets.default
 
-proc find*(
-    presets: openArray[NetworkPreset], p: string
-): Result[NetworkPreset, string] =
+proc find*(presets: openArray[NetworkPreset], p: string): Option[NetworkPreset] =
   for preset in presets:
     if preset.name == p:
-      return ok(preset)
-  return err("Network preset not found: " & p)
+      return some(preset)
+  return none(NetworkPreset)
 
 proc findByPrefix*(presets: openArray[NetworkPreset], val: string): seq[string] =
   for p in presets:

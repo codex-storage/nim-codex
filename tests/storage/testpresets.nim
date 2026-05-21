@@ -46,7 +46,7 @@ suite "Network presets":
 
   test "should return error when preset is not found":
     let result = Presets.find("nonexistent")
-    check result.isErr()
+    check result.isNone
 
   test "should return presets matching prefix":
     let result = Presets.findByPrefix("preset")
