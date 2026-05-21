@@ -75,7 +75,7 @@ proc readValue(r: var JsonReader, val: var NetworkPreset) =
   let name = r.readValue(string)
   let res = NetworkPresets.find(name)
   if res.isNone:
-    raise newException(SerializationError, "Cannot find the network preset: " & name)
+    raise newException(SerializationError, "Invalid network preset: " & name)
   val = res.get()
 
 type NodeLifecycleRequest* = object
