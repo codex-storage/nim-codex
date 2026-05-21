@@ -15,13 +15,11 @@
 ## the onChunk handler for each chunk and / or writing to a file if filepath is set.
 ##    - CANCEL: cancels the download session
 
-import std/[options, streams]
 import chronos
 import chronicles
 import libp2p/stream/[lpstream]
 import serde/json as serde
 import ../../alloc
-import ../../../storage/units
 import ../../../storage/storagetypes
 
 from ../../../storage/storage import StorageServer, node
@@ -185,7 +183,7 @@ proc streamData(
     while not stream.atEof:
       ## Yield immediately to the event loop
       ## It gives a chance to cancel request to be processed
-      await sleepAsync(0)
+      await sleepAsync(0.milliseconds)
 
       let read = await stream.readOnce(addr buf[0], buf.len)
       buf.setLen(read)
@@ -213,7 +211,7 @@ proc stream(
     local: bool,
     filepath: cstring,
     onChunk: OnChunkHandler,
-): Future[Result[string, string]] {.raises: [], async: (raises: []).} =
+): Future[Result[string, string]] {.async: (raises: []).} =
   ## Stream the file identified by cid, calling the onChunk handler for each chunk
   ## and / or writing to a file if filepath is set.
   ##
@@ -252,7 +250,7 @@ proc stream(
 
 proc cancel(
     storage: ptr StorageServer, cCid: cstring
-): Future[Result[string, string]] {.raises: [], async: (raises: []).} =
+): Future[Result[string, string]] {.async: (raises: []).} =
   ## Cancel the download session identified by cid.
   ## This operation is not supported when using the stream mode,
   ## because the worker will be busy downloading the file.
@@ -280,7 +278,7 @@ proc cancel(
 
 proc manifest(
     storage: ptr StorageServer, cCid: cstring
-): Future[Result[string, string]] {.raises: [], async: (raises: []).} =
+): Future[Result[string, string]] {.async: (raises: []).} =
   let cid = Cid.init($cCid)
   if cid.isErr:
     return err("Failed to fetch manifest: cannot parse cid: " & $cCid)

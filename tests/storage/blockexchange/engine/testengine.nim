@@ -14,6 +14,7 @@ import pkg/storage/merkletree
 import pkg/storage/blockexchange/utils
 import pkg/storage/blockexchange/engine/activedownload {.all.}
 import pkg/storage/blockexchange/engine/downloadmanager {.all.}
+import pkg/storage/blockexchange/protocol/constants
 
 import ../../../asynctest
 import ../../helpers
@@ -267,6 +268,66 @@ asyncchecksuite "NetworkStore engine handlers":
 
     await engine.wantListHandler(peerId, wantList)
     await done
+
+  test "WantBlocks: rejects range with count = 0":
+    let req =
+      WantBlocksRequest(requestId: 1, treeCid: Cid.example, ranges: @[(0'u64, 0'u64)])
+
+    let blocks = await network.handlers.onWantBlocksRequest(peerId, req)
+    check blocks.len == 0
+
+  test "WantBlocks: rejects range with count > MaxBlocksPerBatch":
+    let req = WantBlocksRequest(
+      requestId: 1,
+      treeCid: Cid.example,
+      ranges: @[(0'u64, MaxBlocksPerBatch.uint64 + 1)],
+    )
+
+    let blocks = await network.handlers.onWantBlocksRequest(peerId, req)
+    check blocks.len == 0
+
+  test "WantBlocks: rejects range whose start+count overflows":
+    let req = WantBlocksRequest(
+      requestId: 1, treeCid: Cid.example, ranges: @[(uint64.high, 1'u64)]
+    )
+
+    let blocks = await network.handlers.onWantBlocksRequest(peerId, req)
+    check blocks.len == 0
+
+  test "WantBlocks: rejects range whose max index exceeds Natural":
+    let req = WantBlocksRequest(
+      requestId: 1, treeCid: Cid.example, ranges: @[(high(Natural).uint64 + 1, 1'u64)]
+    )
+
+    let blocks = await network.handlers.onWantBlocksRequest(peerId, req)
+    check blocks.len == 0
+
+  test "WantBlocks: rejects when total count across ranges exceeds cap":
+    var ranges: seq[tuple[start: uint64, count: uint64]] = @[]
+    let halfMaxBlocksPerBatchPlusOne = (MaxBlocksPerBatch div 2).uint64 + 1
+    ranges.add((0'u64, halfMaxBlocksPerBatchPlusOne))
+    ranges.add((10_000'u64, halfMaxBlocksPerBatchPlusOne))
+
+    let req = WantBlocksRequest(requestId: 1, treeCid: Cid.example, ranges: ranges)
+
+    let blocks = await network.handlers.onWantBlocksRequest(peerId, req)
+    check blocks.len == 0
+
+  test "WantBlocks: accepts a valid small request":
+    let
+      tree = StorageMerkleTree.init(blocks.mapIt(it.cid)).tryGet
+      rootCid = tree.rootCid.tryGet()
+
+    for i, blk in blocks:
+      (await localStore.putBlock(blk)).tryGet()
+      (await localStore.putCidAndProof(rootCid, i, blk.cid, tree.getProof(i).tryGet())).tryGet()
+
+    let req = WantBlocksRequest(
+      requestId: 1, treeCid: rootCid, ranges: @[(0'u64, blocks.len.uint64)]
+    )
+
+    let delivered = await network.handlers.onWantBlocksRequest(peerId, req)
+    check delivered.len == blocks.len
 
 suite "IsIndexInRanges":
   test "Empty ranges returns false":
