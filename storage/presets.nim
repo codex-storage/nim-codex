@@ -1,20 +1,16 @@
 # Presets are hard-coded configuration bundles that get compiled into code. They can refer
 # to different things, but the canonical example are sets of bootstrap nodes that define
-# logically different networks; e.g., "logos.dev" and "logos.test" which refer to the Logos
+# logically different networks; e.g., "logos.dev" and "logos.test" refer to the Logos
 # devnet and latest testnet, respectively.
-import std/sequtils
 import std/strutils
-import std/sugar
 
 import pkg/chronicles
 import pkg/codexdht/discv5/protocol
 import pkg/libp2p/routing_record
 import pkg/stew/base64
-import pkg/toml_serialization
 
-# A NetworkPreset is a set of bootstrap nodes
-# (represented as SignedPeerRecords), along with
-# some description metadata.
+# A NetworkPreset is a set of bootstrap nodes (represented
+# by their signed peer records) along with some description metadata.
 type NetworkPreset* = object
   name*: string
   description*: string
@@ -49,11 +45,10 @@ proc parse*(T: type SignedPeerRecord, p: string): Result[SignedPeerRecord, strin
     return err(e.msg)
 
 proc `bootstrapNodes`*(self: NetworkPreset): seq[SignedPeerRecord] =
-  collect:
-    for record in self.unparsedRecords:
-      # We are initializing constants with this, it
-      # SHOULD crash the node if the record is invalid.
-      parse(SignedPeerRecord, record).tryGet()
+  for record in self.unparsedRecords:
+    # Having an invalid SPR in a hardcoded config is a bug, and
+    # it should crash the node.
+    result.add(parse(SignedPeerRecord, record).tryGet())
 
 const NetworkPresets* = [
   NetworkPreset.init(
