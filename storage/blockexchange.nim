@@ -1,5 +1,5 @@
 import ./blockexchange/[network, engine, peers]
 
-import ./blockexchange/protobuf/[blockexc, presence]
+import ./blockexchange/protocol/[message, presence]
 
-export network, engine, blockexc, presence, peers
+export network, engine, message, presence, peers

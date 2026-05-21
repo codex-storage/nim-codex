@@ -12,23 +12,31 @@ asyncchecksuite "AsyncStreamWrapper":
   let data = "0123456789012345678901234567890123456789"
   let address = initTAddress("127.0.0.1:46001")
 
-  proc serveReadingClient(server: StreamServer, transp: StreamTransport) {.async.} =
-    var wstream = newAsyncStreamWriter(transp)
-    await wstream.write(data)
-    await wstream.finish()
-    await wstream.closeWait()
-    await transp.closeWait()
-    server.stop()
-    server.close()
-
-  proc serveWritingClient(buf: pointer, bufLen: int): auto =
-    return proc(server: StreamServer, transp: StreamTransport) {.async.} =
-      var rstream = newAsyncStreamReader(transp)
-      discard await rstream.readOnce(buf, bufLen)
-      await rstream.closeWait()
+  proc serveReadingClient(
+      server: StreamServer, transp: StreamTransport
+  ) {.async: (raises: []).} =
+    try:
+      var wstream = newAsyncStreamWriter(transp)
+      await wstream.write(data)
+      await wstream.finish()
+      await wstream.closeWait()
       await transp.closeWait()
       server.stop()
       server.close()
+    except CatchableError as e:
+      raiseAssert e.msg
+
+  proc serveWritingClient(buf: pointer, bufLen: int): auto =
+    return proc(server: StreamServer, transp: StreamTransport) {.async: (raises: []).} =
+      try:
+        var rstream = newAsyncStreamReader(transp)
+        discard await rstream.readOnce(buf, bufLen)
+        await rstream.closeWait()
+        await transp.closeWait()
+        server.stop()
+        server.close()
+      except CatchableError as e:
+        raiseAssert e.msg
 
   test "Read all data":
     var server = createStreamServer(address, serveReadingClient, {ReuseAddr})

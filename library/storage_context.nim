@@ -8,7 +8,7 @@
 {.pragma: callback, cdecl, raises: [], gcsafe.}
 {.passc: "-fPIC".}
 
-import std/[options, locks, atomics]
+import std/[locks, atomics]
 import chronicles
 import chronos
 import chronos/threadsync
@@ -152,7 +152,7 @@ proc runStorage(ctx: ptr StorageContext) {.async: (raises: []).} =
     # synchronously until the first await
     asyncSpawn (
       proc() {.async.} =
-        await sleepAsync(0)
+        await sleepAsync(0.milliseconds)
         await StorageThreadRequest.process(request, addr storage)
     )()
 

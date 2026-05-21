@@ -106,7 +106,7 @@ method restart*(node: StorageProcess) {.async.} =
   await node.waitUntilStarted()
   trace "storage process restarted"
 
-method stop*(node: StorageProcess) {.async: (raises: []).} =
+method stop*(node: StorageProcess, expectedExitCode: int = 0) {.async: (raises: []).} =
   logScope:
     nodeName = node.name
 

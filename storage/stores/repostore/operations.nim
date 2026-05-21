@@ -185,7 +185,7 @@ proc storeBlock*(
         res: StoreResult
 
       if currMd =? maybeCurrMd:
-        if currMd.size == blk.data.len.NBytes:
+        if currMd.size == blk.data[].len.NBytes:
           md = BlockMetadata(
             size: currMd.size,
             expiry: max(currMd.expiry, minExpiry),
@@ -200,7 +200,7 @@ proc storeBlock*(
           if not hasBlock:
             warn "Block metadata is present, but block is absent. Restoring block.",
               cid = blk.cid
-            if err =? (await self.repoDs.put(blkKey, blk.data)).errorOption:
+            if err =? (await self.repoDs.put(blkKey, blk.data[])).errorOption:
               raise err
         else:
           raise newException(
@@ -209,9 +209,9 @@ proc storeBlock*(
               $blk.cid,
           )
       else:
-        md = BlockMetadata(size: blk.data.len.NBytes, expiry: minExpiry, refCount: 0)
-        res = StoreResult(kind: Stored, used: blk.data.len.NBytes)
-        if err =? (await self.repoDs.put(blkKey, blk.data)).errorOption:
+        md = BlockMetadata(size: blk.data[].len.NBytes, expiry: minExpiry, refCount: 0)
+        res = StoreResult(kind: Stored, used: blk.data[].len.NBytes)
+        if err =? (await self.repoDs.put(blkKey, blk.data[])).errorOption:
           raise err
 
       (md.some, res),

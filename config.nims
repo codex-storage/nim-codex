@@ -114,7 +114,7 @@ when (NimMajor, NimMinor, NimPatch) >= (1, 6, 11):
     "BareExcept:off"
 when (NimMajor, NimMinor) >= (2, 0):
   --mm:
-    refc
+    orc
 
 switch("define", "withoutPCRE")
 
@@ -148,7 +148,7 @@ switch("define", "chronicles_sinks=textlines[dynamic],json[dynamic],textlines[dy
 
 # Workaround for assembler incompatibility between constantine and secp256k1
 switch("define", "use_asm_syntax_intel=false")
-switch("define", "ctt_asm=false")
+switch("define", "ctt_asm=true")
 
 # Allow the use of old-style case objects for nim config compatibility
 switch("define", "nimOldCaseObjects")

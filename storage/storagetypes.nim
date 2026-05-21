@@ -23,10 +23,27 @@ import ./errors
 
 export tables
 
-const
-  # Size of blocks for storage / network exchange,
-  DefaultBlockSize* = NBytes 1024 * 64
+func isPowerOfTwo*(x: uint64): bool =
+  (x > 0) and ((x and (x - 1)) == 0)
 
+const
+  # Block size limits for storage / network exchange
+  MinBlockSize* = 4096'u64 # 4 KiB minimum
+  MaxBlockSize* = 524288'u64 # 512 KiB maximum
+  DefaultBlockSize* = NBytes 65536 # 64 KiB default
+
+  # Manifest field limits (ensure manifest fits in MinBlockSize)
+  MaxFilenameSize* = 255
+  MaxMimetypeSize* = 128
+
+static:
+  # Validate block size constants are powers of two
+  doAssert isPowerOfTwo(MinBlockSize), "MinBlockSize must be a power of two"
+  doAssert isPowerOfTwo(MaxBlockSize), "MaxBlockSize must be a power of two"
+  doAssert isPowerOfTwo(DefaultBlockSize.uint64),
+    "DefaultBlockSize must be a power of two"
+
+const
   # hashes
   Sha256HashCodec* = multiCodec("sha2-256")
 

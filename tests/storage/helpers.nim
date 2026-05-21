@@ -9,8 +9,10 @@ import pkg/storage/manifest
 import pkg/storage/merkletree
 import pkg/storage/blockexchange
 import pkg/storage/rng
+import pkg/storage/units
 import pkg/storage/utils
 
+import ./examples
 import ./helpers/nodeutils
 import ./helpers/datasetutils
 import ./helpers/randomchunker
@@ -25,11 +27,8 @@ export
 
 export libp2p except setup, eventually
 
-# NOTE: The meaning of equality for blocks
-# is changed here, because blocks are now `ref`
-# types. This is only in tests!!!
 func `==`*(a, b: Block): bool =
-  (a.cid == b.cid) and (a.data == b.data)
+  (a.cid == b.cid) and (a.data[] == b.data[])
 
 proc calcEcBlocksCount*(blocksCount: int, ecK, ecM: int): int =
   let
@@ -43,14 +42,15 @@ proc lenPrefix*(msg: openArray[byte]): seq[byte] =
   ##
 
   let vbytes = PB.toBytes(msg.len().uint64)
-  var buf = newSeqUninitialized[byte](msg.len() + vbytes.len)
+  var buf = newSeqUninit[byte](msg.len() + vbytes.len)
   buf[0 ..< vbytes.len] = vbytes.toOpenArray()
   buf[vbytes.len ..< buf.len] = msg
 
   return buf
 
 proc makeWantList*(
-    cids: seq[Cid],
+    treeCid: Cid,
+    count: int,
     priority: int = 0,
     cancel: bool = false,
     wantType: WantType = WantType.WantHave,
@@ -58,9 +58,9 @@ proc makeWantList*(
     sendDontHave: bool = false,
 ): WantList =
   WantList(
-    entries: cids.mapIt(
+    entries: (0 ..< count).mapIt(
       WantListEntry(
-        address: BlockAddress(leaf: false, cid: it),
+        address: BlockAddress(treeCid: treeCid, index: it),
         priority: priority.int32,
         cancel: cancel,
         wantType: wantType,
@@ -70,25 +70,39 @@ proc makeWantList*(
     full: full,
   )
 
+proc testManifestDesc*(
+    treeCid: Cid, blockSize: uint32, blocksCount: int
+): ManifestDescriptor =
+  let manifest = Manifest.new(
+    treeCid = treeCid,
+    blockSize = blockSize.NBytes,
+    datasetSize = (blockSize.int * blocksCount).NBytes,
+  )
+  ManifestDescriptor(manifest: manifest, manifestCid: Cid.example)
+
 proc storeDataGetManifest*(
     store: BlockStore, blocks: seq[Block]
-): Future[Manifest] {.async.} =
+): Future[ManifestDescriptor] {.async.} =
   for blk in blocks:
     (await store.putBlock(blk)).tryGet()
 
   let
-    (_, tree, manifest) = makeDataset(blocks).tryGet()
+    (_, tree, manifest, manifestCid) = makeDataset(blocks).tryGet()
     treeCid = tree.rootCid.tryGet()
+    manifestBlock =
+      Block.new(manifest.encode().tryGet(), codec = ManifestCodec).tryGet()
+
+  (await store.putBlock(manifestBlock)).tryGet()
 
   for i in 0 ..< tree.leavesCount:
     let proof = tree.getProof(i).tryGet()
     (await store.putCidAndProof(treeCid, i, blocks[i].cid, proof)).tryGet()
 
-  return manifest
+  return ManifestDescriptor(manifest: manifest, manifestCid: manifestCid)
 
 proc storeDataGetManifest*(
     store: BlockStore, chunker: Chunker
-): Future[Manifest] {.async.} =
+): Future[ManifestDescriptor] {.async.} =
   var blocks = newSeq[Block]()
 
   while (let chunk = await chunker.getBytes(); chunk.len > 0):
@@ -112,13 +126,13 @@ proc corruptBlocks*(
       blk = (await store.getBlock(manifest.treeCid, i)).tryGet()
       bytePos: seq[int]
 
-    doAssert bytes < blk.data.len
+    doAssert bytes < blk.data[].len
     while bytePos.len <= bytes:
-      let ii = Rng.instance.rand(blk.data.len - 1)
+      let ii = Rng.instance.rand(blk.data[].len - 1)
       if bytePos.find(ii) >= 0:
         continue
 
       bytePos.add(ii)
-      blk.data[ii] = byte 0
+      blk.data[][ii] = byte 0
 
   return pos

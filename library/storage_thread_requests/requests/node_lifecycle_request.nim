@@ -5,7 +5,7 @@
 
 import std/[options, json, strutils, net, os]
 import codexdht/discv5/spr
-import stew/shims/parseutils
+import std/parseutils
 import contractabi/address
 import chronos
 import chronicles
@@ -91,6 +91,7 @@ proc createStorage(
     configJson: cstring
 ): Future[Result[StorageServer, string]] {.async: (raises: []).} =
   var conf: StorageConf
+
   try:
     conf = StorageConf.load(
       version = storageFullVersion,
@@ -114,7 +115,8 @@ proc createStorage(
   except ValueError as err:
     return err("Failed to create Storage: invalid value for log level: " & err.msg)
 
-  conf.setupMetrics()
+  if err =? conf.setupMetrics().errorOption:
+    return err("Failed to start metrics server: " & err.msg)
 
   if not (checkAndCreateDataDir((conf.dataDir).string)):
     # We are unable to access/create data folder or data folder's
@@ -185,6 +187,6 @@ proc process*(
     try:
       await storage[].close()
     except Exception as e:
-      error "Failed to STOP_NODE.", error = e.msg
+      error "Failed to CLOSE_NODE.", error = e.msg
       return err(e.msg)
   return ok("")

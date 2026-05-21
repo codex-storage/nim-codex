@@ -23,6 +23,10 @@ export blocktype
 
 type
   BlockNotFoundError* = object of StorageError
+  BlockCorruptedError* = object of StorageError
+    ## Raised when a block received from the network fails validation
+    ## (CID doesn't match the data). This indicates either malicious peer
+    ## or data corruption in transit.
 
   BlockType* {.pure.} = enum
     Manifest
@@ -65,14 +69,9 @@ method getBlock*(
 
   raiseAssert("getBlock by addr not implemented!")
 
-method completeBlock*(
-    self: BlockStore, address: BlockAddress, blk: Block
-) {.base, gcsafe.} =
-  discard
-
 method getBlocks*(
     self: BlockStore, addresses: seq[BlockAddress]
-): Future[SafeAsyncIter[Block]] {.async: (raises: [CancelledError]).} =
+): Future[SafeAsyncIter[Block]] {.base, async: (raises: [CancelledError]).} =
   ## Gets a set of blocks from the blockstore. Blocks might
   ## be returned in any order.
 
@@ -195,8 +194,4 @@ proc contains*(
 proc contains*(
     self: BlockStore, address: BlockAddress
 ): Future[bool] {.async: (raises: [CancelledError]), gcsafe.} =
-  return
-    if address.leaf:
-      (await self.hasBlock(address.treeCid, address.index)) |? false
-    else:
-      (await self.hasBlock(address.cid)) |? false
+  return (await self.hasBlock(address.treeCid, address.index)) |? false

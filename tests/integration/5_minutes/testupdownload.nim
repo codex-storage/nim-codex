@@ -83,6 +83,26 @@ twonodessuite "Uploads and downloads":
     check:
       content1 == resp2
 
+  test "background download with progress polling", twoNodesConfig:
+    let
+      data = await RandomChunker.example(blocks = 8)
+      cid = (await client1.upload(data)).get
+      downloadId = (await client2.startDownload(cid)).get
+
+    var completed = false
+    for _ in 0 ..< 60:
+      let progress = (await client2.getDownloadProgress(cid, downloadId)).get
+      if not progress["active"].getBool():
+        completed = true
+        break
+      await sleepAsync(500.milliseconds)
+
+    check completed
+
+    let response = (await client2.download(cid, local = true)).get
+    check:
+      @response.mapIt(it.byte) == data
+
   test "reliable transfer test", twoNodesConfig:
     proc transferTest(a: StorageClient, b: StorageClient) {.async.} =
       let data = await RandomChunker.example(blocks = 8)

@@ -1,4 +1,5 @@
 import ./network/network
 import ./network/networkpeer
+import ./protocol/wantblocks
 
-export network, networkpeer
+export network, networkpeer, wantblocks

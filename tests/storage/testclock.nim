@@ -1,7 +1,6 @@
 import pkg/unittest2
 
 import storage/clock
-import ./helpers
 
 suite "Clock":
   proc testConversion(seconds: SecondsSince1970) =

@@ -44,7 +44,7 @@ import ./utils
 import ./nat
 import ./utils/natutils
 
-from ./blockexchange/engine/pendingblocks import DefaultBlockRetries
+from ./blockexchange/engine/downloadmanager import DefaultBlockRetries
 
 export units, net, storagetypes, logutils, completeCmdArg, parseCmdArg, NatConfig
 
@@ -617,14 +617,17 @@ proc setupLogging*(conf: StorageConf): Option[IoHandle] =
 
     return ioHandle
 
-proc setupMetrics*(config: StorageConf) =
+proc setupMetrics*(config: StorageConf): ?!void =
   if config.metricsEnabled:
     let metricsAddress = config.metricsAddress
     notice "Starting metrics HTTP server",
       url = "http://" & $metricsAddress & ":" & $config.metricsPort & "/metrics"
+    let server = MetricsHttpServerRef.new($metricsAddress, config.metricsPort).valueOr:
+      return failure($error)
     try:
-      startMetricsHttpServer($metricsAddress, config.metricsPort)
-    except CatchableError as exc:
-      raiseAssert exc.msg
-    except Exception as exc:
-      raiseAssert exc.msg # TODO fix metrics
+      waitFor server.start()
+    except MetricsError as exc:
+      return failure(exc.msg)
+    except CancelledError:
+      return failure("Metrics server start was cancelled")
+  success()
