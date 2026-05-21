@@ -5,6 +5,7 @@ import pkg/toml_serialization
 import pkg/unittest2
 
 import pkg/storage/presets
+import pkg/storage/conf
 
 const SPRs = [
   "spr:CiUIAhIhA-VlcoiRm02KyIzrcTP-ljFpzTljfBRRKTIvhMIwqBqWEgIDARpJCicAJQgCEiED5WVyiJGbTYrIjOtxM_6" &

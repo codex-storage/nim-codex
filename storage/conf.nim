@@ -42,12 +42,12 @@ import ./stores
 import ./units
 import ./utils
 import ./nat
-import ./networkpresets
+import ./presets
 import ./utils/natutils
 
 from ./blockexchange/engine/downloadmanager import DefaultBlockRetries
 
-export units, net, storagetypes, logutils, networkpresets, completeCmdArg, parseCmdArg, NatConfig
+export units, net, storagetypes, logutils, presets, completeCmdArg, parseCmdArg, NatConfig
 
 export
   DefaultQuotaBytes, DefaultBlockTtl, DefaultBlockInterval, DefaultNumBlocksPerInterval,
