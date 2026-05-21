@@ -1,3 +1,4 @@
+import std/options
 import std/sequtils
 
 import pkg/codexdht/discv5/protocol

@@ -2,11 +2,13 @@
 # to different things, but the canonical example are sets of bootstrap nodes that define
 # logically different networks; e.g., "logos.dev" and "logos.test" refer to the Logos
 # devnet and latest testnet, respectively.
+import std/options
 import std/strutils
 
 import pkg/chronicles
 import pkg/codexdht/discv5/protocol
-import pkg/libp2p/routing_record
+import pkg/libp2p/[errors, routing_record]
+import pkg/results
 import pkg/stew/base64
 
 # A NetworkPreset is a set of bootstrap nodes (represented
@@ -46,7 +48,7 @@ proc parse*(T: type SignedPeerRecord, p: string): Result[SignedPeerRecord, strin
 
 proc `bootstrapNodes`*(self: NetworkPreset): seq[SignedPeerRecord] =
   for record in self.unparsedRecords:
-    # Having an invalid SPR in a hardcoded config is a bug, and
+    # Having an invalid SPR in a hardcoded config is a bug, a+
     # it should crash the node.
     result.add(parse(SignedPeerRecord, record).tryGet())
 
