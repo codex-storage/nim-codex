@@ -1,4 +1,7 @@
-## Network presets for Logos Storage.
+# Presets are hard-coded configuration bundles that get compiled into code. They can refer
+# to different things, but the canonical example are sets of bootstrap nodes that define
+# logically different networks; e.g., "logos.dev" and "logos.test" which refer to the Logos
+# devnet and latest testnet, respectively.
 import std/sequtils
 import std/strutils
 import std/sugar
@@ -107,25 +110,3 @@ proc findByPrefix*(presets: openArray[NetworkPreset], val: string): seq[string] 
   for p in presets:
     if p.name.startsWith(val):
       result.add p.name
-
-proc parseCmdArg*(T: type NetworkPreset, p: string): NetworkPreset =
-  let res = NetworkPresets.find(p)
-  if res.isErr:
-    fatal "Cannot parse the network preset.", error = res.error(), input = p
-    quit QuitFailure
-  return res.get()
-
-proc completeCmdArg*(T: type NetworkPreset, val: string): seq[string] =
-  NetworkPresets.findByPrefix(val)
-
-proc readValue*(
-    r: var TomlReader, val: var NetworkPreset
-) {.raises: [SerializationError, IOError].} =
-  let
-    str = r.readValue(string)
-    preset = NetworkPresets.find(str)
-  if preset.isErr():
-    raise newException(SerializationError, preset.error())
-
-  val = preset.get()
-

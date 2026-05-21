@@ -4,7 +4,7 @@ import pkg/codexdht/discv5/protocol
 import pkg/toml_serialization
 import pkg/unittest2
 
-import pkg/storage/networkpresets
+import pkg/storage/presets
 
 const SPRs = [
   "spr:CiUIAhIhA-VlcoiRm02KyIzrcTP-ljFpzTljfBRRKTIvhMIwqBqWEgIDARpJCicAJQgCEiED5WVyiJGbTYrIjOtxM_6" &

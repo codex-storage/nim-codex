@@ -415,6 +415,13 @@ proc parseCmdArg*(T: type Duration, val: string): T =
     quit QuitFailure
   dur
 
+proc parseCmdArg*(T: type NetworkPreset, p: string): NetworkPreset =
+  let res = NetworkPresets.find(p)
+  if res.isErr:
+    fatal "Cannot parse the network preset.", error = res.error(), input = p
+    quit QuitFailure
+  return res.get()
+
 proc readValue*(r: var TomlReader, val: var SignedPeerRecord) =
   without uri =? r.readValue(string).catch, err:
     error "invalid SignedPeerRecord configuration value", error = err.msg
@@ -478,6 +485,17 @@ proc readValue*(
     except CatchableError as err:
       raise newException(SerializationError, err.msg)
 
+proc readValue*(
+    r: var TomlReader, val: var NetworkPreset
+) {.raises: [SerializationError, IOError].} =
+  let
+    str = r.readValue(string)
+    preset = NetworkPresets.find(str)
+  if preset.isErr():
+    raise newException(SerializationError, preset.error())
+
+  val = preset.get()
+
 # no idea why confutils needs this:
 proc completeCmdArg*(T: type NBytes, val: string): seq[string] =
   discard
@@ -487,6 +505,9 @@ proc completeCmdArg*(T: type Duration, val: string): seq[string] =
 
 proc completeCmdArg*(T: type ThreadCount, val: string): seq[string] =
   discard
+
+proc completeCmdArg*(T: type NetworkPreset, val: string): seq[string] =
+  NetworkPresets.findByPrefix(val)
 
 # silly chronicles, colors is a compile-time property
 proc stripAnsi*(v: string): string =
