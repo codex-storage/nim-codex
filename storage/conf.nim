@@ -200,6 +200,25 @@ type
       defaultValue: DefaultNetworkPreset
     .}: NetworkPreset
 
+    dhtMixProxies* {.
+      desc: "Peers used as dht-proxy destinations when Mix is enabled",
+      name: "dht-mix-proxy"
+    .}: seq[SignedPeerRecord]
+
+    mixEnabled* {.
+      desc:
+        "Route DHT provider lookups through the Mix protocol via the " &
+        "dht-mix-proxy. Hides the requester's identity from the proxy.",
+      defaultValue: false,
+      name: "mix-enabled"
+    .}: bool
+
+    mixPoolDir* {.
+      desc: "Path to the Mix relay pool (expects `pubInfo/mixNode_<i>` files inside)",
+      defaultValue: "",
+      name: "mix-pool-dir"
+    .}: string
+
     maxPeers* {.
       desc: "The maximum number of peers to connect to",
       defaultValue: 160,
