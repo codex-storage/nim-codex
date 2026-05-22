@@ -282,22 +282,6 @@ proc withStorageQuota*(
     config.addCliOption("--storage-quota", $quota)
   return startConfig
 
-proc withListenIp*(
-    self: StorageConfigs, ip: string
-): StorageConfigs {.raises: [StorageConfigError].} =
-  var startConfig = self
-  for config in startConfig.configs.mitems:
-    config.addCliOption("--listen-ip", ip)
-  return startConfig
-
-proc withListenPort*(
-    self: StorageConfigs, idx: int, port: int
-): StorageConfigs {.raises: [StorageConfigError].} =
-  self.checkBounds idx
-  var startConfig = self
-  startConfig.configs[idx].addCliOption("--listen-port", $port)
-  return startConfig
-
 proc withNatNumPeersToAsk*(
     self: StorageConfigs, numPeersToAsk: int
 ): StorageConfigs {.raises: [StorageConfigError].} =
@@ -330,30 +314,6 @@ proc withNatScheduleInterval*(
     config.addCliOption("--nat-schedule-interval", $scheduleInterval)
   return startConfig
 
-proc withNatPortMappingDiscoverTimeout*(
-    self: StorageConfigs, timeout: int
-): StorageConfigs {.raises: [StorageConfigError].} =
-  var startConfig = self
-  for config in startConfig.configs.mitems:
-    config.addCliOption("--nat-port-mapping-discover-timeout", $timeout)
-  return startConfig
-
-proc withNatPortMappingTimeout*(
-    self: StorageConfigs, timeout: int
-): StorageConfigs {.raises: [StorageConfigError].} =
-  var startConfig = self
-  for config in startConfig.configs.mitems:
-    config.addCliOption("--nat-port-mapping-timeout", $timeout)
-  return startConfig
-
-proc withNatPortMappingRecheckPeriod*(
-    self: StorageConfigs, timeout: int
-): StorageConfigs {.raises: [StorageConfigError].} =
-  var startConfig = self
-  for config in startConfig.configs.mitems:
-    config.addCliOption("--nat-port-mapping-recheck-period", $timeout)
-  return startConfig
-
 proc withExtIp*(
     self: StorageConfigs, idx: int, ip = "127.0.0.1"
 ): StorageConfigs {.raises: [StorageConfigError].} =
@@ -363,27 +323,13 @@ proc withExtIp*(
   startConfig.configs[idx].addCliOption("--nat", "extip:" & ip)
   return startConfig
 
-proc withExtIp*(
-    self: StorageConfigs, ip = "127.0.0.1"
-): StorageConfigs {.raises: [StorageConfigError].} =
-  var startConfig = self
-  for config in startConfig.configs.mitems:
-    config.addCliOption("--nat", "extip:" & ip)
-  return startConfig
-
 proc withRelay*(
     self: StorageConfigs, idx: int
 ): StorageConfigs {.raises: [StorageConfigError].} =
   self.checkBounds idx
 
   var startConfig = self
-  startConfig.configs[idx].addCliOption("--relay")
-  return startConfig
-
-proc withRelay*(self: StorageConfigs): StorageConfigs {.raises: [StorageConfigError].} =
-  var startConfig = self
-  for config in startConfig.configs.mitems:
-    config.addCliOption("--relay")
+  startConfig.configs[idx].addCliOption("--relay-server")
   return startConfig
 
 # For testing, a node with extip (not behind nat) is a bootstrap node
@@ -408,10 +354,10 @@ proc withNatSimulation*(
   startConfig.configs[idx].addCliOption("--nat-simulation", filtering)
   return startConfig
 
-proc withNatSimulation*(
-    self: StorageConfigs, filtering: string
+proc withAutonatServer*(
+    self: StorageConfigs, idx: int
 ): StorageConfigs {.raises: [StorageConfigError].} =
+  self.checkBounds idx
   var startConfig = self
-  for config in startConfig.configs.mitems:
-    config.addCliOption("--nat-simulation", filtering)
+  startConfig.configs[idx].addCliOption("--autonat-server")
   return startConfig

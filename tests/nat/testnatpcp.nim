@@ -8,8 +8,8 @@ import ../integration/storageconfig
 
 import ../integration/nathelper
 
-multinodesuite "AutoNAT UPnP port mapping":
-  let upnpConfig = NodeConfigs(
+multinodesuite "AutoNAT PCP port mapping":
+  let pcpConfig = NodeConfigs(
     clients: StorageConfigs
       .init(nodes = 2)
       .withRelay(0)
@@ -20,8 +20,7 @@ multinodesuite "AutoNAT UPnP port mapping":
       .withNatMaxQueueSize(1).some
   )
 
-  test "node behind NAT maps ports via UPnP and exposes mapping in debug info",
-    upnpConfig:
+  test "node behind NAT maps ports via PCP and exposes mapping in debug info", pcpConfig:
     let node2 = clients()[1]
 
     await node2.client.checkNotReachable(relayRunning = false)
@@ -29,7 +28,7 @@ multinodesuite "AutoNAT UPnP port mapping":
     check eventuallySafe(
       block:
         let res = await node2.client.natPortMapping()
-        res.isOk and res.get == "upnp",
+        res.isOk and res.get == "pcp",
       timeout = RelayTimeout,
       pollInterval = PollInterval,
     )
@@ -50,7 +49,7 @@ multinodesuite "AutoNAT UPnP port mapping":
       .withNatMaxQueueSize(2).some
   )
 
-  test "node behind double NAT falls back to relay after UPnP mapping does not help",
+  test "node behind double NAT falls back to relay after PCP mapping does not help",
     relayFallbackConfig:
     let node2 = clients()[1]
 
@@ -59,22 +58,22 @@ multinodesuite "AutoNAT UPnP port mapping":
     check eventuallySafe(
       block:
         let res = await node2.client.natPortMapping()
-        res.isOk and res.get == "upnp",
+        res.isOk and res.get == "pcp",
       timeout = RelayTimeout,
       pollInterval = PollInterval,
     )
 
     await node2.client.checkNotReachable()
 
-  test "reachable node downloads content uploaded by node behind NAT after UPnP mapping",
-    upnpConfig:
+  test "reachable node downloads content uploaded by node behind NAT after PCP mapping",
+    pcpConfig:
     let node1 = clients()[0]
     let node2 = clients()[1]
 
     check eventuallySafe(
       block:
         let res = await node2.client.natPortMapping()
-        res.isOk and res.get == "upnp",
+        res.isOk and res.get == "pcp",
       timeout = RelayTimeout,
       pollInterval = PollInterval,
     )

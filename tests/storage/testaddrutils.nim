@@ -3,6 +3,23 @@ import pkg/libp2p/multiaddress
 import ../asynctest
 import ../../storage/utils/addrutils
 
+suite "addrutils - getTcpPort":
+  test "extracts port from ipv4 tcp address":
+    let ma = MultiAddress.init("/ip4/1.2.3.4/tcp/5000").expect("valid")
+    check getTcpPort(ma) == some(Port(5000))
+
+  test "extracts port from ipv6 tcp address":
+    let ma = MultiAddress.init("/ip6/::1/tcp/8080").expect("valid")
+    check getTcpPort(ma) == some(Port(8080))
+
+  test "returns none for udp address":
+    let ma = MultiAddress.init("/ip4/1.2.3.4/udp/5000").expect("valid")
+    check getTcpPort(ma) == Port.none
+
+  test "extracts port 0":
+    let ma = MultiAddress.init("/ip4/0.0.0.0/tcp/0").expect("valid")
+    check getTcpPort(ma) == some(Port(0))
+
 suite "addrutils - remapAddr":
   test "replaces protocol tcp with udp":
     let ma = MultiAddress.init("/ip4/1.2.3.4/tcp/5000").expect("valid")

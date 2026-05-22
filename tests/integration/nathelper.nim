@@ -19,16 +19,31 @@ proc checkNatStatus*(
       let info = (await client.info()).get
       let nat = info["nat"]
       let addrs = info["addrs"].getElems.mapIt(it.getStr)
-      nat["reachability"].getStr() == reachability and
-        nat["clientMode"].getBool() == clientMode and
-        nat["relayRunning"].getBool() == relayRunning and
-        addrs.anyIt("p2p-circuit" in it) == relayRunning,
+      let r = nat["reachability"].getStr()
+      let cm = nat["clientMode"].getBool()
+      let rr = nat["relayRunning"].getBool()
+      let ha = addrs.anyIt("p2p-circuit" in it)
+      let pm = nat["portMapping"].getStr()
+
+      # It is important to check all the conditions together to avoid race
+      # (new autonat iteration)
+      # So we add a checkoint for better debug in case of failures
+      checkpoint(
+        "reachability=" & r & " (want " & reachability & ")" & " clientMode=" & $cm &
+          " (want " & $clientMode & ")" & " relayRunning=" & $rr & " (want " &
+          $relayRunning & ")" & " p2p-circuit=" & $ha & " (want " & $relayRunning & ")" &
+          " portMapping=" & pm
+      )
+      r == reachability and cm == clientMode and rr == relayRunning and
+        ha == relayRunning,
     timeout = RelayTimeout,
     pollInterval = PollInterval,
   )
 
-proc checkNatStatus*(client: StorageClient, reachability: string) {.async.} =
-  let notReachable = reachability == "NotReachable"
+proc checkReachable*(client: StorageClient) {.async.} =
+  await client.checkNatStatus("Reachable", relayRunning = false, clientMode = false)
+
+proc checkNotReachable*(client: StorageClient, relayRunning = true) {.async.} =
   await client.checkNatStatus(
-    reachability, relayRunning = notReachable, clientMode = notReachable
+    "NotReachable", relayRunning = relayRunning, clientMode = true
   )

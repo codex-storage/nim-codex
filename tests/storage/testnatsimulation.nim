@@ -1,8 +1,11 @@
+import std/net
 import pkg/chronos
+import pkg/libp2p/wire
 
 import ./helpers
 import ../asynctest
 import ../../storage/rng
+import ../../storage/nat
 import ../../storage/utils/natsimulation
 
 const flags = {ServerFlags.ReuseAddr}
@@ -52,7 +55,7 @@ asyncchecksuite "NatTransport - Address-Dependent Filtering":
   var bootstrap, thirdNode, natNode: Switch
 
   setup:
-    let router = NatRouter.new(AddressDependent)
+    let router = NatRouter.new(AddressDependent, dropTimeout = 1.seconds)
     bootstrap = newSwitch(Rng.instance())
     thirdNode = newSwitch(Rng.instance())
     natNode = newNatSwitch(router, Rng.instance())
@@ -85,7 +88,7 @@ asyncchecksuite "NatTransport - Address-and-Port-Dependent Filtering":
   var bootstrap, thirdNode, natNode: Switch
 
   setup:
-    let router = NatRouter.new(AddressAndPortDependent)
+    let router = NatRouter.new(AddressAndPortDependent, dropTimeout = 1.seconds)
     bootstrap = newSwitch(Rng.instance())
     thirdNode = newSwitch(Rng.instance())
     natNode = newNatSwitch(router, Rng.instance())
@@ -113,3 +116,59 @@ asyncchecksuite "NatTransport - Address-and-Port-Dependent Filtering":
     await natNode.connect(bootstrap.peerInfo.peerId, bootstrap.peerInfo.addrs)
     expect(LPError):
       await thirdNode.connect(natNode.peerInfo.peerId, natNode.peerInfo.addrs)
+
+asyncchecksuite "NatTransport - Double NAT":
+  var bootstrap, natNode: Switch
+  var router: NatRouter
+
+  setup:
+    router = NatRouter.new(DoubleNat, dropTimeout = 1.seconds)
+    bootstrap = newSwitch(Rng.instance())
+    natNode = newNatSwitch(router, Rng.instance())
+    await bootstrap.start()
+    await natNode.start()
+
+  teardown:
+    await bootstrap.stop()
+    await natNode.stop()
+
+  test "bootstrap cannot connect to nat node regardless of port mapping":
+    let actualPort = initTAddress(natNode.peerInfo.addrs[0]).get().port
+    let natMapper = NatPortMapper()
+    natMapper.activeTcpPort = some(actualPort)
+    router.natMapper = some(natMapper)
+
+    expect(LPError):
+      await bootstrap.connect(natNode.peerInfo.peerId, natNode.peerInfo.addrs)
+
+asyncchecksuite "NatTransport - Port Mapping":
+  var bootstrap, natNode: Switch
+  var router: NatRouter
+
+  setup:
+    router = NatRouter.new(AddressAndPortDependent, dropTimeout = 1.seconds)
+    bootstrap = newSwitch(Rng.instance())
+    natNode = newNatSwitch(router, Rng.instance())
+    await bootstrap.start()
+    await natNode.start()
+
+  teardown:
+    await bootstrap.stop()
+    await natNode.stop()
+
+  test "bootstrap can connect to nat node when port mapping matches listen port":
+    let actualPort = initTAddress(natNode.peerInfo.addrs[0]).get().port
+    let natMapper = NatPortMapper()
+    natMapper.activeTcpPort = some(actualPort)
+    router.natMapper = some(natMapper)
+
+    await bootstrap.connect(natNode.peerInfo.peerId, natNode.peerInfo.addrs)
+    check bootstrap.isConnected(natNode.peerInfo.peerId)
+
+  test "bootstrap cannot connect to nat node when port mapping does not match":
+    let natMapper = NatPortMapper()
+    natMapper.activeTcpPort = some(Port(1))
+    router.natMapper = some(natMapper)
+
+    expect(LPError):
+      await bootstrap.connect(natNode.peerInfo.peerId, natNode.peerInfo.addrs)

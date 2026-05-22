@@ -69,9 +69,13 @@ jobs:
         run: make -j${ncpu} testLibstorage
 
       ## Part 4 Tests ##
-      - name: NAT integration tests
-        if: matrix.tests == 'nat-integration'
-        run: make testNatIntegration
+      - name: NAT UPnP integration tests
+        if: matrix.tests == 'nat-upnp-integration'
+        run: make testNatUpnpIntegration
+
+      - name: NAT PCP integration tests
+        if: matrix.tests == 'nat-pcp-integration'
+        run: make testNatPcpIntegration
 
   status:
     if: always()

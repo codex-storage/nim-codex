@@ -117,10 +117,13 @@ libstorage_test () {
   job
 }
 
-# outputs a NAT integration test job
+# outputs NAT integration test jobs
 # Linux-only: miniupnpd is a Linux daemon, network namespace manipulation requires Linux
-nat_integration_test () {
-  job_tests="nat-integration"
+nat_integration_tests () {
+  job_tests="nat-upnp-integration"
+  job_includes=""
+  job
+  job_tests="nat-pcp-integration"
   job_includes=""
   job
 }
@@ -131,7 +134,7 @@ all_tests () {
   integration_test
   libstorage_test
   if [ "$job_os" = "linux" ]; then
-    nat_integration_test
+    nat_integration_tests
   fi
 }
 

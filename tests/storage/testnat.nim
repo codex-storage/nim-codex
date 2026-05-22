@@ -14,11 +14,11 @@ import ../../storage/discovery
 import ../../storage/rng
 import ../../storage/utils
 
-type MockNatMapper = ref object of NatMapper
+type MockNatPortMapper = ref object of NatPortMapper
   mappedPorts: Option[(Port, Port, MappingProtocol)]
 
 method mapNatPorts*(
-    m: MockNatMapper
+    m: MockNatPortMapper
 ): Future[Option[(Port, Port, MappingProtocol)]] {.
     async: (raises: [CancelledError]), gcsafe
 .} =
@@ -49,7 +49,7 @@ asyncchecksuite "NAT - handleNatStatus":
   test "handleNatStatus announces mapped address when NotReachable and UPnP succeeds":
     let dialBack = MultiAddress.init("/ip4/1.2.3.4/tcp/8080").expect("valid")
     let mapper =
-      MockNatMapper(mappedPorts: some((Port(9000), Port(9001), MappingProtocol.UPnP)))
+      MockNatPortMapper(mappedPorts: some((Port(9000), Port(9001), MappingProtocol.UPnP)))
 
     await mapper.handleNatStatus(
       NotReachable, Opt.some(dialBack), discoveryPort, disc, sw, autoRelay
@@ -61,7 +61,7 @@ asyncchecksuite "NAT - handleNatStatus":
     check disc.protocol.clientMode
 
   test "handleNatStatus starts autoRelay when NotReachable and UPnP failed":
-    let mapper = MockNatMapper(mappedPorts: none((Port, Port, MappingProtocol)))
+    let mapper = MockNatPortMapper(mappedPorts: none((Port, Port, MappingProtocol)))
 
     await mapper.handleNatStatus(
       NotReachable, Opt.none(MultiAddress), discoveryPort, disc, sw, autoRelay
@@ -72,7 +72,7 @@ asyncchecksuite "NAT - handleNatStatus":
 
   test "handleNatStatus starts autoRelay when NotReachable and mapping fails":
     let dialBack = MultiAddress.init("/ip4/1.2.3.4/tcp/8080").expect("valid")
-    let mapper = MockNatMapper(mappedPorts: none((Port, Port, MappingProtocol)))
+    let mapper = MockNatPortMapper(mappedPorts: none((Port, Port, MappingProtocol)))
 
     await mapper.handleNatStatus(
       NotReachable, Opt.some(dialBack), discoveryPort, disc, sw, autoRelay
@@ -83,7 +83,7 @@ asyncchecksuite "NAT - handleNatStatus":
     check disc.protocol.clientMode
 
   test "handleNatStatus does not announce address when Reachable and no dialBackAddr":
-    let mapper = MockNatMapper(mappedPorts: none((Port, Port, MappingProtocol)))
+    let mapper = MockNatPortMapper(mappedPorts: none((Port, Port, MappingProtocol)))
 
     await mapper.handleNatStatus(
       Reachable, Opt.none(MultiAddress), discoveryPort, disc, sw, autoRelay
@@ -95,7 +95,7 @@ asyncchecksuite "NAT - handleNatStatus":
 
   test "handleNatStatus stops relay and announces dialBackAddr when Reachable":
     let dialBack = MultiAddress.init("/ip4/1.2.3.4/tcp/8080").expect("valid")
-    let mapper = MockNatMapper(mappedPorts: none((Port, Port, MappingProtocol)))
+    let mapper = MockNatPortMapper(mappedPorts: none((Port, Port, MappingProtocol)))
 
     discard await autorelayservice.setup(autoRelay, sw)
     await mapper.handleNatStatus(

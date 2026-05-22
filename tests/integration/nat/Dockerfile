@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Build miniupnpd with stub redirector: no iptables/nftables needed, always
-# returns success for port mapping requests — safe for isolated test containers.
+# returns success for port mapping requests.
 COPY tests/integration/nat/miniupnpd_stub_rdr.c /tmp/stub_rdr.c
 RUN git clone --depth=1 --branch miniupnpd_2_3_9 \
         https://github.com/miniupnp/miniupnp.git /tmp/miniupnp \

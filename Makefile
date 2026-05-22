@@ -87,7 +87,8 @@ endif
 	testAll \
 	testIntegration \
 	testLibstorage \
-	testNatIntegration \
+	testNatUpnpIntegration \
+	testNatPcpIntegration \
 	update
 
 ifeq ($(NIM_PARAMS),)
@@ -149,11 +150,15 @@ testIntegration: | build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
 		$(ENV_SCRIPT) nim testIntegration $(TEST_PARAMS) $(NIM_PARAMS) build.nims
 
-# Builds and runs the UPnP NAT integration test inside a miniupnpd container
 DOCKER := $(or $(shell which podman 2>/dev/null), $(shell which docker 2>/dev/null))
-testNatIntegration:
+
+testNatUpnpIntegration:
 	$(DOCKER) build -t miniupnpd-test -f tests/integration/nat/Dockerfile .
-	$(DOCKER) run --rm --cap-add NET_ADMIN miniupnpd-test
+	$(DOCKER) run --rm --cap-add NET_ADMIN -e DEBUG=$(DEBUG) miniupnpd-test
+
+testNatPcpIntegration:
+	$(DOCKER) build -t miniupnpd-test -f tests/integration/nat/Dockerfile .
+	$(DOCKER) run --rm --cap-add NET_ADMIN -e DEBUG=$(DEBUG) -e TEST_PCP=1 miniupnpd-test
 
 # Builds a C example that uses the libstorage C library and runs it
 testLibstorage: | build deps
