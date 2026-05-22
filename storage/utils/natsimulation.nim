@@ -1,6 +1,6 @@
 {.push raises: [].}
 
-import std/sequtils
+import std/[options, sequtils]
 import pkg/chronos
 import pkg/results
 import pkg/libp2p
@@ -8,14 +8,19 @@ import pkg/libp2p/transports/tcptransport
 import pkg/libp2p/transports/transport
 import pkg/libp2p/wire
 
+import ../nat
+
 type FilteringBehavior* = enum
   EndpointIndependent
   AddressDependent
   AddressAndPortDependent
+  DoubleNat
 
 type NatRouter* = ref object
   filtering*: FilteringBehavior
   conntrack: seq[TransportAddress]
+  natMapper*: Option[NatPortMapper]
+  dropTimeout*: Duration
 
 type NatTransport* = ref object of Transport
   tcp: TcpTransport
@@ -31,20 +36,33 @@ proc fromString*(
     ok(AddressDependent)
   of "address-and-port-dependent":
     ok(AddressAndPortDependent)
+  of "double-nat":
+    ok(DoubleNat)
   else:
     err("Unknown filtering behavior: " & s)
 
-proc new*(T: type NatRouter, filtering: FilteringBehavior): T =
-  T(filtering: filtering)
+proc new*(
+    T: type NatRouter, filtering: FilteringBehavior, dropTimeout = 20.seconds
+): T =
+  T(filtering: filtering, dropTimeout: dropTimeout)
 
 proc setFiltering*(r: NatRouter, filtering: FilteringBehavior) =
   r.filtering = filtering
   r.conntrack = @[]
 
-proc allowInbound(r: NatRouter, remote: TransportAddress): bool =
+proc allowInbound(r: NatRouter, remote: TransportAddress, localPort: Port): bool =
   case r.filtering
+  of DoubleNat:
+    return false
   of EndpointIndependent:
-    true
+    return true
+  else:
+    discard
+
+  if r.natMapper.isSome and r.natMapper.get.isPortMapped(localPort):
+    return true
+
+  case r.filtering
   of AddressDependent:
     r.conntrack.anyIt(
       try:
@@ -54,6 +72,8 @@ proc allowInbound(r: NatRouter, remote: TransportAddress): bool =
     )
   of AddressAndPortDependent:
     remote in r.conntrack
+  else:
+    false
 
 proc new*(
     T: type NatTransport,
@@ -95,11 +115,11 @@ method dial*(
 
   return conn
 
-proc dropAfterTimeout(conn: Connection) {.async: (raises: []).} =
+proc dropAfterTimeout(conn: Connection, timeout: Duration) {.async: (raises: []).} =
   # Hold the connection open long enough for the remote's dial to time out,
   # then close it. This simulates a NAT that drops packets rather than RSTs
   # them, which is what AutoNAT needs to detect NotReachable.
-  await noCancel sleepAsync(20.seconds)
+  await noCancel sleepAsync(timeout)
   await noCancel conn.close()
 
 method accept*(
@@ -121,11 +141,17 @@ method accept*(
       await conn.close()
       continue
 
-    if not self.router.allowInbound(transportAddr.get):
+    var localPort = Port(0)
+    if self.addrs.len > 0:
+      let localAddr = initTAddress(self.addrs[0])
+      if localAddr.isOk:
+        localPort = localAddr.get.port
+
+    if not self.router.allowInbound(transportAddr.get, localPort):
       # Do not close immediately: let the remote's dial time out naturally,
       # then clean up. Returning a fast RST would produce EDialRefused (Unknown)
       # instead of EDialError (NotReachable) in AutoNAT.
-      asyncSpawn dropAfterTimeout(conn)
+      asyncSpawn dropAfterTimeout(conn, self.router.dropTimeout)
       continue
 
     return conn
