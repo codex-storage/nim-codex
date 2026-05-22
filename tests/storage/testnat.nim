@@ -3,6 +3,8 @@ import pkg/chronos
 import pkg/libp2p/[multiaddress, multihash, multicodec]
 import pkg/libp2p/protocols/connectivity/autonat/types
 import pkg/libp2p/protocols/connectivity/relay/client as relayClientModule
+import pkg/libp2p/protocols/connectivity/dcutr/core as dcutrCore
+import pkg/libp2p/multistream
 import pkg/libp2p/services/autorelayservice except setup
 import pkg/results
 
@@ -48,8 +50,9 @@ asyncchecksuite "NAT - handleNatStatus":
 
   test "handleNatStatus announces mapped address when NotReachable and UPnP succeeds":
     let dialBack = MultiAddress.init("/ip4/1.2.3.4/tcp/8080").expect("valid")
-    let mapper =
-      MockNatPortMapper(mappedPorts: some((Port(9000), Port(9001), MappingProtocol.UPnP)))
+    let mapper = MockNatPortMapper(
+      mappedPorts: some((Port(9000), Port(9001), MappingProtocol.UPnP))
+    )
 
     await mapper.handleNatStatus(
       NotReachable, Opt.some(dialBack), discoveryPort, disc, sw, autoRelay
@@ -105,3 +108,31 @@ asyncchecksuite "NAT - handleNatStatus":
     check not autoRelay.isRunning
     check disc.announceAddrs == @[dialBack]
     check not disc.protocol.clientMode
+
+asyncchecksuite "NAT - Hole punching":
+  test "setupHolePunching mounts the dcutr protocol on the switch":
+    let sw = newStandardSwitch()
+    setupHolePunching(sw)
+    check sw.ms.handlers.anyIt(dcutrCore.DcutrCodec in it.protos)
+
+  test "holePunchIfRelayed returns early when the peer has no connections":
+    let sw1 = newStandardSwitch()
+    let sw2 = newStandardSwitch()
+    await allFutures(sw1.start(), sw2.start())
+
+    await holePunchIfRelayed(sw1, sw2.peerInfo.peerId)
+
+    await allFutures(sw1.stop(), sw2.stop())
+
+  test "holePunchIfRelayed returns early when a direct connection already exists":
+    let sw1 = newStandardSwitch()
+    let sw2 = newStandardSwitch()
+    await allFutures(sw1.start(), sw2.start())
+
+    await sw1.connect(sw2.peerInfo.peerId, sw2.peerInfo.addrs)
+    check sw1.isConnected(sw2.peerInfo.peerId)
+
+    await holePunchIfRelayed(sw1, sw2.peerInfo.peerId)
+
+    check sw1.isConnected(sw2.peerInfo.peerId)
+    await allFutures(sw1.stop(), sw2.stop())

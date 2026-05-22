@@ -451,6 +451,8 @@ proc new*(
         )
     )
 
+    setupHolePunching(switch)
+
   # REST server
   var restServer: RestServerRef = nil
 

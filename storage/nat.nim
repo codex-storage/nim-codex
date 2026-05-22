@@ -16,6 +16,10 @@ import pkg/chronicles
 import pkg/libp2p
 import pkg/libp2p/services/autorelayservice
 import pkg/libp2p/protocols/connectivity/autonatv2/service
+import pkg/libp2p/protocols/connectivity/relay/relay as relayProtocol
+import pkg/libp2p/protocols/connectivity/dcutr/client as dcutrClientModule
+import pkg/libp2p/protocols/connectivity/dcutr/server as dcutrServerModule
+import pkg/libp2p/wire
 
 import ./utils
 import ./utils/natutils
@@ -60,8 +64,7 @@ method mapNatPorts*(
   if not m.plumInitialized:
     # 5s matches the old NatPortMappingTimeout used with miniupnpc/libnatpmp.
     let plumLogLevel =
-      if getEnv("DEBUG") == "1": PLUM_LOG_LEVEL_VERBOSE
-      else: PLUM_LOG_LEVEL_NONE
+      if getEnv("DEBUG") == "1": PLUM_LOG_LEVEL_VERBOSE else: PLUM_LOG_LEVEL_NONE
     let res = init(
       logLevel = plumLogLevel,
       discoverTimeout = m.discoverTimeout,
@@ -229,3 +232,76 @@ proc findReachableNodes*(bootstrapNodes: seq[SignedPeerRecord]): seq[SignedPeerR
   ## Currently returns bootstrap nodes. In the future, any network participant
   ## confirmed reachable by AutoNAT could be included.
   bootstrapNodes
+
+# Hole punching logic below is adapted from libp2p's HPService
+# (libp2p/services/hpservice.nim). HPService cannot be used directly because it
+# depends on AutoNAT v1 and starts the relay immediately on NotReachable,
+# bypassing the UPnP step.
+
+proc tryStartingDirectConn(
+    switch: Switch, peerId: PeerId
+): Future[bool] {.async: (raises: [CancelledError]).} =
+  proc tryConnect(
+      address: MultiAddress
+  ): Future[bool] {.async: (raises: [DialFailedError, CancelledError]).} =
+    debug "Trying to create direct connection", peerId, address
+    await switch.connect(peerId, @[address], true, false)
+    debug "Direct connection created."
+    return true
+
+  await sleepAsync(500.milliseconds) # wait for AddressBook to be populated
+  for address in switch.peerStore[AddressBook][peerId]:
+    try:
+      let isRelayedAddr = address.contains(multiCodec("p2p-circuit"))
+      if not isRelayedAddr.get(false) and address.isPublicMA():
+        return await tryConnect(address)
+    except CatchableError as err:
+      debug "Failed to create direct connection.", description = err.msg
+      continue
+  return false
+
+proc closeRelayConn(relayedConn: Connection) {.async: (raises: [CancelledError]).} =
+  await sleepAsync(2000.milliseconds) # grace period before closing relayed connection
+  await relayedConn.close()
+
+proc holePunchIfRelayed*(
+    switch: Switch, peerId: PeerId
+) {.async: (raises: [CancelledError]).} =
+  ## Attempts to establish a direct connection when a peer connected via relay.
+  ## First tries a direct TCP connect (if the peer's address is known and public),
+  ## then falls back to dcutr simultaneous-open hole punching.
+  ## Closes the relay connection once a direct path is established.
+  let connections =
+    switch.connManager.getConnections().getOrDefault(peerId).mapIt(it.connection)
+  if connections.anyIt(not isRelayed(it)):
+    return
+  let incomingRelays = connections.filterIt(it.transportDir == Direction.In)
+  if incomingRelays.len == 0:
+    return
+
+  let relayedConn = incomingRelays[0]
+
+  if await tryStartingDirectConn(switch, peerId):
+    await closeRelayConn(relayedConn)
+    return
+
+  var natAddrs = switch.peerStore.getMostObservedProtosAndPorts()
+  if natAddrs.len == 0:
+    natAddrs = switch.peerInfo.listenAddrs.mapIt(switch.peerStore.guessDialableAddr(it))
+  try:
+    await DcutrClient.new().startSync(switch, peerId, natAddrs)
+    await closeRelayConn(relayedConn)
+  except DcutrError as err:
+    debug "Hole punching failed during dcutr", description = err.msg
+
+proc setupHolePunching*(switch: Switch) =
+  try:
+    switch.mount(Dcutr.new(switch))
+  except LPError as err:
+    error "Failed to mount Dcutr protocol", description = err.msg
+
+  let handler = proc(
+      peerId: PeerId, event: PeerEvent
+  ) {.async: (raises: [CancelledError]).} =
+    await holePunchIfRelayed(switch, peerId)
+  switch.addPeerEventHandler(handler, PeerEventKind.Joined)
