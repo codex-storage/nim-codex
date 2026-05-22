@@ -40,8 +40,8 @@ type NatPortMapper* = ref object of RootObj
   tcpMappingId: Option[cint]
   udpMappingId: Option[cint]
   activeMappingProtocol*: Option[MappingProtocol]
-  activeTcpPort: Option[Port]
-  activeUdpPort: Option[Port]
+  activeTcpPort*: Option[Port]
+  activeUdpPort*: Option[Port]
   plumInitialized: bool
 
 method mapNatPorts*(
