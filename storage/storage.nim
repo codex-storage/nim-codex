@@ -218,7 +218,7 @@ proc new*(
 
   let bootstrapNodes =
     if config.bootstrapNodes.len > 0:
-      warn "Overriding network preset using custom bootstrap nodes",
+      info "Overriding network preset using custom bootstrap nodes",
         nodes = config.bootstrapNodes
       config.bootstrapNodes
     else:
