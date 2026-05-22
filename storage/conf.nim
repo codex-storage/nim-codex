@@ -42,11 +42,13 @@ import ./stores
 import ./units
 import ./utils
 import ./nat
+import ./presets
 import ./utils/natutils
 
 from ./blockexchange/engine/downloadmanager import DefaultBlockRetries
 
-export units, net, storagetypes, logutils, completeCmdArg, parseCmdArg, NatConfig
+export
+  units, net, storagetypes, logutils, presets, completeCmdArg, parseCmdArg, NatConfig
 
 export
   DefaultQuotaBytes, DefaultBlockTtl, DefaultBlockInterval, DefaultNumBlocksPerInterval,
@@ -179,10 +181,17 @@ type
     bootstrapNodes* {.
       desc:
         "Specifies one or more bootstrap nodes to use when " &
-        "connecting to the network",
+        "connecting to the network. When specified, overrides " &
+        "the network preset option.",
       abbr: "b",
       name: "bootstrap-node"
     .}: seq[SignedPeerRecord]
+
+    network* {.
+      desc: "The network to connect to. Options are: \n" & NetworkPresetsDescription,
+      name: "network",
+      defaultValue: DefaultNetworkPreset
+    .}: NetworkPreset
 
     maxPeers* {.
       desc: "The maximum number of peers to connect to",
@@ -347,16 +356,6 @@ proc parseCmdArg*(T: type ThreadCount, input: string): T =
     quit QuitFailure
   return val.get()
 
-proc parse*(T: type SignedPeerRecord, p: string): Result[SignedPeerRecord, string] =
-  var res: SignedPeerRecord
-  try:
-    if not res.fromURI(p):
-      return err("The uri is not a valid SignedPeerRecord: " & p)
-    return ok(res)
-  except LPError, Base64Error:
-    let e = getCurrentException()
-    return err(e.msg)
-
 proc parseCmdArg*(T: type SignedPeerRecord, uri: string): T =
   let res = SignedPeerRecord.parse(uri)
   if res.isErr:
@@ -416,6 +415,13 @@ proc parseCmdArg*(T: type Duration, val: string): T =
     fatal "Cannot parse duration", dur = dur
     quit QuitFailure
   dur
+
+proc parseCmdArg*(T: type NetworkPreset, p: string): NetworkPreset =
+  let res = NetworkPresets.find(p)
+  if res.isNone:
+    fatal "Invalid network preset.", input = p
+    quit QuitFailure
+  return res.get()
 
 proc readValue*(r: var TomlReader, val: var SignedPeerRecord) =
   without uri =? r.readValue(string).catch, err:
@@ -480,6 +486,17 @@ proc readValue*(
     except CatchableError as err:
       raise newException(SerializationError, err.msg)
 
+proc readValue*(
+    r: var TomlReader, val: var NetworkPreset
+) {.raises: [SerializationError, IOError].} =
+  let
+    str = r.readValue(string)
+    preset = NetworkPresets.find(str)
+  if preset.isNone:
+    raise newException(SerializationError, "Invalid network preset: " & str)
+
+  val = preset.get()
+
 # no idea why confutils needs this:
 proc completeCmdArg*(T: type NBytes, val: string): seq[string] =
   discard
@@ -489,6 +506,9 @@ proc completeCmdArg*(T: type Duration, val: string): seq[string] =
 
 proc completeCmdArg*(T: type ThreadCount, val: string): seq[string] =
   discard
+
+proc completeCmdArg*(T: type NetworkPreset, val: string): seq[string] =
+  NetworkPresets.findByPrefix(val)
 
 # silly chronicles, colors is a compile-time property
 proc stripAnsi*(v: string): string =
