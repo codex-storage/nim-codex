@@ -151,7 +151,7 @@ components:
           description: Whether the AutoRelay service is currently running
         portMapping:
           type: string
-          enum: [none, upnp, pmp]
+          enum: [none, upnp, pmp, pcp]
           description: Active NAT port mapping type
 
     DataList:
@@ -572,7 +572,7 @@ paths:
           required: true
           schema:
             type: string
-            enum: [endpoint-independent, address-dependent, address-and-port-dependent]
+            enum: [endpoint-independent, address-dependent, address-and-port-dependent, double-nat]
 
       responses:
         "200":
