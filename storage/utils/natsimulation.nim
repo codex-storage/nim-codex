@@ -2,6 +2,7 @@
 
 import std/[options, sequtils]
 import pkg/chronos
+import pkg/chronicles
 import pkg/results
 import pkg/libp2p
 import pkg/libp2p/transports/tcptransport
@@ -136,6 +137,8 @@ method accept*(
 
     let transportAddr = initTAddress(conn.observedAddr.get)
     if transportAddr.isErr:
+      debug "Dropping inbound connection: invalid observed address",
+        address = conn.observedAddr.get
       await conn.close()
       continue
 
