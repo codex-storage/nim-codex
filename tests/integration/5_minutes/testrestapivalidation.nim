@@ -44,3 +44,25 @@ multinodesuite "Rest API validation":
     check:
       response.status == 400
       (await response.body) == "Incorrect Cid"
+
+  test "nat/filtering returns 400 when nat simulation not active", config:
+    let response = await client.post(
+      client.buildUrl("/debug/nat/filtering?filtering=endpoint-independent")
+    )
+    check response.status == 400
+
+  let natSimConfig = NodeConfigs(
+    clients: StorageConfigs
+      .init(nodes = 1)
+      .withNatSimulation(idx = 0, "address-and-port-dependent").some
+  )
+
+  test "nat/filtering returns 400 for invalid filtering value", natSimConfig:
+    let response = await client.post(
+      client.buildUrl("/debug/nat/filtering?filtering=not-a-valid-value")
+    )
+    check response.status == 400
+
+  test "nat/filtering returns 400 when filtering param is missing", natSimConfig:
+    let response = await client.post(client.buildUrl("/debug/nat/filtering"))
+    check response.status == 400
