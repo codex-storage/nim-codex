@@ -18,9 +18,8 @@ type FilteringBehavior* = enum
 
 type NatRouter* = ref object
   filtering*: FilteringBehavior
-  conntrack: seq[TransportAddress]
+  conntrack: seq[TransportAddress] # remote addrs we dialed; allows them to connect back
   natMapper*: Option[NatPortMapper]
-  dropTimeout*: Duration
 
 type NatTransport* = ref object of Transport
   tcp: TcpTransport
@@ -41,10 +40,8 @@ proc fromString*(
   else:
     err("Unknown filtering behavior: " & s)
 
-proc new*(
-    T: type NatRouter, filtering: FilteringBehavior, dropTimeout = 20.seconds
-): T =
-  T(filtering: filtering, dropTimeout: dropTimeout)
+proc new*(T: type NatRouter, filtering: FilteringBehavior): T =
+  T(filtering: filtering)
 
 proc setFiltering*(r: NatRouter, filtering: FilteringBehavior) =
   r.filtering = filtering
@@ -111,16 +108,15 @@ method dial*(
   if conn.observedAddr.isSome:
     let transportAddr = initTAddress(conn.observedAddr.get)
     if transportAddr.isOk:
-      self.router.conntrack.add(transportAddr.get)
+      let remote = transportAddr.get
+      self.router.conntrack.add(remote)
+      proc cleanupConntrack() {.async: (raises: []).} =
+        await noCancel conn.closeEvent.wait()
+        self.router.conntrack.keepItIf(it != remote)
+
+      asyncSpawn cleanupConntrack()
 
   return conn
-
-proc dropAfterTimeout(conn: Connection, timeout: Duration) {.async: (raises: []).} =
-  # Hold the connection open long enough for the remote's dial to time out,
-  # then close it. This simulates a NAT that drops packets rather than RSTs
-  # them, which is what AutoNAT needs to detect NotReachable.
-  await noCancel sleepAsync(timeout)
-  await noCancel conn.close()
 
 method accept*(
     self: NatTransport
@@ -148,10 +144,8 @@ method accept*(
         localPort = localAddr.get.port
 
     if not self.router.allowInbound(transportAddr.get, localPort):
-      # Do not close immediately: let the remote's dial time out naturally,
-      # then clean up. Returning a fast RST would produce EDialRefused (Unknown)
-      # instead of EDialError (NotReachable) in AutoNAT.
-      asyncSpawn dropAfterTimeout(conn, self.router.dropTimeout)
+      # The rejected connection is not closed here: tcp.stop() closes all
+      # accepted TCP connections on teardown.
       continue
 
     return conn
