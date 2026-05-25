@@ -1,3 +1,12 @@
+# NAT simulation for integration testing.
+#
+# Testing NAT traversal in CI requires controlling inbound/outbound filtering
+# rules, which is not possible with real network interfaces. This module wraps
+# the TCP transport to enforce configurable filtering behaviors (endpoint-
+# independent, address-dependent, address-and-port-dependent, double NAT) at
+# the connection level, so the full AutoNAT detection and relay
+# stack can be exercised without actual NAT hardware.
+
 {.push raises: [].}
 
 import std/[options, sequtils]
@@ -10,6 +19,9 @@ import pkg/libp2p/transports/transport
 import pkg/libp2p/wire
 
 import ../nat
+
+logScope:
+  topics = "nat simulation"
 
 type FilteringBehavior* = enum
   EndpointIndependent
@@ -45,6 +57,8 @@ proc new*(T: type NatRouter, filtering: FilteringBehavior): T =
   T(filtering: filtering)
 
 proc setFiltering*(r: NatRouter, filtering: FilteringBehavior) =
+  debug "NAT filtering changed", previous = r.filtering, next = filtering
+
   r.filtering = filtering
   r.conntrack = @[]
 
@@ -154,6 +168,8 @@ method accept*(
       # accepted TCP connections on teardown.
       continue
 
+    debug "Inbound connection accepted",
+      remote = transportAddr.get, filtering = self.router.filtering
     return conn
 
 method handles*(
