@@ -127,7 +127,12 @@ proc start*(s: StorageServer) {.async.} =
 
   # Connect to the bootstrap nodes in order to have connected peers
   # for Autonat.
-  for spr in findReachableNodes(s.config.bootstrapNodes):
+  let bootstrapNodes =
+    if s.config.bootstrapNodes.len > 0:
+      s.config.bootstrapNodes
+    else:
+      s.config.network.bootstrapNodes
+  for spr in findReachableNodes(bootstrapNodes):
     try:
       let addrs = spr.data.addresses.mapIt(it.address)
       await s.storageNode.switch.connect(spr.data.peerId, addrs)
