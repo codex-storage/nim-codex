@@ -152,7 +152,7 @@ method handleNatStatus*(
       else:
         debug "AutoRelayService stopped"
 
-    discovery.updateRecords(@[dialBackAddr.get], udpPort = discoveryPort)
+    discovery.updateRecordsAndSpr(@[dialBackAddr.get], udpPort = discoveryPort)
     discovery.protocol.clientMode = false
   of NotReachable:
     var hasPortMapping = false
@@ -171,7 +171,7 @@ method handleNatStatus*(
 
       # We remove the announced records.
       # Eventually, it will we updated by the relay when it started
-      discovery.updateRecords(@[], udpPort = discoveryPort)
+      discovery.updateRecordsAndSpr(@[], udpPort = discoveryPort)
     else:
       debug "Node is not reachable trying port mapping now"
 
@@ -196,7 +196,7 @@ method handleNatStatus*(
         # The client mode will be updated on the next iteration of autonat.
         # Trying to check manually that the node is reachable is not trivial,
         # this is exactly what Autonat is for.
-        discovery.updateRecords(@[announceAddress], udpPort = udpPort)
+        discovery.updateRecordsAndSpr(@[announceAddress], udpPort = udpPort)
         hasPortMapping = true
       else:
         # In case of failure, close the port mapping in order to rerun discover

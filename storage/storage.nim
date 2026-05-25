@@ -107,13 +107,15 @@ proc start*(s: StorageServer) {.async.} =
     else:
       # Don't announce address and wait for AutoNat
       @[]
-  info "info ", addrs = $s.storageNode.switch.peerInfo.addrs[0]
+
   if not s.config.nat.hasExtIp:
     # Nodes with autonat start with client mode.
     # It will be updated if reachable.
     s.storageNode.discovery.protocol.clientMode = true
 
-  s.storageNode.discovery.updateRecords(announceAddrs, udpPort = s.config.discoveryPort)
+  s.storageNode.discovery.updateRecordsAndSpr(
+    announceAddrs, udpPort = s.config.discoveryPort
+  )
 
   await s.storageNode.start()
 

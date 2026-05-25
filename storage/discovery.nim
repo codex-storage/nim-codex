@@ -177,27 +177,10 @@ method removeProvider*(
     raiseAssert("Unexpected Exception in removeProvider")
 
 proc getSpr*(d: Discovery): ?SignedPeerRecord =
-  ## Combined TCP+UDP record for bootstrap use by connecting nodes.
-  without providerRecord =? d.providerRecord:
-    return none(SignedPeerRecord)
+  ## Returns the node's current Signed Peer Record as registered in the DHT.
+  some(d.protocol.getRecord())
 
-  without dhtRecord =? d.dhtRecord:
-    return none(SignedPeerRecord)
-
-  let tcpAddrs = providerRecord.data.addresses.mapIt(it.address)
-  let udpAddrs = dhtRecord.data.addresses.mapIt(it.address)
-
-  SignedPeerRecord
-    .init(d.key, PeerRecord.init(d.peerId, tcpAddrs & udpAddrs))
-    .expect("Should construct signed record").some
-
-proc updateSpr(d: Discovery) =
-  if not d.protocol.isNil:
-    let spr = d.getSpr()
-    if spr.isSome:
-      d.protocol.updateRecord(spr).expect("Should update SPR")
-
-proc updateRecords*(
+proc updateRecordsAndSpr*(
     d: Discovery, announceAddrs: openArray[MultiAddress], udpPort: Port
 ) =
   # UDP addresses are derived from TCP announce addresses by remapping protocol and port.
@@ -215,7 +198,11 @@ proc updateRecords*(
     .init(d.key, PeerRecord.init(d.peerId, udpAddrs))
     .expect("Should construct signed record").some
 
-  d.updateSpr()
+  if not d.protocol.isNil:
+    let spr = SignedPeerRecord
+      .init(d.key, PeerRecord.init(d.peerId, tcpAddrs & udpAddrs))
+      .expect("Should construct signed record").some
+    d.protocol.updateRecord(spr).expect("Should update SPR")
 
 proc updateAnnounceRecord*(d: Discovery, addrs: openArray[MultiAddress]) =
   # Updates announce addresses only, not the DHT routing record.
@@ -226,17 +213,13 @@ proc updateAnnounceRecord*(d: Discovery, addrs: openArray[MultiAddress]) =
     .init(d.key, PeerRecord.init(d.peerId, d.announceAddrs))
     .expect("Should construct signed record").some
 
-  d.updateSpr()
-
 proc updateDhtRecord*(
     d: Discovery, addrs: openArray[MultiAddress]
-) {.deprecated: "use updateRecords instead".} =
+) {.deprecated: "use updateRecordsAndSpr instead".} =
   info "Updating Dht record", addrs = addrs
   d.dhtRecord = SignedPeerRecord
     .init(d.key, PeerRecord.init(d.peerId, @addrs))
     .expect("Should construct signed record").some
-
-  d.updateSpr()
 
 proc start*(d: Discovery) {.async: (raises: []).} =
   try:
@@ -287,7 +270,9 @@ proc new*(
     key: key, peerId: PeerId.init(key).expect("Should construct PeerId"), store: store
   )
 
-  self.updateRecords(announceAddrs, udpPort = discoveryPort)
+  # Called even when announceAddrs is empty: newProtocol below requires
+  # providerRecord to be set, and it will be updated with real addresses in start().
+  self.updateRecordsAndSpr(announceAddrs, udpPort = discoveryPort)
 
   let discoveryConfig =
     DiscoveryConfig(tableIpLimits: tableIpLimits, bitsPerHop: DefaultBitsPerHop)
@@ -302,5 +287,8 @@ proc new*(
     providers = ProvidersManager.new(store),
     config = discoveryConfig,
   )
+
+  # Protocol now exists: call again so the SPR is synced into the protocol's local record.
+  self.updateRecordsAndSpr(announceAddrs, udpPort = discoveryPort)
 
   self
