@@ -489,10 +489,7 @@ proc initNodeApi(node: StorageNodeRef, conf: StorageConf, router: var RestRouter
     var headers = buildCorsHeaders("GET", allowedOrigin)
 
     try:
-      without spr =? node.discovery.getSpr():
-        return RestApiResponse.response(
-          "", status = Http503, contentType = "application/json", headers = headers
-        )
+      let spr = node.discovery.getSpr()
 
       if $preferredContentType().get() == "text/plain":
         return RestApiResponse.response(
@@ -586,7 +583,7 @@ proc initDebugApi(
         "id": $node.switch.peerInfo.peerId,
         "addrs": node.switch.peerInfo.addrs.mapIt($it),
         "repo": $conf.dataDir,
-        "spr": if nodeSpr.isSome: nodeSpr.get.toURI else: "",
+        "spr": nodeSpr.toURI,
         "announceAddresses": node.discovery.announceAddrs,
         "table": table,
         "storage": {"version": $storageVersion, "revision": $storageRevision},

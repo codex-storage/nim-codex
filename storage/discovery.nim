@@ -176,9 +176,9 @@ method removeProvider*(
     warn "Error removing provider", peerId = peerId, exc = exc.msg
     raiseAssert("Unexpected Exception in removeProvider")
 
-proc getSpr*(d: Discovery): ?SignedPeerRecord =
+proc getSpr*(d: Discovery): SignedPeerRecord =
   ## Returns the node's current Signed Peer Record as registered in the DHT.
-  some(d.protocol.getRecord())
+  d.protocol.getRecord()
 
 proc updateRecordsAndSpr*(
     d: Discovery, announceAddrs: openArray[MultiAddress], udpPort: Port
@@ -188,7 +188,7 @@ proc updateRecordsAndSpr*(
   let udpAddrs =
     tcpAddrs.mapIt(it.remapAddr(protocol = some("udp"), port = some(udpPort)))
 
-  debug "Updating addresses", tcpAddrs, udpAddrs
+  info "Updating announce and DHT records", tcpAddrs, udpAddrs
 
   d.announceAddrs = tcpAddrs
   d.providerRecord = SignedPeerRecord
@@ -279,8 +279,5 @@ proc new*(
     providers = ProvidersManager.new(store),
     config = discoveryConfig,
   )
-
-  # Protocol now exists: call again so the SPR is synced into the protocol's local record.
-  self.updateRecordsAndSpr(announceAddrs, udpPort = discoveryPort)
 
   self

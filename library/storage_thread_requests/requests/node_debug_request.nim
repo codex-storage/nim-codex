@@ -59,7 +59,7 @@ proc getDebug(
   let json = %*{
     "id": $node.switch.peerInfo.peerId,
     "addrs": node.switch.peerInfo.addrs.mapIt($it),
-    "spr": if nodeSpr.isSome: nodeSpr.get.toURI else: "",
+    "spr": nodeSpr.toURI,
     "announceAddresses": node.discovery.announceAddrs,
     "table": table,
     "nat": {

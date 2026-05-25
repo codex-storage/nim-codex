@@ -39,11 +39,7 @@ proc getRepo(
 proc getSpr(
     storage: ptr StorageServer
 ): Future[Result[string, string]] {.async: (raises: []).} =
-  let spr = storage[].node.discovery.getSpr()
-  if spr.isNone:
-    return err("Failed to get SPR: no SPR record found.")
-
-  return ok(spr.get.toURI)
+  return ok(storage[].node.discovery.getSpr().toURI)
 
 proc getPeerId(
     storage: ptr StorageServer
