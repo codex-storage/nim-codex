@@ -297,7 +297,7 @@ proc holePunchIfRelayed*(
   except DcutrError as err:
     debug "Hole punching failed during dcutr", description = err.msg
 
-proc setupHolePunching*(switch: Switch) =
+proc setupHolePunching*(switch: Switch): PeerEventHandler =
   try:
     switch.mount(Dcutr.new(switch))
   except LPError as err:
@@ -308,3 +308,4 @@ proc setupHolePunching*(switch: Switch) =
   ) {.async: (raises: [CancelledError]).} =
     await holePunchIfRelayed(switch, peerId)
   switch.addPeerEventHandler(handler, PeerEventKind.Joined)
+  handler

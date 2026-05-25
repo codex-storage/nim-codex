@@ -17,6 +17,7 @@ import pkg/chronos
 import pkg/taskpools
 import pkg/presto
 import pkg/libp2p
+import pkg/libp2p/connmanager
 import pkg/libp2p/protocols/connectivity/autonatv2/[service, client]
 import pkg/libp2p/protocols/connectivity/relay/client as relayClientModule
 import pkg/libp2p/protocols/connectivity/relay/relay as relayModule
@@ -60,6 +61,7 @@ type
     autoRelayService*: Option[AutoRelayService]
     natMapper*: Option[NatPortMapper]
     natRouter*: Option[NatRouter]
+    holePunchHandler: Option[connmanager.PeerEventHandler]
     isStarted: bool
 
   StoragePrivateKey* = libp2p.PrivateKey # alias
@@ -141,6 +143,11 @@ proc stop*(s: StorageServer) {.async.} =
 
   if s.natMapper.isSome:
     s.natMapper.get.close()
+
+  if s.holePunchHandler.isSome:
+    s.storageNode.switch.removePeerEventHandler(
+      s.holePunchHandler.get, PeerEventKind.Joined
+    )
 
   var futures = @[
     s.storageNode.switch.stop(),
@@ -412,6 +419,7 @@ proc new*(
   # NAT services
   var natMapper: Option[NatPortMapper]
   var autoRelayService: Option[AutoRelayService]
+  var holePunchHandler: Option[connmanager.PeerEventHandler]
 
   if autonatService.isSome:
     let relayService = AutoRelayService.new(
@@ -453,7 +461,7 @@ proc new*(
         )
     )
 
-    setupHolePunching(switch)
+    holePunchHandler = some(setupHolePunching(switch))
 
   # REST server
   var restServer: RestServerRef = nil
@@ -483,4 +491,5 @@ proc new*(
     autoRelayService: autoRelayService,
     natMapper: natMapper,
     natRouter: natRouter,
+    holePunchHandler: holePunchHandler,
   )
