@@ -50,7 +50,9 @@ proc setFiltering*(r: NatRouter, filtering: FilteringBehavior) =
 proc allowInbound(r: NatRouter, remote: TransportAddress, localPort: Port): bool =
   case r.filtering
   of DoubleNat:
-    return false # always blocks: simulates a scenario where inbound connections are never possible
+    return
+      false
+        # always blocks: simulates a scenario where inbound connections are never possible
   of EndpointIndependent:
     return true
   else:
