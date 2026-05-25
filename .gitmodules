@@ -193,4 +193,4 @@
 	branch = main
 [submodule "vendor/nim-libplum"]
 	path = vendor/nim-libplum
-	url = git@github.com:2-towns/nim-libplum.git
+	url = https://github.com/2-towns/nim-libplum.git
