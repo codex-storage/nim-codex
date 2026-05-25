@@ -45,17 +45,21 @@ EOF
   echo "miniupnpd started (pid $MINIUPNPD_PID)"
 }
 
+export DEBUG=${DEBUG:-0}
+
 if [[ "${TEST_PCP:-0}" == "1" ]]; then
   # PCP requires the UDP source IP to match the client_address in the MAP request.
   # Point the default route at LAN_IP so libplum uses it as both gateway and PCP target.
   ip route replace default via "$LAN_IP" dev "$LAN_IF"
   start_miniupnpd yes
   failed=0
-  DEBUG=${DEBUG:-0} /app/build/testIntegrationNatPcp || failed=1
+  USE_SYSTEM_NIM=1 vendor/nimbus-build-system/scripts/env.sh \
+    nim testNatPcpMapping -d:debug -d:disable_libbacktrace build.nims || failed=1
 else
   start_miniupnpd no
   failed=0
-  DEBUG=${DEBUG:-0} /app/build/testIntegrationNat || failed=1
+  USE_SYSTEM_NIM=1 vendor/nimbus-build-system/scripts/env.sh \
+    nim testNatPortMapping -d:debug -d:disable_libbacktrace build.nims || failed=1
 fi
 
 if [[ "${DEBUG:-0}" == "1" ]]; then

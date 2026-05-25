@@ -92,16 +92,6 @@ task testNatPcpMapping, "Run PCP NAT integration test (requires miniupnpd contai
   putEnv("STORAGE_INTEGRATION_TEST_INCLUDES", "nat/testnatpcp.nim")
   test "testIntegration", outName = "testIntegrationNatPcp"
 
-# Used to build the testing binaries in Docker
-task buildNatPortMappingBinaries, "Build UPnP and PCP NAT test binaries without running them":
-  buildBinary "storage",
-    outName = "storage",
-    params = "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE"
-  putEnv("STORAGE_INTEGRATION_TEST_INCLUDES", "nat/testnatupnp.nim")
-  buildBinary "testIntegration", outName = "testIntegrationNat", srcDir = "tests/"
-  putEnv("STORAGE_INTEGRATION_TEST_INCLUDES", "nat/testnatpcp.nim")
-  buildBinary "testIntegration", outName = "testIntegrationNatPcp", srcDir = "tests/"
-
 task build, "build Logos Storage binary":
   storageTask()
 

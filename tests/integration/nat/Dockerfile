@@ -38,10 +38,9 @@ COPY library/ library/
 COPY tests/ tests/
 COPY build.nims config.nims storage.nim ./
 
-# Build libplum C library and Nim binaries.
-# ccache caches C compilation across builds; nimcache caches Nim's generated C files.
+# Build libplum C library. Nim binaries are compiled at test runtime.
+# ccache caches C compilation across builds.
 RUN --mount=type=cache,target=/root/.ccache \
-    --mount=type=cache,target=/app/nimcache \
     export PATH="/usr/lib/ccache:$PATH" && \
     rm -rf vendor/nim-libplum/vendor/libplum/build && \
     cmake -B vendor/nim-libplum/vendor/libplum/build \
@@ -49,9 +48,7 @@ RUN --mount=type=cache,target=/root/.ccache \
         vendor/nim-libplum/vendor/libplum && \
     make -j$(nproc) -C vendor/nim-libplum/vendor/libplum/build && \
     cp vendor/nim-libplum/vendor/libplum/build/libplum.a \
-        vendor/nim-libplum/vendor/libplum/libplum.a && \
-    USE_SYSTEM_NIM=1 vendor/nimbus-build-system/scripts/env.sh \
-    nim buildNatPortMappingBinaries -d:debug -d:disable_libbacktrace build.nims
+        vendor/nim-libplum/vendor/libplum/libplum.a
 
 COPY tests/integration/nat/docker-entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
