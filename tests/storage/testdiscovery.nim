@@ -1,4 +1,4 @@
-import std/[net, options, sequtils]
+import std/[net, sequtils]
 import pkg/libp2p/[multiaddress, routing_record]
 
 import ../asynctest
@@ -27,8 +27,7 @@ suite "Discovery - SPR record logic":
     disc.updateRecordsAndSpr(@[directAddr], udpPort)
 
     let spr = disc.getSpr()
-    check spr.isSome
-    let addrs = spr.get.data.addresses.mapIt($it.address)
+    let addrs = spr.data.addresses.mapIt($it.address)
     check addrs.anyIt(it.contains("/tcp/"))
     check addrs.anyIt(it.contains("/udp/"))
 

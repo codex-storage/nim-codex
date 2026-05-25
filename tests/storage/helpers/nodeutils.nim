@@ -227,8 +227,7 @@ proc generateNodes*(
           blockDiscovery.updateRecordsAndSpr(
             switch.peerInfo.addrs, udpPort = bindPort.Port
           )
-          if blockDiscovery.getSpr().isSome:
-            bootstrapNodes.add !blockDiscovery.getSpr()
+          bootstrapNodes.add blockDiscovery.getSpr()
 
         fullNode
       else:

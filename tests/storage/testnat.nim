@@ -112,7 +112,7 @@ asyncchecksuite "NAT - handleNatStatus":
 asyncchecksuite "NAT - Hole punching":
   test "setupHolePunching mounts the dcutr protocol on the switch":
     let sw = newStandardSwitch()
-    setupHolePunching(sw)
+    discard setupHolePunching(sw)
     check sw.ms.handlers.anyIt(dcutrCore.DcutrCodec in it.protos)
 
   test "holePunchIfRelayed returns early when the peer has no connections":

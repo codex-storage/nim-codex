@@ -262,15 +262,6 @@ proc hasBlockRaw*(
   let url = client.baseurl & "/data/" & cid & "/exists"
   return client.get(url)
 
-proc connectPeer*(
-    client: StorageClient, peerId: string, addrs: seq[string]
-): Future[void] {.async: (raises: [CancelledError, HttpError]).} =
-  var url = client.baseurl & "/connect/" & peerId
-  if addrs.len > 0:
-    url &= "?" & addrs.mapIt("addrs=" & it).join("&")
-  let response = await client.get(url)
-  assert response.status == 200
-
 proc natRelayRunning*(
     client: StorageClient
 ): Future[?!bool] {.async: (raises: [CancelledError, HttpError]).} =
