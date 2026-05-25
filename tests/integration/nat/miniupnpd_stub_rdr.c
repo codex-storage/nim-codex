@@ -1,6 +1,13 @@
-/* Stub firewall backend for miniupnpd.
- * Replaces iptcrdr.o + iptpinhole.o + nfct_get.o.
- * All mapping operations succeed without touching the kernel. */
+/* Stub firewall backend for miniupnpd used in Docker-based tests.
+ *
+ * miniupnpd normally calls iptables/nftables to install port forwarding rules
+ * when it processes a UPnP/PCP/NAT-PMP mapping request. In a Docker container
+ * those calls fail because the container lacks the required kernel capabilities,
+ * causing every mapping request to return an error to the client.
+ *
+ * This file replaces iptcrdr.o + iptpinhole.o + nfct_get.o with no-ops that
+ * always return success, so miniupnpd responds correctly to mapping requests
+ * without touching the kernel. */
 
 #include <stdint.h>
 #include <sys/socket.h>
