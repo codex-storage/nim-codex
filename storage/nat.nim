@@ -163,6 +163,7 @@ method handleNatStatus*(
       warn "Got empty dialback address in AutoNat when node is NotReachable"
       if m.tcpMappingId.isSome and m.udpMappingId.isSome:
         m.close()
+        discovery.updateRecordsAndSpr(@[], udpPort = discoveryPort)
     elif m.tcpMappingId.isSome and m.udpMappingId.isSome:
       warn "Not Reachable with active port mapping. The port mapping will be deleted and relay will start."
 
