@@ -332,12 +332,13 @@ proc withRelay*(
   startConfig.configs[idx].addCliOption("--relay-server")
   return startConfig
 
-# For testing, a node with extip (not behind nat) is a bootstrap node
+# For testing, a node with extip (not behind nat) with autonat server
+# enabled is a bootstrap node
 proc isBootstrapNode*(config: StorageConfig): bool {.raises: [].} =
   let opts = config.cliOptions.getOrDefault(StartUpCmd.noCmd)
 
   try:
-    if "--nat" in opts and "extip" in opts["--nat"].value:
+    if "--nat" in opts and "extip" in opts["--nat"].value and "--autonat-server" in opts:
       return true
   except KeyError:
     warn "Failed to look at the extip config"

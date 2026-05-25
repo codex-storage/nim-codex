@@ -12,7 +12,10 @@ export multinodes
 template twonodessuite*(name: string, body: untyped) =
   multinodesuite name:
     let twoNodesConfig {.inject, used.} =
-      NodeConfigs(clients: StorageConfigs.init(nodes = 2).withExtIp(1).some)
+      # Disable Autonat for this suite
+      NodeConfigs(
+        clients: StorageConfigs.init(nodes = 2).withExtIp(1).withAutonatServer(0).some
+      )
 
     var node1 {.inject, used.}: StorageProcess
     var node2 {.inject, used.}: StorageProcess
