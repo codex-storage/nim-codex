@@ -213,14 +213,6 @@ proc updateAnnounceRecord*(d: Discovery, addrs: openArray[MultiAddress]) =
     .init(d.key, PeerRecord.init(d.peerId, d.announceAddrs))
     .expect("Should construct signed record").some
 
-proc updateDhtRecord*(
-    d: Discovery, addrs: openArray[MultiAddress]
-) {.deprecated: "use updateRecordsAndSpr instead".} =
-  info "Updating Dht record", addrs = addrs
-  d.dhtRecord = SignedPeerRecord
-    .init(d.key, PeerRecord.init(d.peerId, @addrs))
-    .expect("Should construct signed record").some
-
 proc start*(d: Discovery) {.async: (raises: []).} =
   try:
     d.protocol.open()

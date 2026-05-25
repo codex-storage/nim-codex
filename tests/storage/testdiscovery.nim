@@ -39,12 +39,3 @@ suite "Discovery - SPR record logic":
     disc.updateAnnounceRecord(@[relayAddr])
 
     check disc.getSpr() == sprBefore
-
-  test "updateDhtRecord deprecated does not update the SPR":
-    disc.updateRecordsAndSpr(@[directAddr], udpPort)
-    let sprBefore = disc.getSpr()
-
-    let otherUdpAddr = MultiAddress.init("/ip4/9.9.9.9/udp/9999").expect("valid")
-    disc.updateDhtRecord(@[otherUdpAddr])
-
-    check disc.getSpr() == sprBefore

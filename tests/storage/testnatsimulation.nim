@@ -55,7 +55,7 @@ asyncchecksuite "NatTransport - Address-Dependent Filtering":
   var bootstrap, thirdNode, natNode: Switch
 
   setup:
-    let router = NatRouter.new(AddressDependent, dropTimeout = 1.seconds)
+    let router = NatRouter.new(AddressDependent)
     bootstrap = newSwitch(Rng.instance())
     thirdNode = newSwitch(Rng.instance())
     natNode = newNatSwitch(router, Rng.instance())
@@ -88,7 +88,7 @@ asyncchecksuite "NatTransport - Address-and-Port-Dependent Filtering":
   var bootstrap, thirdNode, natNode: Switch
 
   setup:
-    let router = NatRouter.new(AddressAndPortDependent, dropTimeout = 1.seconds)
+    let router = NatRouter.new(AddressAndPortDependent)
     bootstrap = newSwitch(Rng.instance())
     thirdNode = newSwitch(Rng.instance())
     natNode = newNatSwitch(router, Rng.instance())
@@ -122,7 +122,7 @@ asyncchecksuite "NatTransport - Double NAT":
   var router: NatRouter
 
   setup:
-    router = NatRouter.new(DoubleNat, dropTimeout = 1.seconds)
+    router = NatRouter.new(DoubleNat)
     bootstrap = newSwitch(Rng.instance())
     natNode = newNatSwitch(router, Rng.instance())
     await bootstrap.start()
@@ -146,7 +146,7 @@ asyncchecksuite "NatTransport - Port Mapping":
   var router: NatRouter
 
   setup:
-    router = NatRouter.new(AddressAndPortDependent, dropTimeout = 1.seconds)
+    router = NatRouter.new(AddressAndPortDependent)
     bootstrap = newSwitch(Rng.instance())
     natNode = newNatSwitch(router, Rng.instance())
     await bootstrap.start()
