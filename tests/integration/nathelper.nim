@@ -10,6 +10,7 @@ import ./storageconfig
 const
   RelayTimeout* = 30_000
   PollInterval* = 1_000
+  NatScheduleInterval* = 5.seconds
 
 proc checkNatStatus*(
     client: StorageClient, reachability: string, relayRunning: bool, clientMode: bool
@@ -43,6 +44,8 @@ proc checkNatStatus*(
 proc checkReachable*(client: StorageClient) {.async.} =
   await client.checkNatStatus("Reachable", relayRunning = false, clientMode = false)
 
+# Relay might be false when the mapping has been created for UPnP / TCP but
+# Autonat didn't detect yet Reachable
 proc checkNotReachable*(client: StorageClient, relayRunning = true) {.async.} =
   await client.checkNatStatus(
     "NotReachable", relayRunning = relayRunning, clientMode = true

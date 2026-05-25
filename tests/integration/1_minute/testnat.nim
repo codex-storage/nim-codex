@@ -19,7 +19,7 @@ multinodesuite "AutoNAT detection":
       .withRelay(0)
       .withNatNumPeersToAsk(1)
       .withNatMinConfidence(0.5)
-      .withNatScheduleInterval(10.seconds)
+      .withNatScheduleInterval(NatScheduleInterval)
       .withNatMaxQueueSize(1).some
   )
   test "node is reachable when using bootstrap node on same network", natConfig:
@@ -33,7 +33,7 @@ multinodesuite "AutoNAT detection":
       .withNatSimulation(idx = 1, "endpoint-independent")
       .withNatNumPeersToAsk(1)
       .withNatMinConfidence(0.5)
-      .withNatScheduleInterval(10.seconds)
+      .withNatScheduleInterval(NatScheduleInterval)
       .withNatMaxQueueSize(1).some
   )
   # EIF = Endpoint Independent Filtering
@@ -48,7 +48,7 @@ multinodesuite "AutoNAT detection":
       .withNatSimulation(idx = 1, "address-and-port-dependent")
       .withNatNumPeersToAsk(1)
       .withNatMinConfidence(0.5)
-      .withNatScheduleInterval(10.seconds)
+      .withNatScheduleInterval(NatScheduleInterval)
       .withNatMaxQueueSize(1).some
   )
   # APDF = Address and Port-Dependent Filtering
@@ -64,7 +64,7 @@ multinodesuite "AutoNAT detection":
       .withNatSimulation(idx = 1, "address-and-port-dependent")
       .withNatNumPeersToAsk(1)
       .withNatMinConfidence(0.5)
-      .withNatScheduleInterval(5.seconds)
+      .withNatScheduleInterval(NatScheduleInterval)
       .withNatMaxQueueSize(1).some
   )
   # APDF = Address and Port-Dependent Filtering
@@ -74,9 +74,7 @@ multinodesuite "AutoNAT detection":
     let node2 = clients()[1]
 
     await node2.client.checkNotReachable()
-
     check (await node2.client.setNatFiltering("endpoint-independent")).isOk
-
     await node2.client.checkReachable()
 
   let natToSimConfig = NodeConfigs(
@@ -86,7 +84,7 @@ multinodesuite "AutoNAT detection":
       .withNatSimulation(idx = 1, "endpoint-independent")
       .withNatNumPeersToAsk(1)
       .withNatMinConfidence(0.5)
-      .withNatScheduleInterval(5.seconds)
+      .withNatScheduleInterval(NatScheduleInterval)
       .withNatMaxQueueSize(1).some
   )
   # APDF = Address and Port-Dependent Filtering
@@ -95,9 +93,7 @@ multinodesuite "AutoNAT detection":
     let node2 = clients()[1]
 
     await node2.client.checkReachable()
-
     check (await node2.client.setNatFiltering("address-and-port-dependent")).isOk
-
     await node2.client.checkNotReachable()
 
   let doubleNatConfig = NodeConfigs(
@@ -107,7 +103,7 @@ multinodesuite "AutoNAT detection":
       .withNatSimulation(idx = 1, "double-nat")
       .withNatNumPeersToAsk(1)
       .withNatMinConfidence(0.5)
-      .withNatScheduleInterval(5.seconds)
+      .withNatScheduleInterval(NatScheduleInterval)
       .withNatMaxQueueSize(1).some
   )
   test "node behind double NAT is detected as not reachable and starts relay",
@@ -123,7 +119,7 @@ multinodesuite "AutoNAT detection":
       .withNatSimulation(idx = 2, "address-and-port-dependent")
       .withNatNumPeersToAsk(1)
       .withNatMinConfidence(0.5)
-      .withNatScheduleInterval(5.seconds)
+      .withNatScheduleInterval(NatScheduleInterval)
       .withNatMaxQueueSize(1).some
   )
   # APDF = Address and Port-Dependent Filtering

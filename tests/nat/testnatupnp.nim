@@ -16,7 +16,7 @@ multinodesuite "AutoNAT UPnP port mapping":
       .withNatSimulation(idx = 1, "address-and-port-dependent")
       .withNatNumPeersToAsk(1)
       .withNatMinConfidence(0.5)
-      .withNatScheduleInterval(10.seconds)
+      .withNatScheduleInterval(NatScheduleInterval)
       .withNatMaxQueueSize(1).some
   )
 
@@ -45,7 +45,7 @@ multinodesuite "AutoNAT UPnP port mapping":
       .withNatSimulation(idx = 1, "double-nat")
       .withNatNumPeersToAsk(1)
       .withNatMinConfidence(0.5)
-      .withNatScheduleInterval(10.seconds)
+      .withNatScheduleInterval(NatScheduleInterval)
       # Increase the max queue to trigger the AutoNat 2 times
       .withNatMaxQueueSize(2).some
   )
@@ -63,6 +63,9 @@ multinodesuite "AutoNAT UPnP port mapping":
       timeout = RelayTimeout,
       pollInterval = PollInterval,
     )
+
+    # Wait for next Autonat iteration
+    await sleepAsync(6.seconds)
 
     await node2.client.checkNotReachable()
 
