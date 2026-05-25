@@ -87,6 +87,10 @@ proc start*(s: StorageServer) {.async.} =
 
   await s.storageNode.switch.start()
 
+  # When listenPort is 0 the OS assigns a random port at bind time.
+  # We read it back here so the natMapper can create a port mapping for the
+  # actual port. The switch is configured with a single listen address so
+  # there is at most one TCP port.
   if s.natMapper.isSome and s.config.listenPort == Port(0):
     for listenAddr in s.storageNode.switch.peerInfo.listenAddrs:
       let maybePort = getTcpPort(listenAddr)
@@ -94,33 +98,35 @@ proc start*(s: StorageServer) {.async.} =
         s.natMapper.get.tcpPort = maybePort.get
         break
 
-  let announceAddrs =
-    if s.config.nat.hasExtIp:
-      # extip means that we assume the IP is reachable
-      # So we just take the first peer addr and remap it with extip to keep the port only
-      if s.storageNode.switch.peerInfo.addrs.len == 0:
-        raise
-          newException(StorageError, "extip is set but switch has no listen addresses")
-      @[
-        s.storageNode.switch.peerInfo.addrs[0].remapAddr(
-          ip = some(s.config.nat.extIp), port = none(Port)
-        )
-      ]
-    else:
-      # Don't announce address and wait for AutoNat
-      @[]
+  # The addresses are announced during the start process
+  # only with extIp because they should be Reachable.
+  # For other nodes, wait for AutoNat to announce addresses and update SPR.
+  if s.config.nat.hasExtIp:
+    if s.storageNode.switch.peerInfo.addrs.len == 0:
+      raise
+        newException(StorageError, "extip is set but switch has no listen addresses")
 
-  if not s.config.nat.hasExtIp:
-    # Nodes with autonat start with client mode.
+    # extip means that we assume the IP is reachable
+    # So we just take the first peer addr and remap it with extip to keep the port only
+    let announceAddresses = @[
+      s.storageNode.switch.peerInfo.addrs[0].remapAddr(
+        ip = some(s.config.nat.extIp), port = none(Port)
+      )
+    ]
+    s.storageNode.discovery.updateRecordsAndSpr(
+      announceAddresses, udpPort = s.config.discoveryPort
+    )
+  else:
+    # Other nodes wait for Autonat to announce addresses and update SPR.
+    # Nodes with autonat start with client mode in order to
+    # not pollute DHT tables with NotReachable records.
     # It will be updated if reachable.
     s.storageNode.discovery.protocol.clientMode = true
 
-  s.storageNode.discovery.updateRecordsAndSpr(
-    announceAddrs, udpPort = s.config.discoveryPort
-  )
-
   await s.storageNode.start()
 
+  # Connect to the bootstrap nodes in order to have connected peers
+  # for Autonat.
   for spr in findReachableNodes(s.config.bootstrapNodes):
     try:
       let addrs = spr.data.addresses.mapIt(it.address)
@@ -218,13 +224,17 @@ proc new*(
 ): StorageServer =
   ## create StorageServer including setting up datastore, repostore, etc
 
-  # Guards
+  # Ensure that you can run an autonat server if the node is Reachable, assumed
+  # with extIp.
+  # In other words, a node cannot have autonat server AND autonat client.
+  # Currently, only bootstrap node should be autonat server.
   if config.autonatServer and not config.nat.hasExtIp:
     raise newException(StorageError, "--autonat-server requires --extip")
 
-  if config.isRelayServer and not config.autonatServer:
-    raise
-      newException(StorageError, "--relay-server is not compatible with autonat client")
+  # Same for relay server. The node has to be Reachable, assumed by extIp
+  # but not is the node runs Autonat.
+  if config.isRelayServer and not config.nat.hasExtIp:
+    raise newException(StorageError, "--relay-server requires --extip")
 
   # Switch
   let listenMultiAddr = getMultiAddrWithIpAndTcpPort(config.listenIp, config.listenPort)
@@ -267,8 +277,6 @@ proc new*(
         minConfidence = config.natMinConfidence,
       )
     )
-  else:
-    info "AutoNAT disabled (extip configured)"
 
   var natRouter: Option[NatRouter]
   let switch =
@@ -292,7 +300,7 @@ proc new*(
   switch.mount(autonatClient)
 
   let autonatService: Option[AutonatV2Service] =
-    if switchBuilder.autonatV2Service.isSome:
+    if not config.autonatServer and switchBuilder.autonatV2Service.isSome:
       some(switchBuilder.autonatV2Service.value)
     else:
       none(AutonatV2Service)
@@ -445,6 +453,7 @@ proc new*(
       )
     )
 
+    # natRouter is some only when using nat simulation
     if natRouter.isSome:
       natRouter.get.natMapper = natMapper
 
