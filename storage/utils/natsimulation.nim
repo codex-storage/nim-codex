@@ -138,8 +138,9 @@ method accept*(
       continue
 
     var localPort = Port(0)
-    if self.addrs.len > 0:
-      let localAddr = initTAddress(self.addrs[0])
+    if conn.localAddr.isSome:
+      # Local address read from the accepted socket.
+      let localAddr = initTAddress(conn.localAddr.get)
       if localAddr.isOk:
         localPort = localAddr.get.port
 

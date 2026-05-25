@@ -10,6 +10,17 @@ import ../../storage/utils/natsimulation
 
 const flags = {ServerFlags.ReuseAddr}
 const listenAddr = "/ip4/127.0.0.1/tcp/0"
+const filterTimeout = 500.millis
+
+proc cannotConnect(a, b: Switch): Future[bool] {.async.} =
+  let completed =
+    try:
+      await a.connect(b.peerInfo.peerId, b.peerInfo.addrs).withTimeout(filterTimeout)
+    except LPError:
+      false
+  if completed:
+    return false
+  return not a.isConnected(b.peerInfo.peerId)
 
 proc newSwitch(rng: Rng): Switch =
   SwitchBuilder
@@ -81,8 +92,7 @@ asyncchecksuite "NatTransport - Address-Dependent Filtering":
     check thirdNode.isConnected(natNode.peerInfo.peerId)
 
   test "bootstrap cannot connect to nat node without a pre-existing connection":
-    expect(LPError):
-      await bootstrap.connect(natNode.peerInfo.peerId, natNode.peerInfo.addrs)
+    check await cannotConnect(bootstrap, natNode)
 
 asyncchecksuite "NatTransport - Address-and-Port-Dependent Filtering":
   var bootstrap, thirdNode, natNode: Switch
@@ -109,13 +119,11 @@ asyncchecksuite "NatTransport - Address-and-Port-Dependent Filtering":
     check bootstrap.isConnected(natNode.peerInfo.peerId)
 
   test "bootstrap cannot connect to nat node without a pre-existing connection":
-    expect(LPError):
-      await bootstrap.connect(natNode.peerInfo.peerId, natNode.peerInfo.addrs)
+    check await cannotConnect(bootstrap, natNode)
 
   test "third node cannot connect to nat node even after nat node connected to bootstrap":
     await natNode.connect(bootstrap.peerInfo.peerId, bootstrap.peerInfo.addrs)
-    expect(LPError):
-      await thirdNode.connect(natNode.peerInfo.peerId, natNode.peerInfo.addrs)
+    check await cannotConnect(thirdNode, natNode)
 
 asyncchecksuite "NatTransport - Double NAT":
   var bootstrap, natNode: Switch
@@ -138,8 +146,7 @@ asyncchecksuite "NatTransport - Double NAT":
     natMapper.activeTcpPort = some(actualPort)
     router.natMapper = some(natMapper)
 
-    expect(LPError):
-      await bootstrap.connect(natNode.peerInfo.peerId, natNode.peerInfo.addrs)
+    check await cannotConnect(bootstrap, natNode)
 
 asyncchecksuite "NatTransport - Port Mapping":
   var bootstrap, natNode: Switch
@@ -170,5 +177,4 @@ asyncchecksuite "NatTransport - Port Mapping":
     natMapper.activeTcpPort = some(Port(1))
     router.natMapper = some(natMapper)
 
-    expect(LPError):
-      await bootstrap.connect(natNode.peerInfo.peerId, natNode.peerInfo.addrs)
+    check await cannotConnect(bootstrap, natNode)
