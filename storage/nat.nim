@@ -144,6 +144,8 @@ method handleNatStatus*(
   of Reachable:
     if dialBackAddr.isNone:
       warn "Got empty dialback address in AutoNat when node is Reachable"
+      # Reachable but no address to announce: incomplete information, do nothing
+      # and wait for the next AutoNAT cycle.
       return
 
     if autoRelayService.isRunning:
@@ -152,8 +154,8 @@ method handleNatStatus*(
       else:
         debug "AutoRelayService stopped"
 
-    discovery.updateRecordsAndSpr(@[dialBackAddr.get], udpPort = discoveryPort)
     discovery.protocol.clientMode = false
+    discovery.updateRecordsAndSpr(@[dialBackAddr.get], udpPort = discoveryPort)
   of NotReachable:
     var hasPortMapping = false
 
