@@ -54,6 +54,30 @@ proc `bootstrapNodes`*(self: NetworkPreset): seq[SignedPeerRecord] =
 
 const NetworkPresets* = [
   NetworkPreset.init(
+    "logos.test",
+    "Logos testnet",
+    @[
+      "spr:CiUIAhIhA6rD-Sa1mJqHOoYMk8yad7B4BYDEI_toNwb1z0cYIRu6EgIDARpJCicAJQgCEiEDqsP5JrWYmoc6hgyT" &
+        "zJp3sHgFgMQj-2g3BvXPRxghG7oQwoe70AYaCwoJBEDhQ42RAiOCGgsKCQRA4UONkQIjgipHMEUCIQCulmrBDKTTxL" &
+        "8uBQYtEfp3_n3qDZFbO8lZ8mfIWHrRBAIgNXpVlWD1VlXzbGuJ4t7u8b7ymm3AYwm6-KjUvH6NfKU",
+      "spr:CiUIAhIhAsFwlXD-3VpX-Pa3taM15wdL3DS75l_dpVCIFhdaIKYREgIDARpJCicAJQgCEiECwXCVcP7dWlf49re1" &
+        "ozXnB0vcNLvmX92lUIgWF1ogphEQ4Ym70AYaCwoJBI5d6vqRAiOCGgsKCQSOXer6kQIjgipGMEQCIGaofSX23DDUcW" &
+        "EMElHtlaFbLAsM0YgrMB4UwOIqPMb8AiBFRodJ_5-bkvoLuPo3K2nMGzKXZqXnII4poJhhopSo8A",
+      "spr:CiUIAhIhAwSYqf83tfZom9eGFFdXXea-dblO-I7-I8B1kjhfJeEAEgIDARpJCicAJQgCEiEDBJip_ze19mib14YU" &
+        "V1dd5r51uU74jv4jwHWSOF8l4QAQjoi70AYaCwoJBAqAABKRAiOCGgsKCQQKgAASkQIjgipHMEUCIQDEtfOFABgYo" &
+        "sMflQ-d_v-qkc5FhwSwd_PTcA414MBYAAIgGbhCTAwbSJr5boiARoVFZ-XrBhfFBc_J5Kk5drdQoTE",
+      "spr:CiUIAhIhA4T8XrxB6PKor8f7j7eqKxgIXH6mMST0_Uel5hZjSDp2EgIDARpJCicAJQgCEiEDhPxevEHo8qivx_uP" &
+        "t6orGAhcfqYxJPT9R6XmFmNIOnYQrYq70AYaCwoJBAqAAFuRAiOCGgsKCQQKgABbkQIjgipGMEQCIHA1l1NTOh06ca9s" &
+        "eLlmAtPsTiNJo9Re0s51WakQTTf1AiAFJkhsi2Qv0fq8hY3AWlibqhhh_WiI3q6QabPGVXzuAA",
+      "spr:CiUIAhIhAqk6NgpRxbKvI02Up24XP3U-dD3TdKRurXpW-ak3Zvh-EgIDARpJCicAJQgCEiECqTo2ClHFsq8jTZSn" &
+        "bhc_dT50PdN0pG6telb5qTdm-H4Q3oa70AYaCwoJBKwf79KRAiOCGgsKCQSsH-_SkQIjgipHMEUCIQCRubKOjNcLZEJu" &
+        "t0Ts6wy_BEij4z-1WO6WiOVzT0svfQIgWKOBWVoopNC7zk1byUJMpNMOi05cKVsLoCBkW3RC9-Q",
+      "spr:CiUIAhIhAvSGKPkE3mD7MP-ZCWS5AEvzcDNVsM6XFYeCBXNja7h2EgIDARpJCicAJQgCEiEC9IYo-QTeYPsw_5kJ" &
+        "ZLkAS_NwM1WwzpcVh4IFc2NruHYQ_Yi70AYaCwoJBKwf79ORAiOCGgsKCQSsH-_TkQIjgipHMEUCIQDJuV1B1sDyyx" &
+        "kNs8g3ahZ13GN9r7PEBP7xY4xGlm5n0AIgdyY2JEOyZ1FMdOzN6aZbAWo83AyjCrR-n0sietE1624",
+    ],
+  ),
+  NetworkPreset.init(
     "logos.dev",
     "Logos devnet",
     @[
