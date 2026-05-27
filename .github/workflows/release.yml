@@ -324,11 +324,12 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "[Logs for entire run]($URL)" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Filter: \`labels.\"k8s-pod/runid\"=\"${RUNID}\"\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "Note: To see the runner logs, add filter `resource.labels.container_name="runner"`" >> "$GITHUB_STEP_SUMMARY"
+          echo "> [!TIP]" >> "$GITHUB_STEP_SUMMARY"
+          echo "> To see the runner logs, add filter \`resource.labels.container_name=\"runner\"\` or use the filters on the left-side panel" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           LOG_RETENTION_DATE=$(date -u -d "${JOB_START_TIME} + 30 days" +"%Y-%m-%dT%H:%M:%SZ")
-          echo "Note: Logs are retained until ${LOG_RETENTION_DATE} (30 days)" >> "$GITHUB_STEP_SUMMARY"
+          echo "> [!IMPORTANT]" >> "$GITHUB_STEP_SUMMARY"
+          echo "> Logs are retained until ${LOG_RETENTION_DATE} UTC (30 days)" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Wait for runner pod to start
         run: |
