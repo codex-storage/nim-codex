@@ -335,6 +335,14 @@ type
       name: "nat-min-confidence"
     .}: float
 
+    natObservedAddrMinCount* {.
+      desc:
+        "Number of identify observations of the same external address required " &
+        "before it is used as the node's dialable address",
+      defaultValue: 1,
+      name: "nat-observed-addr-min-count"
+    .}: int
+
     natMaxRelays* {.
       desc: "Maximum number of relay servers to reserve slots on simultaneously",
       defaultValue: 2,

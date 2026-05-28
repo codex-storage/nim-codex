@@ -42,6 +42,7 @@ import ./namespaces
 import ./storagetypes
 import ./logutils
 import ./nat
+import ./utils/natutils
 import ./utils/natsimulation
 
 logScope:
@@ -106,8 +107,8 @@ proc start*(s: StorageServer) {.async.} =
       raise
         newException(StorageError, "extip is set but switch has no listen addresses")
 
-    # extip means that we assume the IP is reachable
-    # So we just take the first peer addr and remap it with extip to keep the port only
+    # extip means that we assume the IP is reachable.
+    # So we just take the first peer addr and remap it with extip to keep the port only.
     let announceAddresses = @[
       s.storageNode.switch.peerInfo.addrs[0].remapAddr(
         ip = some(s.config.nat.extIp), port = none(Port)
@@ -117,10 +118,9 @@ proc start*(s: StorageServer) {.async.} =
       announceAddresses, udpPort = s.config.discoveryPort
     )
   else:
-    # Other nodes wait for Autonat to announce addresses and update SPR.
-    # Nodes with autonat start with client mode in order to
-    # not pollute DHT tables with NotReachable records.
-    # It will be updated if reachable.
+    # Other nodes wait for AutoNAT to announce addresses and update SPR.
+    # They start in client mode to avoid polluting DHT with NotReachable records;
+    # it will be flipped off once AutoNAT confirms reachability.
     s.storageNode.discovery.protocol.clientMode = true
 
   await s.storageNode.start()
@@ -132,6 +132,7 @@ proc start*(s: StorageServer) {.async.} =
       s.config.bootstrapNodes
     else:
       s.config.network.bootstrapNodes
+
   for spr in findReachableNodes(bootstrapNodes):
     try:
       let addrs = spr.data.addresses.mapIt(it.address)
@@ -139,6 +140,16 @@ proc start*(s: StorageServer) {.async.} =
     except CatchableError as e:
       warn "Cannot connect to bootstrap node", error = e.msg
       discard
+
+  # Refresh peerInfo.addrs so the observed address collected during the
+  # bootstrap Identify exchange is applied to peerInfo via the address mapper
+  # before AutoNAT issues its first DialRequest. AutonatV2Service hooks on the
+  # Joined event which fires before Identify completes, so the very first
+  # askPeer captures stale (private) addrs; we re-run it manually here with the
+  # now-updated peerInfo to avoid waiting a full scheduleInterval.
+  await s.storageNode.switch.peerInfo.update()
+  if s.autonatService.isSome:
+    await s.autonatService.get.run(s.storageNode.switch)
 
   if s.restServer != nil:
     s.restServer.start()
@@ -234,12 +245,10 @@ proc new*(
   # In other words, a node cannot have autonat server AND autonat client.
   # Currently, only bootstrap node should be autonat server.
   if config.autonatServer and not config.nat.hasExtIp:
-    raise newException(StorageError, "--autonat-server requires --extip")
+    raise newException(StorageError, "--autonat-server requires --nat=extip:<IP>")
 
-  # Same for relay server. The node has to be Reachable, assumed by extIp
-  # but not is the node runs Autonat.
   if config.isRelayServer and not config.nat.hasExtIp:
-    raise newException(StorageError, "--relay-server requires --extip")
+    raise newException(StorageError, "--relay-server requires --nat=extip:<IP>")
 
   # Switch
   let listenMultiAddr = getMultiAddrWithIpAndTcpPort(config.listenIp, config.listenPort)
@@ -273,15 +282,19 @@ proc new*(
       numPeersToAsk = config.natNumPeersToAsk,
       maxQueueSize = config.natMaxQueueSize,
       minConfidence = config.natMinConfidence
-    switchBuilder = switchBuilder.withAutonatV2(
-      AutonatV2ServiceConfig.new(
-        scheduleInterval = Opt.some(config.natScheduleInterval),
-        askNewConnectedPeers = true,
-        numPeersToAsk = config.natNumPeersToAsk,
-        maxQueueSize = config.natMaxQueueSize,
-        minConfidence = config.natMinConfidence,
+    switchBuilder = switchBuilder
+      .withAutonatV2(
+        AutonatV2ServiceConfig.new(
+          scheduleInterval = Opt.some(config.natScheduleInterval),
+          askNewConnectedPeers = false,
+          numPeersToAsk = config.natNumPeersToAsk,
+          maxQueueSize = config.natMaxQueueSize,
+          minConfidence = config.natMinConfidence,
+        )
       )
-    )
+      .withObservedAddrManager(
+        ObservedAddrManager.new(minCount = config.natObservedAddrMinCount)
+      )
 
   var natRouter: Option[NatRouter]
   let switch =
@@ -309,6 +322,19 @@ proc new*(
       some(switchBuilder.autonatV2Service.value)
     else:
       none(AutonatV2Service)
+
+  # Inject observed addresses into peerInfo.addrs so AutoNAT advertises a
+  # dialable (public) address. nim-libp2p collects observations via Identify
+  # but does not wire them into peerInfo automatically; without this, the
+  # AutoNAT DialRequest carries only private listen addresses and the server
+  # responds EDialRefused.
+  if not config.autonatServer:
+    switch.peerInfo.addressMappers.add(
+      proc(
+          addrs: seq[MultiAddress]
+      ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
+        addrs.mapIt(switch.peerStore.guessDialableAddr(it))
+    )
 
   # Storage infrastructure
 
