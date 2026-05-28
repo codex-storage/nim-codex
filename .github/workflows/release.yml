@@ -41,163 +41,163 @@ jobs:
           os {windows}, cpu {amd64}, builder {windows-latest},   nim_version {${{ env.nim_version }}}, shell {msys2}
 
   # Build
-  # build:
-  #   needs: matrix
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #       include: ${{fromJson(needs.matrix.outputs.matrix)}}
+  build:
+    needs: matrix
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{fromJson(needs.matrix.outputs.matrix)}}
 
-  #   defaults:
-  #     run:
-  #       shell: ${{ matrix.shell }} {0}
+    defaults:
+      run:
+        shell: ${{ matrix.shell }} {0}
 
-  #   name: ${{ matrix.os }}-${{ matrix.cpu }}-${{ matrix.nim_version }}
-  #   runs-on: ${{ matrix.builder }}
-  #   timeout-minutes: 80
-  #   steps:
-  #     - name: Set conditional env variables
-  #       shell: bash
-  #       run: |
-  #         if [[ "${{ github.ref_type }}" == "tag" ]]; then
-  #           echo "VERSION=${{ github.ref_name }}" >> $GITHUB_ENV
-  #           echo "TAGGED_RELEASE=true" >> $GITHUB_ENV
-  #         else
-  #           echo "VERSION=${GITHUB_SHA::7}" >> $GITHUB_ENV
-  #           echo "TAGGED_RELEASE=false" >> $GITHUB_ENV
-  #         fi
-  #     - name: Checkout sources
-  #       uses: actions/checkout@v4
-  #       with:
-  #         submodules: recursive
+    name: ${{ matrix.os }}-${{ matrix.cpu }}-${{ matrix.nim_version }}
+    runs-on: ${{ matrix.builder }}
+    timeout-minutes: 80
+    steps:
+      - name: Set conditional env variables
+        shell: bash
+        run: |
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            echo "VERSION=${{ github.ref_name }}" >> $GITHUB_ENV
+            echo "TAGGED_RELEASE=true" >> $GITHUB_ENV
+          else
+            echo "VERSION=${GITHUB_SHA::7}" >> $GITHUB_ENV
+            echo "TAGGED_RELEASE=false" >> $GITHUB_ENV
+          fi
+      - name: Checkout sources
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
-  #     - name: Setup Nimbus Build System
-  #       uses: ./.github/actions/nimbus-build-system
-  #       with:
-  #         os: ${{ matrix.os }}
-  #         cpu: ${{ matrix.cpu }}
-  #         shell: ${{ matrix.shell }}
-  #         nim_version: ${{ matrix.nim_version }}
+      - name: Setup Nimbus Build System
+        uses: ./.github/actions/nimbus-build-system
+        with:
+          os: ${{ matrix.os }}
+          cpu: ${{ matrix.cpu }}
+          shell: ${{ matrix.shell }}
+          nim_version: ${{ matrix.nim_version }}
 
-  #     - name: Compute binary name
-  #       run: |
-  #         case ${{ matrix.os }} in
-  #           linux*)   os_name="linux"   ;;
-  #           macos*)   os_name="darwin"  ;;
-  #           windows*) os_name="windows" ;;
-  #         esac
-  #         storage_binary="${{ env.storage_binary_base }}-${os_name}-${{ matrix.cpu }}-${{ env.VERSION }}"
-  #         c_bindings_lib="${{ env.c_bindings_lib_base }}-${os_name}-${{ matrix.cpu }}-${{ env.VERSION }}"
-  #         if [[ ${os_name} == "windows" ]]; then
-  #           storage_binary="${storage_binary}.exe"
-  #         fi
-  #         echo "storage_binary=${storage_binary}" >>$GITHUB_ENV
-  #         echo "c_bindings_lib=${c_bindings_lib}" >>$GITHUB_ENV
+      - name: Compute binary name
+        run: |
+          case ${{ matrix.os }} in
+            linux*)   os_name="linux"   ;;
+            macos*)   os_name="darwin"  ;;
+            windows*) os_name="windows" ;;
+          esac
+          storage_binary="${{ env.storage_binary_base }}-${os_name}-${{ matrix.cpu }}-${{ env.VERSION }}"
+          c_bindings_lib="${{ env.c_bindings_lib_base }}-${os_name}-${{ matrix.cpu }}-${{ env.VERSION }}"
+          if [[ ${os_name} == "windows" ]]; then
+            storage_binary="${storage_binary}.exe"
+          fi
+          echo "storage_binary=${storage_binary}" >>$GITHUB_ENV
+          echo "c_bindings_lib=${c_bindings_lib}" >>$GITHUB_ENV
 
-  #     - name: Build Logos Storage binary
-  #       run: |
-  #         make NIMFLAGS="--out:${{ env.build_dir }}/${{ env.storage_binary }} ${{ env.nim_flags }}"
+      - name: Build Logos Storage binary
+        run: |
+          make NIMFLAGS="--out:${{ env.build_dir }}/${{ env.storage_binary }} ${{ env.nim_flags }}"
 
-  #     - name: Package ${{ env.storage_binary_base }} Linux (compress and preserve perms)
-  #       if: matrix.os == 'linux'
-  #       run: |
-  #         sudo apt-get update && sudo apt-get install -y zip
-  #         zip -j "${{ env.build_dir }}/${{env.storage_binary}}.zip" ./${{ env.build_dir }}/*
+      - name: Package ${{ env.storage_binary_base }} Linux (compress and preserve perms)
+        if: matrix.os == 'linux'
+        run: |
+          sudo apt-get update && sudo apt-get install -y zip
+          zip -j "${{ env.build_dir }}/${{env.storage_binary}}.zip" ./${{ env.build_dir }}/*
           
-  #     - name: Package ${{ env.storage_binary_base }} MacOS (compress and preserve perms)
-  #       if: matrix.os == 'macos'
-  #       run: |
-  #         zip -j "${{ env.build_dir }}/${{env.storage_binary}}.zip" ./${{ env.build_dir }}/*
+      - name: Package ${{ env.storage_binary_base }} MacOS (compress and preserve perms)
+        if: matrix.os == 'macos'
+        run: |
+          zip -j "${{ env.build_dir }}/${{env.storage_binary}}.zip" ./${{ env.build_dir }}/*
 
-  #     - name: Package ${{ env.storage_binary_base }} Windows (compress and preserve perms)
-  #       if: matrix.os == 'windows'
-  #       shell: msys2 {0}
-  #       run: |
-  #         7z a -tzip "${{ env.build_dir }}/${{env.storage_binary}}.zip" ./${{ env.build_dir }}/*
+      - name: Package ${{ env.storage_binary_base }} Windows (compress and preserve perms)
+        if: matrix.os == 'windows'
+        shell: msys2 {0}
+        run: |
+          7z a -tzip "${{ env.build_dir }}/${{env.storage_binary}}.zip" ./${{ env.build_dir }}/*
 
-  #     - name: Upload Logos Storage binary to workflow artifacts
-  #       uses: actions/upload-artifact@v4
-  #       with:
-  #         name: ${{ env.storage_binary }}.zip
-  #         path: ${{ env.build_dir }}/${{ env.storage_binary }}.zip
-  #         retention-days: 30
+      - name: Upload Logos Storage binary to workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.storage_binary }}.zip
+          path: ${{ env.build_dir }}/${{ env.storage_binary }}.zip
+          retention-days: 30
 
-  #     - name: Copy and zip Windows dlls to build/dlls dir (Windows)
-  #       if: matrix.os == 'windows'
-  #       run: |
-  #         mkdir -p "${{ env.build_dir }}/dlls"
-  #         for lib in ${{ env.windows_libs }}; do
-  #           cp -v "${MINGW_PREFIX}/bin/${lib}" "${{ env.build_dir }}/dlls"
-  #         done
-  #         7z a -tzip "${{ env.build_dir }}/${{ env.storage_binary }}-dlls.zip" ./${{ env.build_dir }}/dlls/*.dll
+      - name: Copy and zip Windows dlls to build/dlls dir (Windows)
+        if: matrix.os == 'windows'
+        run: |
+          mkdir -p "${{ env.build_dir }}/dlls"
+          for lib in ${{ env.windows_libs }}; do
+            cp -v "${MINGW_PREFIX}/bin/${lib}" "${{ env.build_dir }}/dlls"
+          done
+          7z a -tzip "${{ env.build_dir }}/${{ env.storage_binary }}-dlls.zip" ./${{ env.build_dir }}/dlls/*.dll
 
-  #     - name: Upload Windows dlls to workflow artifacts
-  #       if: matrix.os == 'windows'
-  #       uses: actions/upload-artifact@v4
-  #       with:
-  #         name: ${{ env.storage_binary }}-dlls.zip
-  #         path: ${{ env.build_dir }}/${{ env.storage_binary }}-dlls.zip
-  #         retention-days: 30
+      - name: Upload Windows dlls to workflow artifacts
+        if: matrix.os == 'windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.storage_binary }}-dlls.zip
+          path: ${{ env.build_dir }}/${{ env.storage_binary }}-dlls.zip
+          retention-days: 30
 
-  #     - name: Build ${{ env.c_bindings_lib_base }} (Linux)
-  #       if: matrix.os == 'linux'
-  #       run: |
-  #         make -j${ncpu} update
-  #         make -j${ncpu} libstorage
+      - name: Build ${{ env.c_bindings_lib_base }} (Linux)
+        if: matrix.os == 'linux'
+        run: |
+          make -j${ncpu} update
+          make -j${ncpu} libstorage
 
-  #     - name: Build ${{ env.c_bindings_lib_base }} (MacOS)
-  #       if: matrix.os == 'macos'
-  #       run: |
-  #         make -j${ncpu} update
-  #         STORAGE_LIB_PARAMS="--passL:\"-Wl,-install_name,@rpath/${{ env.c_bindings_lib_base }}.dylib\"" make -j${ncpu} libstorage
+      - name: Build ${{ env.c_bindings_lib_base }} (MacOS)
+        if: matrix.os == 'macos'
+        run: |
+          make -j${ncpu} update
+          STORAGE_LIB_PARAMS="--passL:\"-Wl,-install_name,@rpath/${{ env.c_bindings_lib_base }}.dylib\"" make -j${ncpu} libstorage
 
-  #     - name: Build ${{ env.c_bindings_lib_base }} (Windows)
-  #       if: matrix.os == 'windows'
-  #       shell: msys2 {0}
-  #       run: |
-  #         make -j${ncpu} update
-  #         make -j${ncpu} libstorage
+      - name: Build ${{ env.c_bindings_lib_base }} (Windows)
+        if: matrix.os == 'windows'
+        shell: msys2 {0}
+        run: |
+          make -j${ncpu} update
+          make -j${ncpu} libstorage
 
-  #     - name: Package ${{ env.c_bindings_lib_base }} Linux
-  #       if: matrix.os == 'linux'
-  #       run: |
-  #         sudo apt-get update && sudo apt-get install -y zip
-  #         zip -j "${{ env.build_dir }}/${{ env.c_bindings_lib }}.zip" ${{ env.build_dir }}/${{ env.c_bindings_lib_base }}.so
-  #         zip -j "${{ env.build_dir }}/${{ env.c_bindings_lib }}.zip" library/${{ env.c_bindings_lib_base }}.h
+      - name: Package ${{ env.c_bindings_lib_base }} Linux
+        if: matrix.os == 'linux'
+        run: |
+          sudo apt-get update && sudo apt-get install -y zip
+          zip -j "${{ env.build_dir }}/${{ env.c_bindings_lib }}.zip" ${{ env.build_dir }}/${{ env.c_bindings_lib_base }}.so
+          zip -j "${{ env.build_dir }}/${{ env.c_bindings_lib }}.zip" library/${{ env.c_bindings_lib_base }}.h
           
-  #     - name: Package ${{ env.c_bindings_lib_base }} MacOS
-  #       if: matrix.os == 'macos'
-  #       run: |
-  #         zip -j "${{ env.build_dir }}/${{ env.c_bindings_lib }}.zip" ${{ env.build_dir }}/${{ env.c_bindings_lib_base }}.dylib
-  #         zip -j "${{ env.build_dir }}/${{ env.c_bindings_lib }}.zip" library/${{ env.c_bindings_lib_base }}.h
+      - name: Package ${{ env.c_bindings_lib_base }} MacOS
+        if: matrix.os == 'macos'
+        run: |
+          zip -j "${{ env.build_dir }}/${{ env.c_bindings_lib }}.zip" ${{ env.build_dir }}/${{ env.c_bindings_lib_base }}.dylib
+          zip -j "${{ env.build_dir }}/${{ env.c_bindings_lib }}.zip" library/${{ env.c_bindings_lib_base }}.h
 
-  #     - name: Package ${{ env.c_bindings_lib_base }} (Windows)
-  #       if: matrix.os == 'windows'
-  #       shell: msys2 {0}
-  #       run: |
-  #         7z a -tzip "${{ env.build_dir }}/${{ env.c_bindings_lib }}.zip" ./${{ env.build_dir }}/${{ env.c_bindings_lib_base }}.dll
-  #         7z a -tzip "${{ env.build_dir }}/${{ env.c_bindings_lib }}.zip" ./library/${{ env.c_bindings_lib_base }}.h
+      - name: Package ${{ env.c_bindings_lib_base }} (Windows)
+        if: matrix.os == 'windows'
+        shell: msys2 {0}
+        run: |
+          7z a -tzip "${{ env.build_dir }}/${{ env.c_bindings_lib }}.zip" ./${{ env.build_dir }}/${{ env.c_bindings_lib_base }}.dll
+          7z a -tzip "${{ env.build_dir }}/${{ env.c_bindings_lib }}.zip" ./library/${{ env.c_bindings_lib_base }}.h
 
-  #     - name: Upload ${{ env.c_bindings_lib_base }} to workflow artifacts
-  #       uses: actions/upload-artifact@v4
-  #       with:
-  #         name: ${{ env.c_bindings_lib }}.zip
-  #         path: ${{ env.build_dir }}/${{ env.c_bindings_lib }}.zip
-  #         if-no-files-found: error
+      - name: Upload ${{ env.c_bindings_lib_base }} to workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.c_bindings_lib }}.zip
+          path: ${{ env.build_dir }}/${{ env.c_bindings_lib }}.zip
+          if-no-files-found: error
 
-  # # Build Docker logosstorage/logos-storage-nim:latest-dist-tests image for Logos Storage nodes in the cluster
-  # build-docker-dist-tests:
-  #   name: Build Docker dist-tests image
-  #   if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
-  #   uses: ./.github/workflows/docker-reusable.yml
-  #   with:
-  #     nimflags: '-d:disableMarchNative -d:storage_enable_api_debug_peers=true -d:storage_enable_log_counter=true'
-  #     nat_ip_auto: true
-  #     tag_latest: false
-  #     tag_stable: false
-  #     tag_suffix: dist-tests
-  #     tag_sha: false
-  #   secrets: inherit
+  # Build Docker logosstorage/logos-storage-nim:latest-dist-tests image for Logos Storage nodes in the cluster
+  build-docker-dist-tests:
+    name: Build Docker dist-tests image
+    if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/docker-reusable.yml
+    with:
+      nimflags: '-d:disableMarchNative -d:storage_enable_api_debug_peers=true -d:storage_enable_log_counter=true'
+      nat_ip_auto: true
+      tag_latest: false
+      tag_stable: false
+      tag_suffix: dist-tests
+      tag_sha: false
+    secrets: inherit
 
   # Release tests
   release-tests:
