@@ -187,11 +187,11 @@ type
       name: "bootstrap-node"
     .}: seq[SignedPeerRecord]
 
-    noBootstrap* {.
+    noBootstrapNode* {.
       desc:
         "Pass this switch to not bootstrap the node at all. This " &
         "is typically only useful if you are creating a new Logos Storage " & "network.",
-      name: "no-bootstrap",
+      name: "no-bootstrap-node",
       defaultValue: false
     .}: bool
 
