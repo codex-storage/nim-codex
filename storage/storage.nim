@@ -217,8 +217,18 @@ proc new*(
       path = providersPath, err = discoveryStoreRes.error.msg
 
   let bootstrapNodes =
-    if config.bootstrapNodes.len > 0:
-      info "Overriding network preset using custom bootstrap nodes",
+    if config.noBootstrapNode:
+      # Sanity checks that the user isn't doing anything funny.
+      if config.bootstrapNodes.len > 0:
+        error "Cannot specify bootstrap nodes when using no-bootstrap flag"
+        raise newException(
+          ValueError, "Cannot specify bootstrap nodes when using no-bootstrap flag"
+        )
+
+      warn "Node has been marked with --no-bootstrap-node and will NOT be bootstrapped"
+      seq[SignedPeerRecord](@[])
+    elif config.bootstrapNodes.len > 0:
+      warn "Overriding network preset using custom bootstrap nodes",
         nodes = config.bootstrapNodes
       config.bootstrapNodes
     else:
