@@ -154,8 +154,10 @@ method handleNatStatus*(
       else:
         debug "AutoRelayService stopped"
 
-    discovery.protocol.clientMode = false
+    # Update the record first, then flip to server mode: otherwise the node
+    # briefly serves DHT queries with the previous (possibly empty) record.
     discovery.updateRecordsAndSpr(@[dialBackAddr.get], udpPort = discoveryPort)
+    discovery.protocol.clientMode = false
   of NotReachable:
     var hasPortMapping = false
 
@@ -173,12 +175,18 @@ method handleNatStatus*(
 
       # The mapping was created the the node is still not reachable.
       # In that case, we delete the mapping and relay will start.
-      # We will keep retrying on the next iteration
       m.close()
 
       # We remove the announced records.
       # Eventually, it will we updated by the relay when it started
       discovery.updateRecordsAndSpr(@[], udpPort = discoveryPort)
+    elif autoRelayService.isRunning:
+      # The mapping was already tried and did not make the node reachable.
+      # If the relay is running, there is nothing to do.
+      # We do not want to retry the port mapping if it failed already,
+      # it would stop the relay service while there is little chance to have
+      # a Reachable status after it was detected Not Reachable the first time.
+      discard
     else:
       debug "Node is not reachable trying port mapping now"
 
