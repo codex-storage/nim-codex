@@ -71,6 +71,7 @@ on:
 
 
 env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   # Build
   DOCKER_FILE: ${{ inputs.docker_file }}
   DOCKER_REPO: ${{ inputs.docker_repo }}

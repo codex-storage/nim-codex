@@ -14,6 +14,9 @@ on:
       - "openapi.yaml"
       - ".github/workflows/docs.yml"
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
   contents: read
@@ -32,7 +35,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 24
 
       - name: Lint OpenAPI
         run: npx @redocly/cli lint openapi.yaml
@@ -49,7 +52,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 24
 
       - name: Build OpenAPI
         run: npx @redocly/cli build-docs openapi.yaml --output openapi/index.html --title "Logos Storage API"

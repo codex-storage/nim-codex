@@ -15,6 +15,7 @@ on:
         type: string
 
 env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   cache_nonce: 0 # Allows for easily busting actions/cache caches
   nim_version: pinned
   storage_binary_base: logos-storage
