@@ -230,7 +230,7 @@ proc reachabilityStr*(autonat: Option[AutonatV2Service]): string =
   if autonat.isSome:
     $autonat.get.networkReachability
   else:
-    "unknown"
+    "Unknown"
 
 proc portMappingStr*(natMapper: Option[NatPortMapper]): string =
   if natMapper.isNone or natMapper.get.activeMappingProtocol.isNone:

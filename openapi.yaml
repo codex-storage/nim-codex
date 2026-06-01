@@ -151,7 +151,7 @@ components:
           description: Whether the AutoRelay service is currently running
         portMapping:
           type: string
-          enum: [none, upnp, pmp, pcp]
+          enum: [none, upnp, pmp, pcp, direct]
           description: Active NAT port mapping type
 
     DataList:
