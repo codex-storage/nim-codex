@@ -9,21 +9,19 @@ module "gke" {
 
   node_pool_name         = "runners-ci-e2-standard-2"
   node_pool_machine_type = "e2-standard-2"
-  node_pool_min          = 1
-  node_pool_max          = 5
+  node_pool_count        = 1
   node_pool_labels = {
     default-pool  = "true"
-    scaling-type  = "auto"
+    scaling-type  = "fixed"
     workload-type = "tests-runners-ci"
   }
 
   tests_pool_name         = "tests-e2-medium"
   tests_pool_machine_type = "e2-medium"
-  tests_pool_max          = 5
-  tests_pool_zones        = ["europe-west4-a", "europe-west4-b", "europe-west4-c"]
+  tests_pool_count        = 2
   tests_pool_labels = {
     default-pool  = "false"
-    scaling-type  = "auto"
+    scaling-type  = "fixed"
     workload-type = "tests-pods"
   }
 }

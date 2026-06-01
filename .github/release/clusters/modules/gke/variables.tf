@@ -30,14 +30,9 @@ variable "node_pool_machine_type" {
   description = "The GCE machine type for nodes in the default pool."
 }
 
-variable "node_pool_min" {
+variable "node_pool_count" {
   type        = number
-  description = "Minimum number of nodes per zone in the default pool (autoscaling)."
-}
-
-variable "node_pool_max" {
-  type        = number
-  description = "Maximum number of nodes per zone in the default pool (autoscaling)."
+  description = "Fixed number of nodes in the default pool."
 }
 
 variable "node_pool_labels" {
@@ -45,11 +40,11 @@ variable "node_pool_labels" {
   description = "A map of key/value pairs to apply as Kubernetes labels to nodes in the default pool."
   default = {
     default-pool = "true"
-    scaling-type = "auto"
+    scaling-type = "fixed"
   }
 }
 
-# Tests node pool (spot, scales to zero)
+# Tests node pool (fixed size, single zone)
 variable "tests_pool_name" {
   type        = string
   description = "Name for the tests node pool."
@@ -60,19 +55,13 @@ variable "tests_pool_machine_type" {
   description = "The GCE machine type for nodes in the tests pool."
 }
 
-variable "tests_pool_max" {
+variable "tests_pool_count" {
   type        = number
-  description = "Maximum number of nodes in the tests pool."
+  description = "Fixed number of nodes in the tests pool (no autoscaling; this is a transient cluster)."
 }
 
 variable "tests_pool_labels" {
   type        = map(string)
   description = "Kubernetes labels to apply to nodes in the tests pool."
   default     = {}
-}
-
-variable "tests_pool_zones" {
-  type        = list(string)
-  description = "Zones for the tests node pool. Spanning multiple zones increases spot instance availability."
-  default     = []
 }

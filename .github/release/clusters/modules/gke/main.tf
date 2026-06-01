@@ -17,18 +17,13 @@ resource "google_container_cluster" "this" {
   }
 
   node_pool {
-    name               = var.node_pool_name
-    initial_node_count = var.node_pool_min
-
-    autoscaling {
-      min_node_count = var.node_pool_min
-      max_node_count = var.node_pool_max
-    }
+    name       = var.node_pool_name
+    node_count = var.node_pool_count
 
     node_config {
-      machine_type    = var.node_pool_machine_type
-      disk_size_gb    = 50
-      labels          = var.node_pool_labels
+      machine_type = var.node_pool_machine_type
+      disk_size_gb = 50
+      labels       = var.node_pool_labels
 
       oauth_scopes = [
         "https://www.googleapis.com/auth/cloud-platform",
@@ -37,19 +32,13 @@ resource "google_container_cluster" "this" {
   }
 
   node_pool {
-    name               = var.tests_pool_name
-    initial_node_count = 1
-    node_locations     = length(var.tests_pool_zones) > 0 ? var.tests_pool_zones : null
-
-    autoscaling {
-      min_node_count = 1
-      max_node_count = var.tests_pool_max
-    }
+    name       = var.tests_pool_name
+    node_count = var.tests_pool_count
 
     node_config {
-      machine_type    = var.tests_pool_machine_type
-      disk_size_gb    = 20
-      labels          = var.tests_pool_labels
+      machine_type = var.tests_pool_machine_type
+      disk_size_gb = 20
+      labels       = var.tests_pool_labels
 
       oauth_scopes = [
         "https://www.googleapis.com/auth/cloud-platform",
