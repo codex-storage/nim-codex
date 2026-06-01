@@ -63,6 +63,7 @@ type
     natMapper*: Option[NatPortMapper]
     natRouter*: Option[NatRouter]
     holePunchHandler: Option[connmanager.PeerEventHandler]
+    observedAddrMapper: Option[AddressMapper]
     isStarted: bool
 
   StoragePrivateKey* = libp2p.PrivateKey # alias
@@ -169,6 +170,11 @@ proc stop*(s: StorageServer) {.async.} =
   if s.holePunchHandler.isSome:
     s.storageNode.switch.removePeerEventHandler(
       s.holePunchHandler.get, PeerEventKind.Joined
+    )
+
+  if s.observedAddrMapper.isSome:
+    s.storageNode.switch.peerInfo.addressMappers.keepItIf(
+      it != s.observedAddrMapper.get
     )
 
   var futures = @[
@@ -290,6 +296,11 @@ proc new*(
           numPeersToAsk = config.natNumPeersToAsk,
           maxQueueSize = config.natMaxQueueSize,
           minConfidence = config.natMinConfidence,
+          # The AddressMapper in libp2p injects the observed address
+          # only when the node is detected Reachable.
+          # We need it before, so we define our custom mapper below,
+          # and disable this one to avoid having 2 mappers.
+          enableAddressMapper = false,
         )
       )
       .withObservedAddrManager(
@@ -328,13 +339,14 @@ proc new*(
   # but does not wire them into peerInfo automatically; without this, the
   # AutoNAT DialRequest carries only private listen addresses and the server
   # responds EDialRefused.
-  if not config.autonatServer:
-    switch.peerInfo.addressMappers.add(
-      proc(
-          addrs: seq[MultiAddress]
-      ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
-        addrs.mapIt(switch.peerStore.guessDialableAddr(it))
-    )
+  var observedAddrMapper: Option[AddressMapper]
+  if not config.autonatServer and not config.nat.hasExtIp:
+    let mapper: AddressMapper = proc(
+        addrs: seq[MultiAddress]
+    ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
+      addrs.mapIt(switch.peerStore.guessDialableAddr(it))
+    switch.peerInfo.addressMappers.add(mapper)
+    observedAddrMapper = some(mapper)
 
   # Storage infrastructure
 
@@ -532,4 +544,5 @@ proc new*(
     natMapper: natMapper,
     natRouter: natRouter,
     holePunchHandler: holePunchHandler,
+    observedAddrMapper: observedAddrMapper,
   )
