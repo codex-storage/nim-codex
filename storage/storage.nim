@@ -89,10 +89,8 @@ proc start*(s: StorageServer) {.async.} =
 
   await s.storageNode.switch.start()
 
-  # When listenPort is 0 the OS assigns a random port at bind time.
-  # We read it back here so the natMapper can create a port mapping for the
-  # actual port. The switch is configured with a single listen address so
-  # there is at most one TCP port.
+  # When listenPort is 0 the OS assigns a random port. For UDP, the port
+  # doesn't change so there is no need to update it.
   if s.natMapper.isSome and s.config.listenPort == Port(0):
     for listenAddr in s.storageNode.switch.peerInfo.listenAddrs:
       let maybePort = getTcpPort(listenAddr)
@@ -140,7 +138,6 @@ proc start*(s: StorageServer) {.async.} =
       await s.storageNode.switch.connect(spr.data.peerId, addrs)
     except CatchableError as e:
       warn "Cannot connect to bootstrap node", error = e.msg
-      discard
 
   # Refresh peerInfo.addrs so the observed address collected during the
   # bootstrap Identify exchange is applied to peerInfo via the address mapper
