@@ -88,7 +88,7 @@ runs:
 
     - name: Install ccache on Linux/Mac
       if: inputs.os == 'linux' || inputs.os == 'macos'
-      uses: hendrikmuhs/ccache-action@v1.2
+      uses: hendrikmuhs/ccache-action@v1.2.23
       with:
         create-symlink: false
         key: ${{ inputs.os }}-${{ inputs.builder }}-${{ inputs.cpu }}-${{ inputs.tests }}-${{ inputs.nim_version }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}
@@ -103,7 +103,7 @@ runs:
 
     - name: Install ccache on Windows
       if: inputs.os == 'windows'
-      uses: hendrikmuhs/ccache-action@v1.2
+      uses: hendrikmuhs/ccache-action@v1.2.23
       with:
         key: ${{ inputs.os }}-${{ inputs.builder }}-${{ inputs.cpu }}-${{ inputs.tests }}-${{ inputs.nim_version }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}
         evict-old-files: 7d
@@ -197,7 +197,7 @@ runs:
 
     - name: Restore Nim toolchain binaries from cache
       id: nim-cache
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       if: ${{ inputs.coverage != 'true' }}
       with:
         path: NimBinaries

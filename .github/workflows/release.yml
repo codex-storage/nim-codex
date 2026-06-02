@@ -15,7 +15,6 @@ on:
         type: string
 
 env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   cache_nonce: 0 # Allows for easily busting actions/cache caches
   nim_version: pinned
   storage_binary_base: logos-storage
@@ -68,7 +67,7 @@ jobs:
             echo "TAGGED_RELEASE=false" >> $GITHUB_ENV
           fi
       - name: Checkout sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: recursive
 
@@ -117,7 +116,7 @@ jobs:
           7z a -tzip "${{ env.build_dir }}/${{env.storage_binary}}.zip" ./${{ env.build_dir }}/*
 
       - name: Upload Logos Storage binary to workflow artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ env.storage_binary }}.zip
           path: ${{ env.build_dir }}/${{ env.storage_binary }}.zip
@@ -134,7 +133,7 @@ jobs:
 
       - name: Upload Windows dlls to workflow artifacts
         if: matrix.os == 'windows'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ env.storage_binary }}-dlls.zip
           path: ${{ env.build_dir }}/${{ env.storage_binary }}-dlls.zip
@@ -180,7 +179,7 @@ jobs:
           7z a -tzip "${{ env.build_dir }}/${{ env.c_bindings_lib }}.zip" ./library/${{ env.c_bindings_lib_base }}.h
 
       - name: Upload ${{ env.c_bindings_lib_base }} to workflow artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ env.c_bindings_lib }}.zip
           path: ${{ env.build_dir }}/${{ env.c_bindings_lib }}.zip
@@ -223,34 +222,34 @@ jobs:
       CLUSTER_NAME: logos-storage-rel-tests-gcp-europe-west4 # should always match the cluster_name variable in TF_DIR
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Create Terraform plugin cache dir
         run: mkdir -p /home/runner/.terraform.d/plugin-cache
 
       - name: Cache Terraform plugins
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.terraform.d/plugin-cache
           key: terraform-google-${{ hashFiles(format('{0}/.terraform.lock.hcl', env.TF_DIR)) }}
           restore-keys: terraform-google-
 
       - name: Authenticate to GCP
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: ${{ secrets.RELEASE_TESTS_GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.RELEASE_TESTS_GCP_SERVICE_ACCOUNT }}
 
       - name: Setup gcloud
-        uses: google-github-actions/setup-gcloud@v2
+        uses: google-github-actions/setup-gcloud@v3
         with:
           install_components: gke-gcloud-auth-plugin
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@v4
 
       - name: Setup kubectl
-        uses: azure/setup-kubectl@v4
+        uses: azure/setup-kubectl@v5
         with:
           version: v1.36.0
 
@@ -442,21 +441,21 @@ jobs:
             echo "TAGGED_RELEASE=false" >> $GITHUB_ENV
           fi
       - name: Download binaries from workflow artifacts into temp folder
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: ${{ env.storage_binary_base }}*
           merge-multiple: true
           path: /tmp/release
 
       - name: Download ${{ env.c_bindings_lib_base }} from workflow artifacts into temp folder
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           pattern: ${{ env.c_bindings_lib_base }}*
           merge-multiple: true
           path: /tmp/release
 
       - name: Create GH release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         if: env.TAGGED_RELEASE == 'true'
         with:
           files: |
@@ -464,7 +463,7 @@ jobs:
           make_latest: true
 
       - name: Generate Python SDK
-        uses: peter-evans/repository-dispatch@v3
+        uses: peter-evans/repository-dispatch@v4
         if: env.TAGGED_RELEASE == 'true'
         with:
           token: ${{ secrets.DISPATCH_PAT }}

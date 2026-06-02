@@ -5,7 +5,6 @@ on:
   workflow_dispatch:
 
 env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   cache_nonce: 0 # Allows for easily busting actions/cache caches
   nim_version: pinned
 
@@ -17,7 +16,7 @@ jobs:
       cache_nonce: ${{ env.cache_nonce }}
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Compute matrix
         id: matrix
         run: |
