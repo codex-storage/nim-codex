@@ -113,7 +113,8 @@ proc send*(
       try:
         b.inflightSema.release()
       except AsyncSemaphoreError as err:
-        error "Failed to release semaphore", msg = err.msg
+        raiseAssert "inflight semaphore release failed, acquire/release mismatch: " &
+          err.msg
   except CancelledError as error:
     raise error
   except CatchableError as err:
