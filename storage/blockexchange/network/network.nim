@@ -13,7 +13,7 @@ import std/sequtils
 import pkg/chronos
 
 import pkg/libp2p
-import pkg/libp2p/utils/semaphore
+import pkg/chronos/asyncsync
 import pkg/questionable
 import pkg/questionable/results
 
@@ -107,13 +107,17 @@ proc send*(
     let peer = b.peers[id]
 
     await b.inflightSema.acquire()
-    await peer.send(msg)
+    try:
+      await peer.send(msg)
+    finally:
+      try:
+        b.inflightSema.release()
+      except AsyncSemaphoreError as err:
+        error "Failed to release semaphore", msg = err.msg
   except CancelledError as error:
     raise error
   except CatchableError as err:
     error "Error sending message", peer = id, msg = err.msg
-  finally:
-    b.inflightSema.release()
 
 proc handleWantList(
     b: BlockExcNetwork, peer: NetworkPeer, list: WantList
@@ -316,7 +320,7 @@ proc new*(
     maxInflight: maxInflight,
   )
 
-  self.maxIncomingStreams = self.maxInflight
+  #self.maxIncomingStreams = self.maxInflight
 
   proc sendWantList(
       id: PeerId,
