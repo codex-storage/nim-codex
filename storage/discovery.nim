@@ -240,6 +240,7 @@ proc new*(
     announceAddrs: openArray[MultiAddress],
     bootstrapNodes: openArray[SignedPeerRecord] = [],
     store: Datastore = SQLiteDatastore.new(Memory).expect("Should not fail!"),
+    tableIpLimits: TableIpLimits = DefaultTableIpLimits,
 ): Discovery =
   ## Create a new Discovery node instance for the given key and datastore
   ##
@@ -250,14 +251,8 @@ proc new*(
 
   self.updateAnnounceRecord(announceAddrs)
 
-  # --------------------------------------------------------------------------
-  # FIXME disable IP limits temporarily so we can run our workshop. Re-enable
-  #   and figure out proper solution.
-  let discoveryConfig = DiscoveryConfig(
-    tableIpLimits: TableIpLimits(tableIpLimit: high(uint), bucketIpLimit: high(uint)),
-    bitsPerHop: DefaultBitsPerHop,
-  )
-  # --------------------------------------------------------------------------
+  let discoveryConfig =
+    DiscoveryConfig(tableIpLimits: tableIpLimits, bitsPerHop: DefaultBitsPerHop)
 
   self.protocol = newProtocol(
     key,

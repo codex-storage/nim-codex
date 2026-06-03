@@ -184,9 +184,7 @@ proc new*(
     .withTcpTransport({ServerFlags.ReuseAddr, ServerFlags.TcpNoDelay})
     .build()
 
-  var
-    cache: CacheStore = nil
-    taskPool: Taskpool
+  var taskPool: Taskpool
 
   try:
     if config.numThreads == ThreadCount(0):
@@ -196,10 +194,6 @@ proc new*(
     info "Threadpool started", numThreads = taskPool.numThreads
   except CatchableError as exc:
     raiseAssert("Failure in taskPool initialization:" & exc.msg)
-
-  if config.cacheSize > 0'nb:
-    cache = CacheStore.new(cacheSize = config.cacheSize)
-    ## Is unused?
 
   let discoveryDir = config.dataDir / StorageDhtNamespace
 
