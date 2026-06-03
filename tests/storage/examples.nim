@@ -16,7 +16,7 @@ proc example*(_: type bt.Block, size: int = 4096): bt.Block =
   bt.Block.new(bytes).tryGet()
 
 proc example*(_: type PeerId): PeerId =
-  let key = PrivateKey.random(Rng.instance[]).get
+  let key = PrivateKey.random(Rng.instance).get
   PeerId.init(key.getPublicKey().get).get
 
 proc example*(_: type PeerContext): PeerContext =

@@ -8,6 +8,7 @@
 ## those terms.
 
 import std/math
+import std/options
 
 import pkg/libp2p
 import pkg/chronos

@@ -9,11 +9,10 @@
 
 import std/sugar
 import pkg/libp2p/crypto/crypto
-import pkg/bearssl/rand
 
-type
-  RngSampleError = object of CatchableError
-  Rng* = ref HmacDrbgContext
+export crypto.Rng, crypto.newRng
+
+type RngSampleError = object of CatchableError
 
 var rng {.threadvar.}: Rng
 
@@ -31,7 +30,7 @@ proc rand*(rng: Rng, max: Natural): int =
     return 0
 
   while true:
-    let x = rng[].generate(uint64)
+    let x = rng.generate(uint64)
     if x < randMax - (randMax mod (uint64(max) + 1'u64)): # against modulo bias
       return int(x mod (uint64(max) + 1'u64))
 

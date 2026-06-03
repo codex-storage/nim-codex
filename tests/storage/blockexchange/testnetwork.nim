@@ -1,3 +1,4 @@
+import std/importutils
 import std/[sequtils, tables]
 
 import pkg/chronos
@@ -12,10 +13,12 @@ import ../../asynctest
 import ../examples
 import ../helpers
 
+privateAccess(BlockExcNetwork)
+
 asyncchecksuite "Network - Handlers":
   let
     rng = Rng.instance()
-    seckey = PrivateKey.random(rng[]).tryGet()
+    seckey = PrivateKey.random(rng).tryGet()
     peerId = PeerId.init(seckey.getPublicKey().tryGet()).tryGet()
     chunker = RandomChunker.new(Rng.instance(), size = 1024, chunkSize = 256)
 
@@ -185,7 +188,7 @@ asyncchecksuite "Network - Test Limits":
     switch1 = newStandardSwitch()
     switch2 = newStandardSwitch()
 
-    network1 = BlockExcNetwork.new(switch = switch1, maxInflight = 0)
+    network1 = BlockExcNetwork.new(switch = switch1, maxInflight = 1)
     switch1.mount(network1)
 
     network2 = BlockExcNetwork.new(switch = switch2)
@@ -204,6 +207,8 @@ asyncchecksuite "Network - Test Limits":
         peer: PeerId, presence: seq[BlockPresence]
     ): Future[void] {.async: (raises: []).} =
       check false
+
+    await network1.inflightSema.acquire()
 
     let fut = network1.send(switch2.peerInfo.peerId, Message())
 

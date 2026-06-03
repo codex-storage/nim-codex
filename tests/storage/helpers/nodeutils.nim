@@ -6,6 +6,7 @@ import pkg/libp2p
 import pkg/libp2p/errors
 
 import pkg/codexdht/discv5/routing_table
+import ./switchutils
 import pkg/storage/discovery
 import pkg/storage/stores
 import pkg/storage/blocktype as bt
@@ -226,7 +227,7 @@ proc generateNodes*(
         if config.enableBootstrap:
           waitFor switch.peerInfo.update()
           let (announceAddrs, discoveryAddrs) = nattedAddress(
-            NatConfig(hasExtIp: false, nat: NatNone),
+            nat.NatConfig(hasExtIp: false, nat: NatNone),
             switch.peerInfo.addrs,
             bindPort.Port,
           )

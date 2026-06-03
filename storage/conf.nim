@@ -30,7 +30,7 @@ import pkg/toml_serialization
 import pkg/metrics
 import pkg/metrics/chronos_httpserver
 import pkg/stew/byteutils
-import pkg/libp2p
+import pkg/libp2p except NATConfig
 import pkg/questionable
 import pkg/questionable/results
 import pkg/stew/base64

@@ -14,6 +14,7 @@ import pkg/storage/utils
 
 import ./examples
 import ./helpers/nodeutils
+import ./helpers/switchutils
 import ./helpers/datasetutils
 import ./helpers/randomchunker
 import ./helpers/mockchunker
@@ -22,8 +23,8 @@ import ./helpers/always
 import ../checktest
 
 export
-  randomchunker, nodeutils, datasetutils, mockdiscovery, mockchunker, always, checktest,
-  manifest
+  randomchunker, nodeutils, switchutils, datasetutils, mockdiscovery, mockchunker,
+  always, checktest, manifest
 
 export libp2p except setup, eventually
 

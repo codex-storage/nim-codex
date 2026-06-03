@@ -1,6 +1,7 @@
 import std/sequtils
 import std/sugar
 import std/tables
+import std/options
 
 import pkg/chronos
 
