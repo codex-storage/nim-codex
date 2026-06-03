@@ -68,6 +68,9 @@ in stdenv.mkDerivation rec {
     export XDG_CACHE_HOME=$TMPDIR
     # Force build of Nimble from dist/nimble source.
     export NIMBLE_COMMIT=""
+    # build_nim.sh only skips its "rm -rf dist/checksums" hack when it sees the
+    # standard sandbox build top; force it so it keeps our offline checksums copy.
+    export NIX_BUILD_TOP=/build
     patchShebangs . vendor/nimbus-build-system > /dev/null
     make nimbus-build-system-paths
   '';
