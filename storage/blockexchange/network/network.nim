@@ -318,9 +318,8 @@ proc new*(
     getConn: connProvider,
     inflightSema: newAsyncSemaphore(maxInflight),
     maxInflight: maxInflight,
+    maxIncomingStreamsTotal: Opt.some(maxInflight),
   )
-
-  #self.maxIncomingStreams = self.maxInflight
 
   proc sendWantList(
       id: PeerId,
