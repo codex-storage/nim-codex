@@ -276,14 +276,6 @@ jobs:
             -l workload-type=tests-runners-ci \
             --timeout=300s
 
-      - name: Wait for tests-pods nodes to be Ready
-        run: |
-          kubectl wait \
-            --for=condition=Ready \
-            node \
-            -l workload-type=tests-pods \
-            --timeout=300s
-
       - name: Set run variables
         run: |
           RUNID=$(date +%Y%m%d-%H%M%S)
