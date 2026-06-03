@@ -18,7 +18,7 @@ module "gke" {
 
   tests_pool_name         = "tests-e2-medium"
   tests_pool_machine_type = "e2-medium"
-  tests_pool_count        = 2
+  tests_pool_count        = 5
   tests_pool_labels = {
     default-pool  = "false"
     scaling-type  = "fixed"

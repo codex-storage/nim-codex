@@ -340,7 +340,8 @@ jobs:
             exit 1
           fi
 
-      - name: Stream test logs
+      - name: Run tests and stream logs
+        timeout-minutes: 60
         run: |
           POD=$(kubectl get pods -l job-name=$NAMEPREFIX -n default \
             -o jsonpath='{.items[0].metadata.name}')
