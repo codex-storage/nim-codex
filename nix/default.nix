@@ -63,15 +63,11 @@ in stdenv.mkDerivation rec {
     "QUICK_AND_DIRTY_NIMBLE=${if quickAndDirty then "1" else "0"}"
   ];
 
-  # FIXME: Remove once permanent fix is applied to NBS:
-  patchPhase = ''
-    substituteInPlace vendor/nimbus-build-system/scripts/build_nim.sh \
-      --replace-fail '"''${NIX_BUILD_TOP}" != "/build"' '-z $${NIX_BUILD_TOP}'
-  '';
-
   configurePhase = ''
     # Avoid Nim cache permission errors.
     export XDG_CACHE_HOME=$TMPDIR
+    # Force build of Nimble from dist/nimble source.
+    export NIMBLE_COMMIT=""
     patchShebangs . vendor/nimbus-build-system > /dev/null
     make nimbus-build-system-paths
   '';
