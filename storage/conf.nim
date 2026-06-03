@@ -33,7 +33,6 @@ import pkg/stew/byteutils
 import pkg/libp2p except NATConfig
 import pkg/questionable
 import pkg/questionable/results
-import pkg/stew/base64
 
 import ./storagetypes
 import ./discovery
