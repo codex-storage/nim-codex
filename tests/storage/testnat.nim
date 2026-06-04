@@ -35,7 +35,7 @@ asyncchecksuite "NAT - handleNatStatus":
   setup:
     autoRelay =
       AutoRelayService.new(1, relayClientModule.RelayClient.new(), nil, Rng.instance())
-    key = PrivateKey.random(Rng.instance[]).get()
+    key = PrivateKey.random(Rng.instance()).get()
     disc = Discovery.new(key, announceAddrs = @[])
     sw = newStandardSwitch()
     await sw.start()
@@ -44,7 +44,7 @@ asyncchecksuite "NAT - handleNatStatus":
     await sw.stop()
 
     if autoRelay.isRunning:
-      discard await autoRelay.stop(sw)
+      await autoRelay.stop(sw)
 
   let discoveryPort = Port(8090)
 
@@ -54,7 +54,7 @@ asyncchecksuite "NAT - handleNatStatus":
       mappedPorts: some((Port(9000), Port(9001), MappingProtocol.UPnP))
     )
 
-    discard await autorelayservice.setup(autoRelay, sw)
+    autorelayservice.setup(autoRelay, sw)
     await mapper.handleNatStatus(
       NotReachable, Opt.some(dialBack), discoveryPort, disc, sw, autoRelay
     )
@@ -89,7 +89,7 @@ asyncchecksuite "NAT - handleNatStatus":
   test "handleNatStatus does nothing when Reachable and no dialBackAddr":
     let mapper = MockNatPortMapper(mappedPorts: none((Port, Port, MappingProtocol)))
 
-    discard await autorelayservice.setup(autoRelay, sw)
+    autorelayservice.setup(autoRelay, sw)
     disc.protocol.clientMode = true
     await mapper.handleNatStatus(
       Reachable, Opt.none(MultiAddress), discoveryPort, disc, sw, autoRelay
@@ -104,7 +104,7 @@ asyncchecksuite "NAT - handleNatStatus":
     let mapper = MockNatPortMapper(mappedPorts: none((Port, Port, MappingProtocol)))
 
     disc.protocol.clientMode = true
-    discard await autorelayservice.setup(autoRelay, sw)
+    autorelayservice.setup(autoRelay, sw)
     await mapper.handleNatStatus(
       Reachable, Opt.some(dialBack), discoveryPort, disc, sw, autoRelay
     )

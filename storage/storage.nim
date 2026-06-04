@@ -181,7 +181,7 @@ proc stop*(s: StorageServer) {.async.} =
 
   if s.autoRelayService.isSome and s.autoRelayService.get.isRunning:
     proc stopAutoRelay(): Future[void] {.async: (raises: []).} =
-      discard await noCancel s.autoRelayService.get.stop(s.storageNode.switch)
+      await noCancel s.autoRelayService.get.stop(s.storageNode.switch)
 
     futures.add(stopAutoRelay())
 
@@ -277,6 +277,25 @@ proc new*(
     .withSignedPeerRecord(true)
     .withCircuitRelay(relay)
 
+  let bootstrapNodes =
+    if config.noBootstrapNode:
+      # Sanity checks that the user isn't doing anything funny.
+      if config.bootstrapNodes.len > 0:
+        error "Cannot specify bootstrap nodes when using no-bootstrap flag"
+        raise newException(
+          ValueError, "Cannot specify bootstrap nodes when using no-bootstrap flag"
+        )
+
+      warn "Node has been marked with --no-bootstrap-node and will NOT be bootstrapped"
+      seq[SignedPeerRecord](@[])
+    elif config.bootstrapNodes.len > 0:
+      warn "Overriding network preset using custom bootstrap nodes",
+        nodes = config.bootstrapNodes
+      config.bootstrapNodes
+    else:
+      info "Bootstrapping node using a predefined network", network = $config.network
+      config.network.bootstrapNodes
+
   var autonatConfig = none(AutonatV2ServiceConfig)
   if config.autonatServer:
     info "AutoNAT server enabled"
@@ -301,8 +320,14 @@ proc new*(
         enableAddressMapper = false,
       )
     )
+    # At the first AutoNAT probe, the only identify observations available come
+    # from the bootstrap nodes, so requiring more observations than there are
+    # bootstrap nodes would make the threshold unreachable. The floor of 1
+    # covers the case where the bootstrap list is empty.
+    let observedAddrMinCount =
+      max(1, min(config.natObservedAddrMinCount, bootstrapNodes.len))
     switchBuilder = switchBuilder.withObservedAddrManager(
-      ObservedAddrManager.new(minCount = config.natObservedAddrMinCount)
+      ObservedAddrManager.new(minCount = observedAddrMinCount)
     )
 
   var natRouter: Option[NatRouter]
@@ -323,8 +348,6 @@ proc new*(
         .build()
 
   var taskPool: Taskpool
-  autonatClient.setup(switch)
-  switch.mount(autonatClient)
 
   # AutoNAT's first reachability probe fires immediately on start.
   # Wired via withAutonatV2 it lands in switch.services and runs at switch.start,
@@ -382,25 +405,6 @@ proc new*(
     error "Failed to initialize discovery datastore",
       path = providersPath, err = discoveryStoreRes.error.msg
 
-  let bootstrapNodes =
-    if config.noBootstrapNode:
-      # Sanity checks that the user isn't doing anything funny.
-      if config.bootstrapNodes.len > 0:
-        error "Cannot specify bootstrap nodes when using no-bootstrap flag"
-        raise newException(
-          ValueError, "Cannot specify bootstrap nodes when using no-bootstrap flag"
-        )
-
-      warn "Node has been marked with --no-bootstrap-node and will NOT be bootstrapped"
-      seq[SignedPeerRecord](@[])
-    elif config.bootstrapNodes.len > 0:
-      warn "Overriding network preset using custom bootstrap nodes",
-        nodes = config.bootstrapNodes
-      config.bootstrapNodes
-    else:
-      info "Bootstrapping node using a predefined network", network = $config.network
-      config.network.bootstrapNodes
-
   let
     discoveryStore =
       Datastore(discoveryStoreRes.expect("Should create discovery datastore!"))
@@ -411,7 +415,6 @@ proc new*(
       bindPort = config.discoveryPort,
       bootstrapNodes = bootstrapNodes,
       discoveryPort = config.discoveryPort,
-      bootstrapNodes = config.bootstrapNodes,
       store = discoveryStore,
     )
 
@@ -491,6 +494,7 @@ proc new*(
       rng = random.Rng.instance(),
     )
 
+    relayService.setup(switch)
     autoRelayService = some(relayService)
 
     natMapper = some(

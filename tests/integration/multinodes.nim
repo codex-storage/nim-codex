@@ -127,8 +127,13 @@ template multinodesuite*(suiteName: string, body: untyped) =
           lastUsedStorageApiPort = apiPort
           lastUsedStorageDiscPort = discPort
 
-        for bootstrapNode in bootstrapNodes:
-          config.addCliOption("--bootstrap-node", bootstrapNode)
+        if bootstrapNodes.len == 0:
+          # Without this flag the node would bootstrap on the default
+          # network preset.
+          config.addCliOption("--no-bootstrap-node")
+        else:
+          for bootstrapNode in bootstrapNodes:
+            config.addCliOption("--bootstrap-node", bootstrapNode)
 
         config.addCliOption("--data-dir", datadir)
       except StorageConfigError as e:

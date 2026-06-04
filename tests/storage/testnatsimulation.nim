@@ -26,7 +26,7 @@ proc newSwitch(rng: Rng): Switch =
   SwitchBuilder
     .new()
     .withRng(rng)
-    .withPrivateKey(PrivateKey.random(rng[]).get())
+    .withPrivateKey(PrivateKey.random(rng).get())
     .withAddresses(@[MultiAddress.init(listenAddr).get()])
     .withTcpTransport(flags)
     .withNoise()
@@ -37,7 +37,7 @@ proc newNatSwitch(router: NatRouter, rng: Rng): Switch =
   SwitchBuilder
     .new()
     .withRng(rng)
-    .withPrivateKey(PrivateKey.random(rng[]).get())
+    .withPrivateKey(PrivateKey.random(rng).get())
     .withAddresses(@[MultiAddress.init(listenAddr).get()])
     .withNatTransport(router, flags)
     .withNoise()

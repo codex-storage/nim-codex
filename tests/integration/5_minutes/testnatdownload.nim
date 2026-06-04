@@ -51,12 +51,16 @@ multinodesuite "NAT download":
       pollInterval = PollInterval,
     )
 
-    # Verify natNode advertises a relay circuit address. seed has never dialed
-    # natNode, so APDF blocks any direct inbound connection from seed — the
-    # only reachable address is the p2p-circuit one.
-    let info = (await natNode.client.info()).get
-    let addrs = info["addrs"].getElems.mapIt(it.getStr)
-    check addrs.anyIt("p2p-circuit" in it)
+    # relayRunning only means the service started: the reservation itself
+    # takes a few more seconds, so we have to poll.
+    proc advertisesCircuitAddr(): Future[bool] {.async.} =
+      let info = (await natNode.client.info()).get
+      let addrs = info["addrs"].getElems.mapIt(it.getStr)
+      return addrs.anyIt("p2p-circuit" in it)
+
+    check eventuallySafe(
+      await advertisesCircuitAddr(), timeout = RelayTimeout, pollInterval = PollInterval
+    )
 
     let content = "content seeded from nat node"
     let cid = (await natNode.client.upload(content)).get

@@ -64,12 +64,12 @@ method mapNatPorts*(
   if not m.plumInitialized:
     # 5s matches the old NatPortMappingTimeout used with miniupnpc/libnatpmp.
     let plumLogLevel =
-      if getEnv("DEBUG") == "1": PLUM_LOG_LEVEL_VERBOSE else: PLUM_LOG_LEVEL_NONE
+      if getEnv("DEBUG") == "1": PlumLogLevel.Verbose else: PlumLogLevel.None
     let res = init(
       logLevel = plumLogLevel,
-      discoverTimeout = m.discoverTimeout,
-      mappingTimeout = m.mappingTimeout,
-      recheckPeriod = m.recheckPeriod,
+      discoverTimeout = m.discoverTimeout.int32,
+      mappingTimeout = m.mappingTimeout.int32,
+      recheckPeriod = m.recheckPeriod.int32,
     )
     if res.isErr:
       warn "Failed to initialize plum", msg = res.error
@@ -149,10 +149,8 @@ method handleNatStatus*(
       return
 
     if autoRelayService.isRunning:
-      if not await autoRelayService.stop(switch):
-        debug "AutoRelayService stop method returned false"
-      else:
-        debug "AutoRelayService stopped"
+      await autoRelayService.stop(switch)
+      debug "AutoRelayService stopped"
 
     # Update the record first, then flip to server mode: otherwise the node
     # briefly serves DHT queries with the previous (possibly empty) record.
@@ -201,10 +199,8 @@ method handleNatStatus*(
 
         if autoRelayService.isRunning:
           # Here we stop the relay because the node *should* be reachable
-          if not await autoRelayService.stop(switch):
-            debug "AutoRelayService returned an issue when trying to stop"
-          else:
-            debug "AutoRelayService stopped"
+          await autoRelayService.stop(switch)
+          debug "AutoRelayService stopped"
 
         # Note that we update the DHT records but we don't set the client mode
         # to false because we are not sure the node is reachable.
@@ -221,10 +217,8 @@ method handleNatStatus*(
     if not hasPortMapping and not autoRelayService.isRunning:
       debug "No port mapping found let's start autorelay"
 
-      if not await autoRelayService.setup(switch):
-        warn "Unable to start autorelay service"
-      else:
-        debug "AutoRelayService started"
+      await autoRelayService.start(switch)
+      debug "AutoRelayService started"
 
 proc reachabilityStr*(autonat: Option[AutonatV2Service]): string =
   if autonat.isSome:

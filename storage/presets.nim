@@ -53,7 +53,6 @@ proc `bootstrapNodes`*(self: NetworkPreset): seq[SignedPeerRecord] =
     result.add(parse(SignedPeerRecord, record).tryGet())
 
 const NetworkPresets* = [
-  NetworkPreset.init("none", "No bootstrap nodes", @[]),
   NetworkPreset.init(
     "logos.test",
     "Logos testnet",
