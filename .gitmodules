@@ -42,7 +42,7 @@
 	path = vendor/asynctest
 	url = https://github.com/status-im/asynctest.git
 	ignore = untracked
-	branch = main 
+	branch = main
 [submodule "vendor/nim-presto"]
 	path = vendor/nim-presto
 	url = https://github.com/status-im/nim-presto.git
@@ -51,11 +51,6 @@
 [submodule "vendor/nim-confutils"]
 	path = vendor/nim-confutils
 	url = https://github.com/status-im/nim-confutils.git
-	ignore = untracked
-	branch = master
-[submodule "vendor/nim-nat-traversal"]
-	path = vendor/nim-nat-traversal
-	url = https://github.com/status-im/nim-nat-traversal.git
 	ignore = untracked
 	branch = master
 [submodule "vendor/nim-libbacktrace"]
@@ -196,3 +191,6 @@
 	url = https://github.com/vacp2p/nim-lsquic.git
 	ignore = untracked
 	branch = main
+[submodule "vendor/nim-libplum"]
+	path = vendor/nim-libplum
+	url = git@github.com:2-towns/nim-libplum.git
