@@ -561,7 +561,7 @@ proc initNodeApi(node: StorageNodeRef, conf: StorageConf, router: var RestRouter
 proc initDebugApi(
     node: StorageNodeRef,
     conf: StorageConf,
-    autonat: AutonatV2Service,
+    autonat: Option[AutonatV2Service],
     router: var RestRouter,
 ) =
   let allowedOrigin = router.allowedOrigin
@@ -583,7 +583,13 @@ proc initDebugApi(
         "announceAddresses": node.discovery.announceAddrs,
         "table": table,
         "storage": {"version": $storageVersion, "revision": $storageRevision},
-        "nat": {"reachability": $autonat.networkReachability},
+        "nat": {
+          "reachability":
+            if autonat.isSome:
+              $autonat.get.networkReachability
+            else:
+              "unknown"
+        },
       }
 
       # return pretty json for human readability
@@ -644,7 +650,7 @@ proc initRestApi*(
     node: StorageNodeRef,
     conf: StorageConf,
     repoStore: RepoStore,
-    autonat: AutonatV2Service,
+    autonat: Option[AutonatV2Service],
     corsAllowedOrigin: ?string,
 ): RestRouter =
   var router = RestRouter.init(validate, corsAllowedOrigin)

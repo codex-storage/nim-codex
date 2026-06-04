@@ -53,8 +53,9 @@ type
     repoStore: RepoStore
     maintenance: BlockMaintainer
     taskpool: Taskpool
-    autonatService*: AutonatV2Service
+    autonatService*: Option[AutonatV2Service]
     autoRelayService: AutoRelayService
+    natMapper: NatMapper
     isStarted: bool
 
   StoragePrivateKey* = libp2p.PrivateKey # alias
@@ -123,6 +124,8 @@ proc stop*(s: StorageServer) {.async.} =
 
   notice "Stopping Storage node"
 
+  s.natMapper.close()
+
   var futures = @[
     s.storageNode.switch.stop(),
     s.storageNode.stop(),
@@ -190,17 +193,23 @@ proc new*(
   let relayClient = relayClientModule.RelayClient.new(canHop = config.relay)
 
   let autonatClient = AutonatV2Client.new(random.Rng.instance())
-  let autonatService = AutonatV2Service.new(
-    rng = random.Rng.instance(),
-    client = autonatClient,
-    config = AutonatV2ServiceConfig.new(
-      scheduleInterval = Opt.some(config.natScheduleInterval),
-      askNewConnectedPeers = true,
-      numPeersToAsk = config.natNumPeersToAsk,
-      maxQueueSize = config.natMaxQueueSize,
-      minConfidence = config.natMinConfidence,
-    ),
-  )
+  let autonatService =
+    if config.nat.hasExtIp:
+      none(AutonatV2Service)
+    else:
+      some(
+        AutonatV2Service.new(
+          rng = random.Rng.instance(),
+          client = autonatClient,
+          config = AutonatV2ServiceConfig.new(
+            scheduleInterval = Opt.some(config.natScheduleInterval),
+            askNewConnectedPeers = true,
+            numPeersToAsk = config.natNumPeersToAsk,
+            maxQueueSize = config.natMaxQueueSize,
+            minConfidence = config.natMinConfidence,
+          ),
+        )
+      )
 
   let switch = SwitchBuilder
     .new()
@@ -216,7 +225,12 @@ proc new*(
     .withTcpTransport({ServerFlags.ReuseAddr, ServerFlags.TcpNoDelay})
     .withAutonatV2Server()
     .withCircuitRelay(relayClient)
-    .withServices(@[Service(autonatService)])
+    .withServices(
+      if autonatService.isSome:
+        @[Service(autonatService.get)]
+      else:
+        @[]
+    )
     .build()
 
   var taskPool: Taskpool
@@ -362,21 +376,24 @@ proc new*(
   switch.mount(network)
   switch.mount(manifestProto)
 
-  let natMapper = DefaultNatMapper(
+  let natMapper = NatMapper(
     natConfig: config.nat,
     tcpPort: config.listenPort,
     discoveryPort: config.discoveryPort,
   )
-  autonatService.setStatusAndConfidenceHandler(
-    proc(
-        networkReachability: NetworkReachability, confidence: Opt[float]
-    ) {.async: (raises: [CancelledError]).} =
-      debug "AutoNAT status", reachability = networkReachability, confidence
-      await handleNatStatus(
-        networkReachability, addrs, config.discoveryPort, natMapper, discovery, switch,
-        autoRelayService,
-      )
-  )
+  if autonatService.isSome:
+    autonatService.get.setStatusAndConfidenceHandler(
+      proc(
+          networkReachability: NetworkReachability,
+          confidence: Opt[float],
+          addrs: Opt[MultiAddress],
+      ) {.async: (raises: [CancelledError]).} =
+        debug "AutoNAT status", reachability = networkReachability, confidence
+        await natMapper.handleNatStatus(
+          networkReachability, addrs, config.discoveryPort, discovery, switch,
+          autoRelayService,
+        )
+    )
 
   StorageServer(
     config: config,
@@ -388,4 +405,5 @@ proc new*(
     logFile: logFile,
     autonatService: autonatService,
     autoRelayService: autoRelayService,
+    natMapper: natMapper,
   )

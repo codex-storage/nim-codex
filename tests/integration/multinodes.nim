@@ -213,7 +213,9 @@ template multinodesuite*(suiteName: string, body: untyped) =
       trace "Setting up test", suite = suiteName, test = currentTestName, nodeConfigs
       if var clients =? nodeConfigs.clients:
         failAndTeardownOnError "failed to start client nodes":
-          clients = clients.withExtIp()
+          # Only the first node (bootstrap) gets a known extip. Other nodes use
+          # nat=auto so AutoNAT can run and determine their reachability.
+          clients = clients.withExtIp(0)
           for config in clients.configs:
             let node = await startClientNode(config)
             running.add RunningNode(role: Role.Client, node: node)
