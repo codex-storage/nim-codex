@@ -403,12 +403,15 @@ jobs:
         env:
           GCP_PROJECT: ${{ vars.RELEASE_TESTS_GCP_PROJECT }}
         run: |
-          # Safety net: delete any pvc-* disks left unattached after cluster teardown.
+          # Safety net: delete any pvc-* disks left after cluster teardown.
           # These are GCE PDs whose PVC was deleted but the CSI driver didn't finish before
-          # the cluster was destroyed.
+          # the cluster was destroyed. The -users:* filter is intentionally omitted: GCE
+          # may still report disks as attached for a brief period after VM deletion, which
+          # would cause the filter to silently skip them. Attempting to delete an attached
+          # disk is harmless — the call fails and || true absorbs it.
           gcloud compute disks list \
             --project="$GCP_PROJECT" \
-            --filter="name~^pvc- AND -users:*" \
+            --filter="name~^pvc-" \
             --format="value(name,zone.basename())" 2>/dev/null \
           | while IFS=$'\t' read -r name zone; do
               [[ -n "$name" && -n "$zone" ]] || continue
