@@ -139,15 +139,13 @@ proc start*(s: StorageServer) {.async.} =
     except CatchableError as e:
       warn "Cannot connect to bootstrap node", error = e.msg
 
-  # Refresh peerInfo.addrs so the observed address collected during the
-  # bootstrap Identify exchange is applied to peerInfo via the address mapper
-  # before AutoNAT issues its first DialRequest. AutonatV2Service hooks on the
-  # Joined event which fires before Identify completes, so the very first
-  # askPeer captures stale (private) addrs; we re-run it manually here with the
-  # now-updated peerInfo to avoid waiting a full scheduleInterval.
+  # Refresh peerInfo.addrs so the observed address collected during the bootstrap
+  # Identify exchange is applied to peerInfo via the address mapper, then start
+  # AutoNAT here (we own it, it is not in switch.services) so its first probe targets
+  # the now-connected bootstrap peers instead of firing at switch.start on no peers.
   await s.storageNode.switch.peerInfo.update()
   if s.autonatService.isSome:
-    await s.autonatService.get.run(s.storageNode.switch)
+    await s.autonatService.get.start(s.storageNode.switch)
 
   if s.restServer != nil:
     s.restServer.start()
@@ -186,6 +184,9 @@ proc stop*(s: StorageServer) {.async.} =
       discard await noCancel s.autoRelayService.get.stop(s.storageNode.switch)
 
     futures.add(stopAutoRelay())
+
+  if s.autonatService.isSome:
+    futures.add(s.autonatService.get.stop(s.storageNode.switch))
 
   if s.restServer != nil:
     futures.add(s.restServer.stop())
@@ -276,6 +277,7 @@ proc new*(
     .withSignedPeerRecord(true)
     .withCircuitRelay(relay)
 
+  var autonatConfig = none(AutonatV2ServiceConfig)
   if config.autonatServer:
     info "AutoNAT server enabled"
     switchBuilder = switchBuilder.withAutonatV2Server()
@@ -285,24 +287,23 @@ proc new*(
       numPeersToAsk = config.natNumPeersToAsk,
       maxQueueSize = config.natMaxQueueSize,
       minConfidence = config.natMinConfidence
-    switchBuilder = switchBuilder
-      .withAutonatV2(
-        AutonatV2ServiceConfig.new(
-          scheduleInterval = Opt.some(config.natScheduleInterval),
-          askNewConnectedPeers = false,
-          numPeersToAsk = config.natNumPeersToAsk,
-          maxQueueSize = config.natMaxQueueSize,
-          minConfidence = config.natMinConfidence,
-          # The AddressMapper in libp2p injects the observed address
-          # only when the node is detected Reachable.
-          # We need it before, so we define our custom mapper below,
-          # and disable this one to avoid having 2 mappers.
-          enableAddressMapper = false,
-        )
+    autonatConfig = some(
+      AutonatV2ServiceConfig.new(
+        scheduleInterval = Opt.some(config.natScheduleInterval),
+        askNewConnectedPeers = false,
+        numPeersToAsk = config.natNumPeersToAsk,
+        maxQueueSize = config.natMaxQueueSize,
+        minConfidence = config.natMinConfidence,
+        # The AddressMapper in libp2p injects the observed address
+        # only when the node is detected Reachable.
+        # We need it before, so we define our custom mapper below,
+        # and disable this one to avoid having 2 mappers.
+        enableAddressMapper = false,
       )
-      .withObservedAddrManager(
-        ObservedAddrManager.new(minCount = config.natObservedAddrMinCount)
-      )
+    )
+    switchBuilder = switchBuilder.withObservedAddrManager(
+      ObservedAddrManager.new(minCount = config.natObservedAddrMinCount)
+    )
 
   var natRouter: Option[NatRouter]
   let switch =
@@ -325,9 +326,19 @@ proc new*(
   autonatClient.setup(switch)
   switch.mount(autonatClient)
 
+  # AutoNAT's first reachability probe fires immediately on start.
+  # Wired via withAutonatV2 it lands in switch.services and runs at switch.start,
+  # before bootstrap, on an empty peer set.
+  # We build and own it here so we can start it ourselves after bootstrap,
+  # with the bootstrap peers connected.
   let autonatService: Option[AutonatV2Service] =
-    if not config.autonatServer and switchBuilder.autonatV2Service.isSome:
-      some(switchBuilder.autonatV2Service.value)
+    if autonatConfig.isSome:
+      let client = AutonatV2Client.new(switch.rng)
+      client.setup(switch)
+      switch.mount(client)
+      let service = AutonatV2Service.new(switch.rng, client, autonatConfig.get)
+      service.setup(switch)
+      some(service)
     else:
       none(AutonatV2Service)
 
