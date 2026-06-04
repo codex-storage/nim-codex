@@ -8,7 +8,7 @@
 
 {.push raises: [].}
 
-import std/[options, net]
+import std/[options, net, os]
 import results
 
 import pkg/chronos
@@ -30,7 +30,7 @@ type NatConfig* = object
   of true: extIp*: IpAddress
   of false: nat*: NatStrategy
 
-type NatMapper* = ref object of RootObj
+type NatPortMapper* = ref object of RootObj
   natConfig*: NatConfig
   tcpPort*: Port
   discoveryPort*: Port
@@ -45,7 +45,7 @@ type NatMapper* = ref object of RootObj
   plumInitialized: bool
 
 method mapNatPorts*(
-    m: NatMapper
+    m: NatPortMapper
 ): Future[Option[(Port, Port, MappingProtocol)]] {.
     async: (raises: [CancelledError]), base, gcsafe
 .} =
@@ -59,7 +59,11 @@ method mapNatPorts*(
 
   if not m.plumInitialized:
     # 5s matches the old NatPortMappingTimeout used with miniupnpc/libnatpmp.
+    let plumLogLevel =
+      if getEnv("DEBUG") == "1": PLUM_LOG_LEVEL_VERBOSE
+      else: PLUM_LOG_LEVEL_NONE
     let res = init(
+      logLevel = plumLogLevel,
       discoverTimeout = m.discoverTimeout,
       mappingTimeout = m.mappingTimeout,
       recheckPeriod = m.recheckPeriod,
@@ -83,12 +87,12 @@ method mapNatPorts*(
   m.activeTcpPort = none(Port)
   m.activeUdpPort = none(Port)
 
-  let tcpRes = await createMapping(TCP, m.tcpPort.uint16)
+  let tcpRes = await createMapping(TCP, m.tcpPort.uint16, m.tcpPort.uint16)
   if tcpRes.isErr:
     warn "TCP port mapping failed", msg = tcpRes.error
     return none((Port, Port, MappingProtocol))
 
-  let udpRes = await createMapping(UDP, m.discoveryPort.uint16)
+  let udpRes = await createMapping(UDP, m.discoveryPort.uint16, m.discoveryPort.uint16)
   if udpRes.isErr:
     warn "UDP port mapping failed", msg = udpRes.error
     destroyMapping(tcpRes.value.id)
@@ -102,8 +106,28 @@ method mapNatPorts*(
 
   some((m.activeTcpPort.get, m.activeUdpPort.get, m.activeMappingProtocol.get))
 
+proc close*(m: NatPortMapper) =
+  if m.tcpMappingId.isSome:
+    destroyMapping(m.tcpMappingId.get)
+    m.tcpMappingId = none(cint)
+
+  if m.udpMappingId.isSome:
+    destroyMapping(m.udpMappingId.get)
+    m.udpMappingId = none(cint)
+
+  m.activeMappingProtocol = none(MappingProtocol)
+  m.activeTcpPort = none(Port)
+  m.activeUdpPort = none(Port)
+
+  if m.plumInitialized:
+    discard cleanup()
+    m.plumInitialized = false
+
+proc isPortMapped*(m: NatPortMapper, port: Port): bool =
+  m.activeTcpPort.isSome and m.activeTcpPort.get == port
+
 method handleNatStatus*(
-    m: NatMapper,
+    m: NatPortMapper,
     networkReachability: NetworkReachability,
     dialBackAddr: Opt[MultiAddress],
     discoveryPort: Port,
@@ -134,12 +158,20 @@ method handleNatStatus*(
 
     if dialBackAddr.isNone:
       warn "Got empty dialback address in AutoNat when node is NotReachable"
+    elif m.tcpMappingId.isSome and m.udpMappingId.isSome:
+      warn "Not Reachable with active port mapping. The port mapping will be deleted and relay will start."
+
+      # The mapping was created the the node is still not reachable.
+      # In that case, we delete the mapping and relay will start.
+      # We will keep retrying on the next iteration
+      m.close()
+
+      # We remove the announced records.
+      # Eventually, it will we updated by the relay when it started
+      discovery.updateRecords(@[], udpPort = discoveryPort)
     else:
       debug "Node is not reachable trying port mapping now"
 
-      # Here we should check first that a mapping exists.
-      # If it does exist but Autonat still report as Not Reachable
-      # we should fallback to relay.
       let maybePorts = await m.mapNatPorts()
 
       if maybePorts.isSome:
@@ -152,7 +184,7 @@ method handleNatStatus*(
         if autoRelayService.isRunning:
           # Here we stop the relay because the node *should* be reachable
           if not await autoRelayService.stop(switch):
-            debug "AutoRelayService stop method returned false"
+            debug "AutoRelayService returned an issue when trying to stop"
           else:
             debug "AutoRelayService stopped"
 
@@ -160,28 +192,21 @@ method handleNatStatus*(
         # to false because we are not sure the node is reachable.
         # The client mode will be updated on the next iteration of autonat.
         # Trying to check manually that the node is reachable is not trivial,
-        # this is exactly what Autonat does.
+        # this is exactly what Autonat is for.
         discovery.updateRecords(@[announceAddress], udpPort = udpPort)
         hasPortMapping = true
+      else:
+        # In case of failure, close the port mapping in order to rerun discover
+        # on the next iteration
+        m.close()
 
     if not hasPortMapping and not autoRelayService.isRunning:
       debug "No port mapping found let's start autorelay"
 
       if not await autoRelayService.setup(switch):
-        warn "Cannot start autorelay service"
+        warn "Unable to start autorelay service"
       else:
         debug "AutoRelayService started"
-
-proc close*(m: NatMapper) =
-  if m.tcpMappingId.isSome:
-    destroyMapping(m.tcpMappingId.get)
-    m.tcpMappingId = none(cint)
-  if m.udpMappingId.isSome:
-    destroyMapping(m.udpMappingId.get)
-    m.udpMappingId = none(cint)
-  if m.plumInitialized:
-    discard cleanup()
-    m.plumInitialized = false
 
 proc reachabilityStr*(autonat: Option[AutonatV2Service]): string =
   if autonat.isSome:
@@ -189,7 +214,7 @@ proc reachabilityStr*(autonat: Option[AutonatV2Service]): string =
   else:
     "unknown"
 
-proc portMappingStr*(natMapper: Option[NatMapper]): string =
+proc portMappingStr*(natMapper: Option[NatPortMapper]): string =
   if natMapper.isNone or natMapper.get.activeMappingProtocol.isNone:
     return "none"
   case natMapper.get.activeMappingProtocol.get

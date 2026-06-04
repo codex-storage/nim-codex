@@ -58,7 +58,7 @@ type
     # Expose to make reachability accessible from rest api
     autonatService*: Option[AutonatV2Service]
     autoRelayService*: Option[AutoRelayService]
-    natMapper*: Option[NatMapper]
+    natMapper*: Option[NatPortMapper]
     natRouter*: Option[NatRouter]
     isStarted: bool
 
@@ -85,6 +85,13 @@ proc start*(s: StorageServer) {.async.} =
 
   await s.storageNode.switch.start()
 
+  if s.natMapper.isSome and s.config.listenPort == Port(0):
+    for listenAddr in s.storageNode.switch.peerInfo.listenAddrs:
+      let maybePort = getTcpPort(listenAddr)
+      if maybePort.isSome:
+        s.natMapper.get.tcpPort = maybePort.get
+        break
+
   let announceAddrs =
     if s.config.nat.hasExtIp:
       # extip means that we assume the IP is reachable
@@ -100,7 +107,7 @@ proc start*(s: StorageServer) {.async.} =
     else:
       # Don't announce address and wait for AutoNat
       @[]
-
+  info "info ", addrs = $s.storageNode.switch.peerInfo.addrs[0]
   if not s.config.nat.hasExtIp:
     # Nodes with autonat start with client mode.
     # It will be updated if reachable.
@@ -201,35 +208,26 @@ proc new*(
     logFile: Option[IoHandle] = IoHandle.none,
 ): StorageServer =
   ## create StorageServer including setting up datastore, repostore, etc
-  let listenMultiAddr = getMultiAddrWithIpAndTcpPort(config.listenIp, config.listenPort)
 
-  let autonatClient = AutonatV2Client.new(random.Rng.instance())
-  let autonatService =
-    if config.nat.hasExtIp:
-      none(AutonatV2Service)
-    else:
-      some(
-        AutonatV2Service.new(
-          rng = random.Rng.instance(),
-          client = autonatClient,
-          config = AutonatV2ServiceConfig.new(
-            scheduleInterval = Opt.some(config.natScheduleInterval),
-            askNewConnectedPeers = true,
-            numPeersToAsk = config.natNumPeersToAsk,
-            maxQueueSize = config.natMaxQueueSize,
-            minConfidence = config.natMinConfidence,
-          ),
-        )
-      )
+  # Guards
+  if config.autonatServer and not config.nat.hasExtIp:
+    raise newException(StorageError, "--autonat-server requires --extip")
+
+  if config.isRelayServer and not config.autonatServer:
+    raise
+      newException(StorageError, "--relay-server is not compatible with autonat client")
+
+  # Switch
+  let listenMultiAddr = getMultiAddrWithIpAndTcpPort(config.listenIp, config.listenPort)
 
   let relayClient = RelayClient.new()
   let relay: Relay =
-    if config.relay:
+    if config.isRelayServer:
       Relay.new()
     else:
       relayClient
 
-  let switchBuilder = SwitchBuilder
+  var switchBuilder = SwitchBuilder
     .new()
     .withPrivateKey(privateKey)
     .withAddresses(@[listenMultiAddr], enableWildcardResolver = true)
@@ -240,18 +238,33 @@ proc new*(
     .withMaxConnections(config.maxPeers)
     .withAgentVersion(config.agentString)
     .withSignedPeerRecord(true)
-    .withAutonatV2Server()
     .withCircuitRelay(relay)
-    .withServices(
-      if autonatService.isSome:
-        @[Service(autonatService.get)]
-      else:
-        @[]
+
+  if config.autonatServer:
+    info "AutoNAT server enabled"
+    switchBuilder = switchBuilder.withAutonatV2Server()
+  elif not config.nat.hasExtIp:
+    info "AutoNAT client enabled",
+      scheduleInterval = config.natScheduleInterval,
+      numPeersToAsk = config.natNumPeersToAsk,
+      maxQueueSize = config.natMaxQueueSize,
+      minConfidence = config.natMinConfidence
+    switchBuilder = switchBuilder.withAutonatV2(
+      AutonatV2ServiceConfig.new(
+        scheduleInterval = Opt.some(config.natScheduleInterval),
+        askNewConnectedPeers = true,
+        numPeersToAsk = config.natNumPeersToAsk,
+        maxQueueSize = config.natMaxQueueSize,
+        minConfidence = config.natMinConfidence,
+      )
     )
+  else:
+    info "AutoNAT disabled (extip configured)"
 
   var natRouter: Option[NatRouter]
   let switch =
     if config.natSimulation.isSome:
+      # Provide a NAT simulation useful for testing NAT Traversal
       let filtering = FilteringBehavior.fromString(config.natSimulation.get).valueOr(
           AddressAndPortDependent
         )
@@ -268,6 +281,14 @@ proc new*(
   var taskPool: Taskpool
   autonatClient.setup(switch)
   switch.mount(autonatClient)
+
+  let autonatService: Option[AutonatV2Service] =
+    if switchBuilder.autonatV2Service.isSome:
+      some(switchBuilder.autonatV2Service.value)
+    else:
+      none(AutonatV2Service)
+
+  # Storage infrastructure
 
   try:
     if config.numThreads == ThreadCount(0):
@@ -383,12 +404,28 @@ proc new*(
       taskPool = taskPool,
     )
 
-  var natMapper: Option[NatMapper]
+  switch.mount(network)
+  switch.mount(manifestProto)
+
+  # NAT services
+  var natMapper: Option[NatPortMapper]
   var autoRelayService: Option[AutoRelayService]
 
   if autonatService.isSome:
+    let relayService = AutoRelayService.new(
+      maxNumRelays = config.natMaxRelays,
+      client = relayClient,
+      onReservation = proc(addresses: seq[MultiAddress]) {.gcsafe, raises: [].} =
+        info "Relay reservation updated", addresses
+        # relay addresses are for download traffic only, not DHT routing
+        discovery.updateAnnounceRecord(addresses),
+      rng = random.Rng.instance(),
+    )
+
+    autoRelayService = some(relayService)
+
     natMapper = some(
-      NatMapper(
+      NatPortMapper(
         natConfig: config.nat,
         tcpPort: config.listenPort,
         discoveryPort: config.discoveryPort,
@@ -397,17 +434,9 @@ proc new*(
         recheckPeriod: config.natPortMappingRecheckPeriod,
       )
     )
-    let relayService = AutoRelayService.new(
-      maxNumRelays = config.natMaxRelays,
-      client = relayClient,
-      onReservation = proc(addresses: seq[MultiAddress]) {.gcsafe, raises: [].} =
-        debug "Relay reservation updated", addresses
-        # relay addresses are for download traffic only, not DHT routing
-        discovery.updateAnnounceRecord(addresses),
-      rng = random.Rng.instance(),
-    )
 
-    autoRelayService = some(relayService)
+    if natRouter.isSome:
+      natRouter.get.natMapper = natMapper
 
     autonatService.get.setStatusAndConfidenceHandler(
       proc(
@@ -422,9 +451,7 @@ proc new*(
         )
     )
 
-  switch.mount(network)
-  switch.mount(manifestProto)
-
+  # REST server
   var restServer: RestServerRef = nil
 
   if config.apiBindAddress.isSome:

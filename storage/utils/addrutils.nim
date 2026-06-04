@@ -59,6 +59,16 @@ proc getMultiAddrWithIPAndUDPPort*(ip: IpAddress, port: Port): MultiAddress =
   let ipFamily = if ip.family == IpAddressFamily.IPv4: "/ip4/" else: "/ip6/"
   return MultiAddress.init(ipFamily & $ip & "/udp/" & $port).expect("valid multiaddr")
 
+func getTcpPort*(ma: MultiAddress): Option[Port] =
+  let parts = ($ma).split("/")
+  for i, part in parts:
+    if part == "tcp" and i + 1 < parts.len:
+      try:
+        return some(Port(parseInt(parts[i + 1])))
+      except ValueError:
+        return Port.none
+  Port.none
+
 proc getMultiAddrWithIpAndTcpPort*(ip: IpAddress, port: Port): MultiAddress =
   ## Creates a MultiAddress with the specified IP address and TCP port
   ## 

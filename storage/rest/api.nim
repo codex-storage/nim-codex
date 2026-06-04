@@ -567,7 +567,7 @@ proc initDebugApi(
     conf: StorageConf,
     autonat: Option[AutonatV2Service],
     autoRelay: Option[AutoRelayService],
-    natMapper: Option[NatMapper],
+    natMapper: Option[NatPortMapper],
     natRouter: Option[NatRouter],
     router: var RestRouter,
 ) =
@@ -679,7 +679,7 @@ proc initRestApi*(
     repoStore: RepoStore,
     autonat: Option[AutonatV2Service],
     autoRelay: Option[AutoRelayService],
-    natMapper: Option[NatMapper],
+    natMapper: Option[NatPortMapper],
     natRouter: Option[NatRouter],
     corsAllowedOrigin: ?string,
 ): RestRouter =

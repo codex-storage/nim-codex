@@ -367,10 +367,17 @@ type
       hidden
     .}: Option[string]
 
-    relay* {.
+    autonatServer* {.
+      desc: "Enable AutoNAT server to help other nodes check their reachability",
+      defaultValue: false,
+      name: "autonat-server",
+      hidden
+    .}: bool
+
+    isRelayServer* {.
       desc: "Enable circuit relay server (hop) - use on publicly reachable nodes only",
       defaultValue: false,
-      name: "relay"
+      name: "relay-server"
     .}: bool
 
 func defaultAddress*(conf: StorageConf): IpAddress =
