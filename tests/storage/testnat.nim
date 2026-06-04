@@ -1,9 +1,8 @@
-import std/[net, importutils]
+import std/[net, importutils, envvars]
 import pkg/chronos
 import ../../storage/utils/natutils
 import pkg/libp2p/[multiaddress, multihash, multicodec]
-import pkg/libp2p/protocols/connectivity/autonatv2/service except setup
-import pkg/libp2p/protocols/connectivity/autonatv2/types
+import pkg/libp2p/protocols/connectivity/autonat/types
 import pkg/libp2p/protocols/connectivity/relay/client as relayClientModule
 import pkg/libp2p/services/autorelayservice except setup
 
@@ -15,7 +14,6 @@ import ../../storage/nat
 import ../../storage/discovery
 import ../../storage/rng
 import ../../storage/utils
-import ../../storage/utils/addrutils
 
 privateAccess(NatMapper)
 
@@ -42,7 +40,7 @@ method mapNatPorts*(
 ): Future[Option[(Port, Port)]] {.async: (raises: [CancelledError]), gcsafe.} =
   m.mappedPorts
 
-suite "NatMapper.close":
+suite "NAT - NatMapper.close":
   test "does nothing when no upnp mapping":
     let mapper = MockNatMapper(
       natConfig: NatConfig(hasExtIp: false, nat: NatAuto),
@@ -65,30 +63,15 @@ suite "NatMapper.close":
     check device.deletedPorts ==
       @[(Port(8080), NatIpProtocol.Tcp), (Port(8090), NatIpProtocol.Udp)]
 
-suite "remapAddr":
-  test "replaces protocol tcp with udp":
-    let ma = MultiAddress.init("/ip4/1.2.3.4/tcp/5000").expect("valid")
-    let remapped = ma.remapAddr(protocol = some("udp"), port = some(Port(9000)))
-    check remapped == MultiAddress.init("/ip4/1.2.3.4/udp/9000").expect("valid")
-
-  test "replaces only port, keeping protocol":
-    let ma = MultiAddress.init("/ip4/1.2.3.4/tcp/5000").expect("valid")
-    let remapped = ma.remapAddr(port = some(Port(9000)))
-    check remapped == MultiAddress.init("/ip4/1.2.3.4/tcp/9000").expect("valid")
-
-  test "replaces only ip, keeping protocol and port":
-    let ma = MultiAddress.init("/ip4/1.2.3.4/tcp/5000").expect("valid")
-    let remapped = ma.remapAddr(ip = some(parseIpAddress("8.8.8.8")))
-    check remapped == MultiAddress.init("/ip4/8.8.8.8/tcp/5000").expect("valid")
-
-asyncchecksuite "handleNatStatus":
+asyncchecksuite "NAT - handleNatStatus":
   var sw: Switch
   var key: PrivateKey
   var disc: Discovery
-  let autoRelay =
-    AutoRelayService.new(1, relayClientModule.RelayClient.new(), nil, Rng.instance())
+  var autoRelay: AutoRelayService
 
   setup:
+    autoRelay =
+      AutoRelayService.new(1, relayClientModule.RelayClient.new(), nil, Rng.instance())
     key = PrivateKey.random(Rng.instance[]).get()
     disc = Discovery.new(key, announceAddrs = @[])
     sw = newStandardSwitch()
@@ -155,3 +138,22 @@ asyncchecksuite "handleNatStatus":
 
     check not autoRelay.isRunning
     check disc.announceAddrs == @[dialBack]
+
+suite "NAT - UPnP port mapping (requires NAT_TEST_UPNP=1)":
+  test "mapPorts and cleanup":
+    if getEnv("NAT_TEST_UPNP") != "1":
+      skip()
+
+    let res = UpnpDevice.init()
+    check res.isOk
+
+    let device = res.value
+    let ports = device.mapPorts(Port(8101), Port(8090))
+    check ports.isSome
+
+    let (tcp, udp) = ports.get()
+    check tcp == Port(8101)
+    check udp == Port(8090)
+
+    check device.deletePortMapping(Port(8101), NatIpProtocol.Tcp).isOk
+    check device.deletePortMapping(Port(8090), NatIpProtocol.Udp).isOk

@@ -200,6 +200,8 @@ proc updateRecords*(
     d.protocol.updateRecord(d.dhtRecord).expect("Should update SPR")
 
 proc updateAnnounceRecord*(d: Discovery, addrs: openArray[MultiAddress]) =
+  # Updates announce addresses only, not the DHT routing record.
+  # Relay addresses should not pollute DHT routing.
   d.announceAddrs = @addrs
   info "Updating announce record", addrs = d.announceAddrs
   d.providerRecord = SignedPeerRecord
@@ -254,7 +256,8 @@ proc new*(
     key: PrivateKey,
     bindIp = IPv4_any(),
     bindPort = 0.Port,
-    announceAddrs: openArray[MultiAddress],
+    announceAddrs: openArray[MultiAddress] = [],
+    discoveryPort = 0.Port,
     bootstrapNodes: openArray[SignedPeerRecord] = [],
     store: Datastore = SQLiteDatastore.new(Memory).expect("Should not fail!"),
     tableIpLimits: TableIpLimits = DefaultTableIpLimits,
@@ -266,8 +269,7 @@ proc new*(
     key: key, peerId: PeerId.init(key).expect("Should construct PeerId"), store: store
   )
 
-  # Update with empty values to get a valid SPR
-  self.updateRecords(@[], Port(0))
+  self.updateRecords(announceAddrs, discoveryPort)
 
   let discoveryConfig =
     DiscoveryConfig(tableIpLimits: tableIpLimits, bitsPerHop: DefaultBitsPerHop)

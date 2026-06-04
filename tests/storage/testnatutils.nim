@@ -46,7 +46,7 @@ method addPortMapping*(
   else:
     err("mapping failed")
 
-suite "UpnpDevice.init":
+suite "NAT - UpnpDevice.init":
   test "returns err when discover fails":
     check MockUpnpDev(discoverOk: false).init().isErr
 
@@ -65,7 +65,7 @@ suite "UpnpDevice.init":
   test "returns ok when IP not routable":
     check MockUpnpDev(discoverOk: true, igdResult: IGDIpNotRoutable).init().isOk
 
-suite "UpnpDevice.mapPorts":
+suite "NAT - UpnpDevice.mapPorts":
   test "returns none when addPortMapping fails":
     check MockUpnpDev(addPortMappingOk: false).mapPorts(Port(8080), Port(8090)).isNone
 
@@ -82,7 +82,7 @@ suite "UpnpDevice.mapPorts":
     let d = MockUpnpDev(addPortMappingOk: true, failOnProto: some(NatIpProtocol.Udp))
     check d.mapPorts(Port(8080), Port(8090)).isNone
 
-suite "PmpDevice.mapPorts":
+suite "NAT - PmpDevice.mapPorts":
   test "returns none when mapping fails":
     check MockPmpDev(addPortMappingOk: false).mapPorts(Port(8080), Port(8090)).isNone
 

@@ -85,6 +85,9 @@ proc start*(s: StorageServer) {.async.} =
     if s.config.nat.hasExtIp:
       # extip means that we assume the IP is reachable
       # So we just take the first peer addr and remap it with extip to keep the port only
+      if s.storageNode.switch.peerInfo.addrs.len == 0:
+        raise
+          newException(StorageError, "extip is set but switch has no listen addresses")
       @[
         s.storageNode.switch.peerInfo.addrs[0].remapAddr(
           ip = some(s.config.nat.extIp), port = none(Port)
@@ -94,7 +97,7 @@ proc start*(s: StorageServer) {.async.} =
       # If extip is not set, we have 2 choices:
       # 1- Announce the peer addrs contains detected addresses on the machine.
       # 2- Wait for AutoNat
-      # The probleme with 1 is that you will certainly announce private addresses
+      # The problem with 1 is that you will certainly announce private addresses
       # and if you advertise a CID, you will advertise these private addresses.
       # TODO: DHT client mode
       #s.storageNode.switch.peerInfo.addrs
@@ -124,7 +127,8 @@ proc stop*(s: StorageServer) {.async.} =
 
   notice "Stopping Storage node"
 
-  s.natMapper.close()
+  if s.natMapper != nil:
+    s.natMapper.close()
 
   var futures = @[
     s.storageNode.switch.stop(),
@@ -286,9 +290,11 @@ proc new*(
 
     discovery = Discovery.new(
       switch.peerInfo.privateKey,
-      announceAddrs = @[listenMultiAddr],
+      announceAddrs = @[],
       bindPort = config.discoveryPort,
       bootstrapNodes = bootstrapNodes,
+      discoveryPort = config.discoveryPort,
+      bootstrapNodes = config.bootstrapNodes,
       store = discoveryStore,
     )
 
