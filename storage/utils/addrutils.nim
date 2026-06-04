@@ -74,38 +74,3 @@ proc getMultiAddrWithIpAndTcpPort*(ip: IpAddress, port: Port): MultiAddress =
   return MultiAddress.init(ipFamily & $ip & "/tcp/" & $port).expect(
       "Failed to construct multiaddress with IP and TCP port"
     )
-
-proc getAddressAndPort*(
-    ma: MultiAddress
-): tuple[ip: Option[IpAddress], port: Option[Port]] =
-  try:
-    # Try IPv4 first
-    let ipv4Result = ma[multiCodec("ip4")]
-    let ip =
-      if ipv4Result.isOk:
-        let ipBytes = ipv4Result.get().protoArgument().expect("Invalid IPv4 format")
-        let ipArray = [ipBytes[0], ipBytes[1], ipBytes[2], ipBytes[3]]
-        some(IpAddress(family: IPv4, address_v4: ipArray))
-      else:
-        # Try IPv6 if IPv4 not found
-        let ipv6Result = ma[multiCodec("ip6")]
-        if ipv6Result.isOk:
-          let ipBytes = ipv6Result.get().protoArgument().expect("Invalid IPv6 format")
-          var ipArray: array[16, byte]
-          for i in 0 .. 15:
-            ipArray[i] = ipBytes[i]
-          some(IpAddress(family: IPv6, address_v6: ipArray))
-        else:
-          none(IpAddress)
-
-    # Get TCP Port
-    let portResult = ma[multiCodec("tcp")]
-    let port =
-      if portResult.isOk:
-        let portBytes = portResult.get().protoArgument().expect("Invalid port format")
-        some(Port(fromBytesBE(uint16, portBytes)))
-      else:
-        none(Port)
-    (ip: ip, port: port)
-  except Exception:
-    (ip: none(IpAddress), port: none(Port))

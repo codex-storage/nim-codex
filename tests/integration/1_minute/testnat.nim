@@ -1,6 +1,5 @@
 import std/json
 import std/options
-import std/sequtils
 import pkg/chronos
 import pkg/questionable/results
 

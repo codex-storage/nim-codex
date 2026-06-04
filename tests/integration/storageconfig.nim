@@ -321,3 +321,11 @@ proc withNatScheduleInterval*(
   for config in startConfig.configs.mitems:
     config.addCliOption("--nat-schedule-interval", $scheduleInterval)
   return startConfig
+
+proc withExtIp*(
+    self: StorageConfigs, ip = "127.0.0.1"
+): StorageConfigs {.raises: [StorageConfigError].} =
+  var startConfig = self
+  for config in startConfig.configs.mitems:
+    config.addCliOption("--nat", "extip:" & ip)
+  return startConfig

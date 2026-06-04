@@ -16,7 +16,7 @@ import
 import pkg/chronos
 import pkg/chronicles
 import pkg/libp2p
-import pkg/libp2p/protocols/connectivity/autonat/types
+import pkg/libp2p/protocols/connectivity/autonatv2/service
 import pkg/libp2p/services/autorelayservice
 
 import ./utils
@@ -58,7 +58,7 @@ logScope:
 type NatMapper* = ref object of RootObj
 
 method mapNatPorts*(m: NatMapper): Option[(Port, Port)] {.base, gcsafe, raises: [].} =
-  raiseAssert "mapNatPorts not implemented"
+  none((Port, Port))
 
 type DefaultNatMapper* = ref object of NatMapper
   natConfig*: NatConfig
@@ -303,17 +303,12 @@ proc findReachableNodes*(bootstrapNodes: seq[SignedPeerRecord]): seq[SignedPeerR
 
 proc nattedPorts*(natConfig: NatConfig, tcpPort, udpPort: Port): Option[(Port, Port)] =
   if natConfig.hasExtIp:
-    return none((Port, Port)) # manual setup, no port mapping needed
-  setupNat(natConfig.nat, tcpPort, udpPort, "storage")
+    return none((Port, Port))
+  let clientId = "storage"
+  return setupNat(natConfig.nat, tcpPort, udpPort, clientId)
 
 method mapNatPorts*(m: DefaultNatMapper): Option[(Port, Port)] {.gcsafe, raises: [].} =
   nattedPorts(m.natConfig, m.tcpPort, m.discoveryPort)
-
-proc hasPublicIp*(addrs: seq[MultiAddress]): bool =
-  for addr in addrs:
-    let (ip, _) = getAddressAndPort(addr)
-    if ip.isSome and isGlobalUnicast(ip.get):
-      return true
 
 proc handleNatStatus*(
     networkReachability: NetworkReachability,
@@ -340,18 +335,20 @@ proc handleNatStatus*(
     let discAddr =
       dialBackAddr.get.remapAddr(protocol = some("udp"), port = some(discoveryPort))
     discovery.updateAnnounceRecord(@[dialBackAddr.get])
-    discovery.updateDhtRecord(@[dialBackAddr.get, discAddr])
+    discovery.updateDhtRecord(@[discAddr])
     # TODO: switch DHT to server mode
   of NotReachable:
     var hasPortMapping = false
 
-    if dialBackAddr.isSome:
+    if dialBackAddr.isNone:
+      warn "Got empty dialback address in AutoNat when node is Reachable"
+    else:
       let maybePorts = mapper.mapNatPorts()
 
       if maybePorts.isSome:
         let (tcpPort, udpPort) = maybePorts.get()
-        let announceAddr = dialBackAddr.get.remapAddr(port = some(tcpPort))
-        let discAddr =
+        let announceAddress = dialBackAddr.get.remapAddr(port = some(tcpPort))
+        let discoveryAddrs =
           dialBackAddr.get.remapAddr(protocol = some("udp"), port = some(udpPort))
 
         # TODO: Try a dial me to make sure we are reachable
@@ -360,8 +357,8 @@ proc handleNatStatus*(
           if not await autoRelayService.stop(switch):
             debug "AutoRelayService stop method returned false"
 
-        discovery.updateAnnounceRecord(@[announceAddr])
-        discovery.updateDhtRecord(@[announceAddr, discAddr])
+        discovery.updateAnnounceRecord(@[announceAddress])
+        discovery.updateDhtRecord(@[discoveryAddrs])
 
         hasPortMapping = true
 

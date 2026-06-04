@@ -41,7 +41,6 @@ import ./namespaces
 import ./storagetypes
 import ./logutils
 import ./nat
-import ./utils/natutils
 
 logScope:
   topics = "storage node"
@@ -88,29 +87,16 @@ proc start*(s: StorageServer) {.async.} =
     else:
       getBestLocalAddress(s.config.listenIp)
 
-  if announceIp.isNone:
-    # We should have an IP, even at private IP
-    raise newException(StorageError, "Unable to determine an IP address to announce")
-
-  # Remap switch addresses to the resolved IP (replaces 0.0.0.0 or :: with the actual address),
-  # keeping unique entries only.
-  let announceAddrs = s.storageNode.switch.peerInfo.addrs
-    .mapIt(it.remapAddr(ip = announceIp, port = none(Port)))
-    .deduplicate()
-  let discoveryAddrs =
-    @[getMultiAddrWithIPAndUDPPort(announceIp.get, s.config.discoveryPort)]
-  s.storageNode.discovery.updateDhtRecord(announceAddrs & discoveryAddrs)
-  s.storageNode.discovery.updateAnnounceRecord(announceAddrs)
-
-  var hasPublicAddr = false
-  for announceAddr in announceAddrs:
-    let (maybeIp, _) = getAddressAndPort(announceAddr)
-    if maybeIp.isSome and maybeIp.get.isGlobalUnicast():
-      hasPublicAddr = true
-      break
-
-  if not hasPublicAddr:
-    warn "Unable to determine a public IP address. This node will only be reachable on a private network."
+  if announceIp.isSome:
+    let ip = announceIp.get
+    let announceAddrs = s.storageNode.switch.peerInfo.addrs
+      .mapIt(it.remapAddr(ip = some(ip), port = none(Port)))
+      .deduplicate()
+    let discAddr = getMultiAddrWithIPAndUDPPort(ip, s.config.discoveryPort)
+    s.storageNode.discovery.updateAnnounceRecord(announceAddrs)
+    s.storageNode.discovery.updateDhtRecord(announceAddrs & @[discAddr])
+  else:
+    warn "Unable to determine a local IP address to announce"
 
   await s.storageNode.start()
 
