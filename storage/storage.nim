@@ -17,7 +17,7 @@ import pkg/chronos
 import pkg/taskpools
 import pkg/presto
 import pkg/libp2p
-import pkg/libp2p/protocols/connectivity/autonat/[service, client]
+import pkg/libp2p/protocols/connectivity/autonatv2/[service, client]
 import pkg/confutils
 import pkg/confutils/defs
 import pkg/stew/io2
@@ -53,7 +53,7 @@ type
     repoStore: RepoStore
     maintenance: BlockMaintainer
     taskpool: Taskpool
-    autonatService*: AutonatService
+    autonatService*: AutonatV2Service
     isStarted: bool
 
   StoragePrivateKey* = libp2p.PrivateKey # alias
@@ -195,14 +195,17 @@ proc new*(
   ## create StorageServer including setting up datastore, repostore, etc
   let listenMultiAddr = getMultiAddrWithIpAndTcpPort(config.listenIp, config.listenPort)
 
-  let autonatService = AutonatService.new(
-    autonatClient = AutonatClient.new(),
+  let autonatClient = AutonatV2Client.new(random.Rng.instance())
+  let autonatService = AutonatV2Service.new(
     rng = random.Rng.instance(),
-    scheduleInterval = Opt.some(config.natScheduleInterval),
-    askNewConnectedPeers = true,
-    numPeersToAsk = config.natNumPeersToAsk,
-    maxQueueSize = config.natMaxQueueSize,
-    minConfidence = config.natMinConfidence,
+    client = autonatClient,
+    config = AutonatV2ServiceConfig.new(
+      scheduleInterval = Opt.some(config.natScheduleInterval),
+      askNewConnectedPeers = true,
+      numPeersToAsk = config.natNumPeersToAsk,
+      maxQueueSize = config.natMaxQueueSize,
+      minConfidence = config.natMinConfidence,
+    ),
   )
 
   let switch = SwitchBuilder
@@ -217,11 +220,13 @@ proc new*(
     .withAgentVersion(config.agentString)
     .withSignedPeerRecord(true)
     .withTcpTransport({ServerFlags.ReuseAddr, ServerFlags.TcpNoDelay})
-    .withAutonat()
+    .withAutonatV2Server()
     .withServices(@[Service(autonatService)])
     .build()
 
   var taskPool: Taskpool
+  autonatClient.setup(switch)
+  switch.mount(autonatClient)
 
   try:
     if config.numThreads == ThreadCount(0):
@@ -352,7 +357,7 @@ proc new*(
   switch.mount(network)
   switch.mount(manifestProto)
 
-  autonatService.statusAndConfidenceHandler(
+  autonatService.setStatusAndConfidenceHandler(
     proc(
         networkReachability: NetworkReachability, confidence: Opt[float]
     ) {.async: (raises: [CancelledError]).} =

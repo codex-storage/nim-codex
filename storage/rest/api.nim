@@ -23,7 +23,7 @@ import pkg/confutils
 
 import pkg/libp2p
 import pkg/libp2p/routing_record
-import pkg/libp2p/protocols/connectivity/autonat/service
+import pkg/libp2p/protocols/connectivity/autonatv2/service
 import pkg/codexdht/discv5/spr as spr
 
 import ../logutils
@@ -561,7 +561,7 @@ proc initNodeApi(node: StorageNodeRef, conf: StorageConf, router: var RestRouter
 proc initDebugApi(
     node: StorageNodeRef,
     conf: StorageConf,
-    autonat: AutonatService,
+    autonat: AutonatV2Service,
     router: var RestRouter,
 ) =
   let allowedOrigin = router.allowedOrigin
@@ -644,7 +644,7 @@ proc initRestApi*(
     node: StorageNodeRef,
     conf: StorageConf,
     repoStore: RepoStore,
-    autonat: AutonatService,
+    autonat: AutonatV2Service,
     corsAllowedOrigin: ?string,
 ): RestRouter =
   var router = RestRouter.init(validate, corsAllowedOrigin)
