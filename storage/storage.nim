@@ -64,6 +64,7 @@ type
     natRouter*: Option[NatRouter]
     holePunchHandler: Option[connmanager.PeerEventHandler]
     peerInfoObserver: Option[PeerInfoObserver]
+    bootstrapNodes: seq[SignedPeerRecord]
     isStarted: bool
 
   StoragePrivateKey* = libp2p.PrivateKey # alias
@@ -126,13 +127,7 @@ proc start*(s: StorageServer) {.async.} =
 
   # Connect to the bootstrap nodes in order to have connected peers
   # for Autonat.
-  let bootstrapNodes =
-    if s.config.bootstrapNodes.len > 0:
-      s.config.bootstrapNodes
-    else:
-      s.config.network.bootstrapNodes
-
-  for spr in findReachableNodes(bootstrapNodes):
+  for spr in findReachableNodes(s.bootstrapNodes):
     try:
       let addrs = spr.data.addresses.mapIt(it.address)
       await s.storageNode.switch.connect(spr.data.peerId, addrs)
@@ -538,4 +533,5 @@ proc new*(
     natRouter: natRouter,
     holePunchHandler: holePunchHandler,
     peerInfoObserver: peerInfoObserver,
+    bootstrapNodes: bootstrapNodes,
   )
