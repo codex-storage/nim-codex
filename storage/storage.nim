@@ -490,9 +490,8 @@ proc new*(
     if natRouter.isSome:
       natRouter.get.natMapper = natMapper
 
-    peerInfoObserver = some(
-      setupPeerInfoObserver(switch, autonatService.get, discovery, config.discoveryPort)
-    )
+    peerInfoObserver =
+      some(setupPeerInfoObserver(switch, autonatService.get, discovery, natMapper.get))
 
     autonatService.get.setStatusAndConfidenceHandler(
       proc(

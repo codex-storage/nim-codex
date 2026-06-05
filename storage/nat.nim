@@ -140,7 +140,10 @@ proc announcePeerInfoAddrs*(discovery: Discovery, peerInfo: PeerInfo, udpPort: P
   discovery.updateRecordsAndSpr(addrs, udpPort = udpPort)
 
 proc setupPeerInfoObserver*(
-    switch: Switch, autonat: AutonatV2Service, discovery: Discovery, udpPort: Port
+    switch: Switch,
+    autonat: AutonatV2Service,
+    discovery: Discovery,
+    natMapper: NatPortMapper,
 ): PeerInfoObserver =
   ## AutoNAT's address mapper resolves peerInfo.addrs into public addresses
   ## once the node is Reachable; peerInfo.update() then notifies observers.
@@ -150,6 +153,9 @@ proc setupPeerInfoObserver*(
       addrs = peerInfo.addrs, reachability = autonat.networkReachability
     if autonat.networkReachability != NetworkReachability.Reachable:
       return
+    # When a NAT mapping is active, announce its external UDP port: the router
+    # may have assigned a different port than the requested discoveryPort.
+    let udpPort = natMapper.activeUdpPort.get(natMapper.discoveryPort)
     announcePeerInfoAddrs(discovery, peerInfo, udpPort)
 
   switch.peerInfo.addObserver(observer)

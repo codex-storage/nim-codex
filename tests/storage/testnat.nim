@@ -135,7 +135,9 @@ asyncchecksuite "NAT - handleNatStatus":
 
   test "peerInfo observer announces addresses when Reachable":
     let autonat = AutonatV2Service.new(Rng.instance())
-    discard setupPeerInfoObserver(sw, autonat, disc, discoveryPort)
+    discard setupPeerInfoObserver(
+      sw, autonat, disc, NatPortMapper(discoveryPort: discoveryPort)
+    )
     autonat.networkReachability = Reachable
 
     sw.peerInfo.listenAddrs.add(
@@ -145,9 +147,28 @@ asyncchecksuite "NAT - handleNatStatus":
 
     check disc.announceAddrs == sw.peerInfo.addrs
 
+  test "peerInfo observer announces the mapped external UDP port when a mapping is active":
+    let autonat = AutonatV2Service.new(Rng.instance())
+    let mapper =
+      NatPortMapper(discoveryPort: discoveryPort, activeUdpPort: some(Port(40001)))
+    discard setupPeerInfoObserver(sw, autonat, disc, mapper)
+    autonat.networkReachability = Reachable
+
+    sw.peerInfo.listenAddrs.add(
+      MultiAddress.init("/ip4/1.2.3.4/tcp/9999").expect("valid")
+    )
+    await sw.peerInfo.update()
+
+    let sprAddrs = disc.getSpr().data.addresses.mapIt(it.address)
+    check MultiAddress.init("/ip4/1.2.3.4/udp/40001").expect("valid") in sprAddrs
+    check MultiAddress.init("/ip4/1.2.3.4/udp/" & $discoveryPort).expect("valid") notin
+      sprAddrs
+
   test "peerInfo observer does not announce when the node is not Reachable":
     let autonat = AutonatV2Service.new(Rng.instance())
-    discard setupPeerInfoObserver(sw, autonat, disc, discoveryPort)
+    discard setupPeerInfoObserver(
+      sw, autonat, disc, NatPortMapper(discoveryPort: discoveryPort)
+    )
     autonat.networkReachability = NotReachable
 
     sw.peerInfo.listenAddrs.add(
