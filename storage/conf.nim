@@ -394,6 +394,27 @@ func defaultAddress*(conf: StorageConf): IpAddress =
 func defaultNatConfig*(): NatConfig =
   result = NatConfig(hasExtIp: false, nat: NatStrategy.NatAuto)
 
+func validateAutonatConfig*(config: StorageConf): ?!void =
+  # An autonat or relay server must be Reachable, assumed with extIp.
+  # In other words, a node cannot be autonat server AND autonat client.
+  # Currently, only bootstrap nodes should be autonat servers.
+  if config.autonatServer and not config.nat.hasExtIp:
+    return failure "--autonat-server requires --nat=extip:<IP>"
+
+  if config.isRelayServer and not config.nat.hasExtIp:
+    return failure "--relay-server requires --nat=extip:<IP>"
+
+  if config.natMaxQueueSize < 1:
+    return failure "--nat-max-queue-size must be at least 1"
+
+  if config.natNumPeersToAsk < 1:
+    return failure "--nat-num-peers-to-ask must be at least 1"
+
+  if config.natMinConfidence < 0.0 or config.natMinConfidence > 1.0:
+    return failure "--nat-min-confidence must be between 0 and 1"
+
+  success()
+
 proc getStorageVersion(): string =
   let tag = strip(staticExec("git describe --tags --abbrev=0"))
   if tag.isEmptyOrWhitespace:

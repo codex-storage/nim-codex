@@ -1,0 +1,89 @@
+import std/net
+import pkg/questionable/results
+
+import ../asynctest
+import ./helpers
+import ../../storage/conf
+
+proc validConfig(): StorageConf =
+  StorageConf(
+    nat: defaultNatConfig(),
+    natMaxQueueSize: 3,
+    natNumPeersToAsk: 5,
+    natMinConfidence: 0.7,
+  )
+
+suite "Conf - validateAutonatConfig":
+  test "accepts a valid config":
+    check validConfig().validateAutonatConfig().isOk
+
+  test "rejects autonat server without extip":
+    var config = validConfig()
+    config.autonatServer = true
+
+    check config.validateAutonatConfig().isErr
+
+  test "accepts autonat server with extip":
+    var config = validConfig()
+    config.autonatServer = true
+    config.nat = NatConfig(hasExtIp: true, extIp: parseIpAddress("1.2.3.4"))
+
+    check config.validateAutonatConfig().isOk
+
+  test "rejects relay server without extip":
+    var config = validConfig()
+    config.isRelayServer = true
+
+    check config.validateAutonatConfig().isErr
+
+  test "accepts relay server with extip":
+    var config = validConfig()
+    config.isRelayServer = true
+    config.nat = NatConfig(hasExtIp: true, extIp: parseIpAddress("1.2.3.4"))
+
+    check config.validateAutonatConfig().isOk
+
+  test "rejects nat-max-queue-size below 1":
+    var config = validConfig()
+    config.natMaxQueueSize = 0
+
+    check config.validateAutonatConfig().isErr
+
+  test "accepts nat-max-queue-size of 1":
+    var config = validConfig()
+    config.natMaxQueueSize = 1
+
+    check config.validateAutonatConfig().isOk
+
+  test "rejects nat-num-peers-to-ask below 1":
+    var config = validConfig()
+    config.natNumPeersToAsk = 0
+
+    check config.validateAutonatConfig().isErr
+
+  test "accepts nat-num-peers-to-ask of 1":
+    var config = validConfig()
+    config.natNumPeersToAsk = 1
+
+    check config.validateAutonatConfig().isOk
+
+  test "rejects negative nat-min-confidence":
+    var config = validConfig()
+    config.natMinConfidence = -0.1
+
+    check config.validateAutonatConfig().isErr
+
+  test "rejects nat-min-confidence above 1":
+    var config = validConfig()
+    config.natMinConfidence = 1.1
+
+    check config.validateAutonatConfig().isErr
+
+  test "accepts nat-min-confidence bounds":
+    var config = validConfig()
+
+    config.natMinConfidence = 0.0
+    check config.validateAutonatConfig().isOk
+
+    config.natMinConfidence = 1.0
+    check config.validateAutonatConfig().isOk

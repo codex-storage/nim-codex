@@ -241,15 +241,8 @@ proc new*(
 ): StorageServer =
   ## create StorageServer including setting up datastore, repostore, etc
 
-  # Ensure that you can run an autonat server if the node is Reachable, assumed
-  # with extIp.
-  # In other words, a node cannot have autonat server AND autonat client.
-  # Currently, only bootstrap node should be autonat server.
-  if config.autonatServer and not config.nat.hasExtIp:
-    raise newException(StorageError, "--autonat-server requires --nat=extip:<IP>")
-
-  if config.isRelayServer and not config.nat.hasExtIp:
-    raise newException(StorageError, "--relay-server requires --nat=extip:<IP>")
+  if err =? config.validateAutonatConfig().errorOption:
+    raise newException(StorageError, err.msg)
 
   # Switch
   let listenMultiAddr = getMultiAddrWithIpAndTcpPort(config.listenIp, config.listenPort)
