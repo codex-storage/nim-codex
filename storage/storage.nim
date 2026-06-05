@@ -63,7 +63,7 @@ type
     natMapper*: Option[NatPortMapper]
     natRouter*: Option[NatRouter]
     holePunchHandler: Option[connmanager.PeerEventHandler]
-    observedAddrMapper: Option[AddressMapper]
+    peerInfoObserver: Option[PeerInfoObserver]
     isStarted: bool
 
   StoragePrivateKey* = libp2p.PrivateKey # alias
@@ -139,11 +139,9 @@ proc start*(s: StorageServer) {.async.} =
     except CatchableError as e:
       warn "Cannot connect to bootstrap node", error = e.msg
 
-  # Refresh peerInfo.addrs so the observed address collected during the bootstrap
-  # Identify exchange is applied to peerInfo via the address mapper, then start
-  # AutoNAT here (we own it, it is not in switch.services) so its first probe targets
-  # the now-connected bootstrap peers instead of firing at switch.start on no peers.
-  await s.storageNode.switch.peerInfo.update()
+  # Start AutoNAT here (we own it, it is not in switch.services) so its first
+  # probe targets the now-connected bootstrap peers instead of firing at
+  # switch.start on no peers.
   if s.autonatService.isSome:
     await s.autonatService.get.start(s.storageNode.switch)
 
@@ -167,10 +165,8 @@ proc stop*(s: StorageServer) {.async.} =
       s.holePunchHandler.get, PeerEventKind.Joined
     )
 
-  if s.observedAddrMapper.isSome:
-    s.storageNode.switch.peerInfo.addressMappers.keepItIf(
-      it != s.observedAddrMapper.get
-    )
+  if s.peerInfoObserver.isSome:
+    s.storageNode.switch.peerInfo.removeObserver(s.peerInfoObserver.get)
 
   var futures = @[
     s.storageNode.switch.stop(),
@@ -313,11 +309,6 @@ proc new*(
         numPeersToAsk = config.natNumPeersToAsk,
         maxQueueSize = config.natMaxQueueSize,
         minConfidence = config.natMinConfidence,
-        # The AddressMapper in libp2p injects the observed address
-        # only when the node is detected Reachable.
-        # We need it before, so we define our custom mapper below,
-        # and disable this one to avoid having 2 mappers.
-        enableAddressMapper = false,
       )
     )
     # At the first AutoNAT probe, the only identify observations available come
@@ -364,20 +355,6 @@ proc new*(
       some(service)
     else:
       none(AutonatV2Service)
-
-  # Inject observed addresses into peerInfo.addrs so AutoNAT advertises a
-  # dialable (public) address. nim-libp2p collects observations via Identify
-  # but does not wire them into peerInfo automatically; without this, the
-  # AutoNAT DialRequest carries only private listen addresses and the server
-  # responds EDialRefused.
-  var observedAddrMapper: Option[AddressMapper]
-  if not config.autonatServer and not config.nat.hasExtIp:
-    let mapper: AddressMapper = proc(
-        addrs: seq[MultiAddress]
-    ): Future[seq[MultiAddress]] {.async: (raises: [CancelledError]).} =
-      addrs.mapIt(switch.peerStore.guessDialableAddr(it))
-    switch.peerInfo.addressMappers.add(mapper)
-    observedAddrMapper = some(mapper)
 
   # Storage infrastructure
 
@@ -482,6 +459,7 @@ proc new*(
   var natMapper: Option[NatPortMapper]
   var autoRelayService: Option[AutoRelayService]
   var holePunchHandler: Option[connmanager.PeerEventHandler]
+  var peerInfoObserver: Option[PeerInfoObserver]
 
   if autonatService.isSome:
     let relayService = AutoRelayService.new(
@@ -511,6 +489,10 @@ proc new*(
     # natRouter is some only when using nat simulation
     if natRouter.isSome:
       natRouter.get.natMapper = natMapper
+
+    peerInfoObserver = some(
+      setupPeerInfoObserver(switch, autonatService.get, discovery, config.discoveryPort)
+    )
 
     autonatService.get.setStatusAndConfidenceHandler(
       proc(
@@ -556,5 +538,5 @@ proc new*(
     natMapper: natMapper,
     natRouter: natRouter,
     holePunchHandler: holePunchHandler,
-    observedAddrMapper: observedAddrMapper,
+    peerInfoObserver: peerInfoObserver,
   )
