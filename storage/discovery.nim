@@ -43,7 +43,7 @@ type Discovery* = ref object of RootObj
   providerRecord*: ?SignedPeerRecord
     # record to advertice node connection information, this carry any
     # address that the node can be connected on
-  dhtRecord*: ?SignedPeerRecord # record to advertice DHT connection information
+  dhtAddrs*: seq[MultiAddress] # UDP discovery addresses, exposed for debugging
   isStarted: bool
   store: Datastore
 
@@ -191,11 +191,9 @@ proc announceDirectAddrs*(
   info "Updating announce and DHT records", tcpAddrs, udpAddrs
 
   d.announceAddrs = tcpAddrs
+  d.dhtAddrs = udpAddrs
   d.providerRecord = SignedPeerRecord
     .init(d.key, PeerRecord.init(d.peerId, tcpAddrs))
-    .expect("Should construct signed record").some
-  d.dhtRecord = SignedPeerRecord
-    .init(d.key, PeerRecord.init(d.peerId, udpAddrs))
     .expect("Should construct signed record").some
 
   if not d.protocol.isNil:

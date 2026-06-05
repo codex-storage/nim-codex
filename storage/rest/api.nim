@@ -585,6 +585,7 @@ proc initDebugApi(
         "repo": $conf.dataDir,
         "spr": nodeSpr.toURI,
         "announceAddresses": node.discovery.announceAddrs,
+        "dhtAddresses": node.discovery.dhtAddrs,
         "table": table,
         "storage": {"version": $storageVersion, "revision": $storageRevision},
         "nat": {

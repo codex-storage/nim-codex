@@ -61,6 +61,7 @@ proc getDebug(
     "addrs": node.switch.peerInfo.addrs.mapIt($it),
     "spr": nodeSpr.toURI,
     "announceAddresses": node.discovery.announceAddrs,
+    "dhtAddresses": node.discovery.dhtAddrs,
     "table": table,
     "nat": {
       "reachability": reachabilityStr(storage[].autonatService),

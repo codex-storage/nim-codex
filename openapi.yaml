@@ -106,6 +106,7 @@ components:
         - repo
         - spr
         - announceAddresses
+        - dhtAddresses
         - table
         - storage
       properties:
@@ -121,6 +122,10 @@ components:
         spr:
           $ref: "#/components/schemas/SPR"
         announceAddresses:
+          type: array
+          items:
+            $ref: "#/components/schemas/MultiAddress"
+        dhtAddresses:
           type: array
           items:
             $ref: "#/components/schemas/MultiAddress"
