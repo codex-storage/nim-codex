@@ -123,7 +123,7 @@ else
 NIM_PARAMS := $(NIM_PARAMS) -d:release
 endif
 
-deps: | deps-common libplum
+deps: | deps-common nat-libs libplum
 ifneq ($(USE_LIBBACKTRACE), 0)
 deps: | libbacktrace
 endif
