@@ -29,8 +29,6 @@ spec:
           limits:
             memory: "6Gi"
         env:
-        - name: KUBECONFIG
-          value: "/opt/kubeconfig.yaml"
         - name: LOGPATH
           value: "/var/log/storage-${TEST_TYPE}"
         - name: BRANCH
@@ -46,17 +44,12 @@ spec:
         - name: TESTS_TYPE
           value: "${TEST_TYPE}"
         volumeMounts:
-        - name: kubeconfig
-          mountPath: /opt/kubeconfig.yaml
-          subPath: kubeconfig.yaml
         - name: logs
           mountPath: /var/log/storage-${TEST_TYPE}
         args: ["dotnet", "test", "Tests/LogosStorageReleaseTests", "-p:BuildInParallel=false"]
+      serviceAccountName: release-tests-runner
       restartPolicy: Never
       volumes:
-        - name: kubeconfig
-          secret:
-            secretName: storage-dist-tests-app-kubeconfig
         - name: logs
           hostPath:
             path: /var/log/storage-${TEST_TYPE}
