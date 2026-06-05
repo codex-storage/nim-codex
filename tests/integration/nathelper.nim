@@ -1,3 +1,4 @@
+import std/algorithm
 import std/json
 import std/sequtils
 import pkg/chronos
@@ -25,6 +26,18 @@ proc checkNatStatus*(
       let rr = nat["relayRunning"].getBool()
       let ha = addrs.anyIt("p2p-circuit" in it)
       let pm = nat["portMapping"].getStr()
+      let aa = info["announceAddresses"].getElems.mapIt(it.getStr)
+
+      # Reachable nodes must announce their dialable (non-circuit) addrs to
+      # the DHT (peerInfo observer); relayed nodes must announce their
+      # circuit addrs (onReservation).
+      let announceOk =
+        if reachability == "Reachable":
+          aa.len > 0 and aa.sorted == addrs.filterIt("p2p-circuit" notin it).sorted
+        elif relayRunning:
+          aa.len > 0 and aa.allIt("p2p-circuit" in it)
+        else:
+          true
 
       # It is important to check all the conditions together to avoid race
       # (new autonat iteration)
@@ -33,10 +46,10 @@ proc checkNatStatus*(
         "reachability=" & r & " (want " & reachability & ")" & " clientMode=" & $cm &
           " (want " & $clientMode & ")" & " relayRunning=" & $rr & " (want " &
           $relayRunning & ")" & " p2p-circuit=" & $ha & " (want " & $relayRunning & ")" &
-          " portMapping=" & pm
+          " portMapping=" & pm & " announceAddresses=" & $aa
       )
       r == reachability and cm == clientMode and rr == relayRunning and
-        ha == relayRunning,
+        ha == relayRunning and announceOk,
     timeout = RelayTimeout,
     pollInterval = PollInterval,
   )
