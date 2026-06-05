@@ -469,7 +469,7 @@ func parse*(T: type NatConfig, p: string): Result[NatConfig, string] =
         let error = "Not a valid IP address: " & p[6 ..^ 1]
         return err(error)
     else:
-      return err("Not a valid NAT option: " & p)
+      return err("Not a valid NAT option: " & p & ". Valid options: auto, extip:<IP>")
 
 proc parseCmdArg*(T: type NatConfig, p: string): T =
   let res = NatConfig.parse(p)
