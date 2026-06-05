@@ -64,6 +64,7 @@ proc getDebug(
     "table": table,
     "nat": {
       "reachability": reachabilityStr(storage[].autonatService),
+      "clientMode": node.discovery.protocol.clientMode,
       "relayRunning":
         storage[].autoRelayService.isSome and storage[].autoRelayService.get.isRunning,
       "portMapping": portMappingStr(storage[].natMapper),
