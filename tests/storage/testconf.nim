@@ -4,6 +4,7 @@ import pkg/questionable/results
 import ../asynctest
 import ./helpers
 import ../../storage/conf
+import ../../storage/nat
 
 proc validConfig(): StorageConf =
   StorageConf(
@@ -26,7 +27,7 @@ suite "Conf - validateAutonatConfig":
   test "accepts autonat server with extip":
     var config = validConfig()
     config.autonatServer = true
-    config.nat = NatConfig(hasExtIp: true, extIp: parseIpAddress("1.2.3.4"))
+    config.nat = nat.NatConfig(hasExtIp: true, extIp: parseIpAddress("1.2.3.4"))
 
     check config.validateAutonatConfig().isOk
 
@@ -39,7 +40,7 @@ suite "Conf - validateAutonatConfig":
   test "accepts relay server with extip":
     var config = validConfig()
     config.isRelayServer = true
-    config.nat = NatConfig(hasExtIp: true, extIp: parseIpAddress("1.2.3.4"))
+    config.nat = nat.NatConfig(hasExtIp: true, extIp: parseIpAddress("1.2.3.4"))
 
     check config.validateAutonatConfig().isOk
 
