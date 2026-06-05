@@ -158,7 +158,7 @@ proc stop*(s: StorageServer) {.async.} =
   notice "Stopping Storage node"
 
   if s.natMapper.isSome:
-    s.natMapper.get.close()
+    s.natMapper.get.stop()
 
   if s.holePunchHandler.isSome:
     s.storageNode.switch.removePeerEventHandler(

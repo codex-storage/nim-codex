@@ -114,6 +114,21 @@ asyncchecksuite "NAT - handleNatStatus":
     check not autoRelay.isRunning
     check not disc.protocol.clientMode
 
+  test "handleNatStatus does nothing after the mapper is stopped":
+    let dialBack = MultiAddress.init("/ip4/1.2.3.4/tcp/8080").expect("valid")
+    let mapper = MockNatPortMapper(
+      mappedPorts: some((Port(9000), Port(9001), MappingProtocol.UPnP))
+    )
+    mapper.stop()
+
+    autorelayservice.setup(autoRelay, sw)
+    await mapper.handleNatStatus(
+      NotReachable, Opt.some(dialBack), discoveryPort, disc, sw, autoRelay
+    )
+
+    check not autoRelay.isRunning
+    check disc.announceAddrs == newSeq[MultiAddress]()
+
   test "announcePeerInfoAddrs excludes relay circuit addresses":
     let circuitAddr = MultiAddress
       .init("/ip4/1.2.3.4/tcp/4040/p2p/" & $sw.peerInfo.peerId & "/p2p-circuit")

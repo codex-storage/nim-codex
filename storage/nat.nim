@@ -47,13 +47,14 @@ type NatPortMapper* = ref object of RootObj
   activeTcpPort*: Option[Port]
   activeUdpPort*: Option[Port]
   plumInitialized: bool
+  closed: bool
 
 method mapNatPorts*(
     m: NatPortMapper
 ): Future[Option[(Port, Port, MappingProtocol)]] {.
     async: (raises: [CancelledError]), base, gcsafe
 .} =
-  if m.natConfig.hasExtIp:
+  if m.closed or m.natConfig.hasExtIp:
     return none((Port, Port, MappingProtocol))
 
   # If both mappings are still active, return the stored ports without recreating.
@@ -126,6 +127,11 @@ proc close*(m: NatPortMapper) =
     discard cleanup()
     m.plumInitialized = false
 
+proc stop*(m: NatPortMapper) =
+  ## Ensure that any future AutoNAT callback does not re-initialize libplum.
+  m.closed = true
+  m.close()
+
 proc isPortMapped*(m: NatPortMapper, port: Port): bool =
   m.activeTcpPort.isSome and m.activeTcpPort.get == port
 
@@ -170,6 +176,9 @@ method handleNatStatus*(
     switch: Switch,
     autoRelayService: AutoRelayService,
 ) {.async: (raises: [CancelledError]), base, gcsafe.} =
+  if m.closed:
+    return
+
   case networkReachability
   of Unknown:
     discard
