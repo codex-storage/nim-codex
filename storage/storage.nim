@@ -126,8 +126,11 @@ proc start*(s: StorageServer) {.async.} =
   await s.storageNode.start()
 
   # Connect to the bootstrap nodes in order to have connected peers
-  # for Autonat.
-  for spr in findReachableNodes(s.bootstrapNodes):
+  # for Autonat. The dials are run concurrently in case of
+  # a dead bootstrap node that could timeout.
+  proc connectBootstrapNode(
+      spr: SignedPeerRecord
+  ) {.async: (raises: [CancelledError]).} =
     try:
       let addrs = spr.data.addresses.mapIt(it.address)
       await s.storageNode.switch.connect(spr.data.peerId, addrs)
@@ -135,6 +138,8 @@ proc start*(s: StorageServer) {.async.} =
       raise exc
     except CatchableError as e:
       warn "Cannot connect to bootstrap node", error = e.msg
+
+  await allFutures(findReachableNodes(s.bootstrapNodes).mapIt(connectBootstrapNode(it)))
 
   # Start AutoNAT here (we own it, it is not in switch.services) so its first
   # probe targets the now-connected bootstrap peers instead of firing at
