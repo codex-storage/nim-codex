@@ -1,0 +1,55 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ${NAMEPREFIX}
+  namespace: default
+  labels:
+    name: ${NAMEPREFIX}
+    runid: ${RUNID}
+spec:
+  ttlSecondsAfterFinished: 86400
+  backoffLimit: 0
+  template:
+    metadata:
+      name: ${NAMEPREFIX}
+      labels:
+        app: ${TEST_TYPE}-runner
+        name: ${NAMEPREFIX}
+        runid: ${RUNID}
+    spec:
+      nodeSelector:
+        workload-type: "tests-runners-ci"
+      containers:
+      - name: runner
+        image: logosstorage/logos-storage-dist-tests:latest
+        imagePullPolicy: Always
+        resources:
+          requests:
+            memory: "4Gi"
+          limits:
+            memory: "6Gi"
+        env:
+        - name: LOGPATH
+          value: "/var/log/storage-${TEST_TYPE}"
+        - name: BRANCH
+          value: "${BRANCH}"
+        - name: SOURCE
+          value: "${SOURCE}"
+        - name: RUNID
+          value: "${RUNID}"
+        - name: STORAGEDOCKERIMAGE
+          value: "${STORAGEDOCKERIMAGE}"
+        - name: TESTID
+          value: "${TESTID}"
+        - name: TESTS_TYPE
+          value: "${TEST_TYPE}"
+        volumeMounts:
+        - name: logs
+          mountPath: /var/log/storage-${TEST_TYPE}
+        args: ["dotnet", "test", "Tests/LogosStorageReleaseTests", "-p:BuildInParallel=false"]
+      serviceAccountName: release-tests-runner
+      restartPolicy: Never
+      volumes:
+        - name: logs
+          hostPath:
+            path: /var/log/storage-${TEST_TYPE}

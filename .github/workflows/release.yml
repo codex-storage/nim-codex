@@ -7,6 +7,12 @@ on:
     branches:
       - master
   workflow_dispatch:
+    inputs:
+      branch:
+        description: 'dist-tests branch to run tests from'
+        required: false
+        default: 'master'
+        type: string
 
 env:
   cache_nonce: 0 # Allows for easily busting actions/cache caches
@@ -61,7 +67,7 @@ jobs:
             echo "TAGGED_RELEASE=false" >> $GITHUB_ENV
           fi
       - name: Checkout sources
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: recursive
 
@@ -110,7 +116,7 @@ jobs:
           7z a -tzip "${{ env.build_dir }}/${{env.storage_binary}}.zip" ./${{ env.build_dir }}/*
 
       - name: Upload Logos Storage binary to workflow artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ env.storage_binary }}.zip
           path: ${{ env.build_dir }}/${{ env.storage_binary }}.zip
@@ -127,7 +133,7 @@ jobs:
 
       - name: Upload Windows dlls to workflow artifacts
         if: matrix.os == 'windows'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ env.storage_binary }}-dlls.zip
           path: ${{ env.build_dir }}/${{ env.storage_binary }}-dlls.zip
@@ -173,17 +179,247 @@ jobs:
           7z a -tzip "${{ env.build_dir }}/${{ env.c_bindings_lib }}.zip" ./library/${{ env.c_bindings_lib_base }}.h
 
       - name: Upload ${{ env.c_bindings_lib_base }} to workflow artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ env.c_bindings_lib }}.zip
           path: ${{ env.build_dir }}/${{ env.c_bindings_lib }}.zip
           if-no-files-found: error
 
+  # Build Docker logosstorage/logos-storage-nim:latest-dist-tests image for Logos Storage nodes in the cluster
+  build-docker-dist-tests:
+    name: Build Docker dist-tests image
+    if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/docker-reusable.yml
+    with:
+      nimflags: '-d:disableMarchNative -d:storage_enable_api_debug_peers=true -d:storage_enable_log_counter=true'
+      nat_ip_auto: true
+      tag_latest: false
+      tag_stable: false
+      tag_suffix: dist-tests
+      tag_sha: false
+    secrets: inherit
+
+  # Release tests
+  release-tests:
+    name: Release Tests
+    runs-on: ubuntu-latest
+    if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
+    needs: build-docker-dist-tests
+    timeout-minutes: 90
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      TF_VAR_project: ${{ vars.RELEASE_TESTS_GCP_PROJECT }}
+      TF_VAR_region: europe-west4
+      TF_VAR_zone: europe-west4-a
+      TF_PLUGIN_CACHE_DIR: /home/runner/.terraform.d/plugin-cache
+      STORAGEDOCKERIMAGE: ${{ github.ref_type == 'tag' && format('logosstorage/logos-storage-nim:{0}-dist-tests', github.ref_name) || 'logosstorage/logos-storage-nim:latest-dist-tests' }}
+      TEST_TYPE: release-tests
+      BRANCH: ${{ inputs.branch || 'master' }}
+      SOURCE: https://github.com/logos-storage/logos-storage-nim-cs-dist-tests
+      TF_DIR: .github/release/clusters/logos-storage-rel-tests-gcp-europe-west4
+      CLUSTER_NAME: logos-storage-rel-tests-gcp-europe-west4 # should always match the cluster_name variable in TF_DIR
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Create Terraform plugin cache dir
+        run: mkdir -p /home/runner/.terraform.d/plugin-cache
+
+      - name: Cache Terraform plugins
+        uses: actions/cache@v5
+        with:
+          path: ~/.terraform.d/plugin-cache
+          key: terraform-google-${{ hashFiles(format('{0}/.terraform.lock.hcl', env.TF_DIR)) }}
+          restore-keys: terraform-google-
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ secrets.RELEASE_TESTS_GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.RELEASE_TESTS_GCP_SERVICE_ACCOUNT }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v3
+        with:
+          install_components: gke-gcloud-auth-plugin
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v5
+        with:
+          version: v1.36.0
+
+      - name: Terraform init
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform init -backend-config="bucket=${{ vars.RELEASE_TESTS_TF_STATE_BUCKET }}"
+
+      - name: Terraform apply
+        id: tf-apply
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform apply -auto-approve
+
+      - name: Get kubeconfig
+        run: |
+          gcloud container clusters get-credentials $CLUSTER_NAME \
+            --zone ${{ env.TF_VAR_zone }} \
+            --project ${{ vars.RELEASE_TESTS_GCP_PROJECT }}
+
+      - name: Wait for runners-ci node to be Ready
+        run: |
+          kubectl wait \
+            --for=condition=Ready \
+            node \
+            -l workload-type=tests-runners-ci \
+            --timeout=300s
+
+      - name: Set run variables
+        run: |
+          RUNID=$(date +%Y%m%d-%H%M%S)
+          echo "RUNID=${RUNID}" >> $GITHUB_ENV
+          echo "NAMEPREFIX=r-tests-${RUNID}" >> $GITHUB_ENV
+          echo "TESTID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+          echo "JOB_START_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> $GITHUB_ENV
+
+      - name: Deploy test job
+        run: |
+          envsubst < .github/release/job-release-tests.yaml | kubectl apply -f -
+          echo "--- Job ---"
+          kubectl get job $NAMEPREFIX -n default
+          echo "--- Pods ---"
+          kubectl get pods -n default
+          echo "--- Job events ---"
+          kubectl describe job $NAMEPREFIX -n default
+
+      - name: Print storage node log link
+        run: |
+          QUERY=$(printf '%s\n%s\n%s' \
+            'resource.type="k8s_container"' \
+            "resource.labels.cluster_name=\"${CLUSTER_NAME}\"" \
+            "labels.\"k8s-pod/runid\"=\"${RUNID}\"")
+          ENCODED=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.stdin.read(), safe=''))" <<< "$QUERY")
+          URL="https://console.cloud.google.com/logs/query;query=${ENCODED};startTime=${JOB_START_TIME}?project=${{ vars.RELEASE_TESTS_GCP_PROJECT }}"
+          echo "Storage node logs: $URL"
+          echo "## Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Run ID: \`${RUNID}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "[Logs for entire run]($URL)" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "> [!TIP]" >> "$GITHUB_STEP_SUMMARY"
+          echo "> To see the runner logs, add filter \`resource.labels.container_name=\"runner\"\` or use the filters on the left-side panel" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          LOG_RETENTION_DATE=$(date -u -d "${JOB_START_TIME} + 30 days" +"%Y-%m-%dT%H:%M:%SZ")
+          echo "> [!IMPORTANT]" >> "$GITHUB_STEP_SUMMARY"
+          echo "> Logs are retained until ${LOG_RETENTION_DATE} UTC (30 days)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Wait for runner pod to start
+        run: |
+          echo "Waiting for runner pod to reach Running state..."
+          deadline=$((SECONDS + 300))
+          last_describe=0
+          while [[ $SECONDS -lt $deadline ]]; do
+            phase=$(kubectl get pods \
+              -l job-name=$NAMEPREFIX \
+              -n default \
+              -o jsonpath='{range .items[*]}{.status.phase}{end}' 2>/dev/null)
+            echo "Pod phase: ${phase:-not yet created}"
+            if [[ "$phase" == "Running" ]]; then break; fi
+            if [[ $((SECONDS - last_describe)) -ge 60 ]]; then
+              echo "--- kubectl describe job $NAMEPREFIX ---"
+              kubectl describe job $NAMEPREFIX -n default
+              last_describe=$SECONDS
+            fi
+            sleep 10
+          done
+          if [[ "$phase" != "Running" ]]; then
+            echo "Timed out waiting for pod to reach Running state"
+            exit 1
+          fi
+
+      - name: Run tests and stream logs
+        timeout-minutes: 60
+        run: |
+          POD=$(kubectl get pods -l job-name=$NAMEPREFIX -n default \
+            -o jsonpath='{.items[0].metadata.name}')
+          echo "Streaming logs for pod: $POD"
+          # Use pod name (not label selector) so the stream survives long silences
+          # between test completions. || true so the step doesn't fail if the
+          # API server closes the connection before the pod exits.
+          kubectl logs $POD -n default --follow || true
+
+      - name: Generate test summary
+        env:
+          GCP_PROJECT: ${{ vars.RELEASE_TESTS_GCP_PROJECT }}
+        run: |
+          export JOB_START=$(kubectl get job "$NAMEPREFIX" -n default \
+            -o jsonpath='{.status.startTime}' 2>/dev/null || true)
+          export JOB_END=$(kubectl get job "$NAMEPREFIX" -n default \
+            -o jsonpath='{.status.completionTime}' 2>/dev/null || true)
+
+          export ENTRIES_FILE=$(mktemp)
+          # Read test results written by TearDownDistTest directly into ConfigMaps.
+          kubectl get configmaps -n default -l "runid=${RUNID},app=test-result" \
+            -o jsonpath='{range .items[*]}{.data.result}{"\n"}{end}' 2>/dev/null \
+          | jq -s '[.[] | {jsonPayload: .}]' > "$ENTRIES_FILE" || echo "[]" > "$ENTRIES_FILE"
+
+          python3 .github/scripts/generate_test_summary.py
+          rm -f "$ENTRIES_FILE"
+
+      - name: Check job status
+        run: |
+          # kubectl logs may have exited early (API server closed the stream).
+          # Wait for the job to reach a terminal state before checking the result.
+          kubectl wait job/$NAMEPREFIX -n default \
+            --for=condition=Complete \
+            --timeout=300s \
+          || true
+
+          job_status=$(kubectl get jobs $NAMEPREFIX -n default \
+            -o jsonpath='{.status.conditions[0].type}')
+          echo "Job status: $job_status"
+          [[ "$job_status" == "SuccessCriteriaMet" ]] || exit 1
+
+      - name: Terraform destroy
+        if: always() && steps.tf-apply.conclusion != 'skipped'
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform destroy -auto-approve
+
+      - name: Delete orphaned GCE disks
+        if: always() && steps.tf-apply.conclusion != 'skipped'
+        env:
+          GCP_PROJECT: ${{ vars.RELEASE_TESTS_GCP_PROJECT }}
+        run: |
+          # Safety net: delete any pvc-* disks the CSI driver did not release before
+          # the cluster was destroyed. Runs after terraform destroy so disks are
+          # guaranteed detached (GCE rejects deletes on attached disks). The
+          # releaseTestsDiskCleaner IAM role is granted out-of-band (not via Terraform)
+          # so it persists across cluster lifecycles — see CLAUDE.md for details.
+          gcloud compute disks list \
+            --project="$GCP_PROJECT" \
+            --filter="name~^pvc-" \
+            --format="value(name,zone.basename())" \
+          | while IFS=$'\t' read -r name zone; do
+              [[ -n "$name" && -n "$zone" ]] || continue
+              gcloud compute disks delete "$name" --zone="$zone" \
+                --project="$GCP_PROJECT" --quiet || true
+            done
+
+      - name: Release Terraform state lock
+        if: always()
+        run: |
+          gcloud storage rm \
+            "gs://${{ vars.RELEASE_TESTS_TF_STATE_BUCKET }}/clusters/${CLUSTER_NAME}/default.tflock" \
+            2>/dev/null || true
+
   # Release
   release:
     runs-on: ubuntu-latest
-    needs: build
-    if: success() || failure()
+    needs: [build, release-tests]
+    if: needs.build.result == 'success' && needs.release-tests.result == 'success'
     steps:
       - name: Set conditional env variables
         shell: bash
@@ -196,21 +432,21 @@ jobs:
             echo "TAGGED_RELEASE=false" >> $GITHUB_ENV
           fi
       - name: Download binaries from workflow artifacts into temp folder
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: ${{ env.storage_binary_base }}*
           merge-multiple: true
           path: /tmp/release
 
       - name: Download ${{ env.c_bindings_lib_base }} from workflow artifacts into temp folder
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           pattern: ${{ env.c_bindings_lib_base }}*
           merge-multiple: true
           path: /tmp/release
 
       - name: Create GH release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         if: env.TAGGED_RELEASE == 'true'
         with:
           files: |
@@ -218,7 +454,7 @@ jobs:
           make_latest: true
 
       - name: Generate Python SDK
-        uses: peter-evans/repository-dispatch@v3
+        uses: peter-evans/repository-dispatch@v4
         if: env.TAGGED_RELEASE == 'true'
         with:
           token: ${{ secrets.DISPATCH_PAT }}
