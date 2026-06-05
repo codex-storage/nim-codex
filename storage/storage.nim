@@ -61,7 +61,6 @@ type
     autonatService*: Option[AutonatV2Service]
     autoRelayService*: Option[AutoRelayService]
     natMapper*: Option[NatPortMapper]
-    natRouter*: Option[NatRouter]
     holePunchHandler: Option[connmanager.PeerEventHandler]
     peerInfoObserver: Option[PeerInfoObserver]
     bootstrapNodes: seq[SignedPeerRecord]
@@ -539,7 +538,6 @@ proc new*(
     autonatService: autonatService,
     autoRelayService: autoRelayService,
     natMapper: natMapper,
-    natRouter: natRouter,
     holePunchHandler: holePunchHandler,
     peerInfoObserver: peerInfoObserver,
     bootstrapNodes: bootstrapNodes,

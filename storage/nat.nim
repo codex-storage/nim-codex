@@ -49,6 +49,19 @@ type NatPortMapper* = ref object of RootObj
   plumInitialized: bool
   closed: bool
 
+proc resetMappings(m: NatPortMapper) =
+  if m.tcpMappingId.isSome:
+    destroyMapping(m.tcpMappingId.get)
+    m.tcpMappingId = none(cint)
+
+  if m.udpMappingId.isSome:
+    destroyMapping(m.udpMappingId.get)
+    m.udpMappingId = none(cint)
+
+  m.activeMappingProtocol = none(MappingProtocol)
+  m.activeTcpPort = none(Port)
+  m.activeUdpPort = none(Port)
+
 method mapNatPorts*(
     m: NatPortMapper
 ): Future[Option[(Port, Port, MappingProtocol)]] {.
@@ -79,17 +92,7 @@ method mapNatPorts*(
 
   # If there is only one mapping, something went wrong somewhere
   # so we delete the mappings to recreate them.
-  if m.tcpMappingId.isSome:
-    destroyMapping(m.tcpMappingId.get)
-    m.tcpMappingId = none(cint)
-
-  if m.udpMappingId.isSome:
-    destroyMapping(m.udpMappingId.get)
-    m.udpMappingId = none(cint)
-
-  m.activeMappingProtocol = none(MappingProtocol)
-  m.activeTcpPort = none(Port)
-  m.activeUdpPort = none(Port)
+  m.resetMappings()
 
   let tcpRes = await createMapping(TCP, m.tcpPort.uint16, m.tcpPort.uint16)
   if tcpRes.isErr:
@@ -111,17 +114,7 @@ method mapNatPorts*(
   some((m.activeTcpPort.get, m.activeUdpPort.get, m.activeMappingProtocol.get))
 
 proc close*(m: NatPortMapper) =
-  if m.tcpMappingId.isSome:
-    destroyMapping(m.tcpMappingId.get)
-    m.tcpMappingId = none(cint)
-
-  if m.udpMappingId.isSome:
-    destroyMapping(m.udpMappingId.get)
-    m.udpMappingId = none(cint)
-
-  m.activeMappingProtocol = none(MappingProtocol)
-  m.activeTcpPort = none(Port)
-  m.activeUdpPort = none(Port)
+  m.resetMappings()
 
   if m.plumInitialized:
     discard cleanup()

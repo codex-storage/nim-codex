@@ -14,6 +14,7 @@ import std/strutils
 import std/options
 
 import pkg/libp2p
+import pkg/stew/endians2
 
 func remapAddr*(
     address: MultiAddress,
@@ -47,28 +48,15 @@ func remapAddr*(
 
   MultiAddress.init(parts.join("/")).expect("Should construct multiaddress")
 
-proc getMultiAddrWithIPAndUDPPort*(ip: IpAddress, port: Port): MultiAddress =
-  ## Creates a MultiAddress with the specified IP address and UDP port
-  ## 
-  ## Parameters:
-  ##   - ip: A valid IP address (IPv4 or IPv6)
-  ##   - port: The UDP port number
-  ##
-  ## Returns:
-  ##   A MultiAddress in the format "/ip4/<address>/udp/<port>" or "/ip6/<address>/udp/<port>"
-
-  let ipFamily = if ip.family == IpAddressFamily.IPv4: "/ip4/" else: "/ip6/"
-  return MultiAddress.init(ipFamily & $ip & "/udp/" & $port).expect("valid multiaddr")
-
 func getTcpPort*(ma: MultiAddress): Option[Port] =
-  let parts = ($ma).split("/")
-  for i, part in parts:
-    if part == "tcp" and i + 1 < parts.len:
-      try:
-        return some(Port(parseInt(parts[i + 1])))
-      except ValueError:
-        return Port.none
-  Port.none
+  ## Extracts the TCP port from a multiaddress; none when there is no TCP part.
+  let tcpPart = ma[multiCodec("tcp")]
+  if tcpPart.isErr:
+    return Port.none
+  let portBytes = tcpPart.get().protoArgument()
+  if portBytes.isErr or portBytes.get().len != 2:
+    return Port.none
+  some(Port(fromBytesBE(uint16, portBytes.get())))
 
 proc getMultiAddrWithIpAndTcpPort*(ip: IpAddress, port: Port): MultiAddress =
   ## Creates a MultiAddress with the specified IP address and TCP port
