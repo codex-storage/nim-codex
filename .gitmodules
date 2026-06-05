@@ -193,7 +193,7 @@
 	branch = main
 [submodule "vendor/nim-libplum"]
 	path = vendor/nim-libplum
-	url = https://github.com/2-towns/nim-libplum.git
+	url = https://github.com/logos-storage/nim-libplum.git
 [submodule "vendor/nim-nat-traversal"]
 	path = vendor/nim-nat-traversal
 	url = https://github.com/status-im/nim-nat-traversal.git
