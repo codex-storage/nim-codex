@@ -23,18 +23,18 @@ suite "Discovery - SPR record logic":
     key = PrivateKey.random(Rng.instance()).get()
     disc = Discovery.new(key, announceAddrs = @[])
 
-  test "updateRecordsAndSpr sets the SPR with both TCP and UDP addresses":
-    disc.updateRecordsAndSpr(@[directAddr], udpPort)
+  test "announceDirectAddrs sets the SPR with both TCP and UDP addresses":
+    disc.announceDirectAddrs(@[directAddr], udpPort)
 
     let spr = disc.getSpr()
     let addrs = spr.data.addresses.mapIt($it.address)
     check addrs.anyIt(it.contains("/tcp/"))
     check addrs.anyIt(it.contains("/udp/"))
 
-  test "updateAnnounceRecord does not update the SPR":
-    disc.updateRecordsAndSpr(@[directAddr], udpPort)
-    let sprBefore = disc.getSpr()
+  test "announceRelayAddrs updates the SPR with the announce addresses":
+    disc.announceDirectAddrs(@[directAddr], udpPort)
 
-    disc.updateAnnounceRecord(@[relayAddr])
+    disc.announceRelayAddrs(@[relayAddr])
 
-    check disc.getSpr() == sprBefore
+    let addrs = disc.getSpr().data.addresses.mapIt($it.address)
+    check addrs == @[$relayAddr]

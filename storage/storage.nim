@@ -113,7 +113,7 @@ proc start*(s: StorageServer) {.async.} =
         ip = some(s.config.nat.extIp), port = none(Port)
       )
     ]
-    s.storageNode.discovery.updateRecordsAndSpr(
+    s.storageNode.discovery.announceDirectAddrs(
       announceAddresses, udpPort = s.config.discoveryPort
     )
   else:
@@ -468,7 +468,7 @@ proc new*(
       onReservation = proc(addresses: seq[MultiAddress]) {.gcsafe, raises: [].} =
         info "Relay reservation updated", addresses
         # relay addresses are for download traffic only, not DHT routing
-        discovery.updateAnnounceRecord(addresses),
+        discovery.announceRelayAddrs(addresses),
       rng = random.Rng.instance(),
     )
 

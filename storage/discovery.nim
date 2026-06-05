@@ -180,7 +180,7 @@ proc getSpr*(d: Discovery): SignedPeerRecord =
   ## Returns the node's current Signed Peer Record as registered in the DHT.
   d.protocol.getRecord()
 
-proc updateRecordsAndSpr*(
+proc announceDirectAddrs*(
     d: Discovery, announceAddrs: openArray[MultiAddress], udpPort: Port
 ) =
   # UDP addresses are derived from TCP announce addresses by remapping protocol and port.
@@ -204,14 +204,17 @@ proc updateRecordsAndSpr*(
       .expect("Should construct signed record").some
     d.protocol.updateRecord(spr).expect("Should update SPR")
 
-proc updateAnnounceRecord*(d: Discovery, addrs: openArray[MultiAddress]) =
-  # Updates announce addresses only, not the DHT routing record.
-  # Relay addresses should not pollute DHT routing.
+proc announceRelayAddrs*(d: Discovery, addrs: openArray[MultiAddress]) =
+  ## Updates only announce addresses
+  ## When using relay, the DHT routing record is not updated to not pollute the DHT.
   d.announceAddrs = @addrs
   info "Updating announce record", addrs = d.announceAddrs
   d.providerRecord = SignedPeerRecord
     .init(d.key, PeerRecord.init(d.peerId, d.announceAddrs))
     .expect("Should construct signed record").some
+
+  if not d.protocol.isNil:
+    d.protocol.updateRecord(d.providerRecord).expect("Should update SPR")
 
 proc start*(d: Discovery) {.async: (raises: []).} =
   try:
@@ -264,7 +267,7 @@ proc new*(
 
   # Called even when announceAddrs is empty: newProtocol below requires
   # providerRecord to be set, and it will be updated with real addresses in start().
-  self.updateRecordsAndSpr(announceAddrs, udpPort = discoveryPort)
+  self.announceDirectAddrs(announceAddrs, udpPort = discoveryPort)
 
   let discoveryConfig =
     DiscoveryConfig(tableIpLimits: tableIpLimits, bitsPerHop: DefaultBitsPerHop)

@@ -137,7 +137,7 @@ proc announcePeerInfoAddrs*(discovery: Discovery, peerInfo: PeerInfo, udpPort: P
   let addrs = peerInfo.addrs.filterIt(not it.isCircuitRelayMA())
   if addrs.len == 0 or addrs == discovery.announceAddrs:
     return
-  discovery.updateRecordsAndSpr(addrs, udpPort = udpPort)
+  discovery.announceDirectAddrs(addrs, udpPort = udpPort)
 
 proc setupPeerInfoObserver*(
     switch: Switch,
@@ -193,7 +193,7 @@ method handleNatStatus*(
       if m.tcpMappingId.isSome and m.udpMappingId.isSome:
         m.close()
 
-      discovery.updateRecordsAndSpr(@[], udpPort = discoveryPort)
+      discovery.announceDirectAddrs(@[], udpPort = discoveryPort)
     elif m.tcpMappingId.isSome and m.udpMappingId.isSome:
       warn "Not Reachable with active port mapping. The port mapping will be deleted and relay will start."
 
@@ -203,7 +203,7 @@ method handleNatStatus*(
 
       # We remove the announced records.
       # Eventually, it will we updated by the relay when it started
-      discovery.updateRecordsAndSpr(@[], udpPort = discoveryPort)
+      discovery.announceDirectAddrs(@[], udpPort = discoveryPort)
     elif autoRelayService.isRunning:
       # The mapping was already tried and did not make the node reachable.
       # If the relay is running, there is nothing to do.
@@ -233,7 +233,7 @@ method handleNatStatus*(
         # The client mode will be updated on the next iteration of autonat.
         # Trying to check manually that the node is reachable is not trivial,
         # this is exactly what Autonat is for.
-        discovery.updateRecordsAndSpr(@[announceAddress], udpPort = udpPort)
+        discovery.announceDirectAddrs(@[announceAddress], udpPort = udpPort)
         hasPortMapping = true
       else:
         # In case of failure, close the port mapping in order to rerun discover
