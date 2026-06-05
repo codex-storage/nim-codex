@@ -383,16 +383,21 @@ jobs:
           echo "Job status: $job_status"
           [[ "$job_status" == "SuccessCriteriaMet" ]] || exit 1
 
+      - name: Terraform destroy
+        if: always() && steps.tf-apply.conclusion != 'skipped'
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform destroy -auto-approve
+
       - name: Delete orphaned GCE disks
         if: always() && steps.tf-apply.conclusion != 'skipped'
         env:
           GCP_PROJECT: ${{ vars.RELEASE_TESTS_GCP_PROJECT }}
         run: |
-          # Safety net: delete any pvc-* disks the CSI driver has not yet released.
-          # Runs before terraform destroy so the release-tests SA still holds the
-          # compute.disks.delete permission granted by the cluster Terraform. Errors
-          # from the delete call are intentionally visible (no stderr redirect) so CI
-          # logs surface permission or API failures if they recur.
+          # Safety net: delete any pvc-* disks the CSI driver did not release before
+          # the cluster was destroyed. Runs after terraform destroy so disks are
+          # guaranteed detached (GCE rejects deletes on attached disks). The
+          # releaseTestsDiskCleaner IAM role is granted out-of-band (not via Terraform)
+          # so it persists across cluster lifecycles — see CLAUDE.md for details.
           gcloud compute disks list \
             --project="$GCP_PROJECT" \
             --filter="name~^pvc-" \
@@ -402,11 +407,6 @@ jobs:
               gcloud compute disks delete "$name" --zone="$zone" \
                 --project="$GCP_PROJECT" --quiet || true
             done
-
-      - name: Terraform destroy
-        if: always() && steps.tf-apply.conclusion != 'skipped'
-        working-directory: ${{ env.TF_DIR }}
-        run: terraform destroy -auto-approve
 
       - name: Release Terraform state lock
         if: always()
