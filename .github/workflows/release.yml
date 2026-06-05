@@ -383,21 +383,6 @@ jobs:
           echo "Job status: $job_status"
           [[ "$job_status" == "SuccessCriteriaMet" ]] || exit 1
 
-      - name: Delete PVCs before cluster teardown
-        if: always() && steps.tf-apply.conclusion != 'skipped'
-        run: |
-          # Best-effort: trigger PVC deletion so the CSI driver can release GCE PDs before
-          # terraform destroy kills the cluster. --wait=false avoids hanging when pods are
-          # still running (e.g. runner was OOM-killed and never ran its own cleanup).
-          # Any disks the CSI driver doesn't finish releasing are caught by the
-          # "Delete orphaned GCE disks" step that runs after terraform destroy.
-          kubectl delete pvc --all --all-namespaces --wait=false 2>/dev/null || true
-
-      - name: Terraform destroy
-        if: always() && steps.tf-apply.conclusion != 'skipped'
-        working-directory: ${{ env.TF_DIR }}
-        run: terraform destroy -auto-approve
-
       - name: Delete orphaned GCE disks
         if: always() && steps.tf-apply.conclusion != 'skipped'
         env:
@@ -418,6 +403,11 @@ jobs:
               gcloud compute disks delete "$name" --zone="$zone" \
                 --project="$GCP_PROJECT" --quiet 2>/dev/null || true
             done
+
+      - name: Terraform destroy
+        if: always() && steps.tf-apply.conclusion != 'skipped'
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform destroy -auto-approve
 
       - name: Release Terraform state lock
         if: always()
