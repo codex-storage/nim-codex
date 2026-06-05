@@ -131,6 +131,8 @@ proc start*(s: StorageServer) {.async.} =
     try:
       let addrs = spr.data.addresses.mapIt(it.address)
       await s.storageNode.switch.connect(spr.data.peerId, addrs)
+    except CancelledError as exc:
+      raise exc
     except CatchableError as e:
       warn "Cannot connect to bootstrap node", error = e.msg
 
