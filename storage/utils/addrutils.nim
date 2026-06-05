@@ -23,6 +23,7 @@ func remapAddr*(
 ): MultiAddress =
   ## Remap addresses to new IP, port, and/or transport protocol (e.g. "tcp" → "udp")
   ##
+  ## Assumes a /ip4|ip6/<ip>/tcp|udp/<port> address: anything else crashes (Defect).
 
   var parts = ($address).split("/")
 
