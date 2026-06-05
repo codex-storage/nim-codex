@@ -141,9 +141,8 @@ proc start*(s: StorageServer) {.async.} =
 
   await allFutures(findReachableNodes(s.bootstrapNodes).mapIt(connectBootstrapNode(it)))
 
-  # Start AutoNAT here (we own it, it is not in switch.services) so its first
-  # probe targets the now-connected bootstrap peers instead of firing at
-  # switch.start on no peers.
+  # AutoNAT is not in switch.services: start it after the bootstrap dials
+  # so its first probe has peers to ask.
   if s.autonatService.isSome:
     await s.autonatService.get.start(s.storageNode.switch)
 
