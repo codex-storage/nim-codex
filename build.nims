@@ -72,7 +72,9 @@ task testStorage, "Build & run Logos Storage tests":
 task testIntegration, "Run integration tests":
   buildBinary "storage",
     outName = "storage",
-    params = "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE"
+    params =
+      "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE " &
+      "-d:storage_enable_nat_simulation=true"
   test "testIntegration"
   # use params to enable logging from the integration test executable
   # test "testIntegration", params = "-d:chronicles_sinks=textlines[notimestamps,stdout],textlines[dynamic] " &

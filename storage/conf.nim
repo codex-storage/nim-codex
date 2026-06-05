@@ -73,6 +73,7 @@ proc defaultDataDir*(): string =
 const
   storage_enable_api_debug_peers* {.booldefine.} = false
   storage_enable_log_counter* {.booldefine.} = false
+  storage_enable_nat_simulation* {.booldefine.} = false
 
   DefaultThreadCount* = ThreadCount(0)
 

@@ -317,17 +317,27 @@ proc new*(
 
   var natRouter: Option[NatRouter]
   let switch =
-    if config.natSimulation.isSome:
-      # Provide a NAT simulation useful for testing NAT Traversal
-      let filtering = FilteringBehavior.fromString(config.natSimulation.get).valueOr(
-          AddressAndPortDependent
-        )
-      let router = NatRouter.new(filtering)
-      natRouter = some(router)
-      switchBuilder
-        .withNatTransport(router, {ServerFlags.ReuseAddr, ServerFlags.TcpNoDelay})
-        .build()
+    when storage_enable_nat_simulation:
+      if config.natSimulation.isSome:
+        # Provide a NAT simulation useful for testing NAT Traversal
+        let filtering = FilteringBehavior.fromString(config.natSimulation.get).valueOr(
+            AddressAndPortDependent
+          )
+        let router = NatRouter.new(filtering)
+        natRouter = some(router)
+        switchBuilder
+          .withNatTransport(router, {ServerFlags.ReuseAddr, ServerFlags.TcpNoDelay})
+          .build()
+      else:
+        switchBuilder
+          .withTcpTransport({ServerFlags.ReuseAddr, ServerFlags.TcpNoDelay})
+          .build()
     else:
+      if config.natSimulation.isSome:
+        raise newException(
+          StorageError,
+          "--nat-simulation requires a build with -d:storage_enable_nat_simulation=true",
+        )
       switchBuilder
         .withTcpTransport({ServerFlags.ReuseAddr, ServerFlags.TcpNoDelay})
         .build()

@@ -629,26 +629,27 @@ proc initDebugApi(
       trace "Excepting processing request", exc = exc.msg
       return RestApiResponse.error(Http500, headers = headers)
 
-  router.api(MethodPost, "/api/storage/v1/debug/nat/filtering") do(
-    filtering: Option[string]
-  ) -> RestApiResponse:
-    var headers = buildCorsHeaders("POST", allowedOrigin)
+  when storage_enable_nat_simulation:
+    router.api(MethodPost, "/api/storage/v1/debug/nat/filtering") do(
+      filtering: Option[string]
+    ) -> RestApiResponse:
+      var headers = buildCorsHeaders("POST", allowedOrigin)
 
-    without natSimulation =? natRouter:
-      return RestApiResponse.error(
-        Http400, "NAT simulation not active on this node", headers = headers
-      )
+      without natSimulation =? natRouter:
+        return RestApiResponse.error(
+          Http400, "NAT simulation not active on this node", headers = headers
+        )
 
-    without res =? filtering and filtering =? res:
-      return
-        RestApiResponse.error(Http400, "Missing filtering value", headers = headers)
+      without res =? filtering and filtering =? res:
+        return
+          RestApiResponse.error(Http400, "Missing filtering value", headers = headers)
 
-    let behavior = FilteringBehavior.fromString(filtering).valueOr:
-      return
-        RestApiResponse.error(Http400, "Invalid filtering value", headers = headers)
+      let behavior = FilteringBehavior.fromString(filtering).valueOr:
+        return
+          RestApiResponse.error(Http400, "Invalid filtering value", headers = headers)
 
-    natSimulation.setFiltering(behavior)
-    return RestApiResponse.response("", headers = headers)
+      natSimulation.setFiltering(behavior)
+      return RestApiResponse.response("", headers = headers)
 
   when storage_enable_api_debug_peers:
     router.api(MethodGet, "/api/storage/v1/debug/peer/{peerId}") do(
