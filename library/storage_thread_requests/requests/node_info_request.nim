@@ -1,6 +1,5 @@
 ## This file contains the lifecycle request type that will be handled.
 
-import std/[options]
 import chronos
 import chronicles
 import confutils
