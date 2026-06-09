@@ -27,7 +27,7 @@ proc setupKey*(path: string): ?!PrivateKey =
   if not path.fileAccessible({AccessFlags.Find}):
     info "Creating a private key and saving it"
     let
-      res = ?PrivateKey.random(Rng.instance()[]).mapFailure(StorageKeyError)
+      res = ?PrivateKey.random(Rng.instance().libp2pRng).mapFailure(StorageKeyError)
       bytes = ?res.getBytes().mapFailure(StorageKeyError)
 
     ?path.secureWriteFile(bytes).mapFailure(StorageKeyError)

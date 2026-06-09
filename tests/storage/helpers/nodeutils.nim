@@ -2,7 +2,7 @@ import std/[sequtils, sets]
 
 import pkg/chronos
 import pkg/taskpools
-import pkg/libp2p
+import pkg/libp2p except NATConfig
 import pkg/libp2p/errors
 
 import pkg/codexdht/discv5/routing_table
@@ -22,6 +22,7 @@ import ./datasetutils
 import ./mockdiscovery
 import ../examples
 import ../../helpers
+import ./switchutils
 
 proc nextFreePort*(startPort: int): Future[int] {.async.} =
   proc client(server: StreamServer, transp: StreamTransport) {.async: (raises: []).} =

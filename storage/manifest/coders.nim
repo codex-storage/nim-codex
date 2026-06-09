@@ -14,6 +14,7 @@ import times
 {.push raises: [].}
 
 import std/tables
+import std/options
 
 import pkg/libp2p
 import pkg/questionable

@@ -15,7 +15,7 @@ import ../helpers
 asyncchecksuite "Network - Handlers":
   let
     rng = Rng.instance()
-    seckey = PrivateKey.random(rng[]).tryGet()
+    seckey = PrivateKey.random(rng.libp2pRng).tryGet()
     peerId = PeerId.init(seckey.getPublicKey().tryGet()).tryGet()
     chunker = RandomChunker.new(Rng.instance(), size = 1024, chunkSize = 256)
 

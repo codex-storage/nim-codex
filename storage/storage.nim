@@ -174,8 +174,9 @@ proc new*(
   let switch = SwitchBuilder
     .new()
     .withPrivateKey(privateKey)
-    .withAddresses(@[listenMultiAddr])
-    .withRng(random.Rng.instance())
+    .withAddresses(@[listenMultiAddr], enableWildcardResolver = true)
+    .withIdentifyPusher(false)
+    .withRng(random.Rng.instance().libp2pRng)
     .withNoise()
     .withYamux()
     .withMaxConnections(config.maxPeers)

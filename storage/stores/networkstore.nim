@@ -9,6 +9,7 @@
 
 {.push raises: [].}
 
+import std/options
 import pkg/chronos
 import pkg/libp2p
 import pkg/questionable/results
