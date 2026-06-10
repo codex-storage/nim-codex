@@ -61,10 +61,6 @@ func getTcpPort*(ma: MultiAddress): Option[Port] =
 
 proc hasPublicRelayTransport*(ma: MultiAddress): bool =
   ## True when ``ma`` is a circuit address whose relay is publicly dialable.
-  ## A circuit address is <relay wire addr>/p2p/<relayId>/p2p-circuit; the part
-  ## before /p2p/ is the relay's wire address, which isPublicMA can check.
-  ## Unlike libp2p's publicRoutableAddressPolicy we drop non-public relays: our
-  ## relay path only runs on a genuine NAT, where the relay is always public.
   let relayWireStr = ($ma).split("/p2p/")[0]
   let relayWireAddr = MultiAddress.init(relayWireStr).valueOr:
     return false
