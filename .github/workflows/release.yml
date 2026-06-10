@@ -14,6 +14,16 @@ on:
         default: 'master'
         type: string
 
+concurrency: 
+  # Prenvent concurrent release runs. This happens, eg, in a
+  # double-dispatch (clicking "Run workflow" multiple times in a row) or if
+  # multiple commits are pushed in quick succession to master (eg, a bugfix
+  # right after a release commit).
+  # All runs target the same shared GCP cluster/Terraform state, so serialize 
+  # them instead of racing for the state lock. 
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
 env:
   cache_nonce: 0 # Allows for easily busting actions/cache caches
   nim_version: pinned
