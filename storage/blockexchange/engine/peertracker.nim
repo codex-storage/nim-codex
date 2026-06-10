@@ -48,5 +48,5 @@ proc sweep*(self: PeerInFlightTracker) {.async: (raises: [CancelledError]).} =
   for peerId in self.peerInFlight.keys.toSeq:
     discard self.count(peerId)
     if (Moment.now() - lastIdle) >= SweepRuntimeQuota:
-      await idleAsync()
+      await sleepAsync(ZeroDuration)
       lastIdle = Moment.now()

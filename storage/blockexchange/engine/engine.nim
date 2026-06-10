@@ -584,7 +584,7 @@ proc downloadWorker(
 
         for i in start ..< start + count:
           if (Moment.now() - lastIdle) >= runtimeQuota:
-            await idleAsync()
+            await sleepAsync(ZeroDuration)
             lastIdle = Moment.now()
 
           let address = download.makeBlockAddress(i)
@@ -970,7 +970,7 @@ proc wantListHandler*(
 
         for i in 0'u64 ..< count:
           if (Moment.now() - lastIdle) >= runtimeQuota:
-            await idleAsync()
+            await sleepAsync(ZeroDuration)
             lastIdle = Moment.now()
 
           let address = BlockAddress(treeCid: treeCid, index: (startIdx + i).int)

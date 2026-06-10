@@ -311,7 +311,7 @@ proc deleteEntireDataset(self: StorageNodeRef, cid: Cid): Future[?!void] {.async
   var lastIdle = getTime()
   for i in 0 ..< manifest.blocksCount:
     if (getTime() - lastIdle) >= runtimeQuota:
-      await idleAsync()
+      await sleepAsync(ZeroDuration)
       lastIdle = getTime()
 
     if err =? (await store.delBlock(manifest.treeCid, i)).errorOption:
