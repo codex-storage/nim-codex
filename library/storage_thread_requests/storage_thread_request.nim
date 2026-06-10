@@ -78,12 +78,16 @@ proc handleRes[T: string | void | seq[byte]](
     return
 
   foreignThreadGc:
-    var msg: cstring = ""
     when T is string:
-      msg = res.get().cstring()
-    request[].callback(
-      RET_OK, unsafeAddr msg[0], cast[csize_t](len(msg)), request[].userData
-    )
+      let msg = res.get()
+      if msg.len == 0:
+        request[].callback(RET_OK, nil, cast[csize_t](0), request[].userData)
+      else:
+        request[].callback(
+          RET_OK, unsafeAddr msg[0], cast[csize_t](msg.len), request[].userData
+        )
+    else:
+      request[].callback(RET_OK, nil, cast[csize_t](0), request[].userData)
   return
 
 proc process*(
