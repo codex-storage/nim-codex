@@ -313,6 +313,11 @@ proc new*(
     switchBuilder = switchBuilder.withObservedAddrManager(
       ObservedAddrManager.new(minCount = observedAddrMinCount)
     )
+    # libp2p keeps the private address in peerInfo.addrs.
+    # Since Autonat V2 uses the observed public address,
+    # we can filter the private addresses to keep only the dialable
+    # addresses.
+    switchBuilder = switchBuilder.withAddressPolicy(dialableAddressPolicy)
 
   var natRouter: Option[NatRouter]
   let switch =
@@ -469,9 +474,14 @@ proc new*(
       maxNumRelays = config.natMaxRelays,
       client = relayClient,
       onReservation = proc(addresses: seq[MultiAddress]) {.gcsafe, raises: [].} =
-        info "Relay reservation updated", addresses
+        # A relay server is required to have a public extip, so its
+        # circuit addresses always include a public one. The relay's reservation
+        # response can also carry loopback/private addresses:
+        # they are never dialable by a remote peer, so drop them.
+        let publicAddrs = addresses.filterIt(it.hasPublicRelayTransport())
+        info "Relay reservation updated", addresses = publicAddrs
         # relay addresses are for download traffic only, not DHT routing
-        discovery.announceRelayAddrs(addresses),
+        discovery.announceRelayAddrs(publicAddrs),
       rng = random.Rng.instance(),
     )
 

@@ -14,6 +14,7 @@ import std/strutils
 import std/options
 
 import pkg/libp2p
+import pkg/libp2p/wire
 import pkg/stew/endians2
 
 func remapAddr*(
@@ -58,9 +59,29 @@ func getTcpPort*(ma: MultiAddress): Option[Port] =
     return Port.none
   some(Port(fromBytesBE(uint16, portBytes.get())))
 
+proc hasPublicRelayTransport*(ma: MultiAddress): bool =
+  ## True when ``ma`` is a circuit address whose relay is publicly dialable.
+  ## A circuit address is <relay wire addr>/p2p/<relayId>/p2p-circuit; the part
+  ## before /p2p/ is the relay's wire address, which isPublicMA can check.
+  ## Unlike libp2p's publicRoutableAddressPolicy we drop non-public relays: our
+  ## relay path only runs on a genuine NAT, where the relay is always public.
+  let relayWireStr = ($ma).split("/p2p/")[0]
+  let relayWireAddr = MultiAddress.init(relayWireStr).valueOr:
+    return false
+  relayWireAddr.isPublicMA()
+
+proc dialableAddressPolicy*(ma: MultiAddress): bool {.gcsafe, raises: [].} =
+  # Use with switchBuilder.withAddressPolicy.
+  # Filter the peerInfo.addrs updated by libp2p without
+  # declaring another address mapper.
+  if ma.isCircuitRelayMA():
+    ma.hasPublicRelayTransport()
+  else:
+    ma.isPublicMA()
+
 proc getMultiAddrWithIpAndTcpPort*(ip: IpAddress, port: Port): MultiAddress =
   ## Creates a MultiAddress with the specified IP address and TCP port
-  ## 
+  ##
   ## Parameters:
   ##   - ip: A valid IP address (IPv4 or IPv6)
   ##   - port: The TCP port number

@@ -53,7 +53,7 @@ export
   DefaultQuotaBytes, DefaultBlockTtl, DefaultBlockInterval, DefaultNumBlocksPerInterval,
   DefaultBlockRetries
 
-const DefaultNatScheduleInterval* = 5.minutes
+const DefaultNatScheduleInterval* = 2.minutes
 
 type ThreadCount* = distinct Natural
 
