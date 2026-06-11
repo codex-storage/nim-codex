@@ -584,7 +584,7 @@ proc downloadWorker(
 
         for i in start ..< start + count:
           if (Moment.now() - lastIdle) >= runtimeQuota:
-            await sleepAsync(ZeroDuration)
+            await idleAsync()
             lastIdle = Moment.now()
 
           let address = download.makeBlockAddress(i)

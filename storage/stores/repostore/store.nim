@@ -336,7 +336,7 @@ method listBlocks*(
     return failure(err)
 
   proc next(): Future[?!Cid] {.async: (raises: [CancelledError]).} =
-    await sleepAsync(ZeroDuration)
+    await idleAsync()
     if queryIter.finished:
       iter.finish
     else:
