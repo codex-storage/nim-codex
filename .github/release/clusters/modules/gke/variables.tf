@@ -19,6 +19,32 @@ variable "zone" {
   description = "The GCP zone for the cluster. Using a single zone avoids the longer provisioning time of a regional (multi-zone) cluster."
 }
 
+# Networking (private nodes)
+variable "network" {
+  type        = string
+  description = "Self link or ID of the VPC network the cluster's nodes run in."
+}
+
+variable "subnetwork" {
+  type        = string
+  description = "Self link or ID of the subnetwork the cluster's nodes run in."
+}
+
+variable "pods_range_name" {
+  type        = string
+  description = "Name of the subnetwork secondary IP range to use for Pod IPs."
+}
+
+variable "services_range_name" {
+  type        = string
+  description = "Name of the subnetwork secondary IP range to use for Service IPs."
+}
+
+variable "master_ipv4_cidr_block" {
+  type        = string
+  description = "/28 CIDR range for the GKE control plane's private endpoint."
+}
+
 # Kubernetes default Node Pool
 variable "node_pool_name" {
   type        = string

@@ -2,10 +2,18 @@
 module "gke" {
   source = "../modules/gke"
 
-  name    = "logos-storage-rel-tests"
+  name    = local.name
   project = var.project
   region  = var.region
   zone    = var.zone
+
+  network    = google_compute_network.this.id
+  subnetwork = google_compute_subnetwork.this.id
+
+  pods_range_name     = "pods"
+  services_range_name = "services"
+
+  master_ipv4_cidr_block = "172.16.0.0/28"
 
   node_pool_name         = "runners-ci-e2-standard-2"
   node_pool_machine_type = "e2-standard-2"
