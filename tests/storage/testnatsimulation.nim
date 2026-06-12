@@ -4,7 +4,7 @@ import pkg/libp2p/wire
 
 import ./helpers
 import ../asynctest
-import ../../storage/rng
+import ../../storage/rng as storage_rng
 import ../../storage/nat
 import ./natsimulation
 
@@ -22,22 +22,22 @@ proc cannotConnect(a, b: Switch): Future[bool] {.async.} =
     return false
   return not a.isConnected(b.peerInfo.peerId)
 
-proc newSwitch(rng: Rng): Switch =
+proc newSwitch(rng: storage_rng.Rng): Switch =
   SwitchBuilder
     .new()
-    .withRng(rng)
-    .withPrivateKey(PrivateKey.random(rng).get())
+    .withRng(rng.libp2pRng)
+    .withPrivateKey(PrivateKey.random(rng.libp2pRng).get())
     .withAddresses(@[MultiAddress.init(listenAddr).get()])
     .withTcpTransport(flags)
     .withNoise()
     .withYamux()
     .build()
 
-proc newNatSwitch(router: NatRouter, rng: Rng): Switch =
+proc newNatSwitch(router: NatRouter, rng: storage_rng.Rng): Switch =
   SwitchBuilder
     .new()
-    .withRng(rng)
-    .withPrivateKey(PrivateKey.random(rng).get())
+    .withRng(rng.libp2pRng)
+    .withPrivateKey(PrivateKey.random(rng.libp2pRng).get())
     .withAddresses(@[MultiAddress.init(listenAddr).get()])
     .withNatTransport(router, flags)
     .withNoise()
@@ -49,8 +49,8 @@ asyncchecksuite "Nat transport - Endpoint-Independent Filtering":
 
   setup:
     let router = NatRouter.new(EndpointIndependent)
-    bootstrap = newSwitch(Rng.instance())
-    natNode = newNatSwitch(router, Rng.instance())
+    bootstrap = newSwitch(storage_rng.Rng.instance())
+    natNode = newNatSwitch(router, storage_rng.Rng.instance())
     await bootstrap.start()
     await natNode.start()
 
@@ -67,9 +67,9 @@ asyncchecksuite "Nat transport - Address-Dependent Filtering":
 
   setup:
     let router = NatRouter.new(AddressDependent)
-    bootstrap = newSwitch(Rng.instance())
-    thirdNode = newSwitch(Rng.instance())
-    natNode = newNatSwitch(router, Rng.instance())
+    bootstrap = newSwitch(storage_rng.Rng.instance())
+    thirdNode = newSwitch(storage_rng.Rng.instance())
+    natNode = newNatSwitch(router, storage_rng.Rng.instance())
     await bootstrap.start()
     await thirdNode.start()
     await natNode.start()
@@ -99,9 +99,9 @@ asyncchecksuite "Nat transport - Address-and-Port-Dependent Filtering":
 
   setup:
     let router = NatRouter.new(AddressAndPortDependent)
-    bootstrap = newSwitch(Rng.instance())
-    thirdNode = newSwitch(Rng.instance())
-    natNode = newNatSwitch(router, Rng.instance())
+    bootstrap = newSwitch(storage_rng.Rng.instance())
+    thirdNode = newSwitch(storage_rng.Rng.instance())
+    natNode = newNatSwitch(router, storage_rng.Rng.instance())
     await bootstrap.start()
     await thirdNode.start()
     await natNode.start()
@@ -131,8 +131,8 @@ asyncchecksuite "Nat transport - Double NAT":
 
   setup:
     router = NatRouter.new(DoubleNat)
-    bootstrap = newSwitch(Rng.instance())
-    natNode = newNatSwitch(router, Rng.instance())
+    bootstrap = newSwitch(storage_rng.Rng.instance())
+    natNode = newNatSwitch(router, storage_rng.Rng.instance())
     await bootstrap.start()
     await natNode.start()
 
@@ -154,8 +154,8 @@ asyncchecksuite "Nat transport - Port Mapping":
 
   setup:
     router = NatRouter.new(AddressAndPortDependent)
-    bootstrap = newSwitch(Rng.instance())
-    natNode = newNatSwitch(router, Rng.instance())
+    bootstrap = newSwitch(storage_rng.Rng.instance())
+    natNode = newNatSwitch(router, storage_rng.Rng.instance())
     await bootstrap.start()
     await natNode.start()
 

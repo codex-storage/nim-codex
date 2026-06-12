@@ -56,8 +56,8 @@ method sendDialRequest*(
 proc serverSwitch(): Switch =
   SwitchBuilder
     .new()
-    .withRng(Rng.instance())
-    .withPrivateKey(PrivateKey.random(Rng.instance()).get())
+    .withRng(Rng.instance().libp2pRng)
+    .withPrivateKey(PrivateKey.random(Rng.instance().libp2pRng).get())
     .withAddresses(@[MultiAddress.init(listenAddr).get()])
     .withTcpTransport(flags)
     .withNoise()
@@ -77,8 +77,8 @@ asyncchecksuite "NAT detection - simulated NAT":
     let relayClient = relayClientModule.RelayClient.new()
     natNode = SwitchBuilder
       .new()
-      .withRng(Rng.instance())
-      .withPrivateKey(PrivateKey.random(Rng.instance()).get())
+      .withRng(Rng.instance().libp2pRng)
+      .withPrivateKey(PrivateKey.random(Rng.instance().libp2pRng).get())
       .withAddresses(@[MultiAddress.init(listenAddr).get()])
       .withNatTransport(router, flags)
       .withNoise()
@@ -86,9 +86,11 @@ asyncchecksuite "NAT detection - simulated NAT":
       .withCircuitRelay(relayClient)
       .build()
 
-    relay = AutoRelayService.new(1, relayClient, nil, Rng.instance())
+    relay = AutoRelayService.new(1, relayClient, nil, Rng.instance().libp2pRng)
     autorelayservice.setup(relay, natNode)
-    disc = Discovery.new(PrivateKey.random(Rng.instance()).get(), announceAddrs = @[])
+    disc = Discovery.new(
+      PrivateKey.random(Rng.instance().libp2pRng).get(), announceAddrs = @[]
+    )
     # nodes start in client mode until Reachable
     disc.protocol.clientMode = true
 
@@ -203,7 +205,7 @@ asyncchecksuite "NAT detection - dial request candidates":
   test "autonat handles the observed dialable address":
     let mockClient = MockAutonatV2Client()
     let autonat = AutonatV2Service.new(
-      Rng.instance(),
+      Rng.instance().libp2pRng,
       mockClient,
       AutonatV2ServiceConfig.new(
         enableDialableCandidates = true, maxQueueSize = 1, minConfidence = 0.5

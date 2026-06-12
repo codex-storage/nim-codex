@@ -7,7 +7,6 @@ import pkg/storage/chunker
 import pkg/storage/stores
 
 import ../../asynctest
-import ../helpers/switchutils
 
 type CountingStore* = ref object of NetworkStore
   lookups*: Table[Cid, int]

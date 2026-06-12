@@ -20,7 +20,7 @@ suite "Discovery - SPR record logic":
     udpPort = Port(8090)
 
   setup:
-    key = PrivateKey.random(Rng.instance()).get()
+    key = PrivateKey.random(Rng.instance().libp2pRng).get()
     disc = Discovery.new(key, announceAddrs = @[])
 
   test "announceDirectAddrs sets the SPR with both TCP and UDP addresses":

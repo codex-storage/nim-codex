@@ -36,9 +36,10 @@ asyncchecksuite "NAT reaction - port mapping":
   var autoRelay: AutoRelayService
 
   setup:
-    autoRelay =
-      AutoRelayService.new(1, relayClientModule.RelayClient.new(), nil, Rng.instance())
-    key = PrivateKey.random(Rng.instance()).get()
+    autoRelay = AutoRelayService.new(
+      1, relayClientModule.RelayClient.new(), nil, Rng.instance().libp2pRng
+    )
+    key = PrivateKey.random(Rng.instance().libp2pRng).get()
     disc = Discovery.new(key, announceAddrs = @[])
     sw = newStandardSwitch()
     await sw.start()
@@ -149,7 +150,7 @@ asyncchecksuite "NAT reaction - address announcing":
   var disc: Discovery
 
   setup:
-    key = PrivateKey.random(Rng.instance()).get()
+    key = PrivateKey.random(Rng.instance().libp2pRng).get()
     disc = Discovery.new(key, announceAddrs = @[])
     sw = newStandardSwitch()
     await sw.start()
@@ -179,7 +180,7 @@ asyncchecksuite "NAT reaction - address announcing":
     check disc.getSpr().data.seqNo == seqNo
 
   test "peerInfo observer announces addresses when Reachable":
-    let autonat = AutonatV2Service.new(Rng.instance())
+    let autonat = AutonatV2Service.new(Rng.instance().libp2pRng)
     discard setupPeerInfoObserver(
       sw, autonat, disc, NatPortMapper(discoveryPort: discoveryPort)
     )
@@ -193,7 +194,7 @@ asyncchecksuite "NAT reaction - address announcing":
     check disc.announceAddrs == sw.peerInfo.addrs
 
   test "peerInfo observer announces the mapped external UDP port when a mapping is active":
-    let autonat = AutonatV2Service.new(Rng.instance())
+    let autonat = AutonatV2Service.new(Rng.instance().libp2pRng)
     let mapper =
       NatPortMapper(discoveryPort: discoveryPort, activeUdpPort: some(Port(40001)))
     discard setupPeerInfoObserver(sw, autonat, disc, mapper)
@@ -210,7 +211,7 @@ asyncchecksuite "NAT reaction - address announcing":
       sprAddrs
 
   test "peerInfo observer does not announce when the node is not Reachable":
-    let autonat = AutonatV2Service.new(Rng.instance())
+    let autonat = AutonatV2Service.new(Rng.instance().libp2pRng)
     discard setupPeerInfoObserver(
       sw, autonat, disc, NatPortMapper(discoveryPort: discoveryPort)
     )

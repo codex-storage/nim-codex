@@ -263,7 +263,8 @@ proc new*(
   var switchBuilder = SwitchBuilder
     .new()
     .withPrivateKey(privateKey)
-    .withAddresses(@[listenMultiAddr], enableWildcardResolver = true)
+    .withAddresses(@[listenMultiAddr])
+    .withWildcardResolver()
     .withIdentifyPusher(false)
     .withRng(random.Rng.instance().libp2pRng)
     .withNoise()
@@ -469,7 +470,7 @@ proc new*(
         info "Relay reservation updated", addresses = publicAddrs
         # relay addresses are for download traffic only, not DHT routing
         discovery.announceRelayAddrs(publicAddrs),
-      rng = random.Rng.instance(),
+      rng = random.Rng.instance().libp2pRng,
     )
 
     relayService.setup(switch)

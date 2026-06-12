@@ -314,8 +314,15 @@ proc new*(
   ## Create a new BlockExcNetwork instance
   ##
 
+  # libp2p now requires a non-nil handler at construction; the real one is set
+  # by self.init() below. This placeholder only exists until then.
+  proc placeholder(
+      conn: Connection, proto: string
+  ): Future[void] {.async: (raises: [CancelledError]).} =
+    discard
+
   let self = lp_protocol.new(
-    BlockExcNetwork, @[Codec], nil, maxIncomingStreamsTotal = maxInflight
+    BlockExcNetwork, @[Codec], placeholder, maxIncomingStreamsTotal = maxInflight
   )
   self.switch = switch
   self.getConn = connProvider
