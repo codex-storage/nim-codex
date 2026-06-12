@@ -40,9 +40,9 @@ suite "addrutils - hasPublicRelayTransport":
   const relayId = "16Uiu2HAkyRvHo1AyyQY1xiHC8QbYjXCHkZbneVC8dBtJjp1SZcGD"
 
   proc circuitAddr(relayIp: string): MultiAddress =
-    MultiAddress.init("/ip4/" & relayIp & "/tcp/8070/p2p/" & relayId & "/p2p-circuit").expect(
-      "valid"
-    )
+    MultiAddress
+      .init("/ip4/" & relayIp & "/tcp/8070/p2p/" & relayId & "/p2p-circuit")
+      .expect("valid")
 
   test "true when the relay has a public ip":
     check circuitAddr("204.168.234.45").hasPublicRelayTransport()
@@ -57,18 +57,27 @@ suite "addrutils - dialableAddressPolicy":
   const relayId = "16Uiu2HAkyRvHo1AyyQY1xiHC8QbYjXCHkZbneVC8dBtJjp1SZcGD"
 
   proc circuitAddr(relayIp: string): MultiAddress =
-    MultiAddress.init("/ip4/" & relayIp & "/tcp/8070/p2p/" & relayId & "/p2p-circuit").expect(
-      "valid"
-    )
+    MultiAddress
+      .init("/ip4/" & relayIp & "/tcp/8070/p2p/" & relayId & "/p2p-circuit")
+      .expect("valid")
 
   test "keeps a public direct address":
-    check MultiAddress.init("/ip4/204.168.234.45/tcp/8070").expect("valid").dialableAddressPolicy()
+    check MultiAddress
+      .init("/ip4/204.168.234.45/tcp/8070")
+      .expect("valid")
+      .dialableAddressPolicy()
 
   test "drops a loopback direct address":
-    check not MultiAddress.init("/ip4/127.0.0.1/tcp/8070").expect("valid").dialableAddressPolicy()
+    check not MultiAddress
+      .init("/ip4/127.0.0.1/tcp/8070")
+      .expect("valid")
+      .dialableAddressPolicy()
 
   test "drops a private direct address":
-    check not MultiAddress.init("/ip4/192.168.100.103/tcp/8070").expect("valid").dialableAddressPolicy()
+    check not MultiAddress
+      .init("/ip4/192.168.100.103/tcp/8070")
+      .expect("valid")
+      .dialableAddressPolicy()
 
   test "keeps a circuit address through a public relay":
     check circuitAddr("204.168.234.45").dialableAddressPolicy()

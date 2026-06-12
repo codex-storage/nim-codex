@@ -302,6 +302,7 @@ proc new*(
         numPeersToAsk = config.natNumPeersToAsk,
         maxQueueSize = config.natMaxQueueSize,
         minConfidence = config.natMinConfidence,
+        enableDialableCandidates = true,
       )
     )
     # At the first AutoNAT probe, the only identify observations available come

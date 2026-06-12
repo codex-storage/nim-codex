@@ -1,6 +1,4 @@
 import std/net
-import pkg/questionable/results
-
 import ../asynctest
 import ./helpers
 import ../../storage/conf

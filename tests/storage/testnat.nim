@@ -194,11 +194,14 @@ asyncchecksuite "NAT - handleNatStatus":
     check disc.announceAddrs == newSeq[MultiAddress]()
 
   test "autonat dial request includes the observed addresses as candidates":
-    # Reproduces vacp2p/nim-libp2p#2600: until that fix is vendored, the
-    # dial request only contains peerInfo.addrs (private listen addrs), so
-    # a NATed node never submits a dialable candidate.
+    # The dial request includes the addresses observed by other peers, so a NATed node submits
+    # a dialable candidate even though its listen addrs are private.
     let client = MockAutonatV2Client()
-    let autonat = AutonatV2Service.new(Rng.instance(), client)
+    let autonat = AutonatV2Service.new(
+      Rng.instance(),
+      client,
+      AutonatV2ServiceConfig.new(enableDialableCandidates = true),
+    )
     service.setup(autonat, sw)
     await autonat.start(sw)
 
