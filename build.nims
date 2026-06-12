@@ -78,20 +78,6 @@ task testIntegration, "Run integration tests":
   # test "testIntegration", params = "-d:chronicles_sinks=textlines[notimestamps,stdout],textlines[dynamic] " &
   #   "-d:chronicles_enabled_topics:integration:TRACE"
 
-task testNatPortMapping, "Run UPnP NAT integration test (requires miniupnpd container)":
-  buildBinary "storage",
-    outName = "storage",
-    params = "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE"
-  putEnv("STORAGE_INTEGRATION_TEST_INCLUDES", "nat/testnatupnp.nim")
-  test "testIntegration", outName = "testIntegrationNat"
-
-task testNatPcpMapping, "Run PCP NAT integration test (requires miniupnpd container)":
-  buildBinary "storage",
-    outName = "storage",
-    params = "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE"
-  putEnv("STORAGE_INTEGRATION_TEST_INCLUDES", "nat/testnatpcp.nim")
-  test "testIntegration", outName = "testIntegrationNatPcp"
-
 task testNatNotReachable,
   "Run NAT not-reachable scenario (needs the image + podman-compose)":
   test "integration/nat/not-reachable/testnotreachable", outName = "testNatNotReachable"

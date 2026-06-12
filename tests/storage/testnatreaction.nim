@@ -26,7 +26,7 @@ method mapNatPorts*(
 .} =
   m.mappedPorts
 
-method hasActiveMapping*(m: MockNatPortMapper): bool =
+method hasMappingIds*(m: MockNatPortMapper): bool =
   m.activeMapping
 
 asyncchecksuite "NAT reaction - port mapping":

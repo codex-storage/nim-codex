@@ -462,6 +462,10 @@ proc new*(
         # response can also carry loopback/private addresses:
         # they are never dialable by a remote peer, so drop them.
         let publicAddrs = addresses.filterIt(it.hasPublicRelayTransport())
+        if publicAddrs.len == 0:
+          warn "Relay reservation has no publicly dialable address, keeping previous announce",
+            addresses
+          return
         info "Relay reservation updated", addresses = publicAddrs
         # relay addresses are for download traffic only, not DHT routing
         discovery.announceRelayAddrs(publicAddrs),

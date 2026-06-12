@@ -3,6 +3,13 @@ import pkg/libp2p/multiaddress
 import ../asynctest
 import ../../storage/utils/addrutils
 
+const relayId = "16Uiu2HAkyRvHo1AyyQY1xiHC8QbYjXCHkZbneVC8dBtJjp1SZcGD"
+
+proc circuitAddr(relayIp: string): MultiAddress =
+  MultiAddress
+    .init("/ip4/" & relayIp & "/tcp/8070/p2p/" & relayId & "/p2p-circuit")
+    .expect("valid")
+
 suite "addrutils - getTcpPort":
   test "extracts port from ipv4 tcp address":
     let ma = MultiAddress.init("/ip4/1.2.3.4/tcp/5000").expect("valid")
@@ -37,13 +44,6 @@ suite "addrutils - remapAddr":
     check remapped == MultiAddress.init("/ip4/8.8.8.8/tcp/5000").expect("valid")
 
 suite "addrutils - hasPublicRelayTransport":
-  const relayId = "16Uiu2HAkyRvHo1AyyQY1xiHC8QbYjXCHkZbneVC8dBtJjp1SZcGD"
-
-  proc circuitAddr(relayIp: string): MultiAddress =
-    MultiAddress
-      .init("/ip4/" & relayIp & "/tcp/8070/p2p/" & relayId & "/p2p-circuit")
-      .expect("valid")
-
   test "true when the relay has a public ip":
     check circuitAddr("204.168.234.45").hasPublicRelayTransport()
 
@@ -54,13 +54,6 @@ suite "addrutils - hasPublicRelayTransport":
     check not circuitAddr("172.17.0.1").hasPublicRelayTransport()
 
 suite "addrutils - dialableAddressPolicy":
-  const relayId = "16Uiu2HAkyRvHo1AyyQY1xiHC8QbYjXCHkZbneVC8dBtJjp1SZcGD"
-
-  proc circuitAddr(relayIp: string): MultiAddress =
-    MultiAddress
-      .init("/ip4/" & relayIp & "/tcp/8070/p2p/" & relayId & "/p2p-circuit")
-      .expect("valid")
-
   test "keeps a public direct address":
     check MultiAddress
       .init("/ip4/204.168.234.45/tcp/8070")

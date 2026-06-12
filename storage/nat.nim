@@ -128,7 +128,9 @@ proc stop*(m: NatPortMapper) =
 proc isPortMapped*(m: NatPortMapper, port: Port): bool =
   m.activeTcpPort.isSome and m.activeTcpPort.get == port
 
-method hasActiveMapping*(m: NatPortMapper): bool {.base, gcsafe.} =
+method hasMappingIds*(m: NatPortMapper): bool {.base, gcsafe.} =
+  # Only checks that mappings were created, not that they are still live
+  # (use hasMapping() for liveness check).
   m.tcpMappingId.isSome and m.udpMappingId.isSome
 
 proc announcePeerInfoAddrs*(discovery: Discovery, peerInfo: PeerInfo, udpPort: Port) =
@@ -195,11 +197,11 @@ method handleNatStatus*(
     if dialBackAddr.isNone:
       warn "Got empty dialback address in AutoNat when node is NotReachable"
 
-      if m.hasActiveMapping():
+      if m.hasMappingIds():
         m.close()
 
       discovery.announceDirectAddrs(@[], udpPort = discoveryPort)
-    elif m.hasActiveMapping():
+    elif m.hasMappingIds():
       warn "Not Reachable with active port mapping. The port mapping will be deleted and relay will start."
 
       # The mapping was created the the node is still not reachable.
