@@ -970,7 +970,7 @@ proc wantListHandler*(
 
         for i in 0'u64 ..< count:
           if (Moment.now() - lastIdle) >= runtimeQuota:
-            await sleepAsync(ZeroDuration)
+            await idleAsync()
             lastIdle = Moment.now()
 
           let address = BlockAddress(treeCid: treeCid, index: (startIdx + i).int)
