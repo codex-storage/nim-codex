@@ -13,6 +13,6 @@ when includes != "":
 else:
   # all tests in integration/, except the nat/ real-topology scenarios, which
   # need podman + the storage-nat image and run via testNatIntegration instead
-  importTests(currentSourcePath().parentDir() / "integration", "/nat/", "")
+  importTests(currentSourcePath().parentDir() / "integration", "/nat/")
 
 {.warning[UnusedImport]: off.}

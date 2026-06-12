@@ -25,14 +25,23 @@ The wan public range and `internal` flag work as in
 
 ## Run
 
+Every NAT scenario:
+
 ```bash
-make testNatIntegration STORAGE_INTEGRATION_TEST_INCLUDES=reachable
+make testNatIntegration
 ```
 
-Runs this scenario (omit the var to run every NAT scenario). Builds the shared
-image and runs `testreachable.nim`, which brings the compose topology up and
-down. Rootless, but needs the host netfilter modules — if the router fails on
-iptables: `sudo modprobe iptable_nat nf_conntrack`.
+Just this one — same `STORAGE_INTEGRATION_TEST_INCLUDES` filter as testIntegration,
+with the test file path:
+
+```bash
+make testNatIntegration \
+  STORAGE_INTEGRATION_TEST_INCLUDES=tests/integration/nat/reachable/testreachable.nim
+```
+
+Builds the shared image and brings the compose topology up and down. Rootless, but
+needs the host netfilter modules — if the router fails on iptables:
+`sudo modprobe iptable_nat nf_conntrack`.
 
 ## Expected result
 

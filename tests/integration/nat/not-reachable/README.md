@@ -26,14 +26,23 @@ range never leaks to host routes.
 
 ## Run
 
+Every NAT scenario:
+
 ```bash
-make testNatIntegration STORAGE_INTEGRATION_TEST_INCLUDES=not-reachable
+make testNatIntegration
 ```
 
-Runs this scenario (omit the var to run every NAT scenario). Builds the shared
-image and runs `testnotreachable.nim`, which brings the compose topology up and
-down. Rootless, but needs the host netfilter modules — if the router fails on
-iptables: `sudo modprobe iptable_nat nf_conntrack`.
+Just this one — same `STORAGE_INTEGRATION_TEST_INCLUDES` filter as testIntegration,
+with the test file path:
+
+```bash
+make testNatIntegration \
+  STORAGE_INTEGRATION_TEST_INCLUDES=tests/integration/nat/not-reachable/testnotreachable.nim
+```
+
+Builds the shared image and brings the compose topology up and down. Rootless, but
+needs the host netfilter modules — if the router fails on iptables:
+`sudo modprobe iptable_nat nf_conntrack`.
 
 ## Expected result
 

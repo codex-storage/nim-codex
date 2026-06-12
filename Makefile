@@ -152,10 +152,9 @@ testIntegration: | build deps
 
 DOCKER := $(or $(shell which podman 2>/dev/null), $(shell which docker 2>/dev/null))
 
-# NAT real-topology scenarios (podman-compose), all sharing one image built
-# here. Runs every scenario; run one with
-# `make testNatIntegration STORAGE_INTEGRATION_TEST_INCLUDES=<scenario>` (the
-# scenario's folder name, e.g. reachable).
+# NAT real-topology scenarios (podman-compose), all sharing one image built here.
+# Runs every scenario; limit it with STORAGE_INTEGRATION_TEST_INCLUDES (test file
+# paths), as testIntegration does.
 buildNatImage:
 	$(DOCKER) build -t localhost/storage-nat -f tests/integration/nat/Dockerfile .
 

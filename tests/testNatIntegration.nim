@@ -1,16 +1,15 @@
 import std/os
+import std/strutils
 import ./imports
 
 ## Real-topology NAT scenarios (need podman + the storage-nat image).
-## Run a single scenario by setting its folder name during compilation, e.g.
-## STORAGE_INTEGRATION_TEST_INCLUDES=reachable
-const scenario = getEnv("STORAGE_INTEGRATION_TEST_INCLUDES")
-const only =
-  if scenario.len > 0:
-    "/" & scenario & "/"
-  else:
-    ""
+## Limit which scenarios run with STORAGE_INTEGRATION_TEST_INCLUDES, listing test
+## file paths, exactly as testIntegration does.
+const includes = getEnv("STORAGE_INTEGRATION_TEST_INCLUDES")
 
-importTests(currentSourcePath().parentDir() / "integration" / "nat", "", only)
+when includes != "":
+  importAll(includes.split(","))
+else:
+  importTests(currentSourcePath().parentDir() / "integration" / "nat", "")
 
 {.warning[UnusedImport]: off.}
