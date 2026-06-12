@@ -346,15 +346,6 @@ proc isBootstrapNode*(config: StorageConfig): bool {.raises: [].} =
 
   return false
 
-proc withNatSimulation*(
-    self: StorageConfigs, idx: int, filtering: string
-): StorageConfigs {.raises: [StorageConfigError].} =
-  self.checkBounds idx
-
-  var startConfig = self
-  startConfig.configs[idx].addCliOption("--nat-simulation", filtering)
-  return startConfig
-
 proc withAutonatServer*(
     self: StorageConfigs, idx: int
 ): StorageConfigs {.raises: [StorageConfigError].} =

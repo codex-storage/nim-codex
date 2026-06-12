@@ -73,7 +73,6 @@ proc defaultDataDir*(): string =
 const
   storage_enable_api_debug_peers* {.booldefine.} = false
   storage_enable_log_counter* {.booldefine.} = false
-  storage_enable_nat_simulation* {.booldefine.} = false
 
   DefaultThreadCount* = ThreadCount(0)
 
@@ -367,14 +366,6 @@ type
       defaultValue: 300000,
       name: "nat-port-mapping-recheck-period"
     .}: int
-
-    natSimulation* {.
-      desc:
-        "Simulate NAT filtering behavior for testing: endpoint-independent, address-dependent, address-and-port-dependent",
-      defaultValue: string.none,
-      name: "nat-simulation",
-      hidden
-    .}: Option[string]
 
     autonatServer* {.
       desc: "Enable AutoNAT server to help other nodes check their reachability",

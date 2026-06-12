@@ -72,9 +72,7 @@ task testStorage, "Build & run Logos Storage tests":
 task testIntegration, "Run integration tests":
   buildBinary "storage",
     outName = "storage",
-    params =
-      "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE " &
-      "-d:storage_enable_nat_simulation=true"
+    params = "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE"
   test "testIntegration"
   # use params to enable logging from the integration test executable
   # test "testIntegration", params = "-d:chronicles_sinks=textlines[notimestamps,stdout],textlines[dynamic] " &
@@ -93,6 +91,13 @@ task testNatPcpMapping, "Run PCP NAT integration test (requires miniupnpd contai
     params = "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE"
   putEnv("STORAGE_INTEGRATION_TEST_INCLUDES", "nat/testnatpcp.nim")
   test "testIntegration", outName = "testIntegrationNatPcp"
+
+task testNatNotReachable,
+  "Run NAT not-reachable scenario (needs the image + podman-compose)":
+  test "integration/nat/not-reachable/testnotreachable", outName = "testNatNotReachable"
+
+task testNatReachable, "Run NAT reachable scenario (needs the image + podman-compose)":
+  test "integration/nat/reachable/testreachable", outName = "testNatReachable"
 
 task build, "build Logos Storage binary":
   storageTask()

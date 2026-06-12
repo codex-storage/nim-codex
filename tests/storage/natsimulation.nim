@@ -1,11 +1,8 @@
 # NAT simulation for integration testing.
 #
-# Testing NAT traversal in CI requires controlling inbound/outbound filtering
-# rules, which is not possible with real network interfaces. This module wraps
-# the TCP transport to enforce configurable filtering behaviors (endpoint-
-# independent, address-dependent, address-and-port-dependent, double NAT) at
-# the connection level, so the full AutoNAT detection and relay
-# stack can be exercised without actual NAT hardware.
+# It simulates the filtering behaviors (endpoint-independent, address-dependent,
+# address-and-port-dependent, double NAT) at the connection level, so the full
+# AutoNAT detection and relay stack can be exercised without actual NAT hardware.
 
 {.push raises: [].}
 
@@ -18,7 +15,7 @@ import pkg/libp2p/transports/tcptransport
 import pkg/libp2p/transports/transport
 import pkg/libp2p/wire
 
-import ../nat
+import ../../storage/nat
 
 logScope:
   topics = "nat simulation"

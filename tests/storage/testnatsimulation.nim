@@ -6,7 +6,7 @@ import ./helpers
 import ../asynctest
 import ../../storage/rng
 import ../../storage/nat
-import ../../storage/utils/natsimulation
+import ./natsimulation
 
 const flags = {ServerFlags.ReuseAddr}
 const listenAddr = "/ip4/127.0.0.1/tcp/0"
@@ -44,7 +44,7 @@ proc newNatSwitch(router: NatRouter, rng: Rng): Switch =
     .withYamux()
     .build()
 
-asyncchecksuite "NatTransport - Endpoint-Independent Filtering":
+asyncchecksuite "Nat transport - Endpoint-Independent Filtering":
   var bootstrap, natNode: Switch
 
   setup:
@@ -62,7 +62,7 @@ asyncchecksuite "NatTransport - Endpoint-Independent Filtering":
     await bootstrap.connect(natNode.peerInfo.peerId, natNode.peerInfo.addrs)
     check bootstrap.isConnected(natNode.peerInfo.peerId)
 
-asyncchecksuite "NatTransport - Address-Dependent Filtering":
+asyncchecksuite "Nat transport - Address-Dependent Filtering":
   var bootstrap, thirdNode, natNode: Switch
 
   setup:
@@ -94,7 +94,7 @@ asyncchecksuite "NatTransport - Address-Dependent Filtering":
   test "bootstrap cannot connect to nat node without a pre-existing connection":
     check await cannotConnect(bootstrap, natNode)
 
-asyncchecksuite "NatTransport - Address-and-Port-Dependent Filtering":
+asyncchecksuite "Nat transport - Address-and-Port-Dependent Filtering":
   var bootstrap, thirdNode, natNode: Switch
 
   setup:
@@ -125,7 +125,7 @@ asyncchecksuite "NatTransport - Address-and-Port-Dependent Filtering":
     await natNode.connect(bootstrap.peerInfo.peerId, bootstrap.peerInfo.addrs)
     check await cannotConnect(thirdNode, natNode)
 
-asyncchecksuite "NatTransport - Double NAT":
+asyncchecksuite "Nat transport - Double NAT":
   var bootstrap, natNode: Switch
   var router: NatRouter
 
@@ -148,7 +148,7 @@ asyncchecksuite "NatTransport - Double NAT":
 
     check await cannotConnect(bootstrap, natNode)
 
-asyncchecksuite "NatTransport - Port Mapping":
+asyncchecksuite "Nat transport - Port Mapping":
   var bootstrap, natNode: Switch
   var router: NatRouter
 

@@ -22,6 +22,7 @@ import pkg/libp2p/protocols/connectivity/autonatv2/[service, client]
 import pkg/libp2p/protocols/connectivity/relay/client as relayClientModule
 import pkg/libp2p/protocols/connectivity/relay/relay as relayModule
 import pkg/libp2p/services/autorelayservice
+import pkg/libp2p/transports/tcptransport
 import pkg/confutils
 import pkg/confutils/defs
 import pkg/stew/io2
@@ -43,10 +44,14 @@ import ./storagetypes
 import ./logutils
 import ./nat
 import ./utils/natutils
-import ./utils/natsimulation
 
 logScope:
   topics = "storage node"
+
+const StorageTransportFlags = {ServerFlags.ReuseAddr, ServerFlags.TcpNoDelay}
+
+proc tcpTransportBuilder(config: TransportConfig): Transport {.gcsafe, raises: [].} =
+  TcpTransport.new(StorageTransportFlags, config.upgr)
 
 type
   StorageServer* = ref object
@@ -237,8 +242,10 @@ proc new*(
     config: StorageConf,
     privateKey: StoragePrivateKey,
     logFile: Option[IoHandle] = IoHandle.none,
+    transportBuilder: TransportBuilder = tcpTransportBuilder,
 ): StorageServer =
-  ## create StorageServer including setting up datastore, repostore, etc
+  ## create StorageServer including setting up datastore, repostore, etc.
+  ## ``transportBuilder`` defaults to TCP; tests inject a simulated NAT transport.
 
   if err =? config.validateAutonatConfig().errorOption:
     raise newException(StorageError, err.msg)
@@ -320,32 +327,7 @@ proc new*(
     # addresses.
     switchBuilder = switchBuilder.withAddressPolicy(dialableAddressPolicy)
 
-  var natRouter: Option[NatRouter]
-  let switch =
-    when storage_enable_nat_simulation:
-      if config.natSimulation.isSome:
-        # Provide a NAT simulation useful for testing NAT Traversal
-        let filtering = FilteringBehavior.fromString(config.natSimulation.get).valueOr(
-            AddressAndPortDependent
-          )
-        let router = NatRouter.new(filtering)
-        natRouter = some(router)
-        switchBuilder
-          .withNatTransport(router, {ServerFlags.ReuseAddr, ServerFlags.TcpNoDelay})
-          .build()
-      else:
-        switchBuilder
-          .withTcpTransport({ServerFlags.ReuseAddr, ServerFlags.TcpNoDelay})
-          .build()
-    else:
-      if config.natSimulation.isSome:
-        raise newException(
-          StorageError,
-          "--nat-simulation requires a build with -d:storage_enable_nat_simulation=true",
-        )
-      switchBuilder
-        .withTcpTransport({ServerFlags.ReuseAddr, ServerFlags.TcpNoDelay})
-        .build()
+  let switch = switchBuilder.withTransport(transportBuilder).build()
 
   var taskPool: Taskpool
 
@@ -500,10 +482,6 @@ proc new*(
       )
     )
 
-    # natRouter is some only when using nat simulation
-    if natRouter.isSome:
-      natRouter.get.natMapper = natMapper
-
     peerInfoObserver =
       some(setupPeerInfoObserver(switch, autonatService.get, discovery, natMapper.get))
 
@@ -529,7 +507,7 @@ proc new*(
     restServer = RestServerRef
       .new(
         storageNode.initRestApi(
-          config, repoStore, autonatService, autoRelayService, natMapper, natRouter,
+          config, repoStore, autonatService, autoRelayService, natMapper,
           config.apiCorsAllowedOrigin,
         ),
         initTAddress(config.apiBindAddress.get(), config.apiPort),

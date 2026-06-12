@@ -564,29 +564,6 @@ paths:
         "500":
           description: Well it was bad-bad
 
-  "/debug/nat/filtering":
-    post:
-      summary: "Set NAT simulation filtering behavior at runtime"
-      description: "Only available on nodes started with --nat-simulation. Used for testing NAT transitions."
-      tags: [Debug]
-      operationId: setNatFiltering
-
-      parameters:
-        - in: query
-          name: filtering
-          required: true
-          schema:
-            type: string
-            enum: [endpoint-independent, address-dependent, address-and-port-dependent, double-nat]
-
-      responses:
-        "200":
-          description: Filtering behavior updated successfully
-        "400":
-          description: Missing or invalid filtering value, or NAT simulation not active
-        "500":
-          description: Internal error
-
   "/debug/info":
     get:
       summary: "Gets node information"
