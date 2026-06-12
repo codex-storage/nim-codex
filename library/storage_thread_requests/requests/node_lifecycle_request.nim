@@ -13,7 +13,7 @@ import results
 import confutils
 import confutils/std/net
 import confutils/defs
-import libp2p
+import libp2p except NATConfig
 import json_serialization
 import json_serialization/std/[options, net]
 import ../../alloc

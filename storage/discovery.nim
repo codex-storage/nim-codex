@@ -21,7 +21,7 @@ import pkg/contractabi/address as ca
 import pkg/codexdht/discv5/[routing_table, protocol as discv5]
 from pkg/nimcrypto import keccak256
 
-import ./rng
+import ./rng as storage_rng
 import ./errors
 import ./logutils
 
@@ -260,7 +260,7 @@ proc new*(
     bindPort = bindPort,
     record = self.providerRecord.get,
     bootstrapRecords = bootstrapNodes,
-    rng = Rng.instance(),
+    rng = storage_rng.libp2pRng(storage_rng.Rng.instance()),
     providers = ProvidersManager.new(store),
     config = discoveryConfig,
   )

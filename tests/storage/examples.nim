@@ -2,7 +2,7 @@ import std/[random, sequtils]
 
 import pkg/libp2p
 import pkg/stint
-import pkg/storage/rng
+import pkg/storage/rng as storage_rng
 import pkg/storage/stores
 import pkg/storage/blocktype as bt
 import pkg/storage/merkletree
@@ -16,7 +16,7 @@ proc example*(_: type bt.Block, size: int = 4096): bt.Block =
   bt.Block.new(bytes).tryGet()
 
 proc example*(_: type PeerId): PeerId =
-  let key = PrivateKey.random(Rng.instance[]).get
+  let key = PrivateKey.random(storage_rng.Rng.instance().libp2pRng).get
   PeerId.init(key.getPublicKey().get).get
 
 proc example*(_: type PeerContext): PeerContext =

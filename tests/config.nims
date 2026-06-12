@@ -7,8 +7,8 @@
 
 when not defined(chronicles_log_level):
   --define:
-    "chronicles_log_level:NONE" # compile all log statements
+    "chronicles_log_level:TRACE" # compile trace log statements
   --define:
     "chronicles_sinks:textlines[dynamic]" # allow logs to be filtered at runtime
   --"import":
-    "logging" # ensure that logging is ignored at runtime
+    "logging_config" # ensure that logging is ignored at runtime

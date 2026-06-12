@@ -7,7 +7,7 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-import std/math
+import std/[math, options]
 
 import pkg/libp2p
 import pkg/chronos

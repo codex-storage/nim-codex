@@ -183,16 +183,16 @@
 [submodule "vendor/nph"]
 	path = vendor/nph
 	url = https://github.com/arnetheduck/nph.git
-[submodule "vendor/nim-quic"]
-	path = vendor/nim-quic
-	url = https://github.com/vacp2p/nim-quic.git
-	ignore = untracked
-	branch = main
-[submodule "vendor/nim-ngtcp2"]
-	path = vendor/nim-ngtcp2
-	url = https://github.com/vacp2p/nim-ngtcp2.git
-	ignore = untracked
-	branch = main
 [submodule "vendor/nim-merkletree"]
 	path = vendor/nim-merkletree
 	url = https://github.com/logos-storage/nim-merkletree
+[submodule "vendor/nim-boringssl"]
+	path = vendor/nim-boringssl
+	url = https://github.com/vacp2p/nim-boringssl.git
+	ignore = untracked
+	branch = master
+[submodule "vendor/nim-lsquic"]
+	path = vendor/nim-lsquic
+	url = https://github.com/vacp2p/nim-lsquic.git
+	ignore = untracked
+	branch = main

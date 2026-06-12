@@ -79,7 +79,7 @@ proc completeWrite(
     await fut
 
 method write*(
-    self: AsyncStreamWrapper, msg: seq[byte]
+    self: AsyncStreamWrapper, msg: sink seq[byte]
 ): Future[void] {.async: (raises: [CancelledError, LPStreamError], raw: true).} =
   # Avoid a copy of msg being kept in the closure created by `{.async.}` as this
   # drives up memory usage

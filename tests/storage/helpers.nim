@@ -19,11 +19,12 @@ import ./helpers/randomchunker
 import ./helpers/mockchunker
 import ./helpers/mockdiscovery
 import ./helpers/always
+import ./helpers/switchutils
 import ../checktest
 
 export
-  randomchunker, nodeutils, datasetutils, mockdiscovery, mockchunker, always, checktest,
-  manifest
+  randomchunker, nodeutils, datasetutils, mockdiscovery, mockchunker, switchutils,
+  always, checktest, manifest
 
 export libp2p except setup, eventually
 

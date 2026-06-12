@@ -1,6 +1,4 @@
-import std/sequtils
-import std/sugar
-import std/tables
+import std/[options, sequtils, sugar, tables]
 
 import pkg/chronos
 

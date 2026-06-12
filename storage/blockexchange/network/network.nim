@@ -13,7 +13,7 @@ import std/sequtils
 import pkg/chronos
 
 import pkg/libp2p
-import pkg/libp2p/utils/semaphore
+import pkg/libp2p/protocols/protocol as lp_protocol
 import pkg/questionable
 import pkg/questionable/results
 
@@ -103,17 +103,23 @@ proc send*(
       peerId = id, hasWantList = msg.wantList.entries.len > 0
     return
 
+  var acquired = false
   try:
     let peer = b.peers[id]
 
     await b.inflightSema.acquire()
+    acquired = true
     await peer.send(msg)
   except CancelledError as error:
     raise error
   except CatchableError as err:
     error "Error sending message", peer = id, msg = err.msg
   finally:
-    b.inflightSema.release()
+    if acquired:
+      try:
+        b.inflightSema.release()
+      except AsyncSemaphoreError as err:
+        error "Error releasing inflight semaphore", msg = err.msg
 
 proc handleWantList(
     b: BlockExcNetwork, peer: NetworkPeer, list: WantList
@@ -295,7 +301,6 @@ method init*(self: BlockExcNetwork) {.raises: [].} =
     await blockexcPeer.readLoop(conn) # attach read loop
 
   self.handler = handler
-  self.codec = Codec
 
 proc stop*(self: BlockExcNetwork) {.async: (raises: []).} =
   await self.trackedFutures.cancelTracked()
@@ -309,14 +314,16 @@ proc new*(
   ## Create a new BlockExcNetwork instance
   ##
 
-  let self = BlockExcNetwork(
-    switch: switch,
-    getConn: connProvider,
-    inflightSema: newAsyncSemaphore(maxInflight),
-    maxInflight: maxInflight,
+  let self = lp_protocol.new(
+    BlockExcNetwork, @[Codec], nil, maxIncomingStreamsTotal = maxInflight
   )
+  self.switch = switch
+  self.getConn = connProvider
+  self.inflightSema = newAsyncSemaphore(max(maxInflight, 1))
+  if maxInflight == 0:
+    discard self.inflightSema.tryAcquire()
 
-  self.maxIncomingStreams = self.maxInflight
+  self.maxInflight = maxInflight
 
   proc sendWantList(
       id: PeerId,

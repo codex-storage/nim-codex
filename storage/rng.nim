@@ -8,8 +8,8 @@
 ## those terms.
 
 import std/sugar
-import pkg/libp2p/crypto/crypto
 import pkg/bearssl/rand
+import pkg/libp2p/crypto/rng as libp2p_rng
 
 type
   RngSampleError = object of CatchableError
@@ -19,8 +19,11 @@ var rng {.threadvar.}: Rng
 
 proc instance*(t: type Rng): Rng =
   if rng.isNil:
-    rng = newRng()
+    rng = HmacDrbgContext.new()
   rng
+
+proc libp2pRng*(rng: Rng): libp2p_rng.Rng =
+  libp2p_rng.newBearSslRng(rng)
 
 # Random helpers: similar as in stdlib, but with HmacDrbgContext rng
 # TODO: Move these somewhere else?

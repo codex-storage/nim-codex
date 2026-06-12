@@ -58,9 +58,7 @@ proc createShared*(
 # We can improve this by dispatching the callbacks to a thread pool or
 # moving to a MP channel.
 # See: https://github.com/logos-storage/logos-storage-nim/pull/1322#discussion_r2340708316
-proc handleRes[T: string | void | seq[byte]](
-    res: Result[T, string], request: ptr StorageThreadRequest
-) =
+proc handleRes(res: Result[string, string], request: ptr StorageThreadRequest) =
   ## Handles the Result responses, which can either be Result[string, string] or
   ## Result[void, string].
   defer:
@@ -78,12 +76,13 @@ proc handleRes[T: string | void | seq[byte]](
     return
 
   foreignThreadGc:
-    var msg: cstring = ""
-    when T is string:
-      msg = res.get().cstring()
-    request[].callback(
-      RET_OK, unsafeAddr msg[0], cast[csize_t](len(msg)), request[].userData
-    )
+    let msg = res.get()
+    if msg.len == 0:
+      request[].callback(RET_OK, nil, cast[csize_t](0), request[].userData)
+    else:
+      request[].callback(
+        RET_OK, unsafeAddr msg[0], cast[csize_t](msg.len), request[].userData
+      )
   return
 
 proc process*(
