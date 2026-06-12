@@ -1,3 +1,7 @@
+# One image for every podman NAT scenario, built as localhost/storage-nat.
+# Carries the storage binary + miniupnpd (for the upnp/pmp routers); scenarios
+# differ only in their entrypoint scripts, which compose mounts.
+# Build context = project root.
 FROM ubuntu:24.04
 
 ARG NIM_VERSION=2.2.10
@@ -5,15 +9,12 @@ ARG NIM_VERSION=2.2.10
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc g++ make cmake git curl ca-certificates xz-utils \
     libc-dev ccache \
-    iproute2 \
+    iproute2 iptables jq \
     && rm -rf /var/lib/apt/lists/*
 
-# Build miniupnpd with a stub redirector. miniupnpd normally calls iptables/nftables
-# to install the actual port forwarding rules when it receives a mapping request.
-# In Docker, those calls fail because the container lacks the required kernel
-# capabilities, causing every mapping request to return an error to the client.
-# The stub replaces the firewall backend with no-ops that always return success,
-# so mapping requests complete normally without touching the kernel.
+# miniupnpd with a stub firewall backend: the real backend needs kernel caps a
+# container lacks, so the stub makes mapping requests succeed without touching
+# the kernel. Only the upnp/pmp routers use it.
 COPY tests/integration/nat/miniupnpd_stub_rdr.c /tmp/stub_rdr.c
 RUN git clone --depth=1 --branch miniupnpd_2_3_9 \
         https://github.com/miniupnp/miniupnp.git /tmp/miniupnp \
@@ -24,32 +25,29 @@ RUN git clone --depth=1 --branch miniupnpd_2_3_9 \
     && install -m 755 miniupnpd /usr/local/sbin/miniupnpd \
     && rm -rf /tmp/miniupnp /tmp/stub_rdr.c
 
-# Install Nim
 RUN curl -fsSL "https://nim-lang.org/download/nim-${NIM_VERSION}-linux_x64.tar.xz" \
-    | tar -xJ -C /opt && \
-    ln -s "/opt/nim-${NIM_VERSION}/bin/nim" /usr/local/bin/nim
+    | tar -xJ -C /opt
+RUN ln -s "/opt/nim-${NIM_VERSION}/bin/nim" /usr/local/bin/nim
 
 WORKDIR /app
 
-# Copy project source (build context must be the project root)
+# vendor/ already has the checked-out submodules, so no `make update` here.
 COPY vendor/ vendor/
 COPY storage/ storage/
-COPY library/ library/
-COPY tests/ tests/
 COPY build.nims config.nims storage.nim ./
 
-# Build libplum C library. Nim binaries are compiled at test runtime.
-# ccache caches C compilation across builds.
+# libplum static lib, linked by nim-libplum.
 RUN --mount=type=cache,target=/root/.ccache \
     export PATH="/usr/lib/ccache:$PATH" && \
     rm -rf vendor/nim-libplum/vendor/libplum/build && \
     cmake -B vendor/nim-libplum/vendor/libplum/build \
         -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF \
         vendor/nim-libplum/vendor/libplum && \
-    make -j$(nproc) -C vendor/nim-libplum/vendor/libplum/build && \
+    make -j"$(nproc)" -C vendor/nim-libplum/vendor/libplum/build && \
     cp vendor/nim-libplum/vendor/libplum/build/libplum.a \
         vendor/nim-libplum/vendor/libplum/libplum.a
 
-COPY tests/integration/nat/docker-entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-ENTRYPOINT ["/entrypoint.sh"]
+RUN --mount=type=cache,target=/root/.ccache \
+    export PATH="/usr/lib/ccache:$PATH" && \
+    USE_SYSTEM_NIM=1 vendor/nimbus-build-system/scripts/env.sh \
+        nim storage -d:disable_libbacktrace build.nims

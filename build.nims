@@ -78,12 +78,9 @@ task testIntegration, "Run integration tests":
   # test "testIntegration", params = "-d:chronicles_sinks=textlines[notimestamps,stdout],textlines[dynamic] " &
   #   "-d:chronicles_enabled_topics:integration:TRACE"
 
-task testNatNotReachable,
-  "Run NAT not-reachable scenario (needs the image + podman-compose)":
-  test "integration/nat/not-reachable/testnotreachable", outName = "testNatNotReachable"
-
-task testNatReachable, "Run NAT reachable scenario (needs the image + podman-compose)":
-  test "integration/nat/reachable/testreachable", outName = "testNatReachable"
+task testNatIntegration,
+  "Run NAT real-topology scenarios (needs the storage-nat image + podman-compose)":
+  test "testNatIntegration"
 
 task build, "build Logos Storage binary":
   storageTask()

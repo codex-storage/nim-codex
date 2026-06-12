@@ -87,8 +87,8 @@ endif
 	testAll \
 	testIntegration \
 	testLibstorage \
-	testNatUpnpIntegration \
-	testNatPcpIntegration \
+	buildNatImage \
+	testNatIntegration \
 	update
 
 ifeq ($(NIM_PARAMS),)
@@ -152,13 +152,15 @@ testIntegration: | build deps
 
 DOCKER := $(or $(shell which podman 2>/dev/null), $(shell which docker 2>/dev/null))
 
-testNatUpnpIntegration:
-	$(DOCKER) build -t miniupnpd-test -f tests/integration/nat/Dockerfile .
-	$(DOCKER) run --rm --cap-add NET_ADMIN -e DEBUG=$(DEBUG) miniupnpd-test
+# NAT real-topology scenarios (podman-compose), all sharing one image built
+# here. Runs every scenario; run one with
+# `make testNatIntegration STORAGE_INTEGRATION_TEST_INCLUDES=<scenario>` (the
+# scenario's folder name, e.g. reachable).
+buildNatImage:
+	$(DOCKER) build -t localhost/storage-nat -f tests/integration/nat/Dockerfile .
 
-testNatPcpIntegration:
-	$(DOCKER) build -t miniupnpd-test -f tests/integration/nat/Dockerfile .
-	$(DOCKER) run --rm --cap-add NET_ADMIN -e DEBUG=$(DEBUG) -e TEST_PCP=1 miniupnpd-test
+testNatIntegration: | deps buildNatImage
+	$(ENV_SCRIPT) nim testNatIntegration $(NIM_PARAMS) build.nims
 
 # Builds a C example that uses the libstorage C library and runs it
 testLibstorage: | build deps

@@ -11,7 +11,8 @@ when includes != "":
   # import only the specified tests
   importAll(includes.split(","))
 else:
-  # import all tests in the integration/ directory
-  importTests(currentSourcePath().parentDir() / "integration")
+  # all tests in integration/, except the nat/ real-topology scenarios, which
+  # need podman + the storage-nat image and run via testNatIntegration instead
+  importTests(currentSourcePath().parentDir() / "integration", "/nat/", "")
 
 {.warning[UnusedImport]: off.}

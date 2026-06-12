@@ -57,7 +57,7 @@ jobs:
 
       - name: Upload integration tests log files
         uses: actions/upload-artifact@v7
-        if: (matrix.tests == 'integration' || matrix.tests == 'all') && always()
+        if: (matrix.tests == 'integration' || matrix.tests == 'nat-integration' || matrix.tests == 'all') && always()
         with:
           name: ${{ matrix.os }}-${{ matrix.cpu }}-${{ matrix.nim_version }}-${{ matrix.job_number }}-integration-tests-logs
           path: tests/integration/logs/
@@ -69,13 +69,14 @@ jobs:
         run: make -j${ncpu} testLibstorage
 
       ## Part 4 Tests ##
-      - name: NAT UPnP integration tests
-        if: matrix.tests == 'nat-upnp-integration'
-        run: make testNatUpnpIntegration
-
-      - name: NAT PCP integration tests
-        if: matrix.tests == 'nat-pcp-integration'
-        run: make testNatPcpIntegration
+      - name: NAT integration tests
+        if: matrix.tests == 'nat-integration'
+        env:
+          STORAGE_INTEGRATION_TEST_INCLUDES: ${{ matrix.includes }}
+        run: |
+          sudo modprobe iptable_nat nf_conntrack
+          pipx install podman-compose
+          make testNatIntegration
 
   status:
     if: always()

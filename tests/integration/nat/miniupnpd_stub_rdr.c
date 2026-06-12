@@ -1,7 +1,7 @@
 /* Stub firewall backend for miniupnpd used in Docker-based tests.
  *
  * miniupnpd normally calls iptables/nftables to install port forwarding rules
- * when it processes a UPnP/PCP/NAT-PMP mapping request. In a Docker container
+ * when it processes a UPnP/PCP/NAT-PMP mapping request. In a container
  * those calls fail because the container lacks the required kernel capabilities,
  * causing every mapping request to return an error to the client.
  *
