@@ -103,6 +103,9 @@ proc buildMixNodeInfo*(
   )
 
 proc loadRelayPubInfoTable*(mixPoolDir: string): ?!Table[PeerId, MixPubInfo] =
+  if mixPoolDir.len == 0:
+    return success initTable[PeerId, MixPubInfo]()
+
   let pubInfoDir = mixPoolDir / "pubInfo"
   if not dirExists(pubInfoDir):
     return failure("Relay pubInfo directory does not exist: " & pubInfoDir)
@@ -123,9 +126,6 @@ proc loadRelayPubInfoTable*(mixPoolDir: string): ?!Table[PeerId, MixPubInfo] =
     let info = entry.get()
     t[info.peerId] = info
     inc i
-
-  if t.len == 0:
-    return failure("No relay entries found in " & pubInfoDir)
 
   success t
 

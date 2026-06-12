@@ -65,14 +65,6 @@ when isMainModule:
       echo "Invalid value for --log-level. " & err.msg
     quit QuitFailure
 
-  if config.mixEnabled:
-    if config.mixPoolDir.len == 0:
-      fatal "mix-enabled requires --mix-pool-dir"
-      quit QuitFailure
-    if config.bootstrapNodes.len > 0 and config.dhtMixProxies.len == 0:
-      fatal "mix-enabled requires at least one --dht-mix-proxy"
-      quit QuitFailure
-
   if err =? config.setupMetrics().errorOption:
     fatal "Failed to start metrics server", err = err.msg
     quit QuitFailure

@@ -116,7 +116,7 @@ method find*(
     d: Discovery, cid: Cid
 ): Future[seq[SignedPeerRecord]] {.async: (raises: [CancelledError]), base.} =
   let providers =
-    if not d.mixProto.isNil:
+    if not d.mixProto.isNil and d.dhtMixProxies.len > 0:
       (await d.findViaMix(cid)).valueOr:
         warn "Mix lookup failed", cid, err = error.msg
         return @[]
