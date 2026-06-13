@@ -95,7 +95,7 @@ proc sendRequestToStorageThread*(
   let sentOk = ctx.reqChannel.trySend(req)
   if not sentOk:
     let reqDesc = $req[]
-    deallocShared(req)
+    req.destroy()
     return err("Failed to send request to the Logos Storage thread: " & reqDesc)
 
   # trySend has succeeded: req is published in the channel and
