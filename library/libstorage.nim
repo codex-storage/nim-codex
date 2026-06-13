@@ -118,6 +118,7 @@ proc storage_new(
   ).isOkOr:
     let msg = $error
     callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
+    discard storage_context.destroyStorageContext(ctx)
     return nil
 
   return ctx
