@@ -21,7 +21,9 @@ type NodeP2PMsgType* = enum
 type NodeP2PRequest* = object
   operation: NodeP2PMsgType
   peerId: cstring
-  peerAddresses: seq[cstring]
+  # Use a pointer to free the memory in destroyShared
+  peerAddresses: ptr UncheckedArray[cstring]
+  peerAddressesLen: int
 
 proc createShared*(
     T: type NodeP2PRequest,
@@ -32,11 +34,23 @@ proc createShared*(
   var ret = createShared(T)
   ret[].operation = op
   ret[].peerId = peerId.alloc()
-  ret[].peerAddresses = peerAddresses
+  ret[].peerAddressesLen = peerAddresses.len
+
+  if peerAddresses.len > 0:
+    ret[].peerAddresses = cast[ptr UncheckedArray[cstring]](allocShared(
+      sizeof(cstring) * peerAddresses.len
+    ))
+    for i in 0 ..< peerAddresses.len:
+      ret[].peerAddresses[i] = peerAddresses[i]
+
   return ret
 
 proc destroyShared*(self: ptr NodeP2PRequest) =
   deallocShared(self[].peerId)
+
+  if self[].peerAddresses != nil:
+    deallocShared(self[].peerAddresses)
+
   deallocShared(self)
 
 proc connect(
@@ -88,7 +102,13 @@ proc process*(
 
   case self.operation
   of NodeP2PMsgType.CONNECT:
-    let res = (await connect(storage, self.peerId, self.peerAddresses))
+    # connect() takes seq[cstring]; self.peerAddresses is a raw shared array,
+    # so copy the pointers into a seq.
+    var peerAddresses = newSeq[cstring](self.peerAddressesLen)
+    for i in 0 ..< self.peerAddressesLen:
+      peerAddresses[i] = self.peerAddresses[i]
+
+    let res = (await connect(storage, self.peerId, peerAddresses))
     if res.isErr:
       error "Failed to CONNECT.", error = res.error
       return err($res.error)
