@@ -94,8 +94,9 @@ proc sendRequestToStorageThread*(
   # Send the request to the Logos Storage thread
   let sentOk = ctx.reqChannel.trySend(req)
   if not sentOk:
+    let reqDesc = $req[]
     deallocShared(req)
-    return err("Failed to send request to the Logos Storage thread: " & $req[])
+    return err("Failed to send request to the Logos Storage thread: " & reqDesc)
 
   # Notify the Logos Storage thread that a request is available
   let fireSyncRes = ctx.reqSignal.fireSync()
