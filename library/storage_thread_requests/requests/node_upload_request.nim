@@ -81,7 +81,7 @@ proc createShared*(
   ret[].chunkLen = chunkLen
   ret[].chunkSize = chunkSize
 
-  if chunkLen > 0 and chunkData != nil:
+  if chunkLen > 0:
     ret[].chunk = allocShared(chunkLen)
     copyMem(ret[].chunk, chunkData, chunkLen)
 
