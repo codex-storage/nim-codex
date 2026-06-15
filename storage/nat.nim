@@ -133,38 +133,6 @@ method hasMappingIds*(m: NatPortMapper): bool {.base, gcsafe.} =
   # (use hasMapping() for liveness check).
   m.tcpMappingId.isSome and m.udpMappingId.isSome
 
-proc announcePeerInfoAddrs*(discovery: Discovery, peerInfo: PeerInfo, udpPort: Port) =
-  ## Announces peerInfo.addrs to the DHT, excluding relay circuit addresses:
-  ## they are announced via onReservation and must not enter the DHT routing
-  ## record. No-op when the addresses are already announced, so peerInfo
-  ## updates that only touch filtered-out addresses do not re-announce.
-  let addrs = peerInfo.addrs.filterIt(not it.isCircuitRelayMA()).deduplicate()
-  if addrs.len == 0 or addrs == discovery.announceAddrs:
-    return
-  discovery.announceDirectAddrs(addrs, udpPort = udpPort)
-
-proc setupPeerInfoObserver*(
-    switch: Switch,
-    autonat: AutonatV2Service,
-    discovery: Discovery,
-    natMapper: NatPortMapper,
-): PeerInfoObserver =
-  ## AutoNAT's address mapper resolves peerInfo.addrs into public addresses
-  ## once the node is Reachable; peerInfo.update() then notifies observers.
-  ## Keep the DHT records in sync with what libp2p announces.
-  let observer: PeerInfoObserver = proc(peerInfo: PeerInfo) {.gcsafe, raises: [].} =
-    info "PeerInfo updated",
-      addrs = peerInfo.addrs, reachability = autonat.networkReachability
-    if autonat.networkReachability != NetworkReachability.Reachable:
-      return
-    # When a NAT mapping is active, announce its external UDP port: the router
-    # may have assigned a different port than the requested discoveryPort.
-    let udpPort = natMapper.activeUdpPort.get(natMapper.discoveryPort)
-    announcePeerInfoAddrs(discovery, peerInfo, udpPort)
-
-  switch.peerInfo.addObserver(observer)
-  observer
-
 proc setupMappedAddrMapper*(switch: Switch, natMapper: NatPortMapper) =
   ## We define a custom mapper that adds the external port to peerInfo.addrs when
   ## a port mapping is active, so AutoNAT tests that port.
@@ -213,10 +181,12 @@ method handleNatStatus*(
       await autoRelayService.stop(switch)
       debug "AutoRelayService stopped"
 
-    # No announce here: AutoNAT refreshes peerInfo right after this handler,
-    # its address mapper (active now that the node is Reachable) resolves the
-    # public addresses and the peerInfo observer announces them.
     discovery.protocol.clientMode = false
+
+    if dialBackAddr.isSome:
+      discovery.announceDirectAddrs(
+        @[dialBackAddr.get], udpPort = m.activeUdpPort.get(discoveryPort)
+      )
   of NotReachable:
     var hasPortMapping = false
 

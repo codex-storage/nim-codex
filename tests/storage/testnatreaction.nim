@@ -2,7 +2,6 @@ import std/[net]
 import pkg/chronos
 import pkg/libp2p/[multiaddress, multihash, multicodec]
 import pkg/libp2p/protocols/connectivity/autonat/types
-import pkg/libp2p/protocols/connectivity/autonatv2/service except setup
 import pkg/libp2p/protocols/connectivity/relay/client as relayClientModule
 import pkg/libp2p/services/autorelayservice except setup
 import pkg/libp2p/observedaddrmanager
@@ -53,7 +52,7 @@ asyncchecksuite "NAT reaction - port mapping":
 
   let discoveryPort = Port(8090)
 
-  test "handleNatStatus announces mapped address when NotReachable and UPnP succeeds":
+  test "handleNatStatus keeps relay off when NotReachable and mapping succeeds":
     let dialBack = MultiAddress.init("/ip4/1.2.3.4/tcp/8080").expect("valid")
     let mapper = MockNatPortMapper(
       mappedPorts: some((Port(9000), Port(9001), MappingProtocol.UPnP))
@@ -64,8 +63,8 @@ asyncchecksuite "NAT reaction - port mapping":
       NotReachable, Opt.some(dialBack), discoveryPort, disc, sw, autoRelay
     )
 
-    check disc.announceAddrs ==
-      @[MultiAddress.init("/ip4/1.2.3.4/tcp/9000").expect("valid")]
+    # A mapping doesn't guarantee reachability, so the relay stays off until
+    # AutoNAT confirms Reachable.
     check not autoRelay.isRunning
     check disc.protocol.clientMode
 
@@ -149,8 +148,12 @@ asyncchecksuite "NAT reaction - address announcing":
   var sw: Switch
   var key: PrivateKey
   var disc: Discovery
+  var autoRelay: AutoRelayService
 
   setup:
+    autoRelay = AutoRelayService.new(
+      1, relayClientModule.RelayClient.new(), nil, Rng.instance().libp2pRng
+    )
     key = PrivateKey.random(Rng.instance().libp2pRng).get()
     disc = Discovery.new(key, announceAddrs = @[])
     sw = newStandardSwitch()
@@ -158,70 +161,40 @@ asyncchecksuite "NAT reaction - address announcing":
 
   teardown:
     await sw.stop()
+    if autoRelay.isRunning:
+      await autoRelay.stop(sw)
 
   let discoveryPort = Port(8090)
 
-  test "announcePeerInfoAddrs excludes relay circuit addresses":
-    let circuitAddr = MultiAddress
-      .init("/ip4/1.2.3.4/tcp/4040/p2p/" & $sw.peerInfo.peerId & "/p2p-circuit")
-      .expect("valid")
-    sw.peerInfo.addrs.add(circuitAddr)
+  test "handleNatStatus announces the dial-back address when Reachable":
+    let dialBack = MultiAddress.init("/ip4/1.2.3.4/tcp/9000").expect("valid")
 
-    announcePeerInfoAddrs(disc, sw.peerInfo, discoveryPort)
-
-    check circuitAddr notin disc.announceAddrs
-    check disc.announceAddrs == sw.peerInfo.addrs.filterIt(it != circuitAddr)
-
-  test "announcePeerInfoAddrs does nothing when addresses are already announced":
-    announcePeerInfoAddrs(disc, sw.peerInfo, discoveryPort)
-    let seqNo = disc.getSpr().data.seqNo
-
-    announcePeerInfoAddrs(disc, sw.peerInfo, discoveryPort)
-
-    check disc.getSpr().data.seqNo == seqNo
-
-  test "peerInfo observer announces addresses when Reachable":
-    let autonat = AutonatV2Service.new(Rng.instance().libp2pRng)
-    discard setupPeerInfoObserver(
-      sw, autonat, disc, NatPortMapper(discoveryPort: discoveryPort)
+    let mapper = NatPortMapper(discoveryPort: discoveryPort)
+    await mapper.handleNatStatus(
+      Reachable, Opt.some(dialBack), discoveryPort, disc, sw, autoRelay
     )
-    autonat.networkReachability = Reachable
 
-    sw.peerInfo.listenAddrs.add(
-      MultiAddress.init("/ip4/1.2.3.4/tcp/9999").expect("valid")
-    )
-    await sw.peerInfo.update()
+    check disc.announceAddrs == @[dialBack]
 
-    check disc.announceAddrs == sw.peerInfo.addrs
+  test "handleNatStatus announces the mapped external UDP port when a mapping is active":
+    let dialBack = MultiAddress.init("/ip4/1.2.3.4/tcp/9000").expect("valid")
 
-  test "peerInfo observer announces the mapped external UDP port when a mapping is active":
-    let autonat = AutonatV2Service.new(Rng.instance().libp2pRng)
     let mapper =
       NatPortMapper(discoveryPort: discoveryPort, activeUdpPort: some(Port(40001)))
-    discard setupPeerInfoObserver(sw, autonat, disc, mapper)
-    autonat.networkReachability = Reachable
-
-    sw.peerInfo.listenAddrs.add(
-      MultiAddress.init("/ip4/1.2.3.4/tcp/9999").expect("valid")
+    await mapper.handleNatStatus(
+      Reachable, Opt.some(dialBack), discoveryPort, disc, sw, autoRelay
     )
-    await sw.peerInfo.update()
 
     let sprAddrs = disc.getSpr().data.addresses.mapIt(it.address)
     check MultiAddress.init("/ip4/1.2.3.4/udp/40001").expect("valid") in sprAddrs
     check MultiAddress.init("/ip4/1.2.3.4/udp/" & $discoveryPort).expect("valid") notin
       sprAddrs
 
-  test "peerInfo observer does not announce when the node is not Reachable":
-    let autonat = AutonatV2Service.new(Rng.instance().libp2pRng)
-    discard setupPeerInfoObserver(
-      sw, autonat, disc, NatPortMapper(discoveryPort: discoveryPort)
+  test "handleNatStatus does not announce when Reachable without a dial-back address":
+    let mapper = NatPortMapper(discoveryPort: discoveryPort)
+    await mapper.handleNatStatus(
+      Reachable, Opt.none(MultiAddress), discoveryPort, disc, sw, autoRelay
     )
-    autonat.networkReachability = NotReachable
-
-    sw.peerInfo.listenAddrs.add(
-      MultiAddress.init("/ip4/1.2.3.4/tcp/9999").expect("valid")
-    )
-    await sw.peerInfo.update()
 
     check disc.announceAddrs == newSeq[MultiAddress]()
 

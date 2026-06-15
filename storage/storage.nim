@@ -67,7 +67,6 @@ type
     autoRelayService*: Option[AutoRelayService]
     natMapper*: Option[NatPortMapper]
     holePunchHandler: Option[connmanager.PeerEventHandler]
-    peerInfoObserver: Option[PeerInfoObserver]
     bootstrapNodes: seq[SignedPeerRecord]
     isStarted: bool
 
@@ -169,9 +168,6 @@ proc stop*(s: StorageServer) {.async.} =
     s.storageNode.switch.removePeerEventHandler(
       s.holePunchHandler.get, PeerEventKind.Joined
     )
-
-  if s.peerInfoObserver.isSome:
-    s.storageNode.switch.peerInfo.removeObserver(s.peerInfoObserver.get)
 
   var futures = @[
     s.storageNode.switch.stop(),
@@ -451,7 +447,6 @@ proc new*(
   var natMapper: Option[NatPortMapper]
   var autoRelayService: Option[AutoRelayService]
   var holePunchHandler: Option[connmanager.PeerEventHandler]
-  var peerInfoObserver: Option[PeerInfoObserver]
 
   if autonatService.isSome:
     let relayService = AutoRelayService.new(
@@ -486,9 +481,6 @@ proc new*(
         recheckPeriod: config.natPortMappingRecheckPeriod,
       )
     )
-
-    peerInfoObserver =
-      some(setupPeerInfoObserver(switch, autonatService.get, discovery, natMapper.get))
 
     setupMappedAddrMapper(switch, natMapper.get)
 
@@ -535,6 +527,5 @@ proc new*(
     autoRelayService: autoRelayService,
     natMapper: natMapper,
     holePunchHandler: holePunchHandler,
-    peerInfoObserver: peerInfoObserver,
     bootstrapNodes: bootstrapNodes,
   )
