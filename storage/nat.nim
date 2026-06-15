@@ -187,6 +187,8 @@ method handleNatStatus*(
       discovery.announceDirectAddrs(
         @[dialBackAddr.get], udpPort = m.activeUdpPort.get(discoveryPort)
       )
+    else:
+      warn "Empty dialback address in AutoNat when node is Reachable"
   of NotReachable:
     var hasPortMapping = false
 
