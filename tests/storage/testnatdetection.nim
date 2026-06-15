@@ -30,6 +30,8 @@ const
   discoveryPort = Port(8090)
   # ms — AutoNAT probe + confidence + reaction
   detectTimeout = 20000
+  mockMappedTcpPort = Port(40000)
+  mockMappedUdpPort = Port(40001)
 
 type MockNatPortMapper = ref object of NatPortMapper
 
@@ -39,6 +41,19 @@ method mapNatPorts*(
     async: (raises: [CancelledError]), gcsafe
 .} =
   none((Port, Port, MappingProtocol))
+
+# Simulates a successful PCP mapping
+type MockMappingNatPortMapper = ref object of NatPortMapper
+
+method mapNatPorts*(
+    m: MockMappingNatPortMapper
+): Future[Option[(Port, Port, MappingProtocol)]] {.
+    async: (raises: [CancelledError]), gcsafe
+.} =
+  m.activeTcpPort = some(mockMappedTcpPort)
+  m.activeUdpPort = some(mockMappedUdpPort)
+  m.activeMappingProtocol = some(MappingProtocol.PCP)
+  some((mockMappedTcpPort, mockMappedUdpPort, MappingProtocol.PCP))
 
 # Captures the candidate addresses the service sends and answers Reachable, so
 # the service flips to reachable and runs its address mapper — without dialing.
@@ -241,3 +256,59 @@ asyncchecksuite "NAT detection - dial request candidates":
 
     await autonat.stop(sw)
     await sw2.stop()
+
+  test "after a port mapping, the mapped address is AutoNAT's first dial candidate":
+    let mapper = MockMappingNatPortMapper()
+
+    setupMappedAddrMapper(sw, mapper)
+
+    # Reach the observation quorum so guessDialableAddr trusts 8.8.8.8
+    let observed = MultiAddress.init("/ip4/8.8.8.8/tcp/4001").expect("valid")
+    let quorum = 3
+    for _ in 0 ..< quorum:
+      discard sw.peerStore.identify.observedAddrManager.addObservation(observed)
+
+    # Setup AutoRelayService
+    let relay = AutoRelayService.new(
+      1, relayClientModule.RelayClient.new(), nil, Rng.instance().libp2pRng
+    )
+    autorelayservice.setup(relay, sw)
+
+    # Define our handleNatStatus callback
+    let disc = Discovery.new(
+      PrivateKey.random(Rng.instance().libp2pRng).get(), announceAddrs = @[]
+    )
+    let dialBack = MultiAddress.init("/ip4/8.8.8.8/tcp/8080").expect("valid")
+    await mapper.handleNatStatus(
+      NotReachable, Opt.some(dialBack), discoveryPort, disc, sw, relay
+    )
+
+    # Define our AutonatV2Service
+    let mockClient = MockAutonatV2Client()
+    let autonat = AutonatV2Service.new(
+      Rng.instance().libp2pRng,
+      mockClient,
+      AutonatV2ServiceConfig.new(
+        enableDialableCandidates = true, maxQueueSize = 1, minConfidence = 0.5
+      ),
+    )
+    service.setup(autonat, sw)
+    await autonat.start(sw)
+
+    # Connect to a second switch to test NAT detection
+    let sw2 = newStandardSwitch()
+    await sw2.start()
+    await sw.connect(sw2.peerInfo.peerId, sw2.peerInfo.addrs)
+
+    # The expected mapped address should be the guessDialableAddr (8.8.8.8)
+    # using the mapping mocked port (40000) because a mapping was created.
+    let mapped =
+      MultiAddress.init("/ip4/8.8.8.8/tcp/" & $mockMappedTcpPort).expect("valid")
+    check eventually(mapped in mockClient.reqAddrs)
+    # Ensute that it comes first (because AutonatV2 test only the first candidate)
+    check mockClient.reqAddrs[0] == mapped
+
+    await autonat.stop(sw)
+    await sw2.stop()
+    if relay.isRunning:
+      await relay.stop(sw)

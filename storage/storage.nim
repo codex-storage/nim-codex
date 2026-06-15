@@ -490,6 +490,8 @@ proc new*(
     peerInfoObserver =
       some(setupPeerInfoObserver(switch, autonatService.get, discovery, natMapper.get))
 
+    setupMappedAddrMapper(switch, natMapper.get)
+
     autonatService.get.setStatusAndConfidenceHandler(
       proc(
           networkReachability: NetworkReachability,

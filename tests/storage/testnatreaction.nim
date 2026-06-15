@@ -5,6 +5,7 @@ import pkg/libp2p/protocols/connectivity/autonat/types
 import pkg/libp2p/protocols/connectivity/autonatv2/service except setup
 import pkg/libp2p/protocols/connectivity/relay/client as relayClientModule
 import pkg/libp2p/services/autorelayservice except setup
+import pkg/libp2p/observedaddrmanager
 import pkg/results
 
 import ./helpers
@@ -223,3 +224,36 @@ asyncchecksuite "NAT reaction - address announcing":
     await sw.peerInfo.update()
 
     check disc.announceAddrs == newSeq[MultiAddress]()
+
+  test "mapped-addr mapper injects the mapped port as the first candidate":
+    const mockMappedTcpPort = 40000
+
+    setupMappedAddrMapper(
+      sw, NatPortMapper(activeTcpPort: some(Port(mockMappedTcpPort)))
+    )
+
+    # Reach the observation quorum so guessDialableAddr trusts 8.8.8.8
+    let observed = MultiAddress.init("/ip4/8.8.8.8/tcp/4001").expect("valid")
+    let quorum = 3
+    for _ in 0 ..< quorum:
+      discard sw.peerStore.identify.observedAddrManager.addObservation(observed)
+
+    await sw.peerInfo.update()
+
+    # Ensure that the address mapper injects the mapped port as the first candidate
+    # after peer info update
+    check sw.peerInfo.addrs[0] ==
+      MultiAddress.init("/ip4/8.8.8.8/tcp/" & $mockMappedTcpPort).expect("valid")
+
+  test "mapped-addr mapper is a no-op without an active mapping":
+    setupMappedAddrMapper(sw, NatPortMapper())
+
+    let observed = MultiAddress.init("/ip4/8.8.8.8/tcp/4001").expect("valid")
+    let quorum = 3
+    for _ in 0 ..< quorum:
+      discard sw.peerStore.identify.observedAddrManager.addObservation(observed)
+
+    await sw.peerInfo.update()
+
+    # Ensure that nothing is injected because there is no active mapping
+    check sw.peerInfo.addrs == sw.peerInfo.listenAddrs
