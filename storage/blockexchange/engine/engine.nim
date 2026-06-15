@@ -941,7 +941,17 @@ proc wantListHandler*(
   if peerCtx.isNil:
     return
 
-  var presence: seq[BlockPresence]
+  if peerCtx.wantListBusy:
+    debug "Dropping want list, handler already in flight for peer", peer
+    return
+
+  peerCtx.wantListBusy = true
+  defer:
+    peerCtx.wantListBusy = false
+
+  var
+    presence: seq[BlockPresence]
+    iterBudget: uint64 = MaxRangeIterationsPerMessage
 
   try:
     for e in wantList.entries:
@@ -958,8 +968,10 @@ proc wantListHandler*(
             peer = peer, treeCid = treeCid, count = count, max = MaxPresenceWindowBlocks
           continue
 
+        let effectiveCount = min(count, iterBudget)
+
         trace "Processing range query",
-          treeCid = treeCid, start = startIdx, count = count
+          treeCid = treeCid, start = startIdx, count = effectiveCount
 
         let runtimeQuota = 100.milliseconds
         var
@@ -968,7 +980,7 @@ proc wantListHandler*(
           inRange = false
           lastIdle = Moment.now()
 
-        for i in 0'u64 ..< count:
+        for i in 0'u64 ..< effectiveCount:
           if (Moment.now() - lastIdle) >= runtimeQuota:
             await idleAsync()
             lastIdle = Moment.now()
@@ -990,7 +1002,9 @@ proc wantListHandler*(
               inRange = false
 
         if inRange:
-          ranges.add((rangeStart, (startIdx + count) - rangeStart))
+          ranges.add((rangeStart, (startIdx + effectiveCount) - rangeStart))
+
+        iterBudget -= effectiveCount
 
         if ranges.len > 0:
           trace "Have blocks in range", treeCid = treeCid, ranges = ranges
@@ -1003,7 +1017,8 @@ proc wantListHandler*(
             )
           )
         else:
-          trace "Don't have range", treeCid = treeCid, start = startIdx, count = count
+          trace "Don't have range",
+            treeCid = treeCid, start = startIdx, count = effectiveCount
           if e.sendDontHave:
             presence.add(
               BlockPresence(

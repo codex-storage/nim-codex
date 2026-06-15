@@ -11,6 +11,7 @@ import pkg/questionable
 
 import ../../merkletree
 import ../../blocktype
+import ./constants
 
 type
   WantType* = enum
@@ -147,6 +148,8 @@ proc decode*(_: type WantList, pb: ProtoBuffer): ProtoResult[WantList] =
     field: uint64
     sublist: seq[seq[byte]]
   if ?pb.getRepeatedField(1, sublist):
+    if sublist.len > MaxWantListEntries:
+      return err(ProtoError.BufferOverflow)
     for item in sublist:
       value.entries.add(?WantListEntry.decode(initProtoBuffer(item)))
   if ?pb.getField(2, field):
@@ -183,6 +186,8 @@ proc protobufDecode*(_: type Message, msg: seq[byte]): ProtoResult[Message] =
   if ?pb.getField(1, ipb):
     value.wantList = ?WantList.decode(ipb)
   if ?pb.getRepeatedField(4, sublist):
+    if sublist.len > MaxBlockPresenceEntries:
+      return err(ProtoError.BufferOverflow)
     for item in sublist:
       value.blockPresences.add(?BlockPresence.decode(initProtoBuffer(item)))
   ok(value)

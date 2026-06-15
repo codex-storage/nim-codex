@@ -22,6 +22,11 @@ const
   TargetBatchBytes*: uint32 = 1024 * 1024
   MinBatchSize*: uint32 = 1
 
+  # caps the number of entries decoded from a single WantList/blockPresences
+  # repeated field, independent of MaxMessageSize, to bound per-message CPU/disk work
+  MaxWantListEntries*: int = 1024
+  MaxBlockPresenceEntries*: int = 1024
+
   MaxMetadataSize*: uint32 = 4 * 1024 * 1024
   MaxWantBlocksResponseBytes*: uint32 = 4 + MaxMetadataSize + TargetBatchBytes
   MaxBlocksPerBatch*: uint32 = TargetBatchBytes div MinBlockSize.uint32
