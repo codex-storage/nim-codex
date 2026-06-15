@@ -222,23 +222,22 @@ method handleNatStatus*(
 
     discovery.protocol.clientMode = true
 
+    if not autoRelayService.isRunning:
+      # Remove any announced addresses, they will be replaced.
+      # If the relay is running, the addresses will be updated on reservation.
+      discovery.announceDirectAddrs(@[], udpPort = discoveryPort)
+
     if dialBackAddr.isNone:
       warn "Got empty dialback address in AutoNat when node is NotReachable"
 
       if m.hasMappingIds():
         m.close()
-
-      discovery.announceDirectAddrs(@[], udpPort = discoveryPort)
     elif m.hasMappingIds():
       warn "Not Reachable with active port mapping. The port mapping will be deleted and relay will start."
 
       # The mapping was created the the node is still not reachable.
       # In that case, we delete the mapping and relay will start.
       m.close()
-
-      # We remove the announced records.
-      # Eventually, it will we updated by the relay when it started
-      discovery.announceDirectAddrs(@[], udpPort = discoveryPort)
     else:
       debug "Node is not reachable trying port mapping now"
 
@@ -249,19 +248,9 @@ method handleNatStatus*(
 
         info "Port mapping created successfully", tcpPort, udpPort, protocol
 
-        let announceAddress = dialBackAddr.get.remapAddr(port = some(tcpPort))
+        # The address mapper will use the mapped ports map the addresses for
+        # libp2p.
 
-        if autoRelayService.isRunning:
-          # Here we stop the relay because the node *should* be reachable
-          await autoRelayService.stop(switch)
-          debug "AutoRelayService stopped"
-
-        # Note that we update the DHT records but we don't set the client mode
-        # to false because we are not sure the node is reachable.
-        # The client mode will be updated on the next iteration of autonat.
-        # Trying to check manually that the node is reachable is not trivial,
-        # this is exactly what Autonat is for.
-        discovery.announceDirectAddrs(@[announceAddress], udpPort = udpPort)
         hasPortMapping = true
       else:
         # In case of failure, close the port mapping in order to rerun discover
