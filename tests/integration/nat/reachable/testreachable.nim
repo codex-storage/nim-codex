@@ -20,11 +20,6 @@ import ../../storageclient
 import ../composehelper
 
 const
-  composeFile = currentSourcePath.parentDir / "compose.yml"
-  nodeApiUrl = "http://127.0.0.1:18081/api/storage/v1"
-  suiteName = "NAT reachable"
-  testName = "node behind NAT with a forwarded port is Reachable"
-  services = ["router", "bootstrap", "node"]
   detectTimeout = 120_000 # ms
   pollInterval = 5_000 # ms
 
@@ -32,15 +27,13 @@ proc announcesDirectAddr(info: JsonNode): bool =
   ## A reachable node announces at least one direct (non-circuit) address.
   info{"announceAddresses"}.getElems.anyIt("p2p-circuit" notin it.getStr)
 
-asyncchecksuite suiteName:
-  # chronos' async setup/teardown cannot reference module-level GC'ed consts
-  # (strings/seqs), so rebind the ones they use to suite locals.
+asyncchecksuite "NAT reachable":
   let
-    composeFile = composeFile
-    nodeApiUrl = nodeApiUrl
-    suiteName = suiteName
-    testName = testName
-    services = services
+    composeFile = currentSourcePath.parentDir / "compose.yml"
+    nodeApiUrl = "http://127.0.0.1:18081/api/storage/v1"
+    suiteName = "NAT reachable"
+    testName = "node behind NAT with a forwarded port is Reachable"
+    services = ["router", "bootstrap", "node"]
     startTime = now().format("yyyy-MM-dd'_'HH:mm:ss")
   var client: StorageClient
 

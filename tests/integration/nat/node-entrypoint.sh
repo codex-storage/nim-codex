@@ -23,4 +23,5 @@ exec /app/build/storage \
   --bootstrap-node="$spr" \
   --nat-num-peers-to-ask=1 --nat-max-queue-size=1 \
   --nat-min-confidence=1.0 --nat-schedule-interval=30s \
-  --data-dir=/data --log-level=DEBUG
+  --data-dir=/data --log-level=DEBUG \
+  ${EXTRA_STORAGE_ARGS:-}

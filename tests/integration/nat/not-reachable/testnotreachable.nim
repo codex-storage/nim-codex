@@ -14,24 +14,19 @@ import ../../storageclient
 import ../composehelper
 
 const
-  composeFile = currentSourcePath.parentDir / "compose.yml"
-  nodeApiUrl = "http://127.0.0.1:18080/api/storage/v1"
-  suiteName = "NAT not reachable"
-  testName = "node behind NAT is NotReachable and falls back to relay"
-  services = ["router", "bootstrap", "node"]
   detectTimeout = 300_000 # ms
   pollInterval = 5_000 # ms
 
 proc announcesCircuitAddr(info: JsonNode): bool =
   info{"announceAddresses"}.getElems.anyIt("p2p-circuit" in it.getStr)
 
-asyncchecksuite suiteName:
+asyncchecksuite "NAT not reachable":
   let
-    composeFile = composeFile
-    nodeApiUrl = nodeApiUrl
-    suiteName = suiteName
-    testName = testName
-    services = services
+    composeFile = currentSourcePath.parentDir / "compose.yml"
+    nodeApiUrl = "http://127.0.0.1:18080/api/storage/v1"
+    suiteName = "NAT not reachable"
+    testName = "node behind NAT is NotReachable and falls back to relay"
+    services = ["router", "bootstrap", "node"]
     startTime = now().format("yyyy-MM-dd'_'HH:mm:ss")
   var client: StorageClient
 
