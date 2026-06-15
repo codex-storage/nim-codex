@@ -28,6 +28,8 @@ const
   PresenceWindowBytes*: uint64 = 1024 * 1024 * 1024
   PresenceWindowBlocks*: uint64 = PresenceWindowBytes div DefaultBlockSize.uint64
   MaxPresenceWindowBlocks*: uint64 = PresenceWindowBytes div MinBlockSize
+  MaxRangeIterationsPerMessage*: uint64 =
+    PresenceWindowBytes div DefaultBlockSize.uint64
   PresenceWindowThreshold*: float = 0.75
   PresenceBroadcastIntervalMin*: Duration = 5.seconds
   PresenceBroadcastIntervalMax*: Duration = 10.seconds
