@@ -5,8 +5,22 @@
 import std/[os, osproc]
 import ../utils
 
+proc composeCmd(composeFile: string): string =
+  ## Match the engine the Makefile builds the image with (podman first), so the
+  ## compose tool sees that image.
+  let base =
+    if findExe("podman-compose") != "":
+      "podman-compose"
+    elif findExe("podman") != "":
+      "podman compose"
+    elif findExe("docker") != "":
+      "docker compose"
+    else:
+      raise newException(IOError, "neither podman nor docker found")
+  base & " -f \"" & composeFile & "\""
+
 proc compose*(composeFile, action: string) =
-  let cmd = "podman-compose -f \"" & composeFile & "\" " & action
+  let cmd = composeCmd(composeFile) & " " & action
   doAssert execShellCmd(cmd) == 0, "command failed: " & cmd
 
 proc saveContainerLogs*(
@@ -19,7 +33,7 @@ proc saveContainerLogs*(
     try:
       let
         logFile = getLogFile("", startTime, suiteName, testName, service)
-        cmd = "podman-compose -f \"" & composeFile & "\" logs " & service
+        cmd = composeCmd(composeFile) & " logs " & service
         (output, code) = execCmdEx(cmd)
       if code != 0:
         echo "warning: '", cmd, "' exited ", code
