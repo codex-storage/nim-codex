@@ -2,9 +2,12 @@
 
 set -euo pipefail
 
-# Redirect the traffic to our router instead
-# of podman's own gateway to put B behind the NAT.
-ip route replace default via "$ROUTER_LAN_IP"
+# Redirect the traffic to our router instead of podman's own gateway to put the
+# node behind the NAT. A node on the wan (reachable) leaves ROUTER_LAN_IP unset
+# and keeps its default route.
+if [[ -n "${ROUTER_LAN_IP:-}" ]]; then
+  ip route replace default via "$ROUTER_LAN_IP"
+fi
 
 # Fetch the bootstrap SPR (retry: the bootstrap may still be starting).
 echo "fetching bootstrap SPR from $BOOTSTRAP_API ..."

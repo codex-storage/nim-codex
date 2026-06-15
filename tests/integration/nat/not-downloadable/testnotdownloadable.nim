@@ -1,0 +1,96 @@
+## NAT not-downloadable scenario — a node behind a NAT with no relay cannot be
+## downloaded from.
+##
+## Same shape as the not-reachable test: compose.yml brings up a real NAT
+## topology, but bootstrap A runs without the relay server. B stays NotReachable
+## and announces no dialable address, so a reachable peer C finds it as a
+## provider but can never dial it — the manifest fetch fails.
+##
+## Requires podman-compose and the scenario image:
+##   podman build -t localhost/storage-nat \
+##     -f tests/integration/nat/Dockerfile .
+
+import std/[json, os, times]
+import pkg/chronos
+import pkg/questionable/results
+
+import ../../../asynctest
+import ../../../checktest
+import ../../storageclient
+import ../composehelper
+
+const
+  detectTimeout = 300_000 # ms
+  pollInterval = 5_000 # ms
+
+proc announcesNothing(info: JsonNode): bool =
+  ## An unreachable node with no relay has no dialable address to announce.
+  info{"announceAddresses"}.getElems.len == 0
+
+asyncchecksuite "NAT not downloadable":
+  let
+    composeFile = currentSourcePath.parentDir / "compose.yml"
+    nodeApiUrl = "http://127.0.0.1:18084/api/storage/v1"
+    clientApiUrl = "http://127.0.0.1:18085/api/storage/v1"
+    suiteName = "NAT not downloadable"
+    testName = "a NAT'd node without relay cannot be downloaded from"
+    services = ["router", "bootstrap", "client", "node"]
+    startTime = now().format("yyyy-MM-dd'_'HH:mm:ss")
+  var
+    nodeClient: StorageClient
+    clientC: StorageClient
+
+  setup:
+    compose(composeFile, "up -d")
+    nodeClient = StorageClient.new(nodeApiUrl)
+    clientC = StorageClient.new(clientApiUrl)
+
+  teardown:
+    await nodeClient.close()
+    await clientC.close()
+    saveContainerLogs(composeFile, suiteName, testName, startTime, services)
+    compose(composeFile, "down -v")
+
+  test testName:
+    # Make sure nodeClient is not reachable
+    check eventuallySafe(
+      block:
+        var settled = false
+        try:
+          let info = await nodeClient.info()
+          settled =
+            info.isOk and info.get{"nat"}{"reachability"}.getStr == "NotReachable" and
+            info.get.announcesNothing()
+        except HttpError:
+          discard
+        settled,
+      timeout = detectTimeout,
+      pollInterval = pollInterval,
+    )
+
+    let info = (await nodeClient.info()).get
+    # Double check to make sure nodeClient is not reachable and has
+    # nothing to announce
+    check info.announcesNothing()
+
+    # C is reachable
+    check eventuallySafe(
+      block:
+        var reachable = false
+        try:
+          let cInfo = await clientC.info()
+          reachable =
+            cInfo.isOk and cInfo.get{"nat"}{"reachability"}.getStr == "Reachable"
+        except HttpError:
+          discard
+        reachable,
+      timeout = detectTimeout,
+      pollInterval = pollInterval,
+    )
+
+    # B uploads a file
+    let cid = (await nodeClient.upload("hello from behind the NAT")).get
+
+    # C cannot download the manifest, as B is not reachable
+    let res = await clientC.downloadManifestOnly(cid)
+    check res.isErr
