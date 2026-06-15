@@ -211,13 +211,6 @@ method handleNatStatus*(
       # We remove the announced records.
       # Eventually, it will we updated by the relay when it started
       discovery.announceDirectAddrs(@[], udpPort = discoveryPort)
-    elif autoRelayService.isRunning:
-      # The mapping was already tried and did not make the node reachable.
-      # If the relay is running, there is nothing to do.
-      # We do not want to retry the port mapping if it failed already,
-      # it would stop the relay service while there is little chance to have
-      # a Reachable status after it was detected Not Reachable the first time.
-      discard
     else:
       debug "Node is not reachable trying port mapping now"
 
