@@ -138,7 +138,7 @@ proc announcePeerInfoAddrs*(discovery: Discovery, peerInfo: PeerInfo, udpPort: P
   ## they are announced via onReservation and must not enter the DHT routing
   ## record. No-op when the addresses are already announced, so peerInfo
   ## updates that only touch filtered-out addresses do not re-announce.
-  let addrs = peerInfo.addrs.filterIt(not it.isCircuitRelayMA())
+  let addrs = peerInfo.addrs.filterIt(not it.isCircuitRelayMA()).deduplicate()
   if addrs.len == 0 or addrs == discovery.announceAddrs:
     return
   discovery.announceDirectAddrs(addrs, udpPort = udpPort)
