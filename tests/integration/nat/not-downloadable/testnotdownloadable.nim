@@ -19,10 +19,6 @@ import ../../../checktest
 import ../../storageclient
 import ../composehelper
 
-const
-  detectTimeout = 300_000 # ms
-  pollInterval = 5_000 # ms
-
 proc announcesNothing(info: JsonNode): bool =
   ## An unreachable node with no relay has no dialable address to announce.
   info{"announceAddresses"}.getElems.len == 0
@@ -53,19 +49,9 @@ asyncchecksuite "NAT not downloadable":
 
   test testName:
     # Make sure nodeClient is not reachable
-    check eventuallySafe(
-      block:
-        var settled = false
-        try:
-          let info = await nodeClient.info()
-          settled =
-            info.isOk and info.get{"nat"}{"reachability"}.getStr == "NotReachable" and
-            info.get.announcesNothing()
-        except HttpError:
-          discard
-        settled,
-      timeout = detectTimeout,
-      pollInterval = pollInterval,
+    check eventuallyInfo(
+      nodeClient,
+      info{"nat"}{"reachability"}.getStr == "NotReachable" and info.announcesNothing(),
     )
 
     let info = (await nodeClient.info()).get
@@ -74,19 +60,7 @@ asyncchecksuite "NAT not downloadable":
     check info.announcesNothing()
 
     # C is reachable
-    check eventuallySafe(
-      block:
-        var reachable = false
-        try:
-          let cInfo = await clientC.info()
-          reachable =
-            cInfo.isOk and cInfo.get{"nat"}{"reachability"}.getStr == "Reachable"
-        except HttpError:
-          discard
-        reachable,
-      timeout = detectTimeout,
-      pollInterval = pollInterval,
-    )
+    check eventuallyInfo(clientC, info{"nat"}{"reachability"}.getStr == "Reachable")
 
     # B uploads a file
     let cid = (await nodeClient.upload("hello from behind the NAT")).get

@@ -13,10 +13,6 @@ import ../../../checktest
 import ../../storageclient
 import ../composehelper
 
-const
-  detectTimeout = 300_000 # ms
-  pollInterval = 5_000 # ms
-
 proc announcesCircuitAddr(info: JsonNode): bool =
   info{"announceAddresses"}.getElems.anyIt("p2p-circuit" in it.getStr)
 
@@ -41,19 +37,7 @@ asyncchecksuite "NAT not reachable":
 
   test testName:
     # Wait for the announcements, after the relay reservation is created.
-    check eventuallySafe(
-      block:
-        var settled = false
-        try:
-          let info = await client.info()
-          settled = info.isOk and info.get.announcesCircuitAddr()
-        except HttpError:
-          # B's API is not up yet, keep polling
-          discard
-        settled,
-      timeout = detectTimeout,
-      pollInterval = pollInterval,
-    )
+    check eventuallyInfo(client, info.announcesCircuitAddr())
 
     let info = (await client.info()).get
     let nat = info{"nat"}

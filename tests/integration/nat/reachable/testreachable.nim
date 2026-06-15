@@ -19,10 +19,6 @@ import ../../../checktest
 import ../../storageclient
 import ../composehelper
 
-const
-  detectTimeout = 120_000 # ms
-  pollInterval = 5_000 # ms
-
 proc announcesDirectAddr(info: JsonNode): bool =
   ## A reachable node announces at least one direct (non-circuit) address.
   info{"announceAddresses"}.getElems.anyIt("p2p-circuit" notin it.getStr)
@@ -49,19 +45,7 @@ asyncchecksuite "NAT reachable":
   test testName:
     # Reachable is the settling signal: wait for it, then assert each expected
     # property separately so a failure points at the exact condition.
-    check eventuallySafe(
-      block:
-        var reachable = false
-        try:
-          let info = await client.info()
-          reachable =
-            info.isOk and info.get{"nat"}{"reachability"}.getStr == "Reachable"
-        except HttpError:
-          discard # B's API is not up yet, keep polling
-        reachable,
-      timeout = detectTimeout,
-      pollInterval = pollInterval,
-    )
+    check eventuallyInfo(client, info{"nat"}{"reachability"}.getStr == "Reachable")
 
     let info = (await client.info()).get
     let nat = info{"nat"}
