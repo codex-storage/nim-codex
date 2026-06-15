@@ -9,16 +9,19 @@
 
 {.push raises: [].}
 
-import std/[os, tables]
+import std/[json, os, tables]
 
 import pkg/libp2p
 import pkg/libp2p/crypto/crypto
-import pkg/libp2p/protocols/mix
-import pkg/libp2p/protocols/mix/[curve25519, mix_node]
+import pkg/libp2p/crypto/secp
+import pkg/libp2p_mix
+import pkg/libp2p_mix/[curve25519, mix_node]
 import pkg/questionable/results
 import pkg/stew/byteutils
 
 import ../errors
+
+const PoolFormatVersion = 1
 
 const MixIdentityFileSize = 2 * FieldElementSize
 
@@ -102,30 +105,92 @@ proc buildMixNodeInfo*(
     libp2pPrivKey = libp2pPriv.skkey,
   )
 
-proc loadRelayPubInfoTable*(mixPoolDir: string): ?!Table[PeerId, MixPubInfo] =
-  if mixPoolDir.len == 0:
+proc pubInfoFromJson(node: JsonNode): ?!MixPubInfo =
+  if node.kind != JObject:
+    return failure("pool entry is not a JSON object")
+
+  let
+    peerIdNode = node.getOrDefault("peerId")
+    multiAddrNode = node.getOrDefault("multiAddr")
+    mixPubKeyNode = node.getOrDefault("mixPubKey")
+    libp2pPubKeyNode = node.getOrDefault("libp2pPubKey")
+
+  if peerIdNode.isNil:
+    return failure("pool entry missing field 'peerId'")
+  if multiAddrNode.isNil:
+    return failure("pool entry missing field 'multiAddr'")
+  if mixPubKeyNode.isNil:
+    return failure("pool entry missing field 'mixPubKey'")
+  if libp2pPubKeyNode.isNil:
+    return failure("pool entry missing field 'libp2pPubKey'")
+
+  let
+    peerIdStr = peerIdNode.getStr()
+    multiAddrStr = multiAddrNode.getStr()
+    mixPubKeyHex = mixPubKeyNode.getStr()
+    libp2pPubKeyHex = libp2pPubKeyNode.getStr()
+
+  let peerId = PeerId.init(peerIdStr).valueOr:
+    return failure("Invalid peerId in pool entry: " & peerIdStr & " (" & $error & ")")
+
+  let multiAddr = MultiAddress.init(multiAddrStr).valueOr:
+    return
+      failure("Invalid multiAddr in pool entry: " & multiAddrStr & " (" & $error & ")")
+
+  let mixPubKeyBytes =
+    try:
+      hexToSeqByte(mixPubKeyHex)
+    except ValueError as exc:
+      return failure("Invalid mixPubKey hex in pool entry: " & exc.msg)
+  let mixPubKey = bytesToFieldElement(mixPubKeyBytes).valueOr:
+    return failure("Invalid mixPubKey in pool entry: " & error)
+
+  let libp2pPubKeyBytes =
+    try:
+      hexToSeqByte(libp2pPubKeyHex)
+    except ValueError as exc:
+      return failure("Invalid libp2pPubKey hex in pool entry: " & exc.msg)
+  let libp2pPubKey = SkPublicKey.init(libp2pPubKeyBytes).valueOr:
+    return failure("Invalid libp2pPubKey in pool entry: " & $error)
+
+  success MixPubInfo.init(peerId, multiAddr, mixPubKey, libp2pPubKey)
+
+proc loadRelayPubInfoTable*(poolPath: string): ?!Table[PeerId, MixPubInfo] =
+  ## Expected format:
+  ##   { "version": 1, "relays": [ { peerId, multiAddr, mixPubKey, libp2pPubKey }, ... ] }
+  if poolPath.len == 0:
     return success initTable[PeerId, MixPubInfo]()
 
-  let pubInfoDir = mixPoolDir / "pubInfo"
-  if not dirExists(pubInfoDir):
-    return failure("Relay pubInfo directory does not exist: " & pubInfoDir)
+  if not fileExists(poolPath):
+    return failure("Mix pool file does not exist: " & poolPath)
 
-  var
-    t = initTable[PeerId, MixPubInfo]()
-    i = 0
-  while true:
-    let entry =
-      try:
-        MixPubInfo.readFromFile(i, pubInfoDir)
-      except IOError as exc:
-        return failure("I/O error reading pubInfo at index " & $i & ": " & exc.msg)
-      except OSError as exc:
-        return failure("OS error reading pubInfo at index " & $i & ": " & exc.msg)
-    if entry.isErr:
-      break
-    let info = entry.get()
+  let raw =
+    try:
+      readFile(poolPath)
+    except IOError as exc:
+      return failure("Failed to read pool " & poolPath & ": " & exc.msg)
+
+  let parsed =
+    try:
+      parseJson(raw)
+    except CatchableError as exc:
+      return failure("Failed to parse pool JSON: " & exc.msg)
+
+  let versionNode = parsed.getOrDefault("version")
+  if versionNode.isNil or versionNode.getInt() != PoolFormatVersion:
+    return failure(
+      "Unsupported pool version (expected " & $PoolFormatVersion & " in " & poolPath &
+        ")"
+    )
+
+  let relaysNode = parsed.getOrDefault("relays")
+  if relaysNode.isNil or relaysNode.kind != JArray:
+    return failure("Pool file missing 'relays' array: " & poolPath)
+
+  var t = initTable[PeerId, MixPubInfo]()
+  for entry in relaysNode:
+    let info = ?pubInfoFromJson(entry)
     t[info.peerId] = info
-    inc i
 
   success t
 

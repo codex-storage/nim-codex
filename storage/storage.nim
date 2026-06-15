@@ -17,7 +17,7 @@ import pkg/chronos
 import pkg/taskpools
 import pkg/presto
 import pkg/libp2p
-import pkg/libp2p/protocols/mix
+import pkg/libp2p_mix
 import pkg/confutils
 import pkg/confutils/defs
 import pkg/stew/io2
@@ -94,11 +94,14 @@ proc start*(s: StorageServer) {.async.} =
         mixPub, mixPriv, switch.peerInfo.peerId, mixAddr, switch.peerInfo.privateKey
       ).valueOr:
         raise newException(StorageError, "Failed to build Mix node info: " & error.msg)
-      relayPool = loadRelayPubInfoTable(s.config.mixPoolDir).valueOr:
+      relayPool = loadRelayPubInfoTable(s.config.mixPool).valueOr:
         raise newException(StorageError, "Failed to load Mix relay pool: " & error.msg)
-      mixProto = MixProtocol.new(mixNodeInfo, relayPool, switch)
+      mixProto = MixProtocol.new(mixNodeInfo, switch)
 
-    mixProto.registerDestReadBehavior(DhtProxyCodec, mix.readLp(MaxLookupResponseBytes))
+    for info in relayPool.values:
+      mixProto.nodePool.add(info)
+
+    mixProto.registerDestReadBehavior(DhtProxyCodec, readLp(MaxLookupResponseBytes))
     await mixProto.start()
     switch.mount(mixProto)
 

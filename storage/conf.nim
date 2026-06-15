@@ -213,10 +213,11 @@ type
       name: "mix-enabled"
     .}: bool
 
-    mixPoolDir* {.
-      desc: "Path to the Mix relay pool (expects `pubInfo/mixNode_<i>` files inside)",
+    mixPool* {.
+      desc:
+        "Path to the Mix relay pool JSON file " & "(produced by the `mix_pool` tool).",
       defaultValue: "",
-      name: "mix-pool-dir"
+      name: "mix-pool"
     .}: string
 
     maxPeers* {.

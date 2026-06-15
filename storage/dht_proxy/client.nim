@@ -16,7 +16,7 @@ import pkg/chronos
 import pkg/libp2p
 import pkg/libp2p/cid
 import pkg/libp2p/routing_record
-import pkg/libp2p/protocols/mix
+import pkg/libp2p_mix
 
 import ../errors
 import ../logutils

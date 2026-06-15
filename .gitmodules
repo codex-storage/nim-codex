@@ -196,3 +196,6 @@
 	url = https://github.com/vacp2p/nim-lsquic.git
 	ignore = untracked
 	branch = main
+[submodule "vendor/nim-libp2p-mix"]
+	path = vendor/nim-libp2p-mix
+	url = https://github.com/logos-co/nim-libp2p-mix

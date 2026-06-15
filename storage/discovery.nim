@@ -16,7 +16,7 @@ import std/sequtils
 
 import pkg/chronos
 import pkg/libp2p/[cid, multicodec, routing_record, signed_envelope]
-import pkg/libp2p/protocols/mix
+import pkg/libp2p_mix
 import pkg/questionable
 import pkg/questionable/results
 import pkg/contractabi/address as ca

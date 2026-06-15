@@ -10,7 +10,7 @@
 {.push raises: [].}
 
 import pkg/libp2p/protobuf/minprotobuf
-import pkg/libp2p/protocols/mix
+import pkg/libp2p_mix
 import pkg/libp2p/routing_record
 
 import ../logutils
