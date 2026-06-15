@@ -134,8 +134,8 @@ method hasMappingIds*(m: NatPortMapper): bool {.base, gcsafe.} =
   m.tcpMappingId.isSome and m.udpMappingId.isSome
 
 proc setupMappedAddrMapper*(switch: Switch, natMapper: NatPortMapper) =
-  ## We define a custom mapper that adds the external port to peerInfo.addrs when
-  ## a port mapping is active, so AutoNAT tests that port.
+  ## We define a custom mapper that adds the externally-mapped address to
+  ## peerInfo.addrs when a port mapping is active, so AutoNAT tests that port.
   ## PCP/NAT-PMP may grant an external port different from the listen port.
   let mapper: AddressMapper = proc(
       addrs: seq[MultiAddress]
@@ -192,7 +192,7 @@ method handleNatStatus*(
 
     discovery.protocol.clientMode = true
 
-    if not autoRelayService.isRunning:
+    if not autoRelayService.isRunning and discovery.announceAddrs.len > 0:
       # Remove any announced addresses, they will be replaced.
       # If the relay is running, the addresses will be updated on reservation.
       discovery.announceDirectAddrs(@[], udpPort = discoveryPort)
@@ -218,8 +218,8 @@ method handleNatStatus*(
 
         info "Port mapping created successfully", tcpPort, udpPort, protocol
 
-        # The address mapper will use the mapped ports map the addresses for
-        # libp2p.
+        # The address mapper uses the mapped port to build the candidate address
+        # for AutoNAT; the announce happens once AutoNAT confirms Reachable.
 
         hasPortMapping = true
       else:

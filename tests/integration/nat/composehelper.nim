@@ -6,8 +6,7 @@ import std/[os, osproc]
 import ../utils
 
 proc composeCmd(composeFile: string): string =
-  ## Match the engine the Makefile builds the image with (podman first), so the
-  ## compose tool sees that image.
+  ## Prefer podman (where the Makefile builds the image), fall back to docker.
   let base =
     if findExe("podman-compose") != "":
       "podman-compose"
