@@ -941,6 +941,14 @@ proc wantListHandler*(
   if peerCtx.isNil:
     return
 
+  if peerCtx.wantListBusy:
+    debug "Dropping want list, handler already in flight for peer", peer
+    return
+
+  peerCtx.wantListBusy = true
+  defer:
+    peerCtx.wantListBusy = false
+
   var presence: seq[BlockPresence]
 
   try:

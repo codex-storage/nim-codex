@@ -1,5 +1,8 @@
+import std/sequtils
+
 import pkg/unittest2
 
+import pkg/storage/blockexchange/protocol/constants
 import pkg/storage/blockexchange/protocol/message
 
 import ../../examples
@@ -148,6 +151,28 @@ suite "WantList protobuf encoding":
     check res.get.entries[1].sendDontHave == true
     check res.get.full == true
 
+  test "Should reject WantList with too many entries":
+    let
+      treeCid = Cid.example
+      wantList = WantList(
+        entries: newSeqWith(
+          MaxWantListEntries + 1,
+          WantListEntry(address: BlockAddress(treeCid: treeCid, index: 0)),
+        ),
+        full: false,
+      )
+
+    var buffer = initProtoBuffer()
+    buffer.write(1, wantList)
+    buffer.finish()
+
+    var decoded: ProtoBuffer
+    check buffer.getField(1, decoded).isOk
+
+    let res = WantList.decode(decoded)
+    check res.isErr
+    check res.error == ProtoError.BufferOverflow
+
 suite "BlockPresence protobuf encoding":
   test "Should encode and decode BlockPresence with DontHave":
     let
@@ -273,3 +298,23 @@ suite "Full Message protobuf encoding":
     check decoded.get.blockPresences[0].kind == BlockPresenceType.HaveRange
     check decoded.get.blockPresences[0].ranges.len == 1
     check decoded.get.blockPresences[0].ranges[0].count == 500
+
+  test "Should reject Message with too many blockPresences":
+    let
+      treeCid = Cid.example
+      msg = Message(
+        wantList: WantList(entries: @[], full: false),
+        blockPresences: newSeqWith(
+          MaxBlockPresenceEntries + 1,
+          BlockPresence(
+            address: BlockAddress(treeCid: treeCid, index: 0),
+            kind: BlockPresenceType.DontHave,
+            ranges: @[],
+          ),
+        ),
+      )
+      encoded = msg.protobufEncode()
+      decoded = Message.protobufDecode(encoded)
+
+    check decoded.isErr
+    check decoded.error == ProtoError.BufferOverflow
