@@ -48,7 +48,7 @@ proc createShared*(
 proc destroyShared*(self: ptr NodeP2PRequest) =
   deallocShared(self[].peerId)
 
-  if self[].peerAddresses != nil:
+  if self[] != nil and self[].peerAddresses != nil:
     deallocShared(self[].peerAddresses)
 
   deallocShared(self)
