@@ -52,3 +52,8 @@ asyncchecksuite "NAT upnp":
     check nat{"relayRunning"}.getBool == false
     check nat{"portMapping"}.getStr == "upnp"
     check info.announcesDirectAddr()
+    let announced = info{"announceAddresses"}.getElems.mapIt(it.getStr)
+    check announced.anyIt(("/ip4/" & routerWanIp & "/tcp/8070") in it)
+    # public mapped address
+    # a reachable node announces its UDP address to the DHT routing record
+    check info{"dhtAddresses"}.getElems.len > 0

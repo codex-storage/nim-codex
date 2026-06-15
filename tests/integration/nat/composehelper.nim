@@ -5,6 +5,10 @@
 import std/[os, osproc]
 import ../utils
 
+const
+  routerWanIp* = "7.7.7.2" ## public IP AutoNAT observes for a NATed node (masquerade)
+  bootstrapIp* = "7.7.7.10" ## relay + bootstrap public IP
+
 proc composeCmd(composeFile: string): string =
   ## Prefer podman (where the Makefile builds the image), fall back to docker.
   let base =

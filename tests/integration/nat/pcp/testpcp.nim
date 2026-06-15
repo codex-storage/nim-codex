@@ -52,3 +52,9 @@ asyncchecksuite "NAT pcp":
     check nat{"relayRunning"}.getBool == false
     check nat{"portMapping"}.getStr == "pcp"
     check info.announcesDirectAddr()
+    let announced = info{"announceAddresses"}.getElems.mapIt(it.getStr)
+    # PCP may map a port different from the listen port, so check the IP only
+    check announced.anyIt(("/ip4/" & routerWanIp & "/tcp/") in it)
+    # the public mapped address
+    # a reachable node announces its UDP address to the DHT routing record
+    check info{"dhtAddresses"}.getElems.len > 0

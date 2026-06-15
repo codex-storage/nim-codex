@@ -45,3 +45,10 @@ asyncchecksuite "NAT not reachable":
     check nat{"relayRunning"}.getBool
     check nat{"portMapping"}.getStr == "none"
     check info.announcesCircuitAddr()
+    let announced = info{"announceAddresses"}.getElems.mapIt(it.getStr)
+    # the announced circuit address points at the bootstrap's relay
+    check announced.anyIt(
+      ("/ip4/" & bootstrapIp & "/tcp/8070" in it) and ("p2p-circuit" in it)
+    )
+    # relay addresses go only into the provider record, never the DHT routing record
+    check info{"dhtAddresses"}.getElems.len == 0

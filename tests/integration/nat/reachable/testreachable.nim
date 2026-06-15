@@ -52,3 +52,8 @@ asyncchecksuite "NAT reachable":
     check nat{"reachability"}.getStr == "Reachable"
     check nat{"relayRunning"}.getBool == false
     check info.announcesDirectAddr()
+    let announced = info{"announceAddresses"}.getElems.mapIt(it.getStr)
+    check announced.anyIt(("/ip4/" & routerWanIp & "/tcp/8070") in it)
+    # public forwarded address
+    # a reachable node announces its UDP address to the DHT routing record
+    check info{"dhtAddresses"}.getElems.len > 0
