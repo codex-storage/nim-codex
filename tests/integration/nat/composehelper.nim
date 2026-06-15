@@ -22,6 +22,19 @@ proc compose*(composeFile, action: string) =
   let cmd = composeCmd(composeFile) & " " & action
   doAssert execShellCmd(cmd) == 0, "command failed: " & cmd
 
+proc serviceLogs*(composeFile, service: string): string =
+  ## Current logs (stdout+stderr) of a compose service, or "" on error.
+  try:
+    let
+      cmd = composeCmd(composeFile) & " logs " & service
+      (output, code) = execCmdEx(cmd)
+    if code != 0:
+      echo "warning: '", cmd, "' exited ", code
+    output
+  except CatchableError as e:
+    echo "could not read logs for ", service, ": ", e.msg
+    ""
+
 proc saveContainerLogs*(
     composeFile, suiteName, testName, startTime: string, services: openArray[string]
 ) =
@@ -30,12 +43,26 @@ proc saveContainerLogs*(
   ## <testName>/<service>.log. Must run before `down` destroys the containers.
   for service in services:
     try:
-      let
-        logFile = getLogFile("", startTime, suiteName, testName, service)
-        cmd = composeCmd(composeFile) & " logs " & service
-        (output, code) = execCmdEx(cmd)
-      if code != 0:
-        echo "warning: '", cmd, "' exited ", code
-      writeFile(logFile, output)
+      let logFile = getLogFile("", startTime, suiteName, testName, service)
+      writeFile(logFile, serviceLogs(composeFile, service))
     except CatchableError as e:
       echo "could not save logs for ", service, ": ", e.msg
+
+template eventuallyInfo*(client, predicate: untyped): bool =
+  ## Poll `client.info()` until `predicate` holds, swallowing HttpError while the
+  ## node's API is still starting. The decoded info JsonNode is exposed as `info`
+  ## inside `predicate`.
+  eventuallySafe(
+    block:
+      var satisfied = false
+      try:
+        let res = await client.info()
+        if res.isOk:
+          let info {.inject.} = res.get
+          satisfied = predicate
+      except HttpError:
+        discard
+      satisfied,
+    timeout = 300000,
+    pollInterval = 5000,
+  )
