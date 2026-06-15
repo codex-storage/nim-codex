@@ -37,6 +37,7 @@ import ./storage_thread_requests/requests/node_p2p_request
 import ./storage_thread_requests/requests/node_upload_request
 import ./storage_thread_requests/requests/node_download_request
 import ./storage_thread_requests/requests/node_storage_request
+import ./storage_thread_requests/requests/node_mix_request
 import ./ffi_types
 
 from ../storage/conf import storageVersion
@@ -357,6 +358,20 @@ proc storage_upload_file(
 
   let res = storage_context.sendRequestToStorageThread(
     ctx, RequestType.UPLOAD, reqContent, callback, userData
+  )
+
+  return callback.okOrError(res, userData)
+
+proc storage_toggle_private_queries(
+    ctx: ptr StorageContext, enabled: bool, callback: StorageCallback, userData: pointer
+): cint {.dynlib, exportc.} =
+  initializeLibrary()
+  checkLibstorageParams(ctx, callback, userData)
+
+  let req = NodeMixRequest.createShared(privateQueries = enabled)
+
+  let res = storage_context.sendRequestToStorageThread(
+    ctx, RequestType.MIX, req, callback, userData
   )
 
   return callback.okOrError(res, userData)

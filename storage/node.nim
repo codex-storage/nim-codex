@@ -446,6 +446,9 @@ proc iterateManifests*(self: StorageNodeRef, onManifest: OnManifest) {.async.} =
 
       onManifest(cid, manifest)
 
+proc togglePrivateQueries*(self: StorageNodeRef, enable: bool): bool =
+  return self.discovery.togglePrivateQueries(enable)
+
 proc onExpiryUpdate(
     self: StorageNodeRef, rootCid: Cid, expiry: SecondsSince1970
 ): Future[?!void] {.async: (raises: [CancelledError]).} =
