@@ -1,5 +1,5 @@
 # One image for every podman NAT scenario, built as localhost/storage-nat.
-# Carries the storage binary + miniupnpd (for the upnp/pmp routers); scenarios
+# Carries the storage binary + miniupnpd (for the upnp/pcp routers); scenarios
 # differ only in their entrypoint scripts, which compose mounts.
 # Build context = project root.
 FROM ubuntu:24.04
@@ -8,22 +8,21 @@ ARG NIM_VERSION=2.2.10
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc g++ make cmake git curl ca-certificates xz-utils \
-    libc-dev ccache \
-    iproute2 iptables jq \
+    libc-dev ccache pkg-config \
+    iproute2 iptables nftables jq \
+    libnftnl-dev libmnl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# miniupnpd with a stub firewall backend: the real backend needs kernel caps a
-# container lacks, so the stub makes mapping requests succeed without touching
-# the kernel. Only the upnp/pmp routers use it.
-COPY tests/integration/nat/miniupnpd_stub_rdr.c /tmp/stub_rdr.c
+# miniupnpd with the real nftables backend (the iptables backend no longer builds
+# against modern libiptc), used by the upnp/pcp routers: its mapping requests
+# install a genuine DNAT on the router, so AutoNAT's dial-back reaches the node.
 RUN git clone --depth=1 --branch miniupnpd_2_3_9 \
-        https://github.com/miniupnp/miniupnp.git /tmp/miniupnp \
-    && cd /tmp/miniupnp/miniupnpd \
-    && ./configure \
-    && cp /tmp/stub_rdr.c . \
-    && make NETFILTEROBJS=stub_rdr.o miniupnpd \
-    && install -m 755 miniupnpd /usr/local/sbin/miniupnpd \
-    && rm -rf /tmp/miniupnp /tmp/stub_rdr.c
+        https://github.com/miniupnp/miniupnp.git /tmp/miniupnp-nft \
+    && cd /tmp/miniupnp-nft/miniupnpd \
+    && ./configure --firewall=nftables \
+    && make miniupnpd \
+    && install -m 755 miniupnpd /usr/local/sbin/miniupnpd-nft \
+    && rm -rf /tmp/miniupnp-nft
 
 RUN curl -fsSL "https://nim-lang.org/download/nim-${NIM_VERSION}-linux_x64.tar.xz" \
     | tar -xJ -C /opt
