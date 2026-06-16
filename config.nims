@@ -140,7 +140,7 @@ switch("warning", "ObservableStores:off")
 # Too many false positives for "Warning: method has lock level <unknown>, but another method has 0 [LockLevel]"
 switch("warning", "LockLevel:off")
 
-switch("define", "libp2p_pki_schemes=secp256k1")
+switch("define", "libp2p_pki_schemes=secp256k1,rsa")
 #TODO this infects everything in this folder, ideally it would only
 # apply to storage.nim, but since storage.nims is used for other purpose
 # we can't use it. And storage.cfg doesn't work
