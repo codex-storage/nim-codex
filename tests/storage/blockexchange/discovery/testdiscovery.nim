@@ -1,7 +1,7 @@
 import std/[options, sequtils, sugar, tables]
 
 import pkg/chronos
-import pkg/libp2p/protocols/mix
+import pkg/libp2p_mix
 
 import pkg/storage/discovery
 import pkg/storage/rng
@@ -144,6 +144,8 @@ asyncchecksuite "Block Advertising and Discovery":
       discovery = MixMockDiscovery.new()
 
     discovery.mixProto = mix
+    discovery.dhtMixProxies = @[SignedPeerRecord.example]
+
     discovery.privateSpr = privateSpr
     discovery.directSpr = directSpr
     discovery.refCid = refCid
