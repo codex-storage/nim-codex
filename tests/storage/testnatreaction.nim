@@ -17,7 +17,6 @@ import ../../storage/utils
 
 type MockNatPortMapper = ref object of NatPortMapper
   mappedPorts: Option[(Port, Port, MappingProtocol)]
-  activeMapping: bool
 
 method mapNatPorts*(
     m: MockNatPortMapper
@@ -26,14 +25,14 @@ method mapNatPorts*(
 .} =
   m.mappedPorts
 
-method hasMappingIds*(m: MockNatPortMapper): bool =
-  m.activeMapping
+method destroyMappingFor(m: MockNatPortMapper, id: cint) {.gcsafe.} =
+  discard
 
 type MockMapNatPortMapper = ref object of NatPortMapper
   tcpResult: Result[MappingResult, string]
   udpResult: Result[MappingResult, string]
   live: bool
-  created: seq[PlumProtocol]
+  createAttempts: seq[PlumProtocol]
   destroyed: seq[cint]
 
 method initPlum(m: MockMapNatPortMapper): Result[void, string] {.gcsafe.} =
@@ -45,7 +44,7 @@ method hasLiveMapping(m: MockMapNatPortMapper, id: cint): bool {.gcsafe.} =
 method createMappingFor(
     m: MockMapNatPortMapper, protocol: PlumProtocol, port: uint16
 ): Future[Result[MappingResult, string]] {.async: (raises: [CancelledError]), gcsafe.} =
-  m.created.add(protocol)
+  m.createAttempts.add(protocol)
   if protocol == TCP: m.tcpResult else: m.udpResult
 
 method destroyMappingFor(m: MockMapNatPortMapper, id: cint) {.gcsafe.} =
@@ -130,8 +129,11 @@ asyncchecksuite "NAT reaction - port mapping":
     check disc.protocol.clientMode
 
   test "handleNatStatus tears down an active mapping and starts relay when NotReachable with dialBackAddr":
+    privateAccess(NatPortMapper)
     let dialBack = MultiAddress.init("/ip4/1.2.3.4/tcp/8080").expect("valid")
-    let mapper = MockNatPortMapper(activeMapping: true)
+    let mapper = MockNatPortMapper()
+    mapper.tcpMappingId = some(cint(1))
+    mapper.udpMappingId = some(cint(2))
 
     autorelayservice.setup(autoRelay, sw)
     await mapper.handleNatStatus(
@@ -141,9 +143,13 @@ asyncchecksuite "NAT reaction - port mapping":
     check autoRelay.isRunning
     check disc.announceAddrs == newSeq[MultiAddress]()
     check disc.protocol.clientMode
+    check not mapper.hasMappingIds() # the active mapping was torn down
 
   test "handleNatStatus tears down an active mapping and starts relay when NotReachable without dialBackAddr":
-    let mapper = MockNatPortMapper(activeMapping: true)
+    privateAccess(NatPortMapper)
+    let mapper = MockNatPortMapper()
+    mapper.tcpMappingId = some(cint(1))
+    mapper.udpMappingId = some(cint(2))
 
     autorelayservice.setup(autoRelay, sw)
     await mapper.handleNatStatus(
@@ -153,6 +159,7 @@ asyncchecksuite "NAT reaction - port mapping":
     check autoRelay.isRunning
     check disc.announceAddrs == newSeq[MultiAddress]()
     check disc.protocol.clientMode
+    check not mapper.hasMappingIds() # the active mapping was torn down
 
   test "handleNatStatus stops relay and exits client mode when mapping is created and node is Reachable":
     let dialBack = MultiAddress.init("/ip4/1.2.3.4/tcp/8080").expect("valid")
@@ -359,7 +366,7 @@ asyncchecksuite "NAT - mapNatPorts":
     )
 
     check (await mapper.mapNatPorts()).isNone
-    check mapper.created == @[PlumProtocol.TCP] # UDP never attempted
+    check mapper.createAttempts == @[PlumProtocol.TCP] # UDP never attempted
     check mapper.destroyed.len == 0 # nothing to clean up
 
   test "does not map when configured with an external IP":
@@ -368,7 +375,7 @@ asyncchecksuite "NAT - mapNatPorts":
     )
 
     check (await mapper.mapNatPorts()).isNone
-    check mapper.created.len == 0 # short-circuits before any mapping
+    check mapper.createAttempts.len == 0 # short-circuits before any mapping
 
   test "reuses the existing mapping when both are still live":
     privateAccess(NatPortMapper)
@@ -378,9 +385,9 @@ asyncchecksuite "NAT - mapNatPorts":
       activeUdpPort: some(Port(9001)),
       activeMappingProtocol: some(MappingProtocol.UPnP),
     )
-    mapper.tcpMappingId = some(cint(1)) # private field, set via privateAccess
+    mapper.tcpMappingId = some(cint(1))
     mapper.udpMappingId = some(cint(2))
 
     check (await mapper.mapNatPorts()) ==
       some((Port(9000), Port(9001), MappingProtocol.UPnP))
-    check mapper.created.len == 0 # reuse path, nothing recreated
+    check mapper.createAttempts.len == 0
