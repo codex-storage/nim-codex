@@ -110,7 +110,11 @@ proc start*(s: StorageServer) {.async.} =
     await mixProto.start()
     switch.mount(mixProto)
 
-    let dhtProxyProto = DhtProxyProtocol.new(s.storageNode.discovery)
+    let dhtProxyProto =
+      if cap =? s.config.dhtProxyMaxInFlight:
+        DhtProxyProtocol.new(s.storageNode.discovery, maxInFlight = cap)
+      else:
+        DhtProxyProtocol.new(s.storageNode.discovery)
     await dhtProxyProto.start()
     switch.mount(dhtProxyProto)
 

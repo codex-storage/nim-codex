@@ -25,6 +25,8 @@ logScope:
 
 type DhtProxyProtocol* = ref object of LPProtocol
   discovery*: Discovery
+  inFlight: int
+  maxInFlight: int
 
 proc handleFindProviders(
     self: DhtProxyProtocol, queryBytes: seq[byte]
@@ -60,6 +62,18 @@ proc handleLookupRequest(
     self: DhtProxyProtocol, conn: Connection
 ) {.async: (raises: [CancelledError]).} =
   try:
+    if self.inFlight >= self.maxInFlight:
+      debug "DHT proxy at capacity, replying TooBusy",
+        inFlight = self.inFlight, max = self.maxInFlight
+      await conn.writeLp(
+        LookupResponse(status: ResponseStatus.Error, errorKind: ErrorKind.TooBusy).encode()
+      )
+      return
+
+    inc self.inFlight
+    defer:
+      dec self.inFlight
+
     let
       reqBytes = await conn.readLp(MaxLookupRequestBytes)
       req = LookupRequest.decode(reqBytes).valueOr:
@@ -84,8 +98,12 @@ proc handleLookupRequest(
   except CatchableError as exc:
     warn "Handler error", err = exc.msg
 
-proc new*(T: type DhtProxyProtocol, discovery: Discovery): DhtProxyProtocol =
-  let self = DhtProxyProtocol(discovery: discovery)
+proc new*(
+    T: type DhtProxyProtocol,
+    discovery: Discovery,
+    maxInFlight: int = DefaultMaxInFlightLookups,
+): DhtProxyProtocol =
+  let self = DhtProxyProtocol(discovery: discovery, maxInFlight: maxInFlight)
 
   proc handler(
       conn: Connection, proto: string

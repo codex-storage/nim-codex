@@ -17,6 +17,8 @@ import ../logutils
 
 const DhtProxyCodec* = "/storage/dht-proxy/1.0.0"
 
+const DefaultMaxInFlightLookups* = 100
+
 let MaxLookupRequestBytes* = getMaxMessageSizeForCodec(DhtProxyCodec, 1).expect(
     "DhtProxyCodec framing leaves no room for a Sphinx forward payload"
   )
@@ -39,6 +41,7 @@ type
     InvalidCid = 1
     Internal = 2
     ResponseTooLarge = 3
+    TooBusy = 4
 
   LookupRequest* = object
     queryType*: QueryType

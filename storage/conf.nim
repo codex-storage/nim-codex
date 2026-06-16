@@ -45,6 +45,7 @@ import ./presets
 import ./utils/natutils
 
 from ./blockexchange/engine/downloadmanager import DefaultBlockRetries
+from ./dht_proxy/protocol import DefaultMaxInFlightLookups
 
 export
   units, net, storagetypes, logutils, presets, completeCmdArg, parseCmdArg, NatConfig
@@ -224,6 +225,14 @@ type
       defaultValue: "",
       name: "mix-pool-json"
     .}: string
+
+    dhtProxyMaxInFlight* {.
+      desc:
+        "Max concurrent DHT proxy lookups handled by this node " &
+        "(omit to use the protocol default: " & $DefaultMaxInFlightLookups & ")",
+      defaultValue: int.none,
+      name: "dht-proxy-max-inflight"
+    .}: Option[int]
 
     maxPeers* {.
       desc: "The maximum number of peers to connect to",
