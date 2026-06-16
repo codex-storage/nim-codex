@@ -813,13 +813,14 @@ int check_toggle_private_queries(void *storage_ctx)
     }
 
     int ret = is_resp_ok(r, &res);
-    printf("B\n");
     if (strcmp(res, "false") != 0)
     {
         fprintf(stderr, "toggle private queries content mismatch, res:%s\n", res);
+        free(res);
         return RET_ERR;
     }
 
+    free(res);
     // Second toggle is true -> false
     r = alloc_resp();
     if (storage_toggle_private_queries(storage_ctx, false, (StorageCallback)callback, r) != RET_OK)
@@ -832,9 +833,11 @@ int check_toggle_private_queries(void *storage_ctx)
     if (strcmp(res, "true") != 0)
     {
         fprintf(stderr, "toggle private queries content mismatch, res:%s\n", res);
+        free(res);
         return RET_ERR;
     }
 
+    free(res);
     return RET_OK;
 }
 

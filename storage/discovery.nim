@@ -87,9 +87,9 @@ proc findPeer*(
 
   return PeerRecord.none
 
-method findViaMix(
+method findViaMix*(
     d: Discovery, cid: Cid
-): Future[?!seq[SignedPeerRecord]] {.async: (raises: [CancelledError]).} =
+): Future[?!seq[SignedPeerRecord]] {.base, async: (raises: [CancelledError]).} =
   var candidates = d.dhtMixProxies
   shuffle(candidates)
 
@@ -105,7 +105,7 @@ method findViaMix(
 
 method findDirect*(
     d: Discovery, cid: Cid
-): Future[?!seq[SignedPeerRecord]] {.async: (raises: [CancelledError]).} =
+): Future[?!seq[SignedPeerRecord]] {.base, async: (raises: [CancelledError]).} =
   try:
     return (await d.protocol.getProviders(cid.toNodeId())).mapFailure
   except CancelledError as exc:

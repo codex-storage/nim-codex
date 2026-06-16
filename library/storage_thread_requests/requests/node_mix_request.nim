@@ -21,5 +21,8 @@ proc destroyShared(self: ptr NodeMixRequest) =
 proc process*(
     self: ptr NodeMixRequest, storage: ptr StorageServer
 ): Future[Result[string, string]] {.async: (raises: []).} =
+  defer:
+    destroyShared(self)
+
   let previous = storage[].node.togglePrivateQueries(self.privateQueries)
   return ok($previous)

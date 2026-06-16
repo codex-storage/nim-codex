@@ -225,7 +225,7 @@ extern "C"
     // This is a **temporary** API and will likely be gone by mainnet.
     //
     // The callback returns a string containing the previous value for
-    // private queries ("true" if the were enabled, or "false" otherwise).
+    // private queries ("true" if they were enabled, or "false" otherwise).
     int storage_toggle_private_queries(
         void *ctx,
         bool enabled,
