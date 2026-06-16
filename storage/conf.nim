@@ -396,11 +396,20 @@ func validateAutonatConfig*(config: StorageConf): ?!void =
   if config.isRelayServer and not config.nat.hasExtIp:
     return failure "--relay-server requires --nat=extip:<IP>"
 
+  if config.noBootstrapNode and not config.nat.hasExtIp:
+    return failure(
+      "--no-bootstrap-node requires --nat=extip:<IP>: without bootstrap peers " &
+        "AutoNAT has no one to probe and the node can never become reachable"
+    )
+
   if config.natMaxQueueSize < 1:
     return failure "--nat-max-queue-size must be at least 1"
 
   if config.natNumPeersToAsk < 1:
     return failure "--nat-num-peers-to-ask must be at least 1"
+
+  if config.natObservedAddrMinCount < 1:
+    return failure "--nat-observed-addr-min-count must be at least 1"
 
   if config.natMinConfidence < 0.0 or config.natMinConfidence > 1.0:
     return failure "--nat-min-confidence must be between 0 and 1"

@@ -10,6 +10,7 @@ proc validConfig(): StorageConf =
     natMaxQueueSize: 3,
     natNumPeersToAsk: 5,
     natMinConfidence: 0.7,
+    natObservedAddrMinCount: 1,
   )
 
 suite "Conf - validateAutonatConfig":
@@ -42,6 +43,19 @@ suite "Conf - validateAutonatConfig":
 
     check config.validateAutonatConfig().isOk
 
+  test "rejects no-bootstrap-node without extip":
+    var config = validConfig()
+    config.noBootstrapNode = true
+
+    check config.validateAutonatConfig().isErr
+
+  test "accepts no-bootstrap-node with extip":
+    var config = validConfig()
+    config.noBootstrapNode = true
+    config.nat = nat.NatConfig(hasExtIp: true, extIp: parseIpAddress("1.2.3.4"))
+
+    check config.validateAutonatConfig().isOk
+
   test "rejects nat-max-queue-size below 1":
     var config = validConfig()
     config.natMaxQueueSize = 0
@@ -63,6 +77,18 @@ suite "Conf - validateAutonatConfig":
   test "accepts nat-num-peers-to-ask of 1":
     var config = validConfig()
     config.natNumPeersToAsk = 1
+
+    check config.validateAutonatConfig().isOk
+
+  test "rejects nat-observed-addr-min-count below 1":
+    var config = validConfig()
+    config.natObservedAddrMinCount = 0
+
+    check config.validateAutonatConfig().isErr
+
+  test "accepts nat-observed-addr-min-count of 1":
+    var config = validConfig()
+    config.natObservedAddrMinCount = 1
 
     check config.validateAutonatConfig().isOk
 

@@ -302,12 +302,8 @@ proc new*(
         enableDialableCandidates = true,
       )
     )
-    # At the first AutoNAT probe, the only identify observations available come
-    # from the bootstrap nodes, so requiring more observations than there are
-    # bootstrap nodes would make the threshold unreachable. The floor of 1
-    # covers the case where the bootstrap list is empty.
-    let observedAddrMinCount =
-      max(1, min(config.natObservedAddrMinCount, bootstrapNodes.len))
+
+    let observedAddrMinCount = min(config.natObservedAddrMinCount, bootstrapNodes.len)
     switchBuilder = switchBuilder.withObservedAddrManager(
       ObservedAddrManager.new(minCount = observedAddrMinCount)
     )
