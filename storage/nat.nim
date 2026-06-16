@@ -49,19 +49,6 @@ type NatPortMapper* = ref object of RootObj
   plumInitialized: bool
   closed: bool
 
-proc resetMappings(m: NatPortMapper) =
-  if m.tcpMappingId.isSome:
-    destroyMapping(m.tcpMappingId.get)
-    m.tcpMappingId = none(cint)
-
-  if m.udpMappingId.isSome:
-    destroyMapping(m.udpMappingId.get)
-    m.udpMappingId = none(cint)
-
-  m.activeMappingProtocol = none(MappingProtocol)
-  m.activeTcpPort = none(Port)
-  m.activeUdpPort = none(Port)
-
 # libplum seams, extracted as methods so tests can override them without I/O.
 
 method initPlum*(m: NatPortMapper): Result[void, string] {.base, gcsafe.} =
@@ -86,6 +73,19 @@ method destroyMappingFor*(m: NatPortMapper, id: cint) {.base, gcsafe.} =
 
 method hasLiveMapping*(m: NatPortMapper, id: cint): bool {.base, gcsafe.} =
   hasMapping(id)
+
+proc resetMappings(m: NatPortMapper) =
+  if m.tcpMappingId.isSome:
+    m.destroyMappingFor(m.tcpMappingId.get)
+    m.tcpMappingId = none(cint)
+
+  if m.udpMappingId.isSome:
+    m.destroyMappingFor(m.udpMappingId.get)
+    m.udpMappingId = none(cint)
+
+  m.activeMappingProtocol = none(MappingProtocol)
+  m.activeTcpPort = none(Port)
+  m.activeUdpPort = none(Port)
 
 method mapNatPorts*(
     m: NatPortMapper
@@ -194,13 +194,13 @@ method handleNatStatus*(
   of Unknown:
     discard
   of Reachable:
-    if autoRelayService.isRunning:
-      await autoRelayService.stop(switch)
-      debug "AutoRelayService stopped"
-
-    discovery.protocol.clientMode = false
-
     if dialBackAddr.isSome:
+      if autoRelayService.isRunning:
+        await autoRelayService.stop(switch)
+        debug "AutoRelayService stopped"
+
+      discovery.protocol.clientMode = false
+
       discovery.announceDirectAddrs(
         @[dialBackAddr.get], udpPort = m.activeUdpPort.get(discoveryPort)
       )
