@@ -19,6 +19,32 @@
 #endif
 #endif
 
+#define GRN "\033[0;32m"
+#define RED "\033[0;31m"
+#define YEL "\e[0;33m"
+#define NC "\033[0m" // No Color
+
+#define BEGIN_SUITE int passed = 0;
+// RUN_TEST runs a test expression, printing the test name as it executes.
+#define RUN_TEST(expr)                             \
+    do                                             \
+    {                                              \
+        printf(YEL "[RUN] %s" NC "... ", #expr);    \
+        fflush(stdout);                            \
+        if ((expr) != RET_OK)                      \
+        {                                          \
+            fprintf(stderr, RED "[FAIL]\n" NC); \
+            fprintf(stderr, RED "FAIL. Tests run: %d\n" NC, passed); \
+            return RET_ERR;                        \
+        }                                          \
+        printf(GRN "[PASS]\n" NC);               \
+        passed += 1;                               \
+        fflush(stdout);                            \
+    } while (0)
+
+#define END_SUITE printf(GRN "SUCCESS. Tests passed: %d\n" NC, passed); \
+        fflush(stdout);
+
 // We need 250 as max retries mainly for the start function in CI.
 // Other functions should be not need that many retries.
 #define MAX_RETRIES 250
@@ -791,153 +817,45 @@ int main(void)
     char *res = NULL;
     char *cid = NULL;
 
-    if (setup(&storage_ctx) != RET_OK)
-    {
-        fprintf(stderr, "setup failed\n");
-        return RET_ERR;
-    }
+    BEGIN_SUITE
 
-    if (check_version(storage_ctx) != RET_OK)
-    {
-        fprintf(stderr, "check version failed\n");
-        return RET_ERR;
-    }
-
-    if (start(storage_ctx) != RET_OK)
-    {
-        fprintf(stderr, "start failed\n");
-        return RET_ERR;
-    }
-
-    if (check_repo(storage_ctx) != RET_OK)
-    {
-        fprintf(stderr, "check repo failed\n");
-        return RET_ERR;
-    }
-
-    if (check_debug(storage_ctx) != RET_OK)
-    {
-        fprintf(stderr, "check debug failed\n");
-        return RET_ERR;
-    }
-
-    if (check_spr(storage_ctx) != RET_OK)
-    {
-        fprintf(stderr, "check spr failed\n");
-        return RET_ERR;
-    }
-
-    if (check_peer_id(storage_ctx) != RET_OK)
-    {
-        fprintf(stderr, "check peer_id failed\n");
-        return RET_ERR;
-    }
-
-    if (check_upload_chunk(storage_ctx, "hello_world.txt") != RET_OK)
-    {
-        fprintf(stderr, "upload chunk failed\n");
-        return RET_ERR;
-    }
-
-    if (upload_cancel(storage_ctx) != RET_OK)
-    {
-        fprintf(stderr, "upload cancel failed\n");
-        return RET_ERR;
-    }
+    RUN_TEST(setup(&storage_ctx));
+    RUN_TEST(check_version(storage_ctx));
+    RUN_TEST(start(storage_ctx));
+    RUN_TEST(check_repo(storage_ctx));
+    RUN_TEST(check_debug(storage_ctx));
+    RUN_TEST(check_spr(storage_ctx));
+    RUN_TEST(check_peer_id(storage_ctx));
+    RUN_TEST(check_upload_chunk(storage_ctx, "hello_world.txt"));
+    RUN_TEST(upload_cancel(storage_ctx));
 
     char *path = realpath("hello_world.txt", NULL);
-
     if (!path)
     {
         fprintf(stderr, "realpath failed\n");
         return RET_ERR;
     }
 
-    if (check_upload_file(storage_ctx, path, &cid) != RET_OK)
-    {
-        fprintf(stderr, "upload file failed\n");
-        free(path);
-        return RET_ERR;
-    }
+    RUN_TEST(check_upload_file(storage_ctx, path, &cid));
 
     free(path);
 
-    if (check_download_stream(storage_ctx, cid, "downloaded_hello.txt") != RET_OK)
-    {
-        fprintf(stderr, "download stream failed\n");
-        free(cid);
-        return RET_ERR;
-    }
-
-    if (check_download_chunk(storage_ctx, cid) != RET_OK)
-    {
-        fprintf(stderr, "download chunk failed\n");
-        free(cid);
-        return RET_ERR;
-    }
-
-    if (check_download_cancel(storage_ctx, cid) != RET_OK)
-    {
-        fprintf(stderr, "download cancel failed\n");
-        free(cid);
-        return RET_ERR;
-    }
-
-    if (check_download_manifest(storage_ctx, cid) != RET_OK)
-    {
-        fprintf(stderr, "download manifest failed\n");
-        free(cid);
-        return RET_ERR;
-    }
-
-    if (check_list(storage_ctx) != RET_OK)
-    {
-        fprintf(stderr, "list failed\n");
-        free(cid);
-        return RET_ERR;
-    }
-
-    if (check_space(storage_ctx) != RET_OK)
-    {
-        fprintf(stderr, "space failed\n");
-        free(cid);
-        return RET_ERR;
-    }
-
-    if (check_exists(storage_ctx, cid, true) != RET_OK)
-    {
-        fprintf(stderr, "exists failed\n");
-        free(cid);
-        return RET_ERR;
-    }
-
-    if (check_delete(storage_ctx, cid) != RET_OK)
-    {
-        fprintf(stderr, "delete failed\n");
-        free(cid);
-        return RET_ERR;
-    }
-
-    if (check_exists(storage_ctx, cid, false) != RET_OK)
-    {
-        fprintf(stderr, "exists failed\n");
-        free(cid);
-        return RET_ERR;
-    }
+    RUN_TEST(check_download_stream(storage_ctx, cid, "downloaded_hello.txt"));
+    RUN_TEST(check_download_chunk(storage_ctx, cid));
+    RUN_TEST(check_download_cancel(storage_ctx, cid));
+    RUN_TEST(check_download_manifest(storage_ctx, cid));
+    RUN_TEST(check_list(storage_ctx));
+    RUN_TEST(check_space(storage_ctx));
+    RUN_TEST(check_space(storage_ctx));
+    RUN_TEST(check_exists(storage_ctx, cid, true));
+    RUN_TEST(check_delete(storage_ctx, cid));
+    RUN_TEST(check_delete(storage_ctx, cid));
+    RUN_TEST(check_exists(storage_ctx, cid, false));
 
     free(cid);
 
-    if (update_log_level(storage_ctx, "TRACE") != RET_OK)
-    {
-        fprintf(stderr, "update log level failed\n");
-        return RET_ERR;
-    }
+    RUN_TEST(update_log_level(storage_ctx, "TRACE"));
+    RUN_TEST(cleanup(storage_ctx));
 
-    if (cleanup(storage_ctx) != RET_OK)
-    {
-        fprintf(stderr, "cleanup failed\n");
-        return RET_ERR;
-    }
-
-    return RET_OK;
+    END_SUITE
 }
