@@ -62,6 +62,31 @@ proc resetMappings(m: NatPortMapper) =
   m.activeTcpPort = none(Port)
   m.activeUdpPort = none(Port)
 
+# libplum seams, extracted as methods so tests can override them without I/O.
+
+method initPlum*(m: NatPortMapper): Result[void, string] {.base, gcsafe.} =
+  let plumLogLevel =
+    if getEnv("DEBUG") == "1": PlumLogLevel.Verbose else: PlumLogLevel.None
+  init(
+    logLevel = plumLogLevel,
+    discoverTimeout = m.discoverTimeout.int32,
+    mappingTimeout = m.mappingTimeout.int32,
+    recheckPeriod = m.recheckPeriod.int32,
+  )
+
+method createMappingFor*(
+    m: NatPortMapper, protocol: PlumProtocol, port: uint16
+): Future[Result[MappingResult, string]] {.
+    base, async: (raises: [CancelledError]), gcsafe
+.} =
+  await createMapping(protocol, port, port)
+
+method destroyMappingFor*(m: NatPortMapper, id: cint) {.base, gcsafe.} =
+  destroyMapping(id)
+
+method hasLiveMapping*(m: NatPortMapper, id: cint): bool {.base, gcsafe.} =
+  hasMapping(id)
+
 method mapNatPorts*(
     m: NatPortMapper
 ): Future[Option[(Port, Port, MappingProtocol)]] {.
@@ -71,20 +96,12 @@ method mapNatPorts*(
     return none((Port, Port, MappingProtocol))
 
   # If both mappings are still active, return the stored ports without recreating.
-  if m.tcpMappingId.isSome and hasMapping(m.tcpMappingId.get) and m.udpMappingId.isSome and
-      hasMapping(m.udpMappingId.get):
+  if m.tcpMappingId.isSome and m.hasLiveMapping(m.tcpMappingId.get) and
+      m.udpMappingId.isSome and m.hasLiveMapping(m.udpMappingId.get):
     return some((m.activeTcpPort.get, m.activeUdpPort.get, m.activeMappingProtocol.get))
 
   if not m.plumInitialized:
-    # 5s matches the old NatPortMappingTimeout used with miniupnpc/libnatpmp.
-    let plumLogLevel =
-      if getEnv("DEBUG") == "1": PlumLogLevel.Verbose else: PlumLogLevel.None
-    let res = init(
-      logLevel = plumLogLevel,
-      discoverTimeout = m.discoverTimeout.int32,
-      mappingTimeout = m.mappingTimeout.int32,
-      recheckPeriod = m.recheckPeriod.int32,
-    )
+    let res = m.initPlum()
     if res.isErr:
       warn "Failed to initialize plum", msg = res.error
       return none((Port, Port, MappingProtocol))
@@ -94,15 +111,15 @@ method mapNatPorts*(
   # so we delete the mappings to recreate them.
   m.resetMappings()
 
-  let tcpRes = await createMapping(TCP, m.tcpPort.uint16, m.tcpPort.uint16)
+  let tcpRes = await m.createMappingFor(TCP, m.tcpPort.uint16)
   if tcpRes.isErr:
     warn "TCP port mapping failed", msg = tcpRes.error
     return none((Port, Port, MappingProtocol))
 
-  let udpRes = await createMapping(UDP, m.discoveryPort.uint16, m.discoveryPort.uint16)
+  let udpRes = await m.createMappingFor(UDP, m.discoveryPort.uint16)
   if udpRes.isErr:
     warn "UDP port mapping failed", msg = udpRes.error
-    destroyMapping(tcpRes.value.id)
+    m.destroyMappingFor(tcpRes.value.id)
     return none((Port, Port, MappingProtocol))
 
   m.tcpMappingId = some(tcpRes.value.id)

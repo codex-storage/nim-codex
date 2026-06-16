@@ -1,4 +1,4 @@
-import std/[net]
+import std/[importutils, net]
 import pkg/chronos
 import pkg/libp2p/[multiaddress, multihash, multicodec]
 import pkg/libp2p/protocols/connectivity/autonat/types
@@ -28,6 +28,36 @@ method mapNatPorts*(
 
 method hasMappingIds*(m: MockNatPortMapper): bool =
   m.activeMapping
+
+type MockMapNatPortMapper = ref object of NatPortMapper
+  tcpResult: Result[MappingResult, string]
+  udpResult: Result[MappingResult, string]
+  live: bool
+  created: seq[PlumProtocol]
+  destroyed: seq[cint]
+
+method initPlum(m: MockMapNatPortMapper): Result[void, string] {.gcsafe.} =
+  ok()
+
+method hasLiveMapping(m: MockMapNatPortMapper, id: cint): bool {.gcsafe.} =
+  m.live
+
+method createMappingFor(
+    m: MockMapNatPortMapper, protocol: PlumProtocol, port: uint16
+): Future[Result[MappingResult, string]] {.async: (raises: [CancelledError]), gcsafe.} =
+  m.created.add(protocol)
+  if protocol == TCP: m.tcpResult else: m.udpResult
+
+method destroyMappingFor(m: MockMapNatPortMapper, id: cint) {.gcsafe.} =
+  m.destroyed.add(id)
+
+proc mappingOk(id: cint, port: uint16): Result[MappingResult, string] =
+  Result[MappingResult, string].ok(
+    MappingResult(
+      id: id,
+      mapping: PlumMapping(mappingProtocol: MappingProtocol.UPnP, externalPort: port),
+    )
+  )
 
 asyncchecksuite "NAT reaction - port mapping":
   var sw: Switch
@@ -230,3 +260,80 @@ asyncchecksuite "NAT reaction - address announcing":
 
     # Ensure that nothing is injected because there is no active mapping
     check sw.peerInfo.addrs == sw.peerInfo.listenAddrs
+
+proc mapperWith(protocol: MappingProtocol): Option[NatPortMapper] =
+  some(NatPortMapper(activeMappingProtocol: some(protocol)))
+
+asyncchecksuite "NAT - portMappingStr":
+  test "no mapper is none":
+    check portMappingStr(none(NatPortMapper)) == "none"
+
+  test "mapper without an active protocol is none":
+    check portMappingStr(some(NatPortMapper())) == "none"
+
+  test "UPnP maps to upnp":
+    check portMappingStr(mapperWith(MappingProtocol.UPnP)) == "upnp"
+
+  test "NAT-PMP maps to pmp":
+    check portMappingStr(mapperWith(MappingProtocol.NatPmp)) == "pmp"
+
+  test "PCP maps to pcp":
+    check portMappingStr(mapperWith(MappingProtocol.PCP)) == "pcp"
+
+  test "Direct maps to direct":
+    check portMappingStr(mapperWith(MappingProtocol.Direct)) == "direct"
+
+  test "Unknown maps to none":
+    check portMappingStr(mapperWith(MappingProtocol.Unknown)) == "none"
+
+asyncchecksuite "NAT - mapNatPorts":
+  test "returns the mapped ports when both mappings succeed":
+    let mapper = MockMapNatPortMapper(
+      tcpResult: mappingOk(cint(1), 9000), udpResult: mappingOk(cint(2), 9001)
+    )
+
+    check (await mapper.mapNatPorts()) ==
+      some((Port(9000), Port(9001), MappingProtocol.UPnP))
+    check mapper.destroyed.len == 0
+
+  test "destroys the TCP mapping when the UDP mapping fails":
+    let mapper = MockMapNatPortMapper(
+      tcpResult: mappingOk(cint(42), 9000),
+      udpResult: Result[MappingResult, string].err("udp mapping failed"),
+    )
+
+    check (await mapper.mapNatPorts()).isNone
+    check mapper.destroyed == @[cint(42)]
+
+  test "gives up without touching UDP when the TCP mapping fails":
+    let mapper = MockMapNatPortMapper(
+      tcpResult: Result[MappingResult, string].err("tcp mapping failed"),
+      udpResult: mappingOk(cint(2), 9001),
+    )
+
+    check (await mapper.mapNatPorts()).isNone
+    check mapper.created == @[PlumProtocol.TCP] # UDP never attempted
+    check mapper.destroyed.len == 0 # nothing to clean up
+
+  test "does not map when configured with an external IP":
+    let mapper = MockMapNatPortMapper(
+      natConfig: nat.NatConfig(hasExtIp: true, extIp: parseIpAddress("1.2.3.4"))
+    )
+
+    check (await mapper.mapNatPorts()).isNone
+    check mapper.created.len == 0 # short-circuits before any mapping
+
+  test "reuses the existing mapping when both are still live":
+    privateAccess(NatPortMapper)
+    let mapper = MockMapNatPortMapper(
+      live: true,
+      activeTcpPort: some(Port(9000)),
+      activeUdpPort: some(Port(9001)),
+      activeMappingProtocol: some(MappingProtocol.UPnP),
+    )
+    mapper.tcpMappingId = some(cint(1)) # private field, set via privateAccess
+    mapper.udpMappingId = some(cint(2))
+
+    check (await mapper.mapNatPorts()) ==
+      some((Port(9000), Port(9001), MappingProtocol.UPnP))
+    check mapper.created.len == 0 # reuse path, nothing recreated
