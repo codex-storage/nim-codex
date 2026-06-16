@@ -274,6 +274,22 @@ proc findReachableNodes*(bootstrapNodes: seq[SignedPeerRecord]): seq[SignedPeerR
   ## confirmed reachable by AutoNAT could be included.
   bootstrapNodes
 
+proc announceRelayReservation*(
+    discovery: Discovery, addresses: seq[MultiAddress]
+) {.gcsafe.} =
+  ## Announce the publicly dialable circuit addresses from a relay reservation.
+  ## A reservation response can also carry loopback/private addresses, which a
+  ## remote peer can never dial, so they are dropped. If none are public, the
+  ## previous announce is kept untouched.
+  let publicAddrs = addresses.filterIt(it.hasPublicRelayTransport())
+  if publicAddrs.len == 0:
+    warn "Relay reservation has no publicly dialable address, keeping previous announce",
+      addresses
+    return
+  info "Relay reservation updated", addresses = publicAddrs
+  # relay addresses are for download traffic only, not DHT routing
+  discovery.announceRelayAddrs(publicAddrs)
+
 # Hole punching logic below is adapted from libp2p's HPService
 # (libp2p/services/hpservice.nim). HPService cannot be used directly because it
 # depends on AutoNAT v1 and starts the relay immediately on NotReachable,

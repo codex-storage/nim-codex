@@ -453,18 +453,7 @@ proc new*(
       maxNumRelays = config.natMaxRelays,
       client = relayClient,
       onReservation = proc(addresses: seq[MultiAddress]) {.gcsafe, raises: [].} =
-        # A relay server is required to have a public extip, so its
-        # circuit addresses always include a public one. The relay's reservation
-        # response can also carry loopback/private addresses:
-        # they are never dialable by a remote peer, so drop them.
-        let publicAddrs = addresses.filterIt(it.hasPublicRelayTransport())
-        if publicAddrs.len == 0:
-          warn "Relay reservation has no publicly dialable address, keeping previous announce",
-            addresses
-          return
-        info "Relay reservation updated", addresses = publicAddrs
-        # relay addresses are for download traffic only, not DHT routing
-        discovery.announceRelayAddrs(publicAddrs),
+        discovery.announceRelayReservation(addresses),
       rng = random.Rng.instance().libp2pRng,
     )
 

@@ -59,6 +59,13 @@ proc mappingOk(id: cint, port: uint16): Result[MappingResult, string] =
     )
   )
 
+const relayId = "16Uiu2HAmQu456Ae52JqPuqog6wCex47LLvNY8oHMBC4GRRtaStHs"
+
+proc circuitAddr(relayIp: string): MultiAddress =
+  MultiAddress
+    .init("/ip4/" & relayIp & "/tcp/8070/p2p/" & relayId & "/p2p-circuit")
+    .expect("valid")
+
 asyncchecksuite "NAT reaction - port mapping":
   var sw: Switch
   var key: PrivateKey
@@ -260,6 +267,45 @@ asyncchecksuite "NAT reaction - address announcing":
 
     # Ensure that nothing is injected because there is no active mapping
     check sw.peerInfo.addrs == sw.peerInfo.listenAddrs
+
+  test "handleNatStatus clears the DHT routing addresses when it becomes NotReachable":
+    let dialBack = MultiAddress.init("/ip4/1.2.3.4/tcp/9000").expect("valid")
+    let mapper = MockNatPortMapper(mappedPorts: none((Port, Port, MappingProtocol)))
+
+    autorelayservice.setup(autoRelay, sw)
+
+    # Reachable: the node announces direct addresses, including UDP for the DHT.
+    await mapper.handleNatStatus(
+      Reachable, Opt.some(dialBack), discoveryPort, disc, sw, autoRelay
+    )
+    check disc.dhtAddrs.len > 0
+
+    # NotReachable: the DHT routing addresses are cleared
+    await mapper.handleNatStatus(
+      NotReachable, Opt.some(dialBack), discoveryPort, disc, sw, autoRelay
+    )
+    check disc.dhtAddrs.len == 0
+
+  test "mapped-addr mapper does not inject a non-public mapped address":
+    # Active mapping, but no public observed address: the candidate stays private
+    # and must not be injected.
+    setupMappedAddrMapper(sw, NatPortMapper(activeTcpPort: some(Port(40000))))
+
+    await sw.peerInfo.update()
+
+    check sw.peerInfo.addrs == sw.peerInfo.listenAddrs
+
+  test "announceRelayReservation announces only the publicly dialable circuit address":
+    disc.announceRelayReservation(
+      @[circuitAddr("127.0.0.1"), circuitAddr("204.168.234.45")]
+    )
+
+    check disc.announceAddrs == @[circuitAddr("204.168.234.45")]
+
+  test "announceRelayReservation does not announce a private circuit address":
+    disc.announceRelayReservation(@[circuitAddr("127.0.0.1")])
+
+    check disc.announceAddrs.len == 0
 
 proc mapperWith(protocol: MappingProtocol): Option[NatPortMapper] =
   some(NatPortMapper(activeMappingProtocol: some(protocol)))
