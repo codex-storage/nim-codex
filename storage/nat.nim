@@ -96,7 +96,8 @@ method mapNatPorts*(
     return none((Port, Port, MappingProtocol))
 
   # If both mappings are still active, return the stored ports without recreating.
-  if m.tcpMappingId.isSome and m.hasLiveMapping(m.tcpMappingId.get) and
+  if m.activeTcpPort.isSome and m.activeUdpPort.isSome and m.activeMappingProtocol.isSome and
+      m.tcpMappingId.isSome and m.hasLiveMapping(m.tcpMappingId.get) and
       m.udpMappingId.isSome and m.hasLiveMapping(m.udpMappingId.get):
     return some((m.activeTcpPort.get, m.activeUdpPort.get, m.activeMappingProtocol.get))
 
