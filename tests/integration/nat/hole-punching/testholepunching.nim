@@ -1,7 +1,4 @@
 ## NAT hole-punching scenario. See README.md.
-##
-## Success is asserted on node B's container log line (no REST surface for the
-## connection type); brittle if that message changes.
 
 import std/[json, os, sequtils, strutils, times]
 import pkg/chronos
@@ -49,6 +46,8 @@ asyncchecksuite "NAT hole punching":
       info{"nat"}{"reachability"}.getStr == "NotReachable" and
         info.announcesCircuitAddr(),
     )
+
+    # C is Reachable
     check eventuallyInfo(clientC, info{"nat"}{"reachability"}.getStr == "Reachable")
 
     # C dials B through the relay; a download is enough to open the connection

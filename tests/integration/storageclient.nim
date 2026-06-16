@@ -69,16 +69,6 @@ proc delete(
 .} =
   return self.request(MethodDelete, url, headers = headers)
 
-proc patch*(
-    self: StorageClient,
-    url: string,
-    body: string = "",
-    headers: seq[HttpHeaderTuple] = @[],
-): Future[HttpClientResponseRef] {.
-    async: (raw: true, raises: [CancelledError, HttpError])
-.} =
-  return self.request(MethodPatch, url, headers = headers, body = body)
-
 proc body*(
     response: HttpClientResponseRef
 ): Future[string] {.async: (raises: [CancelledError, HttpError]).} =
@@ -230,20 +220,6 @@ proc list*(
 
   RestContentList.fromJson(await response.body)
 
-proc space*(
-    client: StorageClient
-): Future[?!RestRepoStore] {.async: (raises: [CancelledError, HttpError]).} =
-  let url = client.baseurl & "/space"
-  let response = await client.get(url)
-
-  if response.status != 200:
-    return failure($response.status)
-
-  RestRepoStore.fromJson(await response.body)
-
-proc buildUrl*(client: StorageClient, path: string): string =
-  return client.baseurl & path
-
 proc hasBlock*(
     client: StorageClient, cid: Cid
 ): Future[?!bool] {.async: (raises: [CancelledError, HttpError]).} =
@@ -261,25 +237,3 @@ proc hasBlockRaw*(
 .} =
   let url = client.baseurl & "/data/" & cid & "/exists"
   return client.get(url)
-
-proc natRelayRunning*(
-    client: StorageClient
-): Future[?!bool] {.async: (raises: [CancelledError, HttpError]).} =
-  let info = await client.info()
-  if info.isErr:
-    return failure "Failed to get node info"
-  try:
-    return info.get()["nat"]["relayRunning"].getBool().success
-  except KeyError as e:
-    return failure e.msg
-
-proc natPortMapping*(
-    client: StorageClient
-): Future[?!string] {.async: (raises: [CancelledError, HttpError]).} =
-  let info = await client.info()
-  if info.isErr:
-    return failure "Failed to get node info"
-  try:
-    return info.get()["nat"]["portMapping"].getStr().success
-  except KeyError as e:
-    return failure e.msg

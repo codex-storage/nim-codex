@@ -5,9 +5,7 @@ import std/strutils
 import std/sugar
 import std/tables
 from pkg/chronicles import LogLevel
-import pkg/chronos
 import pkg/storage/conf
-import pkg/storage/units
 import pkg/confutils
 import pkg/confutils/defs
 import libp2p except setup
@@ -235,85 +233,6 @@ proc withBlockMaintenanceInterval*(
     config.addCliOption("--block-mi", $interval)
   return startConfig
 
-proc logLevelWithTopics(
-    config: StorageConfig, topics: varargs[string]
-): string {.raises: [StorageConfigError].} =
-  convertError:
-    var logLevel = LogLevel.INFO
-    let built = config.buildConfig("Invalid storage config cli params")
-    logLevel = parseEnum[LogLevel](built.logLevel.toUpperAscii)
-    let level = $logLevel & ";TRACE: " & topics.join(",")
-    return level
-
-proc withLogTopics*(
-    self: StorageConfigs, idx: int, topics: varargs[string]
-): StorageConfigs {.raises: [StorageConfigError].} =
-  self.checkBounds idx
-
-  convertError:
-    let config = self.configs[idx]
-    let level = config.logLevelWithTopics(topics)
-    var startConfig = self
-    return startConfig.withLogLevel(idx, level)
-
-proc withLogTopics*(
-    self: StorageConfigs, topics: varargs[string]
-): StorageConfigs {.raises: [StorageConfigError].} =
-  var startConfig = self
-  for config in startConfig.configs.mitems:
-    let level = config.logLevelWithTopics(topics)
-    config = config.withLogLevel(level)
-  return startConfig
-
-proc withStorageQuota*(
-    self: StorageConfigs, idx: int, quota: NBytes
-): StorageConfigs {.raises: [StorageConfigError].} =
-  self.checkBounds idx
-
-  var startConfig = self
-  startConfig.configs[idx].addCliOption("--storage-quota", $quota)
-  return startConfig
-
-proc withStorageQuota*(
-    self: StorageConfigs, quota: NBytes
-): StorageConfigs {.raises: [StorageConfigError].} =
-  var startConfig = self
-  for config in startConfig.configs.mitems:
-    config.addCliOption("--storage-quota", $quota)
-  return startConfig
-
-proc withNatNumPeersToAsk*(
-    self: StorageConfigs, numPeersToAsk: int
-): StorageConfigs {.raises: [StorageConfigError].} =
-  var startConfig = self
-  for config in startConfig.configs.mitems:
-    config.addCliOption("--nat-num-peers-to-ask", $numPeersToAsk)
-  return startConfig
-
-proc withNatMaxQueueSize*(
-    self: StorageConfigs, maxQueueSize: int
-): StorageConfigs {.raises: [StorageConfigError].} =
-  var startConfig = self
-  for config in startConfig.configs.mitems:
-    config.addCliOption("--nat-max-queue-size", $maxQueueSize)
-  return startConfig
-
-proc withNatMinConfidence*(
-    self: StorageConfigs, minConfidence: float
-): StorageConfigs {.raises: [StorageConfigError].} =
-  var startConfig = self
-  for config in startConfig.configs.mitems:
-    config.addCliOption("--nat-min-confidence", $minConfidence)
-  return startConfig
-
-proc withNatScheduleInterval*(
-    self: StorageConfigs, scheduleInterval: Duration
-): StorageConfigs {.raises: [StorageConfigError].} =
-  var startConfig = self
-  for config in startConfig.configs.mitems:
-    config.addCliOption("--nat-schedule-interval", $scheduleInterval)
-  return startConfig
-
 proc withExtIp*(
     self: StorageConfigs, idx: int, ip = "127.0.0.1"
 ): StorageConfigs {.raises: [StorageConfigError].} =
@@ -321,15 +240,6 @@ proc withExtIp*(
 
   var startConfig = self
   startConfig.configs[idx].addCliOption("--nat", "extip:" & ip)
-  return startConfig
-
-proc withRelay*(
-    self: StorageConfigs, idx: int
-): StorageConfigs {.raises: [StorageConfigError].} =
-  self.checkBounds idx
-
-  var startConfig = self
-  startConfig.configs[idx].addCliOption("--relay-server")
   return startConfig
 
 # For testing, a node with extip (not behind nat) with autonat server
