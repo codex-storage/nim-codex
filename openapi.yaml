@@ -135,6 +135,10 @@ components:
           $ref: "#/components/schemas/StorageVersion"
         nat:
           $ref: "#/components/schemas/NatInfo"
+        connections:
+          type: array
+          items:
+            $ref: "#/components/schemas/Connection"
 
     NatInfo:
       type: object
@@ -158,6 +162,18 @@ components:
           type: string
           enum: [none, upnp, pmp, pcp, direct]
           description: Active NAT port mapping type
+
+    Connection:
+      type: object
+      required:
+        - peerId
+        - direct
+      properties:
+        peerId:
+          $ref: "#/components/schemas/PeerId"
+        direct:
+          type: boolean
+          description: Whether at least one connection to this peer is direct (not relayed)
 
     DataList:
       type: object

@@ -9,8 +9,6 @@ import ../../../checktest
 import ../../storageclient
 import ../composehelper
 
-const dcutrConnectedLog = "Dcutr initiator has directly connected to the remote peer."
-
 proc announcesCircuitAddr(info: JsonNode): bool =
   info{"announceAddresses"}.getElems.anyIt("p2p-circuit" in it.getStr)
 
@@ -55,10 +53,12 @@ asyncchecksuite "NAT hole punching":
     let cid = (await nodeClient.upload("punch me for real")).get
     check (await peerClient.download(cid)).isOk
 
-    # B sees the relayed peer D join and, since D has no public address, drives
-    # the coordinated DCUtR simultaneous-open instead of a unilateral reversal.
-    check eventuallySafe(
-      dcutrConnectedLog in serviceLogs(composeFile, "node"),
-      timeout = 60_000,
-      pollInterval = 2_000,
+    # B should upgrade the relayed connection to a direct one: its connection to D
+    # becomes non-relayed
+    let peerId = (await peerClient.info()).get{"id"}.getStr
+    check eventuallyInfo(
+      nodeClient,
+      info{"connections"}.getElems.anyIt(
+        it{"peerId"}.getStr == peerId and it{"direct"}.getBool
+      ),
     )

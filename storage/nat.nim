@@ -8,7 +8,7 @@
 
 {.push raises: [].}
 
-import std/[options, net, os, sequtils]
+import std/[options, net, os, sequtils, json]
 import results
 
 import pkg/chronos
@@ -268,6 +268,14 @@ proc portMappingStr*(natMapper: Option[NatPortMapper]): string =
   of MappingProtocol.PCP: "pcp"
   of MappingProtocol.Direct: "direct"
   of MappingProtocol.Unknown: "none"
+
+proc peerConnections*(switch: Switch): JsonNode =
+  result = newJArray()
+  for peerId, muxers in switch.connManager.getConnections():
+    let entry = newJObject()
+    entry["peerId"] = newJString($peerId)
+    entry["direct"] = newJBool(muxers.anyIt(not isRelayed(it.connection)))
+    result.add(entry)
 
 proc findReachableNodes*(bootstrapNodes: seq[SignedPeerRecord]): seq[SignedPeerRecord] =
   ## Returns the list of nodes known to be directly reachable.

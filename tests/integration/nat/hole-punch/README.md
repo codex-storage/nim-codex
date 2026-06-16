@@ -35,9 +35,8 @@ Rootless, but needs the host netfilter modules — if a router fails on iptables
 
 Both nodes are `NotReachable`. D downloads from B through the relay, opening a
 relayed connection; B then runs DCUtR and the connection is upgraded to a direct
-one. The test asserts B's log line
-`Dcutr initiator has directly connected to the remote peer.` — the line is
-unique to the simultaneous-open path, so it cannot be produced by a reversal.
+one. The test polls B's `/debug/info` and asserts its connection to D becomes
+non-relayed (`connections[].direct == true` for D's peerId).
 
 Per-run container logs are written before teardown to
 `tests/integration/logs/<timestamp>__NAT_hole_punching/<test>/<service>.log`.

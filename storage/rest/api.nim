@@ -592,6 +592,7 @@ proc initDebugApi(
           "relayRunning": autoRelay.isSome and autoRelay.get.isRunning,
           "portMapping": portMappingStr(natMapper),
         },
+        "connections": peerConnections(node.switch),
       }
 
       # return pretty json for human readability
