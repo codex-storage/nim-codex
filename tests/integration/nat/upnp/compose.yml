@@ -1,8 +1,4 @@
-# Same NAT topology as not-reachable, but the router runs miniupnpd. The node
-# maps its port over UPnP, which installs a real DNAT on the router, so AutoNAT's
-# dial-back reaches it and it is detected Reachable — no relay. Run via testupnp.nim.
-#
-#   node B ──── lan ──── router (NAT + miniupnpd) ──── wan ──── bootstrap A
+# NAT upnp scenario — see README.md. Run via testupnp.nim.
 name: nat-upnp
 
 # Topology addresses, named for their role (defined once, referenced below).

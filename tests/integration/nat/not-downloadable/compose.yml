@@ -1,11 +1,4 @@
-# A node behind a NAT with no relay can't be reached from outside, so it can't
-# be downloaded from: it announces no dialable address, the reachable node C
-# finds it as a provider but never dials it. Same real iptables NAT as
-# not-reachable, but bootstrap A runs *without* the relay server. Run via
-# testnotdownloadable.nim.
-#
-#   node B ──── lan ──── router (NAT) ──── wan ──── bootstrap A
-#                                           └────── node C (reachable)
+# NAT not-downloadable scenario — see README.md. Run via testnotdownloadable.nim.
 name: nat-not-downloadable
 
 # Topology addresses, named for their role (defined once, referenced below).

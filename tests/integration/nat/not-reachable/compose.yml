@@ -1,9 +1,4 @@
-# A node behind a NAT that can't be reached from outside must be detected
-# NotReachable and fall back to the relay. This checks it on a real container
-# network with real iptables NAT, not the in-process simulation the unit tests
-# use. Run via testnotreachable.nim.
-#
-#   node B ──── lan ──── router (NAT) ──── wan ──── bootstrap A
+# NAT not-reachable scenario — see README.md. Run via testnotreachable.nim.
 name: nat-not-reachable
 
 # Topology addresses, named for their role (defined once, referenced below).

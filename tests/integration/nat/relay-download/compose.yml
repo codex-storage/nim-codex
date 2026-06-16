@@ -1,10 +1,4 @@
-# A node behind a NAT falls back to bootstrap A's relay and announces its
-# circuit address, so a reachable node C can download from it through the relay.
-# Same real iptables NAT as not-reachable, with C added as the downloader. Run
-# via testrelaydownload.nim.
-#
-#   node B ──── lan ──── router (NAT) ──── wan ──── bootstrap A (relay)
-#                                           └────── node C (reachable)
+# NAT relay-download scenario — see README.md. Run via testrelaydownload.nim.
 name: nat-relay-download
 
 # Topology addresses, named for their role (defined once, referenced below).

@@ -1,16 +1,7 @@
-## NAT hole-punching scenario — a node reached through the relay is upgraded to
-## a direct connection.
+## NAT hole-punching scenario. See README.md.
 ##
-## B sits behind a NAT and is reachable only via A's relay. When the reachable
-## node C dials B through the relay, B's hole-punching handler dials C back
-## directly (C is public) and the relayed connection is replaced by a direct one.
-##
-## Hole punching has no REST surface, so success is asserted on B's container log
-## line below (DEBUG). Brittle if that message ever changes.
-##
-## Requires podman-compose and the scenario image:
-##   podman build -t localhost/storage-nat \
-##     -f tests/integration/nat/Dockerfile .
+## Success is asserted on node B's container log line (no REST surface for the
+## connection type); brittle if that message changes.
 
 import std/[json, os, sequtils, strutils, times]
 import pkg/chronos

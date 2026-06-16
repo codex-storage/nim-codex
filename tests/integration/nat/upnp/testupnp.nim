@@ -1,13 +1,4 @@
-## NAT upnp scenario — node behind a real NAT becomes Reachable by mapping its
-## port over UPnP.
-##
-## Same shape as the reachable test, but the router opens no port itself: it runs
-## miniupnpd and the node maps its TCP/UDP ports via UPnP, which installs a real
-## DNAT on the router. AutoNAT's dial-back then reaches the node, so it is
-## detected Reachable with an active UPnP mapping — no relay.
-##
-## Requires podman-compose and the scenario image:
-##   podman build -t localhost/storage-nat -f tests/integration/nat/Dockerfile .
+## NAT upnp scenario. See README.md.
 
 import std/[json, os, sequtils, strutils, times]
 import pkg/chronos

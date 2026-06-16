@@ -1,7 +1,4 @@
-# Same setup as not-reachable, but the router forwards B's port (DNAT), so
-# AutoNAT's dial-back reaches B and it is detected Reachable — no relay needed.
-#
-#   node B ──── lan ──── router (NAT + port forward) ──── wan ──── bootstrap A
+# NAT reachable scenario — see README.md. Run via testreachable.nim.
 name: nat-reachable
 
 # Topology addresses, named for their role (defined once, referenced below).

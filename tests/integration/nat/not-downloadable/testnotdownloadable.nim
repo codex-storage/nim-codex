@@ -1,14 +1,4 @@
-## NAT not-downloadable scenario — a node behind a NAT with no relay cannot be
-## downloaded from.
-##
-## Same shape as the not-reachable test: compose.yml brings up a real NAT
-## topology, but bootstrap A runs without the relay server. B stays NotReachable
-## and announces no dialable address, so a reachable peer C finds it as a
-## provider but can never dial it — the manifest fetch fails.
-##
-## Requires podman-compose and the scenario image:
-##   podman build -t localhost/storage-nat \
-##     -f tests/integration/nat/Dockerfile .
+## NAT not-downloadable scenario. See README.md.
 
 import std/[json, os, times]
 import pkg/chronos

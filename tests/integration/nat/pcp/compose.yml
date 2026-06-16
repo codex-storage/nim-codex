@@ -1,9 +1,4 @@
-# Same NAT topology as upnp, but miniupnpd has PCP enabled and the node maps its
-# port over PCP (libplum's preferred protocol), which installs a real DNAT on the
-# router, so AutoNAT's dial-back reaches it and it is detected Reachable — no
-# relay. Run via testpcp.nim.
-#
-#   node B ──── lan ──── router (NAT + miniupnpd/PCP) ──── wan ──── bootstrap A
+# NAT pcp scenario — see README.md. Run via testpcp.nim.
 name: nat-pcp
 
 # Topology addresses, named for their role (defined once, referenced below).

@@ -1,13 +1,4 @@
-## NAT pcp scenario — node behind a real NAT becomes Reachable by mapping its
-## port over PCP.
-##
-## Same shape as the upnp test, but miniupnpd has PCP enabled and the node maps
-## its TCP/UDP ports via PCP (libplum's preferred protocol), which installs a real
-## DNAT on the router. AutoNAT's dial-back then reaches the node, so it is
-## detected Reachable with an active PCP mapping — no relay.
-##
-## Requires podman-compose and the scenario image:
-##   podman build -t localhost/storage-nat -f tests/integration/nat/Dockerfile .
+## NAT pcp scenario. See README.md.
 
 import std/[json, os, sequtils, strutils, times]
 import pkg/chronos

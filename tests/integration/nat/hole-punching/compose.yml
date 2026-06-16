@@ -1,10 +1,4 @@
-# A node behind a NAT is reachable only through A's relay. When the reachable
-# node C dials it through the relay, the relayed node dials C back directly
-# (C is public) and the relayed connection is upgraded to a direct one. Same
-# topology as relay-download. Run via testholepunching.nim.
-#
-#   node B ──── lan ──── router (NAT) ──── wan ──── bootstrap A (relay)
-#                                           └────── node C (reachable)
+# NAT hole-punching scenario — see README.md. Run via testholepunching.nim.
 name: nat-hole-punching
 
 # Topology addresses, named for their role (defined once, referenced below).

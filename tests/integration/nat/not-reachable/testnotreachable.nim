@@ -1,8 +1,4 @@
-## NAT not-reachable scenario — node behind a real NAT falls back to relay.
-##
-## Requires podman-compose and the scenario image:
-##   podman build -t localhost/storage-nat:not-reachable \
-##     -f tests/integration/nat/not-reachable/Dockerfile .
+## NAT not-reachable scenario. See README.md.
 
 import std/[json, os, sequtils, strutils, times]
 import pkg/chronos

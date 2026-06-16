@@ -1,14 +1,4 @@
-## NAT reachable scenario — node behind a real NAT is Reachable because the
-## router forwards its port.
-##
-## Same shape as the not-reachable test: compose.yml brings up a real NAT
-## topology, but the router has a static inbound port-forward (DNAT) to the node.
-## AutoNAT's dial-back reaches the node, so it is detected Reachable (no relay) —
-## a manual port-forward / endpoint-independent NAT, no miniupnpd.
-##
-## Requires podman-compose and the scenario image:
-##   podman build -t localhost/storage-nat:reachable \
-##     -f tests/integration/nat/reachable/Dockerfile .
+## NAT reachable scenario. See README.md.
 
 import std/[json, os, sequtils, strutils, times]
 import pkg/chronos

@@ -1,14 +1,4 @@
-## NAT relay-download scenario — a node behind a NAT can be downloaded from
-## through the relay.
-##
-## Same shape as the not-reachable test: compose.yml brings up a real NAT
-## topology with bootstrap A running the relay server. B stays NotReachable,
-## falls back to the relay and announces its circuit address, so a reachable
-## peer C can fetch its data through the relay.
-##
-## Requires podman-compose and the scenario image:
-##   podman build -t localhost/storage-nat \
-##     -f tests/integration/nat/Dockerfile .
+## NAT relay-download scenario. See README.md.
 
 import std/[json, os, sequtils, strutils, times]
 import pkg/chronos
