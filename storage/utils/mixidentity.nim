@@ -16,6 +16,7 @@ import pkg/libp2p/crypto/crypto
 import pkg/libp2p/crypto/secp
 import pkg/libp2p_mix
 import pkg/libp2p_mix/[curve25519, mix_node]
+import pkg/libp2p/crypto/curve25519 as libp2p_curve25519
 import pkg/questionable/results
 import pkg/stew/byteutils
 
@@ -55,6 +56,9 @@ proc loadOrGenerateMixKeys*(
         raw.toOpenArrayByte(FieldElementSize, 2 * FieldElementSize - 1)
       ).valueOr:
         return failure("Bad mix priv key in " & path & ": " & error)
+    if libp2p_curve25519.public(priv) != pub:
+      return
+        failure("Mix identity in " & path & " is inconsistent: pub does not match priv")
     return success((mixPub: pub, mixPriv: priv))
 
   let (priv, pub) = generateKeyPair().valueOr:
