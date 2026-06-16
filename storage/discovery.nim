@@ -208,10 +208,12 @@ proc updateAnnounceRecord*(d: Discovery, addrs: openArray[MultiAddress]) =
 
   d.announceAddrs = @addrs
 
-  info "Updating announce record", addrs = d.announceAddrs
   d.providerRecord = SignedPeerRecord
     .init(d.key, PeerRecord.init(d.peerId, d.announceAddrs))
     .expect("Should construct signed record").some
+
+  info "Updating announce record",
+    addrs = d.announceAddrs, spr = d.providerRecord.get.toURI
 
   if not d.protocol.isNil:
     d.protocol.updateRecord(d.providerRecord).expect("Should update SPR")
