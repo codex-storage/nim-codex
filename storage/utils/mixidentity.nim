@@ -155,37 +155,25 @@ proc pubInfoFromJson(node: JsonNode): ?!MixPubInfo =
 
   success MixPubInfo.init(peerId, multiAddr, mixPubKey, libp2pPubKey)
 
-proc loadRelayPubInfoTable*(poolPath: string): ?!Table[PeerId, MixPubInfo] =
+proc loadRelayPubInfoTableFromJson*(poolJson: string): ?!Table[PeerId, MixPubInfo] =
   ## Expected format:
   ##   { "version": 1, "relays": [ { peerId, multiAddr, mixPubKey, libp2pPubKey }, ... ] }
-  if poolPath.len == 0:
+  if poolJson.len == 0:
     return success initTable[PeerId, MixPubInfo]()
-
-  if not fileExists(poolPath):
-    return failure("Mix pool file does not exist: " & poolPath)
-
-  let raw =
-    try:
-      readFile(poolPath)
-    except IOError as exc:
-      return failure("Failed to read pool " & poolPath & ": " & exc.msg)
 
   let parsed =
     try:
-      parseJson(raw)
+      parseJson(poolJson)
     except CatchableError as exc:
       return failure("Failed to parse pool JSON: " & exc.msg)
 
   let versionNode = parsed.getOrDefault("version")
   if versionNode.isNil or versionNode.getInt() != PoolFormatVersion:
-    return failure(
-      "Unsupported pool version (expected " & $PoolFormatVersion & " in " & poolPath &
-        ")"
-    )
+    return failure("Unsupported pool version (expected " & $PoolFormatVersion & ")")
 
   let relaysNode = parsed.getOrDefault("relays")
   if relaysNode.isNil or relaysNode.kind != JArray:
-    return failure("Pool file missing 'relays' array: " & poolPath)
+    return failure("Pool JSON missing 'relays' array")
 
   var t = initTable[PeerId, MixPubInfo]()
   for entry in relaysNode:
@@ -193,5 +181,20 @@ proc loadRelayPubInfoTable*(poolPath: string): ?!Table[PeerId, MixPubInfo] =
     t[info.peerId] = info
 
   success t
+
+proc loadRelayPubInfoTableFromFile*(poolPath: string): ?!Table[PeerId, MixPubInfo] =
+  if poolPath.len == 0:
+    return success initTable[PeerId, MixPubInfo]()
+
+  if not fileExists(poolPath):
+    return failure("Mix pool file does not exist: " & poolPath)
+
+  let poolJson =
+    try:
+      readFile(poolPath)
+    except IOError as exc:
+      return failure("Failed to read pool " & poolPath & ": " & exc.msg)
+
+  loadRelayPubInfoTableFromJson(poolJson)
 
 {.pop.}

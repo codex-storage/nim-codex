@@ -94,7 +94,12 @@ proc start*(s: StorageServer) {.async.} =
         mixPub, mixPriv, switch.peerInfo.peerId, mixAddr, switch.peerInfo.privateKey
       ).valueOr:
         raise newException(StorageError, "Failed to build Mix node info: " & error.msg)
-      relayPool = loadRelayPubInfoTable(s.config.mixPool).valueOr:
+      relayPool = (
+        if s.config.mixPoolJson.len > 0:
+          loadRelayPubInfoTableFromJson(s.config.mixPoolJson)
+        else:
+          loadRelayPubInfoTableFromFile(s.config.mixPool)
+      ).valueOr:
         raise newException(StorageError, "Failed to load Mix relay pool: " & error.msg)
       mixProto = MixProtocol.new(mixNodeInfo, switch)
 

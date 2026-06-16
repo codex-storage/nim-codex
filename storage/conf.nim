@@ -208,16 +208,21 @@ type
     mixEnabled* {.
       desc:
         "Route DHT provider lookups through the Mix protocol via the " &
-        "dht-mix-proxy. Hides the requester's identity from the proxy.",
+        "dht-mix-proxy. Hides the requester's identity from the proxy",
       defaultValue: false,
       name: "mix-enabled"
     .}: bool
 
     mixPool* {.
+      desc: "Path to the Mix relay pool JSON file", defaultValue: "", name: "mix-pool"
+    .}: string
+
+    mixPoolJson* {.
       desc:
-        "Path to the Mix relay pool JSON file " & "(produced by the `mix_pool` tool).",
+        "Inline JSON content of the Mix relay pool." &
+        "Takes precedence over --mix-pool when non-empty",
       defaultValue: "",
-      name: "mix-pool"
+      name: "mix-pool-json"
     .}: string
 
     maxPeers* {.
