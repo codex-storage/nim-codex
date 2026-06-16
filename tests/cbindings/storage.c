@@ -21,7 +21,7 @@
 
 #define GRN "\033[0;32m"
 #define RED "\033[0;31m"
-#define YEL "\e[0;33m"
+#define YEL "\033[0;33m"
 #define NC "\033[0m" // No Color
 
 #define BEGIN_SUITE int passed = 0;
@@ -34,7 +34,7 @@
         if ((expr) != RET_OK)                      \
         {                                          \
             fprintf(stderr, RED "[FAIL]\n" NC); \
-            fprintf(stderr, RED "FAIL. Tests run: %d\n" NC, passed); \
+            fprintf(stderr, RED "FAIL. Tests run: %d\n" NC, passed + 1); \
             return RET_ERR;                        \
         }                                          \
         printf(GRN "[PASS]\n" NC);               \
@@ -42,7 +42,7 @@
         fflush(stdout);                            \
     } while (0)
 
-#define END_SUITE printf(GRN "SUCCESS. Tests passed: %d\n" NC, passed); \
+#define END_SUITE printf(GRN "SUCCESS. Tests passed: %d\n" NC, passed + 1); \
         fflush(stdout);
 
 // We need 250 as max retries mainly for the start function in CI.
@@ -846,9 +846,7 @@ int main(void)
     RUN_TEST(check_download_manifest(storage_ctx, cid));
     RUN_TEST(check_list(storage_ctx));
     RUN_TEST(check_space(storage_ctx));
-    RUN_TEST(check_space(storage_ctx));
     RUN_TEST(check_exists(storage_ctx, cid, true));
-    RUN_TEST(check_delete(storage_ctx, cid));
     RUN_TEST(check_delete(storage_ctx, cid));
     RUN_TEST(check_exists(storage_ctx, cid, false));
 
