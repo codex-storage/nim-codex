@@ -1,4 +1,4 @@
-## NAT hole-punching scenario. See README.md.
+## NAT connection-reversal scenario. See README.md.
 
 import std/[json, os, sequtils, strutils, times]
 import pkg/chronos
@@ -15,12 +15,12 @@ proc announcesCircuitAddr(info: JsonNode): bool =
   ## A node behind the relay announces its circuit (p2p-circuit) address.
   info{"announceAddresses"}.getElems.anyIt("p2p-circuit" in it.getStr)
 
-asyncchecksuite "NAT hole punching":
+asyncchecksuite "NAT connection reversal":
   let
     composeFile = currentSourcePath.parentDir / "compose.yml"
     nodeApiUrl = "http://127.0.0.1:18088/api/storage/v1"
     clientApiUrl = "http://127.0.0.1:18089/api/storage/v1"
-    suiteName = "NAT hole punching"
+    suiteName = "NAT connection reversal"
     testName = "a relayed node is upgraded to a direct connection"
     services = ["router", "bootstrap", "client", "node"]
     startTime = now().format("yyyy-MM-dd'_'HH:mm:ss")

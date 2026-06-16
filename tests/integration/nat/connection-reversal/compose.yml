@@ -1,5 +1,5 @@
-# NAT hole-punching scenario — see README.md. Run via testholepunching.nim.
-name: nat-hole-punching
+# NAT connection-reversal scenario — see README.md. Run via testconnectionreversal.nim.
+name: nat-connection-reversal
 
 # Topology addresses, named for their role (defined once, referenced below).
 x-addresses:
