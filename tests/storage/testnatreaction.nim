@@ -155,12 +155,13 @@ asyncchecksuite "NAT reaction - port mapping":
     check disc.protocol.clientMode
 
   test "handleNatStatus stops relay and exits client mode when mapping is created and node is Reachable":
+    let dialBack = MultiAddress.init("/ip4/1.2.3.4/tcp/8080").expect("valid")
     let mapper = MockNatPortMapper(mappedPorts: none((Port, Port, MappingProtocol)))
 
     disc.protocol.clientMode = true
     autorelayservice.setup(autoRelay, sw)
     await mapper.handleNatStatus(
-      Reachable, Opt.none(MultiAddress), discoveryPort, disc, sw, autoRelay
+      Reachable, Opt.some(dialBack), discoveryPort, disc, sw, autoRelay
     )
 
     check not autoRelay.isRunning

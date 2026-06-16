@@ -203,8 +203,8 @@ proc announceDirectAddrs*(
     d.protocol.updateRecord(spr).expect("Should update SPR")
 
 proc announceRelayAddrs*(d: Discovery, addrs: openArray[MultiAddress]) =
-  ## Updates only announce addresses
-  ## When using relay, the DHT routing record is not updated to not pollute the DHT.
+  ## Updates the announce addresses and the SPR with the relay circuit addresses.
+  ## Unlike announceDirectAddrs, no UDP address is derived so dhtAddrs is left untouched.
   d.announceAddrs = @addrs
   info "Updating announce record", addrs = d.announceAddrs
   d.providerRecord = SignedPeerRecord

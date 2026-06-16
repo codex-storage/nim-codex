@@ -48,11 +48,6 @@ import ./utils/natutils
 logScope:
   topics = "storage node"
 
-const StorageTransportFlags = {ServerFlags.ReuseAddr, ServerFlags.TcpNoDelay}
-
-proc tcpTransportBuilder(config: TransportConfig): Transport {.gcsafe, raises: [].} =
-  TcpTransport.new(StorageTransportFlags, config.upgr)
-
 type
   StorageServer* = ref object
     config: StorageConf
@@ -144,8 +139,8 @@ proc start*(s: StorageServer) {.async.} =
 
   await allFutures(findReachableNodes(s.bootstrapNodes).mapIt(connectBootstrapNode(it)))
 
-  # AutoNAT is not in switch.services: start it after the bootstrap dials
-  # so its first probe has peers to ask.
+  # AutoNAT is not in switch.services because we want to start it
+  # after the bootstrap connections to have connected peers for the first probe.
   if s.autonatService.isSome:
     await s.autonatService.get.start(s.storageNode.switch)
 
@@ -238,10 +233,8 @@ proc new*(
     config: StorageConf,
     privateKey: StoragePrivateKey,
     logFile: Option[IoHandle] = IoHandle.none,
-    transportBuilder: TransportBuilder = tcpTransportBuilder,
 ): StorageServer =
   ## create StorageServer including setting up datastore, repostore, etc.
-  ## ``transportBuilder`` defaults to TCP; tests inject a simulated NAT transport.
 
   if err =? config.validateAutonatConfig().errorOption:
     raise newException(StorageError, err.msg)
@@ -324,7 +317,9 @@ proc new*(
     # addresses.
     switchBuilder = switchBuilder.withAddressPolicy(dialableAddressPolicy)
 
-  let switch = switchBuilder.withTransport(transportBuilder).build()
+  let switch = switchBuilder
+    .withTcpTransport({ServerFlags.ReuseAddr, ServerFlags.TcpNoDelay})
+    .build()
 
   var taskPool: Taskpool
 
