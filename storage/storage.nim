@@ -88,6 +88,13 @@ proc start*(s: StorageServer) {.async.} =
 
   await s.storageNode.switch.start()
 
+  # Activate SO_REUSEPORT for hole punching in tcptransport.nim.
+  # Without that, hole punching would use an ephemeral port assigned by the OS.
+  # NotReachable has nothing to do with AutoNAT Reachability
+  if s.holePunchHandler.isSome:
+    for t in s.storageNode.switch.transports:
+      t.networkReachability = NetworkReachability.NotReachable
+
   # When listenPort is 0 the OS assigns a random port. For UDP, the port
   # doesn't change so there is no need to update it.
   if s.natMapper.isSome and s.config.listenPort == Port(0):
