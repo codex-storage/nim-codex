@@ -841,6 +841,36 @@ int check_toggle_private_queries(void *storage_ctx)
     return RET_OK;
 }
 
+int check_get_metrics(void *storage_ctx)
+{
+    Resp *r = alloc_resp();
+    char *res = NULL;
+
+    if (storage_get_metrics(storage_ctx, (StorageCallback)callback, r) != RET_OK)
+    {
+        free_resp(r);
+        return RET_ERR;
+    }
+
+    int ret = is_resp_ok(r, &res);
+    if (ret != RET_OK)
+    {
+        free(res);
+        return ret;
+    }
+
+    // Checks that response contains a metric we are SURE must exist
+    if (strstr(res, "nim_gc_heap_instance_occupied_bytes") == NULL)
+    {
+        fprintf(stderr, "get_metrics missing expected metric\n");
+        free(res);
+        return RET_ERR;
+    }
+
+    free(res);
+    return RET_OK;
+}
+
 // TODO: implement check_fetch
 // It is a bit complicated because it requires two nodes
 // connected together to fetch from peers.
@@ -894,6 +924,7 @@ int main(void)
 
     RUN_TEST(check_toggle_private_queries(storage_ctx));
     RUN_TEST(update_log_level(storage_ctx, "TRACE"));
+    RUN_TEST(check_get_metrics(storage_ctx));
     RUN_TEST(cleanup(storage_ctx));
 
     END_SUITE

@@ -5,6 +5,8 @@ import chronos
 import chronicles
 import confutils
 import codexdht/discv5/spr
+import metrics
+import ../../logosmetrics
 import ../../../storage/conf
 import ../../../storage/rest/json
 import ../../../storage/node
@@ -18,6 +20,8 @@ type NodeInfoMsgType* = enum
   REPO
   SPR
   PEERID
+  # Not sure this belongs here but for now OK.
+  METRICS
 
 type NodeInfoRequest* = object
   operation: NodeInfoMsgType
@@ -74,3 +78,6 @@ proc process*(
       error "Failed to get PEERID.", error = res.error
       return err($res.error)
     return res
+  of METRICS:
+    {.cast(gcsafe).}:
+      return ok($defaultRegistry.toJson())
