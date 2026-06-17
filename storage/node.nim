@@ -121,10 +121,9 @@ proc updateExpiry*(
       )
 
     let res = await allDone[?!void](ensuringFutures)
-    let failed = res.completed.countIt(it.value.isErr) + res.failed.len
-    if failed > 0:
-      trace "Some blocks failed to update expiry", len = failed
-      return failure("Some blocks failed to update expiry (" & $failed & " )")
+    if res.failed.len > 0:
+      trace "Some blocks failed to update expiry", len = res.failed.len
+      return failure("Some blocks failed to update expiry (" & $res.failed.len & " )")
     if res.cancelled.len > 0:
       trace "Block expiry update was cancelled in some blocks",
         len = res.cancelled.len

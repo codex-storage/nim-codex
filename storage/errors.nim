@@ -139,6 +139,12 @@ proc allDone*[T](futs: auto): Future[FinishedFutures[T]] {.async: (raises: [Canc
   var res: FinishedFutures[T] = (@[], @[], @[])
   for f in futs:
     if f.completed:
+      when T is Result:
+        # count successfully completed Future containing Results with errors as
+        # failed
+        if f.value.isErr:
+          res.failed.add f
+          continue
       res.completed.add f
     elif f.cancelled:
       res.cancelled.add f

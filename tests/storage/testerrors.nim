@@ -87,3 +87,16 @@ asyncchecksuite "allDone":
     check not fut2.cancelled
     fut1.complete()
     fut2.complete()
+
+  test "failed Result is grouped as a failed future":
+    let
+      fut1 = Future[Result[int, string]].Raising([CancelledError]).init("f1")
+      fut2 = Future[Result[int, string]].Raising([CancelledError]).init("f2")
+    fut1.complete(Result[int, string].ok(42))
+    fut2.complete(Result[int, string].err("error"))
+    let res = await allDone[Result[int, string]](@[fut1, fut2])
+    check res.completed.len == 1
+    check res.failed.len == 1
+    check res.cancelled.len == 0
+    check res.completed[0] == fut1
+    check res.failed[0] == fut2
