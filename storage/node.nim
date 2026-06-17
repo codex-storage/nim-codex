@@ -120,10 +120,15 @@ proc updateExpiry*(
         self.networkStore.localStore.ensureExpiry(manifest.treeCid, it, expiry)
       )
 
-    let res = await allFinishedFailed[?!void](ensuringFutures)
-    if res.failure.len > 0:
-      trace "Some blocks failed to update expiry", len = res.failure.len
-      return failure("Some blocks failed to update expiry (" & $res.failure.len & " )")
+    let res = await allDone[?!void](ensuringFutures)
+    let failed = res.completed.countIt(it.value.isErr) + res.failed.len
+    if failed > 0:
+      trace "Some blocks failed to update expiry", len = failed
+      return failure("Some blocks failed to update expiry (" & $failed & " )")
+    if res.cancelled.len > 0:
+      trace "Block expiry update was cancelled in some blocks",
+        len = res.cancelled.len
+      raise newException(CancelledError, "Block expiry update was cancelled in some blocks")
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:

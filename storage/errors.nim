@@ -51,6 +51,11 @@ type
 
   FinishedFailed*[T] = tuple[success: seq[Future[T]], failure: seq[Future[T]]]
 
+  FinishedFutures*[T] = tuple[
+    completed: seq[Future[T]],
+    failed: seq[Future[T]],
+    cancelled: seq[Future[T]]]
+
 proc wantBlocksError*(kind: WantBlocksErrorKind, msg: string): ref WantBlocksError =
   (ref WantBlocksError)(kind: kind, msg: msg)
 
@@ -115,3 +120,28 @@ proc allFinishedValues*[T](
       if b.finished:
         b.value
   return success values
+
+
+proc allDone*[T](futs: auto): Future[FinishedFutures[T]] {.async: (raises: [CancelledError]).} =
+  ## Returns a future which will complete only when all futures in ``futs``
+  ## will be completed, failed or cancelled.
+  ##
+  ## Returned FinishedFutures will hold all the Future[T] objects passed to
+  ## ``allDone``, grouped by their end state, with the order preserved.
+  ##
+  ## If the argument is empty, the returned future COMPLETES immediately.
+  ##
+  ## On cancel all the awaited futures ``futs`` WILL NOT BE cancelled.
+  ##
+  ## This is different from nim-chronos' ``allFinished``, in that the completed
+  ## futures are grouped by their end state.
+  await allFutures(futs)
+  var res: FinishedFutures[T] = (@[], @[], @[])
+  for f in futs:
+    if f.completed:
+      res.completed.add f
+    elif f.cancelled:
+      res.cancelled.add f
+    else:
+      res.failed.add f
+  return res
