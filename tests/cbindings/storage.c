@@ -801,6 +801,46 @@ int check_delete(void *storage_ctx, const char *cid)
     return is_resp_ok(r, NULL);
 }
 
+int check_toggle_private_queries(void *storage_ctx)
+{
+    Resp *r = alloc_resp();
+    char *res = NULL;
+    // First toggle is false -> true
+    if (storage_toggle_private_queries(storage_ctx, true, (StorageCallback)callback, r) != RET_OK)
+    {
+        free_resp(r);
+        return RET_ERR;
+    }
+
+    int ret = is_resp_ok(r, &res);
+    if (strcmp(res, "false") != 0)
+    {
+        fprintf(stderr, "toggle private queries content mismatch, res:%s\n", res);
+        free(res);
+        return RET_ERR;
+    }
+
+    free(res);
+    // Second toggle is true -> false
+    r = alloc_resp();
+    if (storage_toggle_private_queries(storage_ctx, false, (StorageCallback)callback, r) != RET_OK)
+    {
+        free_resp(r);
+        return RET_ERR;
+    }
+
+    ret = is_resp_ok(r, &res);
+    if (strcmp(res, "true") != 0)
+    {
+        fprintf(stderr, "toggle private queries content mismatch, res:%s\n", res);
+        free(res);
+        return RET_ERR;
+    }
+
+    free(res);
+    return RET_OK;
+}
+
 // TODO: implement check_fetch
 // It is a bit complicated because it requires two nodes
 // connected together to fetch from peers.
@@ -852,6 +892,7 @@ int main(void)
 
     free(cid);
 
+    RUN_TEST(check_toggle_private_queries(storage_ctx));
     RUN_TEST(update_log_level(storage_ctx, "TRACE"));
     RUN_TEST(cleanup(storage_ctx));
 

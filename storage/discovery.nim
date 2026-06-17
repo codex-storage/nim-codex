@@ -50,6 +50,7 @@ type Discovery* = ref object of RootObj
   store: Datastore
   mixProto*: MixProtocol
   dhtMixProxies*: seq[SignedPeerRecord]
+  privateQueries: bool
 
 proc toNodeId*(cid: Cid): NodeId =
   ## Cid to discovery id
@@ -86,9 +87,9 @@ proc findPeer*(
 
   return PeerRecord.none
 
-proc findViaMix(
+method findViaMix*(
     d: Discovery, cid: Cid
-): Future[?!seq[SignedPeerRecord]] {.async: (raises: [CancelledError]).} =
+): Future[?!seq[SignedPeerRecord]] {.base, async: (raises: [CancelledError]).} =
   var candidates = d.dhtMixProxies
   shuffle(candidates)
 
@@ -102,9 +103,9 @@ proc findViaMix(
 
   failure("All Mix lookup proxies failed (candidates=" & $candidates.len & ")")
 
-proc findDirect*(
+method findDirect*(
     d: Discovery, cid: Cid
-): Future[?!seq[SignedPeerRecord]] {.async: (raises: [CancelledError]).} =
+): Future[?!seq[SignedPeerRecord]] {.base, async: (raises: [CancelledError]).} =
   try:
     return (await d.protocol.getProviders(cid.toNodeId())).mapFailure
   except CancelledError as exc:
@@ -116,7 +117,7 @@ method find*(
     d: Discovery, cid: Cid
 ): Future[seq[SignedPeerRecord]] {.async: (raises: [CancelledError]), base.} =
   let providers =
-    if not d.mixProto.isNil and d.dhtMixProxies.len > 0:
+    if d.privateQueries and not d.mixProto.isNil and d.dhtMixProxies.len > 0:
       (await d.findViaMix(cid)).valueOr:
         warn "Mix lookup failed", cid, err = error.msg
         return @[]
@@ -260,6 +261,11 @@ proc close*(d: Discovery) {.async: (raises: []).} =
     error "Error closing discovery store", error = res.error().msg
   else:
     trace "Discovery store closed"
+
+proc togglePrivateQueries*(d: Discovery, enabled: bool): bool =
+  let old = d.privateQueries
+  d.privateQueries = enabled
+  return old
 
 proc new*(
     T: type Discovery,
