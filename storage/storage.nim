@@ -144,7 +144,11 @@ proc start*(s: StorageServer) {.async.} =
     except CatchableError as e:
       warn "Cannot connect to bootstrap node", error = e.msg
 
-  await allFutures(findReachableNodes(s.bootstrapNodes).mapIt(connectBootstrapNode(it)))
+  # noCancel: cancelling allFutures does not cancel the
+  # connectBootstrapNode futures.
+  await noCancel allFutures(
+    findReachableNodes(s.bootstrapNodes).mapIt(connectBootstrapNode(it))
+  )
 
   # AutoNAT is not in switch.services because we want to start it
   # after the bootstrap connections to have connected peers for the first probe.
