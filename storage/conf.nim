@@ -330,8 +330,11 @@ type
     .}: int
 
     natMinConfidence* {.
+      # With maxQueueSize=3, 0.6 confirms reachability on a 2/3 majority
+      # (2/3=0.667) instead of a 3/3 unanimous round, tolerating one inconsistent
+      # peer.
       desc: "Minimum confidence threshold to confirm reachability",
-      defaultValue: 0.7,
+      defaultValue: 0.6,
       name: "nat-min-confidence"
     .}: float
 
