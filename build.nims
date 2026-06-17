@@ -66,6 +66,22 @@ task storage, "build logos storage binary":
     outname = "storage",
     params = "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE"
 
+task mixTools, "build mix tools (mix_pool, mix_relay_dht)":
+  let (desc, ec) = gorgeEx("git describe --always --dirty")
+  let mixVersion =
+    if ec == 0 and desc.strip().len > 0: desc.strip() else: "unknown"
+  let mixParams =
+    "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE " &
+    "-d:mixVersion:" & mixVersion
+  buildBinary "mix_pool",
+    outName = "mix_pool",
+    srcDir = "tools/mix/",
+    params = mixParams
+  buildBinary "mix_relay_dht",
+    outName = "mix_relay_dht",
+    srcDir = "tools/mix/",
+    params = mixParams
+
 task testStorage, "Build & run Logos Storage tests":
   test "testStorage", outName = "testStorage"
 
