@@ -59,7 +59,7 @@ proc getDebug(
   let json = %*{
     "id": $node.switch.peerInfo.peerId,
     "addrs": node.switch.peerInfo.addrs.mapIt($it),
-    "repo": $storage[].config.dataDir,
+    "repo": storage[].config.dataDir.string,
     "spr": nodeSpr.toURI,
     "announceAddresses": node.discovery.announceAddrs,
     "dhtAddresses": node.discovery.dhtAddrs,
