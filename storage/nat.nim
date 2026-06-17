@@ -217,17 +217,9 @@ method handleNatStatus*(
       # If the relay is running, the addresses will be updated on reservation.
       discovery.announceDirectAddrs(@[], udpPort = discoveryPort)
 
-    if dialBackAddr.isNone:
-      warn "Got empty dialback address in AutoNat when node is NotReachable"
-
-      if m.hasMappingIds():
-        m.close()
-    elif m.hasMappingIds():
-      warn "Not Reachable with active port mapping. The port mapping will be deleted and relay will start."
-
-      # The mapping was created the the node is still not reachable.
-      # In that case, we delete the mapping and relay will start.
-      m.close()
+    if m.hasMappingIds():
+      # The mapping was created but the node is still not reachable.
+      debug "Not Reachable with active port mapping, keeping it and starting relay if not started"
     else:
       debug "Node is not reachable trying port mapping now"
 

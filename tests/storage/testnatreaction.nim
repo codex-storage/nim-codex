@@ -104,7 +104,7 @@ asyncchecksuite "NAT reaction - port mapping":
     check not autoRelay.isRunning
     check disc.protocol.clientMode
 
-  test "handleNatStatus starts autoRelay when NotReachable and no dialBackAddr but no mapped ports":
+  test "handleNatStatus starts autoRelay when NotReachable with no mapped ports":
     let mapper = MockNatPortMapper(mappedPorts: none((Port, Port, MappingProtocol)))
 
     autorelayservice.setup(autoRelay, sw)
@@ -113,22 +113,10 @@ asyncchecksuite "NAT reaction - port mapping":
     )
 
     check autoRelay.isRunning
-    check disc.protocol.clientMode
-
-  test "handleNatStatus starts autoRelay when NotReachable and dialBackAddr but no mapped ports":
-    let dialBack = MultiAddress.init("/ip4/1.2.3.4/tcp/8080").expect("valid")
-    let mapper = MockNatPortMapper(mappedPorts: none((Port, Port, MappingProtocol)))
-
-    autorelayservice.setup(autoRelay, sw)
-    await mapper.handleNatStatus(
-      NotReachable, Opt.some(dialBack), discoveryPort, disc, sw, autoRelay
-    )
-
-    check autoRelay.isRunning
     check disc.announceAddrs == newSeq[MultiAddress]()
     check disc.protocol.clientMode
 
-  test "handleNatStatus tears down an active mapping and starts relay when NotReachable with dialBackAddr":
+  test "handleNatStatus starts relay when NotReachable with an active mapping":
     privateAccess(NatPortMapper)
     let dialBack = MultiAddress.init("/ip4/1.2.3.4/tcp/8080").expect("valid")
     let mapper = MockNatPortMapper()
@@ -143,23 +131,7 @@ asyncchecksuite "NAT reaction - port mapping":
     check autoRelay.isRunning
     check disc.announceAddrs == newSeq[MultiAddress]()
     check disc.protocol.clientMode
-    check not mapper.hasMappingIds() # the active mapping was torn down
-
-  test "handleNatStatus tears down an active mapping and starts relay when NotReachable without dialBackAddr":
-    privateAccess(NatPortMapper)
-    let mapper = MockNatPortMapper()
-    mapper.tcpMappingId = some(cint(1))
-    mapper.udpMappingId = some(cint(2))
-
-    autorelayservice.setup(autoRelay, sw)
-    await mapper.handleNatStatus(
-      NotReachable, Opt.none(MultiAddress), discoveryPort, disc, sw, autoRelay
-    )
-
-    check autoRelay.isRunning
-    check disc.announceAddrs == newSeq[MultiAddress]()
-    check disc.protocol.clientMode
-    check not mapper.hasMappingIds() # the active mapping was torn down
+    check mapper.hasMappingIds() # the active mapping is kept
 
   test "handleNatStatus stops relay and exits client mode when mapping is created and node is Reachable":
     let dialBack = MultiAddress.init("/ip4/1.2.3.4/tcp/8080").expect("valid")
