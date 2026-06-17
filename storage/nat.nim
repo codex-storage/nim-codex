@@ -151,34 +151,6 @@ method hasMappingIds*(m: NatPortMapper): bool {.base, gcsafe.} =
   # (use hasMapping() for liveness check).
   m.tcpMappingId.isSome and m.udpMappingId.isSome
 
-proc setupMappedAddrMapper*(switch: Switch, natMapper: NatPortMapper) =
-  ## We define a custom mapper that adds the externally-mapped address to
-  ## peerInfo.addrs when a port mapping is active, so AutoNAT tests that port.
-  ## PCP/NAT-PMP may grant an external port different from the listen port.
-  let mapper: AddressMapper = proc(
-      addrs: seq[MultiAddress]
-  ): Future[seq[MultiAddress]] {.gcsafe, async: (raises: [CancelledError]).} =
-    result = addrs
-
-    if natMapper.activeTcpPort.isNone:
-      return result
-
-    let mappedPort = natMapper.activeTcpPort.get
-    for listenAddr in switch.peerInfo.listenAddrs:
-      # Dialable IP (observed public, or the listen IP if already public)
-      # used with the mapped port.
-      let mappedAddr = switch.peerStore.guessDialableAddr(listenAddr).remapAddr(
-          port = some(mappedPort)
-        )
-      if mappedAddr.isPublicMA():
-        # Insert first so AutoNAT dials it before the listen-port candidate (the
-        # server tests only the first dialable address).
-        result.insert(mappedAddr, 0)
-
-    return result.deduplicate()
-
-  switch.peerInfo.addressMappers.add(mapper)
-
 method handleNatStatus*(
     m: NatPortMapper,
     networkReachability: NetworkReachability,

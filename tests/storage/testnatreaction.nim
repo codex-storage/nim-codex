@@ -215,39 +215,6 @@ asyncchecksuite "NAT reaction - address announcing":
 
     check disc.announceAddrs == newSeq[MultiAddress]()
 
-  test "mapped-addr mapper injects the mapped port as the first candidate":
-    const mockMappedTcpPort = 40000
-
-    setupMappedAddrMapper(
-      sw, NatPortMapper(activeTcpPort: some(Port(mockMappedTcpPort)))
-    )
-
-    # Reach the observation quorum so guessDialableAddr trusts 8.8.8.8
-    let observed = MultiAddress.init("/ip4/8.8.8.8/tcp/4001").expect("valid")
-    let quorum = 3
-    for _ in 0 ..< quorum:
-      discard sw.peerStore.identify.observedAddrManager.addObservation(observed)
-
-    await sw.peerInfo.update()
-
-    # Ensure that the address mapper injects the mapped port as the first candidate
-    # after peer info update
-    check sw.peerInfo.addrs[0] ==
-      MultiAddress.init("/ip4/8.8.8.8/tcp/" & $mockMappedTcpPort).expect("valid")
-
-  test "mapped-addr mapper is a no-op without an active mapping":
-    setupMappedAddrMapper(sw, NatPortMapper())
-
-    let observed = MultiAddress.init("/ip4/8.8.8.8/tcp/4001").expect("valid")
-    let quorum = 3
-    for _ in 0 ..< quorum:
-      discard sw.peerStore.identify.observedAddrManager.addObservation(observed)
-
-    await sw.peerInfo.update()
-
-    # Ensure that nothing is injected because there is no active mapping
-    check sw.peerInfo.addrs == sw.peerInfo.listenAddrs
-
   test "handleNatStatus clears the DHT routing addresses when it becomes NotReachable":
     let dialBack = MultiAddress.init("/ip4/1.2.3.4/tcp/9000").expect("valid")
     let mapper = MockNatPortMapper(mappedPorts: none((Port, Port, MappingProtocol)))
@@ -265,15 +232,6 @@ asyncchecksuite "NAT reaction - address announcing":
       NotReachable, Opt.some(dialBack), discoveryPort, disc, sw, autoRelay
     )
     check disc.dhtAddrs.len == 0
-
-  test "mapped-addr mapper does not inject a non-public mapped address":
-    # Active mapping, but no public observed address: the candidate stays private
-    # and must not be injected.
-    setupMappedAddrMapper(sw, NatPortMapper(activeTcpPort: some(Port(40000))))
-
-    await sw.peerInfo.update()
-
-    check sw.peerInfo.addrs == sw.peerInfo.listenAddrs
 
   test "announceRelayReservation announces only the publicly dialable circuit address":
     disc.announceRelayReservation(

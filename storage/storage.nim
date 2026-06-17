@@ -469,8 +469,6 @@ proc new*(
       )
     )
 
-    setupMappedAddrMapper(switch, natMapper.get)
-
     autonatService.get.setStatusAndConfidenceHandler(
       proc(
           networkReachability: NetworkReachability,
