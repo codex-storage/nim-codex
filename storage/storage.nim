@@ -361,6 +361,11 @@ proc new*(
   switch.mount(network)
   switch.mount(manifestProto)
 
+  # Enables private queries by default when mix is enabled.
+  if config.mixEnabled:
+    info "Enabling private queries over DHT by default", enabled = config.mixEnabled
+    discard discovery.togglePrivateQueries(true)
+
   StorageServer(
     config: config,
     storageNode: storageNode,
