@@ -248,5 +248,3 @@ asyncchecksuite "Test Node - Basic":
       expiry = SecondsSince1970(9999999999)
     let res = await node.updateExpiry(manifestBlk.cid, expiry)
     check res.isErr
-
-

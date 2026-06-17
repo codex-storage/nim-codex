@@ -51,10 +51,8 @@ type
 
   FinishedFailed*[T] = tuple[success: seq[Future[T]], failure: seq[Future[T]]]
 
-  FinishedFutures*[T] = tuple[
-    completed: seq[Future[T]],
-    failed: seq[Future[T]],
-    cancelled: seq[Future[T]]]
+  FinishedFutures*[T] =
+    tuple[completed: seq[Future[T]], failed: seq[Future[T]], cancelled: seq[Future[T]]]
 
 proc wantBlocksError*(kind: WantBlocksErrorKind, msg: string): ref WantBlocksError =
   (ref WantBlocksError)(kind: kind, msg: msg)
@@ -121,8 +119,9 @@ proc allFinishedValues*[T](
         b.value
   return success values
 
-
-proc allDone*[T](futs: auto): Future[FinishedFutures[T]] {.async: (raises: [CancelledError]).} =
+proc allDone*[T](
+    futs: auto
+): Future[FinishedFutures[T]] {.async: (raises: [CancelledError]).} =
   ## Returns a future which will complete only when all futures in ``futs``
   ## will be completed, failed or cancelled.
   ##
@@ -137,6 +136,7 @@ proc allDone*[T](futs: auto): Future[FinishedFutures[T]] {.async: (raises: [Canc
   ## futures are grouped by their end state.
   await allFutures(futs)
   var res: FinishedFutures[T] = (@[], @[], @[])
+
   for f in futs:
     if f.completed:
       when T is Result:
@@ -150,4 +150,5 @@ proc allDone*[T](futs: auto): Future[FinishedFutures[T]] {.async: (raises: [Canc
       res.cancelled.add f
     else:
       res.failed.add f
+
   return res

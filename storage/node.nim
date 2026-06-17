@@ -125,9 +125,9 @@ proc updateExpiry*(
       trace "Some blocks failed to update expiry", len = res.failed.len
       return failure("Some blocks failed to update expiry (" & $res.failed.len & " )")
     if res.cancelled.len > 0:
-      trace "Block expiry update was cancelled in some blocks",
-        len = res.cancelled.len
-      raise newException(CancelledError, "Block expiry update was cancelled in some blocks")
+      trace "Block expiry update was cancelled in some blocks", len = res.cancelled.len
+      raise
+        newException(CancelledError, "Block expiry update was cancelled in some blocks")
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:

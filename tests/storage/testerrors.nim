@@ -48,9 +48,11 @@ asyncchecksuite "allDone":
 
   test "futures are grouped by their end state":
     let
-      completed = Future[void].Raising([CancelledError, CatchableError]).init("completed")
+      completed =
+        Future[void].Raising([CancelledError, CatchableError]).init("completed")
       failed = Future[void].Raising([CancelledError, CatchableError]).init("failed")
-      cancelled = Future[void].Raising([CancelledError, CatchableError]).init("cancelled")
+      cancelled =
+        Future[void].Raising([CancelledError, CatchableError]).init("cancelled")
     completed.complete()
     failed.fail(newException(CatchableError, "e"))
     await cancelled.cancelAndWait()
