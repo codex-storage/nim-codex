@@ -1,0 +1,47 @@
+import std/json
+
+import pkg/unittest2
+import pkg/metrics
+
+import ../../library/logosmetrics
+
+declareCounter myCounter, "Parts Counter", ["part_type"]
+declareGauge myGauge, "My gauge"
+declareHistogram myHistogram, "My histogram", buckets = [0.0, 1.0, 2.0]
+
+suite "Metrics":
+  test "should serialize Nim metrics to Logos Metrics format":
+    myCounter.inc(labelValues = ["screws"])
+    myCounter.inc(labelValues = ["washers"])
+
+    myGauge.set(42.0)
+
+    myHistogram.observe(1)
+    myHistogram.observe(2)
+    myHistogram.observe(3)
+    myHistogram.observe(4)
+    myHistogram.observe(5)
+
+    let metrics = defaultRegistry.toJson(@["myCounter", "myGauge", "myHistogram"])
+
+    # Remove "created" metrics as we can't pin those down.
+    var filteredMetrics = %*{"metrics": @[]}
+    for metric in metrics["metrics"]:
+      if metric["name"].getStr() != "myCounter_created" and
+          metric["name"].getStr() != "myHistogram_created":
+        filteredMetrics["metrics"].add(metric)
+
+    check filteredMetrics ==
+      %*{
+        "metrics": [
+          {"name": "myCounter_total", "value": 1.0, "labels": {"part_type": "screws"}},
+          {"name": "myCounter_total", "value": 1.0, "labels": {"part_type": "washers"}},
+          {"name": "myGauge", "value": 42.0, "labels": {}},
+          {"name": "myHistogram_sum", "value": 15.0, "labels": {}},
+          {"name": "myHistogram_count", "value": 5.0, "labels": {}},
+          {"name": "myHistogram_bucket", "value": 0.0, "labels": {"le": "0.0"}},
+          {"name": "myHistogram_bucket", "value": 1.0, "labels": {"le": "1.0"}},
+          {"name": "myHistogram_bucket", "value": 2.0, "labels": {"le": "2.0"}},
+          {"name": "myHistogram_bucket", "value": 5.0, "labels": {"le": "+Inf"}},
+        ]
+      }
