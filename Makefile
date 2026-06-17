@@ -110,6 +110,10 @@ all: | build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
 		$(ENV_SCRIPT) nim storage $(NIM_PARAMS) build.nims
 
+mix-tools: | build deps
+	echo -e $(BUILD_MSG) "build/mix_pool build/mix_relay_dht" && \
+		$(ENV_SCRIPT) nim mixTools $(NIM_PARAMS) build.nims
+
 # must be included after the default target
 -include $(BUILD_SYSTEM_DIR)/makefiles/targets.mk
 
