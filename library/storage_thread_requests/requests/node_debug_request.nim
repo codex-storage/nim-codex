@@ -15,7 +15,7 @@ import ../../../storage/conf
 import ../../../storage/rest/json
 import ../../../storage/node
 
-from ../../../storage/storage import StorageServer, node
+from ../../../storage/storage import StorageServer, node, config
 import ../../../storage/nat
 import ../../../storage/discovery
 
@@ -59,10 +59,12 @@ proc getDebug(
   let json = %*{
     "id": $node.switch.peerInfo.peerId,
     "addrs": node.switch.peerInfo.addrs.mapIt($it),
+    "repo": $storage[].config.dataDir,
     "spr": nodeSpr.toURI,
     "announceAddresses": node.discovery.announceAddrs,
     "dhtAddresses": node.discovery.dhtAddrs,
     "table": table,
+    "storage": {"version": $storageVersion, "revision": $storageRevision},
     "nat": {
       "reachability": reachabilityStr(storage[].autonatService),
       "clientMode": node.discovery.protocol.clientMode,
@@ -70,6 +72,7 @@ proc getDebug(
         storage[].autoRelayService.isSome and storage[].autoRelayService.get.isRunning,
       "portMapping": portMappingStr(storage[].natMapper),
     },
+    "connections": peerConnections(node.switch),
   }
 
   return ok($json)
