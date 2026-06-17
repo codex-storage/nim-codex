@@ -115,11 +115,21 @@ method mapNatPorts*(
   m.resetMappings()
 
   let tcpRes = await m.createMappingFor(TCP, m.tcpPort.uint16)
+
+  if m.closed:
+    # Double check in case the node is stopping
+    return none((Port, Port, MappingProtocol))
+
   if tcpRes.isErr:
     warn "TCP port mapping failed", msg = tcpRes.error
     return none((Port, Port, MappingProtocol))
 
   let udpRes = await m.createMappingFor(UDP, m.discoveryPort.uint16)
+
+  if m.closed:
+    # Double check in case the node is stopping
+    return none((Port, Port, MappingProtocol))
+
   if udpRes.isErr:
     warn "UDP port mapping failed", msg = udpRes.error
     m.destroyMappingFor(tcpRes.value.id)
@@ -180,8 +190,6 @@ method handleNatStatus*(
     else:
       warn "Empty dialback address in AutoNat when node is Reachable"
   of NotReachable:
-    var mappingCreated = false
-
     discovery.protocol.clientMode = true
 
     if not autoRelayService.isRunning and discovery.announceAddrs.len > 0:
@@ -198,6 +206,10 @@ method handleNatStatus*(
 
       let maybePorts = await m.mapNatPorts()
 
+      if m.closed:
+        # Double check in case the node is stopping
+        return
+
       if maybePorts.isSome:
         let (tcpPort, udpPort, protocol) = maybePorts.get()
 
@@ -205,13 +217,13 @@ method handleNatStatus*(
 
         # The announce happens once AutoNAT confirms Reachable.
 
-        mappingCreated = true
+        return
       else:
         # In case of failure, close the port mapping in order to rerun discover
         # on the next iteration
         m.close()
 
-    if not mappingCreated and not autoRelayService.isRunning:
+    if not autoRelayService.isRunning:
       debug "No port mapping found let's start autorelay"
 
       await autoRelayService.start(switch)
