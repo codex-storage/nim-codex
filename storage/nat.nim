@@ -34,6 +34,13 @@ type NatConfig* = object
   of true: extIp*: IpAddress
   of false: nat*: NatStrategy
 
+type PortMapping* = object
+  tcpMappingId: cint
+  udpMappingId: cint
+  activeMappingProtocol*: MappingProtocol
+  activeTcpPort*: Port
+  activeUdpPort*: Port
+
 type NatPortMapper* = ref object of RootObj
   natConfig*: NatConfig
   tcpPort*: Port
@@ -41,11 +48,7 @@ type NatPortMapper* = ref object of RootObj
   discoverTimeout*: int
   mappingTimeout*: int
   recheckPeriod*: int
-  tcpMappingId: Option[cint]
-  udpMappingId: Option[cint]
-  activeMappingProtocol*: Option[MappingProtocol]
-  activeTcpPort*: Option[Port]
-  activeUdpPort*: Option[Port]
+  portMapping*: Option[PortMapping]
   plumInitialized: bool
   closed: bool
 
@@ -71,21 +74,21 @@ method createMappingFor*(
 method destroyMappingFor*(m: NatPortMapper, id: cint) {.base, gcsafe.} =
   destroyMapping(id)
 
-method hasLiveMapping*(m: NatPortMapper, id: cint): bool {.base, gcsafe.} =
-  hasMapping(id)
+method hasLivePortMapping*(m: NatPortMapper): bool {.base, gcsafe.} =
+  ## True only when a mapping was created AND both the TCP and UDP mappings are
+  ## still live in the router.
+  if m.portMapping.isNone:
+    return false
+
+  let pm = m.portMapping.get
+  hasMapping(pm.tcpMappingId) and hasMapping(pm.udpMappingId)
 
 proc resetMappings(m: NatPortMapper) =
-  if m.tcpMappingId.isSome:
-    m.destroyMappingFor(m.tcpMappingId.get)
-    m.tcpMappingId = none(cint)
-
-  if m.udpMappingId.isSome:
-    m.destroyMappingFor(m.udpMappingId.get)
-    m.udpMappingId = none(cint)
-
-  m.activeMappingProtocol = none(MappingProtocol)
-  m.activeTcpPort = none(Port)
-  m.activeUdpPort = none(Port)
+  if m.portMapping.isSome:
+    let pm = m.portMapping.get
+    m.destroyMappingFor(pm.tcpMappingId)
+    m.destroyMappingFor(pm.udpMappingId)
+    m.portMapping = none(PortMapping)
 
 method mapNatPorts*(
     m: NatPortMapper
@@ -95,11 +98,10 @@ method mapNatPorts*(
   if m.closed or m.natConfig.hasExtIp:
     return none((Port, Port, MappingProtocol))
 
-  # If both mappings are still active, return the stored ports without recreating.
-  if m.activeTcpPort.isSome and m.activeUdpPort.isSome and m.activeMappingProtocol.isSome and
-      m.tcpMappingId.isSome and m.hasLiveMapping(m.tcpMappingId.get) and
-      m.udpMappingId.isSome and m.hasLiveMapping(m.udpMappingId.get):
-    return some((m.activeTcpPort.get, m.activeUdpPort.get, m.activeMappingProtocol.get))
+  # If both mappings are still live, return the stored ports without recreating.
+  if m.hasLivePortMapping():
+    let pm = m.portMapping.get
+    return some((pm.activeTcpPort, pm.activeUdpPort, pm.activeMappingProtocol))
 
   if not m.plumInitialized:
     let res = m.initPlum()
@@ -123,13 +125,18 @@ method mapNatPorts*(
     m.destroyMappingFor(tcpRes.value.id)
     return none((Port, Port, MappingProtocol))
 
-  m.tcpMappingId = some(tcpRes.value.id)
-  m.udpMappingId = some(udpRes.value.id)
-  m.activeMappingProtocol = some(tcpRes.value.mapping.mappingProtocol)
-  m.activeTcpPort = some(Port(tcpRes.value.mapping.externalPort))
-  m.activeUdpPort = some(Port(udpRes.value.mapping.externalPort))
+  m.portMapping = some(
+    PortMapping(
+      tcpMappingId: tcpRes.value.id,
+      udpMappingId: udpRes.value.id,
+      activeMappingProtocol: tcpRes.value.mapping.mappingProtocol,
+      activeTcpPort: Port(tcpRes.value.mapping.externalPort),
+      activeUdpPort: Port(udpRes.value.mapping.externalPort),
+    )
+  )
 
-  some((m.activeTcpPort.get, m.activeUdpPort.get, m.activeMappingProtocol.get))
+  let pm = m.portMapping.get
+  some((pm.activeTcpPort, pm.activeUdpPort, pm.activeMappingProtocol))
 
 proc close*(m: NatPortMapper) =
   m.resetMappings()
@@ -142,14 +149,6 @@ proc stop*(m: NatPortMapper) =
   ## Ensure that any future AutoNAT callback does not re-initialize libplum.
   m.closed = true
   m.close()
-
-proc isPortMapped*(m: NatPortMapper, port: Port): bool =
-  m.activeTcpPort.isSome and m.activeTcpPort.get == port
-
-method hasMappingIds*(m: NatPortMapper): bool {.base, gcsafe.} =
-  # Only checks that mappings were created, not that they are still live
-  # (use hasMapping() for liveness check).
-  m.tcpMappingId.isSome and m.udpMappingId.isSome
 
 method handleNatStatus*(
     m: NatPortMapper,
@@ -174,13 +173,14 @@ method handleNatStatus*(
 
       discovery.protocol.clientMode = false
 
-      discovery.announceDirectAddrs(
-        @[dialBackAddr.get], udpPort = m.activeUdpPort.get(discoveryPort)
-      )
+      # Here we don't rely on the port mapping because we consider
+      # that port mapped is the same as the discovery port.
+      # This can be wrong for PCP but it is an accepted limitation
+      discovery.announceDirectAddrs(@[dialBackAddr.get], udpPort = discoveryPort)
     else:
       warn "Empty dialback address in AutoNat when node is Reachable"
   of NotReachable:
-    var hasPortMapping = false
+    var mappingCreated = false
 
     discovery.protocol.clientMode = true
 
@@ -189,9 +189,10 @@ method handleNatStatus*(
       # If the relay is running, the addresses will be updated on reservation.
       discovery.announceDirectAddrs(@[], udpPort = discoveryPort)
 
-    if m.hasMappingIds():
-      # The mapping was created but the node is still not reachable.
-      debug "Not Reachable with active port mapping, keeping it and starting relay if not started"
+    if m.hasLivePortMapping():
+      # The mapping is still live but the node is not reachable: keep it and let
+      # the relay take over. A dead mapping falls through to be recreated.
+      debug "Not Reachable with live port mapping, keeping it and starting relay if not started"
     else:
       debug "Node is not reachable trying port mapping now"
 
@@ -202,16 +203,15 @@ method handleNatStatus*(
 
         info "Port mapping created successfully", tcpPort, udpPort, protocol
 
-        # The address mapper uses the mapped port to build the candidate address
-        # for AutoNAT; the announce happens once AutoNAT confirms Reachable.
+        # The announce happens once AutoNAT confirms Reachable.
 
-        hasPortMapping = true
+        mappingCreated = true
       else:
         # In case of failure, close the port mapping in order to rerun discover
         # on the next iteration
         m.close()
 
-    if not hasPortMapping and not autoRelayService.isRunning:
+    if not mappingCreated and not autoRelayService.isRunning:
       debug "No port mapping found let's start autorelay"
 
       await autoRelayService.start(switch)
@@ -224,9 +224,9 @@ proc reachabilityStr*(autonat: Option[AutonatV2Service]): string =
     "Unknown"
 
 proc portMappingStr*(natMapper: Option[NatPortMapper]): string =
-  if natMapper.isNone or natMapper.get.activeMappingProtocol.isNone:
+  if natMapper.isNone or natMapper.get.portMapping.isNone:
     return "none"
-  case natMapper.get.activeMappingProtocol.get
+  case natMapper.get.portMapping.get.activeMappingProtocol
   of MappingProtocol.UPnP: "upnp"
   of MappingProtocol.NatPmp: "pmp"
   of MappingProtocol.PCP: "pcp"

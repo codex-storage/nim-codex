@@ -4,7 +4,6 @@ import pkg/libp2p/[multiaddress, multihash, multicodec]
 import pkg/libp2p/protocols/connectivity/autonat/types
 import pkg/libp2p/protocols/connectivity/relay/client as relayClientModule
 import pkg/libp2p/services/autorelayservice except setup
-import pkg/libp2p/observedaddrmanager
 import pkg/results
 
 import ./helpers
@@ -38,8 +37,8 @@ type MockMapNatPortMapper = ref object of NatPortMapper
 method initPlum(m: MockMapNatPortMapper): Result[void, string] {.gcsafe.} =
   ok()
 
-method hasLiveMapping(m: MockMapNatPortMapper, id: cint): bool {.gcsafe.} =
-  m.live
+method hasLivePortMapping(m: MockMapNatPortMapper): bool {.gcsafe.} =
+  m.portMapping.isSome and m.live
 
 method createMappingFor(
     m: MockMapNatPortMapper, protocol: PlumProtocol, port: uint16
@@ -116,12 +115,19 @@ asyncchecksuite "NAT reaction - port mapping":
     check disc.announceAddrs == newSeq[MultiAddress]()
     check disc.protocol.clientMode
 
-  test "handleNatStatus starts relay when NotReachable with an active mapping":
-    privateAccess(NatPortMapper)
+  test "handleNatStatus keeps a live mapping and starts relay when NotReachable":
+    privateAccess(PortMapping)
     let dialBack = MultiAddress.init("/ip4/1.2.3.4/tcp/8080").expect("valid")
-    let mapper = MockNatPortMapper()
-    mapper.tcpMappingId = some(cint(1))
-    mapper.udpMappingId = some(cint(2))
+    let mapper = MockMapNatPortMapper(live: true)
+    mapper.portMapping = some(
+      PortMapping(
+        tcpMappingId: cint(1),
+        udpMappingId: cint(2),
+        activeMappingProtocol: MappingProtocol.UPnP,
+        activeTcpPort: Port(9000),
+        activeUdpPort: Port(9001),
+      )
+    )
 
     autorelayservice.setup(autoRelay, sw)
     await mapper.handleNatStatus(
@@ -131,7 +137,35 @@ asyncchecksuite "NAT reaction - port mapping":
     check autoRelay.isRunning
     check disc.announceAddrs == newSeq[MultiAddress]()
     check disc.protocol.clientMode
-    check mapper.hasMappingIds() # the active mapping is kept
+    check mapper.portMapping.isSome # the live mapping is kept
+    check mapper.destroyed.len == 0 # never torn down
+
+  test "handleNatStatus recreates a dead mapping instead of pinning it":
+    privateAccess(PortMapping)
+    let dialBack = MultiAddress.init("/ip4/1.2.3.4/tcp/8080").expect("valid")
+    let mapper = MockMapNatPortMapper(
+      live: false,
+      tcpResult: mappingOk(cint(10), 9000),
+      udpResult: mappingOk(cint(20), 9001),
+    )
+    mapper.portMapping = some(
+      PortMapping(
+        tcpMappingId: cint(1),
+        udpMappingId: cint(2),
+        activeMappingProtocol: MappingProtocol.UPnP,
+        activeTcpPort: Port(9000),
+        activeUdpPort: Port(9001),
+      )
+    )
+
+    autorelayservice.setup(autoRelay, sw)
+    await mapper.handleNatStatus(
+      NotReachable, Opt.some(dialBack), discoveryPort, disc, sw, autoRelay
+    )
+
+    check mapper.destroyed == @[cint(1), cint(2)] # the dead mapping is torn down
+    check mapper.portMapping.isSome # replaced by a fresh one
+    check not autoRelay.isRunning # direct path kept, no relay
 
   test "handleNatStatus stops relay and exits client mode when mapping is created and node is Reachable":
     let dialBack = MultiAddress.init("/ip4/1.2.3.4/tcp/8080").expect("valid")
@@ -193,20 +227,6 @@ asyncchecksuite "NAT reaction - address announcing":
 
     check disc.announceAddrs == @[dialBack]
 
-  test "handleNatStatus announces the mapped external UDP port when a mapping is active":
-    let dialBack = MultiAddress.init("/ip4/1.2.3.4/tcp/9000").expect("valid")
-
-    let mapper =
-      NatPortMapper(discoveryPort: discoveryPort, activeUdpPort: some(Port(40001)))
-    await mapper.handleNatStatus(
-      Reachable, Opt.some(dialBack), discoveryPort, disc, sw, autoRelay
-    )
-
-    let sprAddrs = disc.getSpr().data.addresses.mapIt(it.address)
-    check MultiAddress.init("/ip4/1.2.3.4/udp/40001").expect("valid") in sprAddrs
-    check MultiAddress.init("/ip4/1.2.3.4/udp/" & $discoveryPort).expect("valid") notin
-      sprAddrs
-
   test "handleNatStatus does not announce when Reachable without a dial-back address":
     let mapper = NatPortMapper(discoveryPort: discoveryPort)
     await mapper.handleNatStatus(
@@ -246,7 +266,7 @@ asyncchecksuite "NAT reaction - address announcing":
     check disc.announceAddrs.len == 0
 
 proc mapperWith(protocol: MappingProtocol): Option[NatPortMapper] =
-  some(NatPortMapper(activeMappingProtocol: some(protocol)))
+  some(NatPortMapper(portMapping: some(PortMapping(activeMappingProtocol: protocol))))
 
 asyncchecksuite "NAT - portMappingStr":
   test "no mapper is none":
@@ -308,15 +328,17 @@ asyncchecksuite "NAT - mapNatPorts":
     check mapper.createAttempts.len == 0 # short-circuits before any mapping
 
   test "reuses the existing mapping when both are still live":
-    privateAccess(NatPortMapper)
-    let mapper = MockMapNatPortMapper(
-      live: true,
-      activeTcpPort: some(Port(9000)),
-      activeUdpPort: some(Port(9001)),
-      activeMappingProtocol: some(MappingProtocol.UPnP),
+    privateAccess(PortMapping)
+    let mapper = MockMapNatPortMapper(live: true)
+    mapper.portMapping = some(
+      PortMapping(
+        tcpMappingId: cint(1),
+        udpMappingId: cint(2),
+        activeMappingProtocol: MappingProtocol.UPnP,
+        activeTcpPort: Port(9000),
+        activeUdpPort: Port(9001),
+      )
     )
-    mapper.tcpMappingId = some(cint(1))
-    mapper.udpMappingId = some(cint(2))
 
     check (await mapper.mapNatPorts()) ==
       some((Port(9000), Port(9001), MappingProtocol.UPnP))

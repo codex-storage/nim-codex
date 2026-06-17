@@ -50,9 +50,13 @@ method mapNatPorts*(
 ): Future[Option[(Port, Port, MappingProtocol)]] {.
     async: (raises: [CancelledError]), gcsafe
 .} =
-  m.activeTcpPort = some(mockMappedTcpPort)
-  m.activeUdpPort = some(mockMappedUdpPort)
-  m.activeMappingProtocol = some(MappingProtocol.PCP)
+  m.portMapping = some(
+    PortMapping(
+      activeMappingProtocol: MappingProtocol.PCP,
+      activeTcpPort: mockMappedTcpPort,
+      activeUdpPort: mockMappedUdpPort,
+    )
+  )
   some((mockMappedTcpPort, mockMappedUdpPort, MappingProtocol.PCP))
 
 # Captures the candidate addresses the service sends and answers Reachable, so

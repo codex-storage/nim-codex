@@ -70,7 +70,8 @@ proc allowInbound(r: NatRouter, remote: TransportAddress, localPort: Port): bool
   else:
     discard
 
-  if r.natMapper.isSome and r.natMapper.get.isPortMapped(localPort):
+  if r.natMapper.isSome and r.natMapper.get.portMapping.isSome and
+      r.natMapper.get.portMapping.get.activeTcpPort == localPort:
     return true
 
   case r.filtering

@@ -143,7 +143,7 @@ asyncchecksuite "Nat transport - Double NAT":
   test "bootstrap cannot connect to nat node regardless of port mapping":
     let actualPort = initTAddress(natNode.peerInfo.addrs[0]).get().port
     let natMapper = NatPortMapper()
-    natMapper.activeTcpPort = some(actualPort)
+    natMapper.portMapping = some(PortMapping(activeTcpPort: actualPort))
     router.natMapper = some(natMapper)
 
     check await cannotConnect(bootstrap, natNode)
@@ -166,7 +166,7 @@ asyncchecksuite "Nat transport - Port Mapping":
   test "bootstrap can connect to nat node when port mapping matches listen port":
     let actualPort = initTAddress(natNode.peerInfo.addrs[0]).get().port
     let natMapper = NatPortMapper()
-    natMapper.activeTcpPort = some(actualPort)
+    natMapper.portMapping = some(PortMapping(activeTcpPort: actualPort))
     router.natMapper = some(natMapper)
 
     await bootstrap.connect(natNode.peerInfo.peerId, natNode.peerInfo.addrs)
@@ -174,7 +174,7 @@ asyncchecksuite "Nat transport - Port Mapping":
 
   test "bootstrap cannot connect to nat node when port mapping does not match":
     let natMapper = NatPortMapper()
-    natMapper.activeTcpPort = some(Port(1))
+    natMapper.portMapping = some(PortMapping(activeTcpPort: Port(1)))
     router.natMapper = some(natMapper)
 
     check await cannotConnect(bootstrap, natNode)
