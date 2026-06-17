@@ -17,6 +17,7 @@ import pkg/chronos
 import pkg/taskpools
 import pkg/presto
 import pkg/libp2p
+import pkg/libp2p_mix
 import pkg/confutils
 import pkg/confutils/defs
 import pkg/stew/io2
@@ -30,7 +31,9 @@ import ./rng as random
 import ./rest/api
 import ./stores
 import ./blockexchange
+import ./dht_proxy/handler
 import ./utils/fileutils
+import ./utils/mixidentity
 import ./discovery
 import ./utils/addrutils
 import ./utils/natutils
@@ -75,6 +78,49 @@ proc start*(s: StorageServer) {.async.} =
   s.maintenance.start()
 
   await s.storageNode.switch.start()
+
+  if s.config.mixEnabled:
+    let
+      switch = s.storageNode.switch
+      (mixPub, mixPriv) = loadOrGenerateMixKeys(
+        string(s.config.dataDir) / "mix-identity"
+      ).valueOr:
+        raise newException(
+          StorageError, "Failed to load or generate Mix keys: " & error.msg
+        )
+      mixAddr = pickMixCompatibleMultiAddr(switch.peerInfo.addrs).valueOr:
+        raise newException(StorageError, "No Mix-compatible address among listen addrs")
+      mixNodeInfo = buildMixNodeInfo(
+        mixPub, mixPriv, switch.peerInfo.peerId, mixAddr, switch.peerInfo.privateKey
+      ).valueOr:
+        raise newException(StorageError, "Failed to build Mix node info: " & error.msg)
+      relayPool = (
+        if s.config.mixPoolJson.len > 0:
+          loadRelayPubInfoTableFromJson(s.config.mixPoolJson)
+        else:
+          loadRelayPubInfoTableFromFile(s.config.mixPool)
+      ).valueOr:
+        raise newException(StorageError, "Failed to load Mix relay pool: " & error.msg)
+      mixProto = MixProtocol.new(mixNodeInfo, switch)
+
+    for info in relayPool.values:
+      mixProto.nodePool.add(info)
+
+    mixProto.registerDestReadBehavior(DhtProxyCodec, readLp(MaxLookupResponseBytes))
+    await mixProto.start()
+    switch.mount(mixProto)
+
+    let dhtProxyProto =
+      if cap =? s.config.dhtProxyMaxInFlight:
+        DhtProxyProtocol.new(s.storageNode.discovery, maxInFlight = cap)
+      else:
+        DhtProxyProtocol.new(s.storageNode.discovery)
+    await dhtProxyProto.start()
+    switch.mount(dhtProxyProto)
+
+    s.storageNode.discovery.mixProto = mixProto
+
+    s.storageNode.engine.network.excludeRelays(relayPool.keys.toSeq)
 
   let (announceAddrs, discoveryAddrs) = nattedAddress(
     s.config.nat, s.storageNode.switch.peerInfo.addrs, s.config.discoveryPort
@@ -239,6 +285,7 @@ proc new*(
       announceAddrs = @[listenMultiAddr],
       bindPort = config.discoveryPort,
       bootstrapNodes = bootstrapNodes,
+      dhtMixProxies = config.dhtMixProxies,
       store = discoveryStore,
     )
 
