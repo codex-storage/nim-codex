@@ -11,6 +11,11 @@ proc validConfig(): StorageConf =
     natNumPeersToAsk: 5,
     natMinConfidence: 0.7,
     natObservedAddrMinCount: 1,
+    natScheduleInterval: DefaultNatScheduleInterval,
+    natMaxRelays: 2,
+    natPortMappingDiscoverTimeout: 500,
+    natPortMappingTimeout: 500,
+    natPortMappingRecheckPeriod: 300000,
   )
 
 suite "Conf - validateAutonatConfig":
@@ -112,3 +117,33 @@ suite "Conf - validateAutonatConfig":
 
     config.natMinConfidence = 1.0
     check config.validateAutonatConfig().isOk
+
+  test "rejects nat-schedule-interval of zero":
+    var config = validConfig()
+    config.natScheduleInterval = 0.seconds
+
+    check config.validateAutonatConfig().isErr
+
+  test "rejects nat-max-relays below 1":
+    var config = validConfig()
+    config.natMaxRelays = 0
+
+    check config.validateAutonatConfig().isErr
+
+  test "rejects nat-port-mapping-discover-timeout of zero":
+    var config = validConfig()
+    config.natPortMappingDiscoverTimeout = 0
+
+    check config.validateAutonatConfig().isErr
+
+  test "rejects nat-port-mapping-timeout of zero":
+    var config = validConfig()
+    config.natPortMappingTimeout = 0
+
+    check config.validateAutonatConfig().isErr
+
+  test "rejects nat-port-mapping-recheck-period of zero":
+    var config = validConfig()
+    config.natPortMappingRecheckPeriod = 0
+
+    check config.validateAutonatConfig().isErr

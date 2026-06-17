@@ -417,6 +417,21 @@ func validateAutonatConfig*(config: StorageConf): ?!void =
   if config.natMinConfidence < 0.0 or config.natMinConfidence > 1.0:
     return failure "--nat-min-confidence must be between 0 and 1"
 
+  if config.natScheduleInterval <= 0.seconds:
+    return failure "--nat-schedule-interval must be greater than 0"
+
+  if config.natMaxRelays < 1:
+    return failure "--nat-max-relays must be at least 1"
+
+  if config.natPortMappingDiscoverTimeout < 1:
+    return failure "--nat-port-mapping-discover-timeout must be greater than 0"
+
+  if config.natPortMappingTimeout < 1:
+    return failure "--nat-port-mapping-timeout must be greater than 0"
+
+  if config.natPortMappingRecheckPeriod < 1:
+    return failure "--nat-port-mapping-recheck-period must be greater than 0"
+
   success()
 
 proc getStorageVersion(): string =
