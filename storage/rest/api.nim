@@ -574,7 +574,7 @@ proc initDebugApi(node: StorageNodeRef, conf: StorageConf, router: var RestRoute
         "repo": $conf.dataDir,
         "spr":
           if node.discovery.dhtRecord.isSome: node.discovery.dhtRecord.get.toURI else: "",
-        "announceSpr":
+        "providerRecord":
           if node.discovery.providerRecord.isSome:
             node.discovery.providerRecord.get.toURI
           else:
