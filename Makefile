@@ -85,6 +85,7 @@ endif
 	test \
 	testAll \
 	testIntegration \
+	testLibstorageC \
 	testLibstorage \
 	update
 
@@ -152,7 +153,7 @@ testIntegration: | build deps
 		$(ENV_SCRIPT) nim testIntegration $(TEST_PARAMS) $(NIM_PARAMS) build.nims
 
 # Builds a C example that uses the libstorage C library and runs it
-testLibstorage: | build deps
+testLibstorageC: | build deps
 	$(MAKE) $(if $(ncpu),-j$(ncpu),) libstorage
 	cd tests/cbindings && \
 	if [ "$(detected_OS)" = "Windows" ]; then \
@@ -162,6 +163,10 @@ testLibstorage: | build deps
 		gcc -o storage storage.c -L../../build -lstorage -Wl,-rpath,../../ -pthread && \
 		LD_LIBRARY_PATH=../../build ./storage; \
 	fi
+
+testLibstorage: | testLibstorageC
+	echo -e $(BUILD_MSG) "build/$@" && \
+		$(ENV_SCRIPT) nim testLibstorage $(TEST_PARAMS) $(NIM_PARAMS) build.nims
 
 # Builds and runs all tests
 testAll: | build deps

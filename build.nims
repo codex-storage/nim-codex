@@ -69,18 +69,17 @@ task storage, "build logos storage binary":
 task mixTools, "build mix tools (mix_pool, mix_relay_dht)":
   let (desc, ec) = gorgeEx("git describe --always --dirty")
   let mixVersion =
-    if ec == 0 and desc.strip().len > 0: desc.strip() else: "unknown"
+    if ec == 0 and desc.strip().len > 0:
+      desc.strip()
+    else:
+      "unknown"
   let mixParams =
-    "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE " &
-    "-d:mixVersion:" & mixVersion
+    "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE " & "-d:mixVersion:" &
+    mixVersion
   buildBinary "mix_pool",
-    outName = "mix_pool",
-    srcDir = "tools/mix/",
-    params = mixParams
+    outName = "mix_pool", srcDir = "tools/mix/", params = mixParams
   buildBinary "mix_relay_dht",
-    outName = "mix_relay_dht",
-    srcDir = "tools/mix/",
-    params = mixParams
+    outName = "mix_relay_dht", srcDir = "tools/mix/", params = mixParams
 
 task testStorage, "Build & run Logos Storage tests":
   test "testStorage", outName = "testStorage"
@@ -93,6 +92,9 @@ task testIntegration, "Run integration tests":
   # use params to enable logging from the integration test executable
   # test "testIntegration", params = "-d:chronicles_sinks=textlines[notimestamps,stdout],textlines[dynamic] " &
   #   "-d:chronicles_enabled_topics:integration:TRACE"
+
+task testLibstorage, "Run libstorage Nim tests":
+  test "testLibstorage", outName = "testLibstorage"
 
 task build, "build Logos Storage binary":
   storageTask()
