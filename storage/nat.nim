@@ -156,8 +156,6 @@ proc close*(m: NatPortMapper) =
     m.plumInitialized = false
 
 proc start*(m: NatPortMapper) =
-  ## Re-enable AutoNAT-driven port mapping after a previous stop, so a restarted
-  ## node maps its ports again instead of staying disabled.
   m.stopped = false
 
 proc stop*(m: NatPortMapper) =
