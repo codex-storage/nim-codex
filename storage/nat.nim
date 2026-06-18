@@ -50,7 +50,7 @@ type NatPortMapper* = ref object of RootObj
   recheckPeriod*: int
   portMapping*: Option[PortMapping]
   plumInitialized: bool
-  closed: bool
+  stopped: bool
 
 # libplum seams, extracted as methods so tests can override them without I/O.
 
@@ -95,7 +95,7 @@ method mapNatPorts*(
 ): Future[Option[(Port, Port, MappingProtocol)]] {.
     async: (raises: [CancelledError]), base, gcsafe
 .} =
-  if m.closed or m.natConfig.hasExtIp:
+  if m.stopped or m.natConfig.hasExtIp:
     return none((Port, Port, MappingProtocol))
 
   # If both mappings are still live, return the stored ports without recreating.
@@ -116,7 +116,7 @@ method mapNatPorts*(
 
   let tcpRes = await m.createMappingFor(TCP, m.tcpPort.uint16)
 
-  if m.closed:
+  if m.stopped:
     # Double check in case the node is stopping
     return none((Port, Port, MappingProtocol))
 
@@ -126,7 +126,7 @@ method mapNatPorts*(
 
   let udpRes = await m.createMappingFor(UDP, m.discoveryPort.uint16)
 
-  if m.closed:
+  if m.stopped:
     # Double check in case the node is stopping
     return none((Port, Port, MappingProtocol))
 
@@ -155,9 +155,14 @@ proc close*(m: NatPortMapper) =
     discard cleanup()
     m.plumInitialized = false
 
+proc start*(m: NatPortMapper) =
+  ## Re-enable AutoNAT-driven port mapping after a previous stop, so a restarted
+  ## node maps its ports again instead of staying disabled.
+  m.stopped = false
+
 proc stop*(m: NatPortMapper) =
   ## Ensure that any future AutoNAT callback does not re-initialize libplum.
-  m.closed = true
+  m.stopped = true
   m.close()
 
 method handleNatStatus*(
@@ -169,7 +174,7 @@ method handleNatStatus*(
     switch: Switch,
     autoRelayService: AutoRelayService,
 ) {.async: (raises: [CancelledError]), base, gcsafe.} =
-  if m.closed:
+  if m.stopped:
     return
 
   case networkReachability
@@ -206,7 +211,7 @@ method handleNatStatus*(
 
       let maybePorts = await m.mapNatPorts()
 
-      if m.closed:
+      if m.stopped:
         # Double check in case the node is stopping
         return
 

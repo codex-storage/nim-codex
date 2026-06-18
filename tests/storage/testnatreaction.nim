@@ -33,8 +33,10 @@ type MockMapNatPortMapper = ref object of NatPortMapper
   live: bool
   createAttempts: seq[PlumProtocol]
   destroyed: seq[cint]
+  initAttempts: int
 
 method initPlum(m: MockMapNatPortMapper): Result[void, string] {.gcsafe.} =
+  inc m.initAttempts
   ok()
 
 method hasLivePortMapping(m: MockMapNatPortMapper): bool {.gcsafe.} =
@@ -195,6 +197,24 @@ asyncchecksuite "NAT reaction - port mapping":
     check not autoRelay.isRunning
     check disc.announceAddrs == newSeq[MultiAddress]()
 
+  test "handleNatStatus retries the port mapping on the next NotReachable after a failure":
+    # A failed mapping must not disable the mapper: close() resets plum so the
+    # next AutoNAT iteration re-runs discover and tries again.
+    let mapper = MockMapNatPortMapper(
+      tcpResult: Result[MappingResult, string].err("tcp mapping failed")
+    )
+
+    autorelayservice.setup(autoRelay, sw)
+    await mapper.handleNatStatus(
+      NotReachable, Opt.none(MultiAddress), discoveryPort, disc, sw, autoRelay
+    )
+    await mapper.handleNatStatus(
+      NotReachable, Opt.none(MultiAddress), discoveryPort, disc, sw, autoRelay
+    )
+
+    check mapper.initAttempts == 2
+    check mapper.createAttempts == @[PlumProtocol.TCP, PlumProtocol.TCP]
+
 asyncchecksuite "NAT reaction - address announcing":
   var sw: Switch
   var key: PrivateKey
@@ -343,3 +363,18 @@ asyncchecksuite "NAT - mapNatPorts":
     check (await mapper.mapNatPorts()) ==
       some((Port(9000), Port(9001), MappingProtocol.UPnP))
     check mapper.createAttempts.len == 0
+
+  test "does not map after stop, maps again after start":
+    let mapper = MockMapNatPortMapper(
+      tcpResult: mappingOk(cint(1), 9000), udpResult: mappingOk(cint(2), 9001)
+    )
+
+    mapper.stop()
+
+    check (await mapper.mapNatPorts()).isNone
+    check mapper.createAttempts.len == 0
+
+    mapper.start()
+
+    check (await mapper.mapNatPorts()) ==
+      some((Port(9000), Port(9001), MappingProtocol.UPnP))

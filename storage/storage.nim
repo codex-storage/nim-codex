@@ -95,6 +95,9 @@ proc start*(s: StorageServer) {.async.} =
     for t in s.storageNode.switch.transports:
       t.networkReachability = NetworkReachability.NotReachable
 
+  if s.natMapper.isSome:
+    s.natMapper.get.start()
+
   # When listenPort is 0 the OS assigns a random port. For UDP, the port
   # doesn't change so there is no need to update it.
   if s.natMapper.isSome and s.config.listenPort == Port(0):
