@@ -104,6 +104,7 @@ task test, "Run tests":
 
 task testAll, "Run all tests (except for Taiko L2 tests)":
   testStorageTask()
+  testLibstorageTask()
   testIntegrationTask()
 
 import strutils

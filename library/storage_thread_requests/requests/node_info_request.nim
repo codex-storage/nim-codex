@@ -79,10 +79,21 @@ proc process*(
       return err($res.error)
     return res
   of METRICS:
-    # We're running on the main thread so it should be fine to access
-    # defaultRegistry.
+    # We're making a few assumptions here, which need to be double-checked:
+    # 1. That defaultRegistry and all collectors we're using were
+    #    created on the host thread that called libstorageNimMain as globals
+    #    were initialized.
+    # 2. That collectors themselves are thread-safe.
+    # 3. That reading from defaultRegistry from this (worker) thread is safe.
+    #
+    # For (3) in particular, we lean on chronos_httpserver which does the exact
+    # thing we are doing here: reading defaultRegistry and its collectors and
+    # metrics from another thread.
+    #
+    # TODO double-check these assumptions.
     {.cast(gcsafe).}:
       # Excludes nim_runtime_info as dumpHeapInstances seems to be returning
-      # an infinite number of objects.
+      # an infinite number of objects (could be related to some assumption
+      # failure above).
       # FIXME figure out what's going on and add this back.
       return ok($defaultRegistry.toJson(exclude = @["nim_runtime_info"]))

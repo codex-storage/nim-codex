@@ -2,7 +2,7 @@ import std/[json, locks, times, sets]
 
 import pkg/metrics
 
-proc toJson(collector: Collector, metrics: var seq[JsonNode] = @[]) =
+proc toJson(collector: Collector, metrics: var seq[JsonNode]) =
   # We know the closure won't outlive `metrics` so this is
   # an acceptable hack.
   let metricsPtr = addr metrics
