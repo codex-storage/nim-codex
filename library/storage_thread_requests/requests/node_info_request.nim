@@ -79,6 +79,8 @@ proc process*(
       return err($res.error)
     return res
   of METRICS:
+    # We're running on the main thread so it should be fine to access
+    # defaultRegistry.
     {.cast(gcsafe).}:
       # Excludes nim_runtime_info as dumpHeapInstances seems to be returning
       # an infinite number of objects.
