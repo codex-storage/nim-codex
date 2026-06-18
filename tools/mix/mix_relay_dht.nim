@@ -228,6 +228,7 @@ type Conf = object
   generate: bool
   noDhtProxy: bool
   maxInFlight: int
+  maxConnections: int
 
 proc usage(): string =
   """
@@ -239,20 +240,21 @@ Usage:
                 [--bootstrap-node=<spr> ...] [--log-level=<lvl>] [--generate]
 
 Options:
-  --data-dir=<dir>     Directory holding identity files (key + mix-identity).
-  --listen-ip=<addr>   Public IPv4 to bind/announce for libp2p TCP.
-  --listen-port=<n>    libp2p TCP port (Mix relay + DHT proxy share this).
-  --disc-port=<n>      discv5 UDP port.
+  --data-dir=<dir>         Directory holding identity files (key + mix-identity).
+  --listen-ip=<addr>       Public IPv4 to bind/announce for libp2p TCP.
+  --listen-port=<n>        libp2p TCP port (Mix relay + DHT proxy share this).
+  --disc-port=<n>          discv5 UDP port.
   --bootstrap-node=<spr>   Repeatable. SPR of a discv5 bootstrap peer.
-  --log-level=<lvl>    TRACE | DEBUG | INFO | NOTICE | WARN | ERROR | FATAL | NONE
-                       (default: INFO)
-  --log-file=<path>    Write logs to <path> instead of stdout.
-  --generate           Generate fresh identity files if data-dir is empty.
-  --no-dht-proxy       Run as a pure Mix relay.
-                       Conflicts with --disc-port and --bootstrap-node.
-  --max-inflight=<n>   Max concurrent DHT proxy lookups (default: 100).
-  -h, --help           Show this help.
-  -v, --version        Show version and revision.
+  --log-level=<lvl>        TRACE | DEBUG | INFO | NOTICE | WARN | ERROR | FATAL | NONE
+                           (default: INFO)
+  --log-file=<path>        Write logs to <path> instead of stdout.
+  --generate               Generate fresh identity files if data-dir is empty.
+  --no-dht-proxy           Run as a pure Mix relay.
+                           Conflicts with --disc-port and --bootstrap-node.
+  --max-inflight=<n>       Max concurrent DHT proxy lookups (default: 100).
+  --max-connections=<n>    Max libp2p connections (in + out) (default: 160).
+  -h, --help               Show this help.
+  -v, --version            Show version and revision.
 """
 
 proc parseSpr(raw: string): SignedPeerRecord =
@@ -273,6 +275,7 @@ proc parseConf(): Conf =
     generate: false,
     noDhtProxy: false,
     maxInFlight: DefaultMaxInFlightLookups,
+    maxConnections: 160,
   )
   var p = initOptParser(commandLineParams())
   while true:
@@ -324,6 +327,13 @@ proc parseConf(): Conf =
           fail "--max-inflight must be an integer, got: " & p.val
         if result.maxInFlight < 1:
           fail "--max-inflight must be >= 1, got: " & $result.maxInFlight
+      of "max-connections":
+        try:
+          result.maxConnections = parseInt(p.val)
+        except ValueError:
+          fail "--max-connections must be an integer, got: " & p.val
+        if result.maxConnections < 1:
+          fail "--max-connections must be >= 1, got: " & $result.maxConnections
       else:
         fail "Unknown flag: --" & p.key
     of cmdArgument:
@@ -420,11 +430,6 @@ proc runWithDhtProxy(
       ProvidersManager.new(SQLiteDatastore.new(Memory).expect("Should not fail")),
     config = discoveryConfig,
   )
-
-  let maxReplyBytes = getMaxMessageSizeForCodec(DhtProxyCodec, 0).valueOr:
-    raise
-      newException(ValueError, "DhtProxyCodec does not fit Sphinx payload: " & error)
-  mixProto.registerDestReadBehavior(DhtProxyCodec, readLp(maxReplyBytes))
 
   let proxyProto = DhtProxyProtocol.new(dht, maxInFlight = conf.maxInFlight)
 
@@ -557,10 +562,16 @@ proc run(conf: Conf) {.async: (raises: [CatchableError]).} =
     .withRng(newRng())
     .withNoise()
     .withYamux()
+    .withMaxConnections(conf.maxConnections)
     .withTcpTransport({ServerFlags.ReuseAddr, ServerFlags.TcpNoDelay})
     .build()
 
   let mixProto = MixProtocol.new(nodeInfo, switch)
+
+  let maxReplyBytes = getMaxMessageSizeForCodec(DhtProxyCodec, 0).valueOr:
+    raise
+      newException(ValueError, "DhtProxyCodec does not fit Sphinx payload: " & error)
+  mixProto.registerDestReadBehavior(DhtProxyCodec, readLp(maxReplyBytes))
 
   if conf.noDhtProxy:
     await runRelayOnly(conf, switch, mixProto, peerId, tcpAddr)
