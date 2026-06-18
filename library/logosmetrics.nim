@@ -1,11 +1,28 @@
-import std/[json, locks, times, sets]
+import std/[json, locks, strutils, times, sets]
 
 import pkg/metrics
+
+proc jsonHelp(collector: Collector): string =
+  let prefix = "# HELP " & collector.name & " "
+  if collector.help.startsWith(prefix):
+    return collector.help[prefix.len .. ^1].strip(leading = false, trailing = true)
+
+  return ""
+
+proc jsonType(collector: Collector): string =
+  let parts = collector.typ.splitWhitespace()
+  if parts.len == 4 and parts[0] == "#" and parts[1] == "TYPE" and
+      parts[2] == collector.name:
+    return parts[3]
+
+  return "unknown"
 
 proc toJson(collector: Collector, metrics: var seq[JsonNode]) =
   # We know the closure won't outlive `metrics` so this is
   # an acceptable hack.
   let metricsPtr = addr metrics
+  let help = collector.jsonHelp()
+  let typ = collector.jsonType()
 
   proc serializeMetric(
       name: string,
@@ -22,7 +39,9 @@ proc toJson(collector: Collector, metrics: var seq[JsonNode]) =
     for i in 0 ..< min(labelValues.len, labels.len):
       labelMap[labels[i]] = %labelValues[i]
 
-    metricsPtr[].add(%*{"name": name, "value": value, "labels": labelMap})
+    metricsPtr[].add(
+      %*{"name": name, "type": typ, "help": help, "value": value, "labels": labelMap}
+    )
 
   collector.collect(serializeMetric)
 

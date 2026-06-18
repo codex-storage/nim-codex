@@ -85,6 +85,7 @@ endif
 	test \
 	testAll \
 	testIntegration \
+	testLibstorageC \
 	testLibstorage \
 	update
 

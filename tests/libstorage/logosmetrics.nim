@@ -56,15 +56,69 @@ suite "Metrics":
     check filteredMetrics ==
       %*{
         "metrics": [
-          {"name": "myCounter_total", "value": 1.0, "labels": {"part_type": "screws"}},
-          {"name": "myCounter_total", "value": 1.0, "labels": {"part_type": "washers"}},
-          {"name": "myGauge", "value": 42.0, "labels": {}},
-          {"name": "myHistogram_sum", "value": 15.0, "labels": {}},
-          {"name": "myHistogram_count", "value": 5.0, "labels": {}},
-          {"name": "myHistogram_bucket", "value": 0.0, "labels": {"le": "0.0"}},
-          {"name": "myHistogram_bucket", "value": 1.0, "labels": {"le": "1.0"}},
-          {"name": "myHistogram_bucket", "value": 2.0, "labels": {"le": "2.0"}},
-          {"name": "myHistogram_bucket", "value": 5.0, "labels": {"le": "+Inf"}},
+          {
+            "name": "myCounter_total",
+            "type": "counter",
+            "help": "Parts Counter",
+            "value": 1.0,
+            "labels": {"part_type": "screws"},
+          },
+          {
+            "name": "myCounter_total",
+            "type": "counter",
+            "help": "Parts Counter",
+            "value": 1.0,
+            "labels": {"part_type": "washers"},
+          },
+          {
+            "name": "myGauge",
+            "type": "gauge",
+            "help": "My gauge",
+            "value": 42.0,
+            "labels": {},
+          },
+          {
+            "name": "myHistogram_sum",
+            "type": "histogram",
+            "help": "My histogram",
+            "value": 15.0,
+            "labels": {},
+          },
+          {
+            "name": "myHistogram_count",
+            "type": "histogram",
+            "help": "My histogram",
+            "value": 5.0,
+            "labels": {},
+          },
+          {
+            "name": "myHistogram_bucket",
+            "type": "histogram",
+            "help": "My histogram",
+            "value": 0.0,
+            "labels": {"le": "0.0"},
+          },
+          {
+            "name": "myHistogram_bucket",
+            "type": "histogram",
+            "help": "My histogram",
+            "value": 1.0,
+            "labels": {"le": "1.0"},
+          },
+          {
+            "name": "myHistogram_bucket",
+            "type": "histogram",
+            "help": "My histogram",
+            "value": 2.0,
+            "labels": {"le": "2.0"},
+          },
+          {
+            "name": "myHistogram_bucket",
+            "type": "histogram",
+            "help": "My histogram",
+            "value": 5.0,
+            "labels": {"le": "+Inf"},
+          },
         ]
       }
 
@@ -76,9 +130,17 @@ suite "Metrics":
     check metrics ==
       %*{
         "metrics": [
-          {"name": "bad_metric", "value": 1.0, "labels": {"label1": "value1"}},
           {
             "name": "bad_metric",
+            "type": "gauge",
+            "help": "Badly behaved collector",
+            "value": 1.0,
+            "labels": {"label1": "value1"},
+          },
+          {
+            "name": "bad_metric",
+            "type": "gauge",
+            "help": "Badly behaved collector",
             "value": 1.0,
             "labels": {"label1": "value1", "label2": "value2"},
           },
