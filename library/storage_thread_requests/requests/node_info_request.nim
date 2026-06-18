@@ -80,4 +80,7 @@ proc process*(
     return res
   of METRICS:
     {.cast(gcsafe).}:
-      return ok($defaultRegistry.toJson())
+      # Excludes nim_runtime_info as dumpHeapInstances seems to be returning
+      # an infinite number of objects.
+      # FIXME figure out what's going on and add this back.
+      return ok($defaultRegistry.toJson(exclude = @["nim_runtime_info"]))

@@ -860,7 +860,7 @@ int check_get_metrics(void *storage_ctx)
     }
 
     // Checks that response contains a metric we are SURE must exist
-    if (strstr(res, "nim_gc_heap_instance_occupied_bytes") == NULL)
+    if (strstr(res, "libp2p_successful_dials_total") == NULL)
     {
         fprintf(stderr, "get_metrics missing expected metric\n");
         free(res);

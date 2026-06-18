@@ -1,4 +1,5 @@
 import std/json
+import std/times
 
 import pkg/unittest2
 import pkg/metrics
@@ -8,6 +9,26 @@ import ../../library/logosmetrics
 declareCounter myCounter, "Parts Counter", ["part_type"]
 declareGauge myGauge, "My gauge"
 declareHistogram myHistogram, "My histogram", buckets = [0.0, 1.0, 2.0]
+
+# A badly-behaved collector that emits label/labelValue arrays of differing
+# lengths.
+type BadCollector = ref object of Gauge
+
+method collect(collector: BadCollector, output: MetricHandler) =
+  output(
+    name = "bad_metric",
+    value = 1.0,
+    labels = ["label1", "label2"],
+    labelValues = ["value1"],
+    timestamp = Time(),
+  )
+  output(
+    name = "bad_metric",
+    value = 1.0,
+    labels = ["label1", "label2"],
+    labelValues = ["value1", "value2"],
+    timestamp = Time(),
+  )
 
 suite "Metrics":
   test "should serialize Nim metrics to Logos Metrics format":
@@ -22,7 +43,8 @@ suite "Metrics":
     myHistogram.observe(4)
     myHistogram.observe(5)
 
-    let metrics = defaultRegistry.toJson(@["myCounter", "myGauge", "myHistogram"])
+    let metrics =
+      defaultRegistry.toJson(includeOnly = @["myCounter", "myGauge", "myHistogram"])
 
     # Remove "created" metrics as we can't pin those down.
     var filteredMetrics = %*{"metrics": @[]}
@@ -43,5 +65,22 @@ suite "Metrics":
           {"name": "myHistogram_bucket", "value": 1.0, "labels": {"le": "1.0"}},
           {"name": "myHistogram_bucket", "value": 2.0, "labels": {"le": "2.0"}},
           {"name": "myHistogram_bucket", "value": 5.0, "labels": {"le": "+Inf"}},
+        ]
+      }
+
+  test "should drop labels when collector emits fewer values than labels":
+    discard BadCollector.newCollector("badMetric", "Badly behaved collector")
+
+    let metrics = defaultRegistry.toJson(includeOnly = @["badMetric"])
+
+    check metrics ==
+      %*{
+        "metrics": [
+          {"name": "bad_metric", "value": 1.0, "labels": {"label1": "value1"}},
+          {
+            "name": "bad_metric",
+            "value": 1.0,
+            "labels": {"label1": "value1", "label2": "value2"},
+          },
         ]
       }

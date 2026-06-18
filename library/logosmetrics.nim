@@ -17,7 +17,9 @@ proc toJson(collector: Collector, metrics: var seq[JsonNode] = @[]) =
     # The logos openmetrics format (https://github.com/logos-co/openmetrics-module)
     # does not include the timestamp, so we don't include it either.
     var labelMap = newJObject()
-    for i in 0 ..< labels.len:
+    # When a label is missing, it's simply not included in the values, so we take
+    # the minimum.
+    for i in 0 ..< min(labelValues.len, labels.len):
       labelMap[labels[i]] = %labelValues[i]
 
     metricsPtr[].add(%*{"name": name, "value": value, "labels": labelMap})
@@ -26,10 +28,17 @@ proc toJson(collector: Collector, metrics: var seq[JsonNode] = @[]) =
 
 # Serializes all collectors in a given registry to a Logos openmetrics-compatible
 # format. Allows including only specific collectors by name.
-proc toJson*(registry: Registry, includeOnly: openArray[string] = []): JsonNode =
+proc toJson*(
+    registry: Registry,
+    exclude: openArray[string] = [],
+    includeOnly: openArray[string] = [],
+): JsonNode =
   var metrics = newSeq[JsonNode]()
   withLock registry.lock:
     for collector in registry.collectors:
+      if exclude.len > 0:
+        if collector.name in exclude:
+          continue
       if includeOnly.len > 0:
         if collector.name notin includeOnly:
           continue
