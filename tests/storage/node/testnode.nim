@@ -233,3 +233,18 @@ asyncchecksuite "Test Node - Basic":
     let randomBlock = bt.Block.new("Random block".toBytes).tryGet()
 
     check (await node.hasLocalBlock(randomBlock.cid)) == false
+
+  test "updateExpiry succeeds when all blocks have metadata":
+    let
+      md = await storeDataGetManifest(localStore, chunker)
+      expiry = SecondsSince1970(9999999999)
+    let res = await node.updateExpiry(md.manifestCid, expiry)
+    check res.isOk
+
+  test "updateExpiry returns failure when block metadata is missing":
+    let
+      manifest = Manifest.example
+      manifestBlk = (await node.storeManifest(manifest)).tryGet()
+      expiry = SecondsSince1970(9999999999)
+    let res = await node.updateExpiry(manifestBlk.cid, expiry)
+    check res.isErr

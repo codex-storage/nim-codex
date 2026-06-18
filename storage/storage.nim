@@ -163,29 +163,33 @@ proc stop*(s: StorageServer) {.async.} =
   if s.restServer != nil:
     futures.add(s.restServer.stop())
 
-  let res = await noCancel allFinishedFailed[void](futures)
+  let res = await noCancel allDone[void](futures)
 
   s.isStarted = false
 
-  if res.failure.len > 0:
-    error "Failed to stop Storage node", failures = res.failure.len
+  if res.failed.len > 0:
+    error "Failed to stop Storage node", failures = res.failed.len
     raise newException(
       StorageError,
-      "Failed to stop Storage node: " & res.failure.mapIt(it.error.msg).join(", "),
+      "Failed to stop Storage node: " & res.failed.mapIt(it.error.msg).join(", "),
+    )
+  if res.cancelled.len > 0:
+    warn "Storage node stop was cancelled due to child stop routine(s) being cancelled, child routines cancelled: ",
+      cancellations = res.cancelled.len
+    raise newException(
+      CancelledError,
+      "Storage node stop was cancelled due to child stop routine(s) being cancelled, child routines cancelled: " &
+        $res.cancelled.len,
     )
 
 proc close*(s: StorageServer) {.async.} =
   var futures =
     @[s.storageNode.close(), s.repoStore.close(), s.storageNode.discovery.close()]
 
-  let res = await noCancel allFinishedFailed[void](futures)
+  let res = await noCancel allDone[void](futures)
 
   if not s.taskpool.isNil:
-    try:
-      s.taskpool.shutdown()
-    except Exception as exc:
-      error "Failed to stop the taskpool", failures = res.failure.len
-      raise newException(StorageError, "Failure in taskpool shutdown: " & exc.msg)
+    s.taskpool.shutdown()
 
   when defaultChroniclesStream.outputs.type.arity >= 3:
     proc noOutput(logLevel: LogLevel, msg: LogOutputStr) =
@@ -197,11 +201,19 @@ proc close*(s: StorageServer) {.async.} =
     if error =? closeFile(s.logFile.get()).errorOption:
       error "Failed to close log file", errorCode = $error
 
-  if res.failure.len > 0:
-    error "Failed to close Storage node", failures = res.failure.len
+  if res.failed.len > 0:
+    error "Failed to close Storage node", failures = res.failed.len
     raise newException(
       StorageError,
-      "Failed to close Storage node: " & res.failure.mapIt(it.error.msg).join(", "),
+      "Failed to close Storage node: " & res.failed.mapIt(it.error.msg).join(", "),
+    )
+  if res.cancelled.len > 0:
+    warn "Storage node close was cancelled due to child close routine(s) being cancelled, child routines cancelled: ",
+      cancellations = res.cancelled.len
+    raise newException(
+      CancelledError,
+      "Storage node close was cancelled due to child close routine(s) being cancelled, child routines cancelled: " &
+        $res.cancelled.len,
     )
 
 proc shutdown*(server: StorageServer) {.async.} =
