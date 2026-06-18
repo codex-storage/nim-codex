@@ -95,8 +95,7 @@ when isMainModule:
         config.dataDir / config.netPrivKeyFile
 
     privateKey = setupKey(keyPath).valueOr:
-      fatal "Failed to set up the network private key",
-        path = keyPath, err = error.msg
+      fatal "Failed to set up the network private key", path = keyPath, err = error.msg
       quit QuitFailure
 
     server =

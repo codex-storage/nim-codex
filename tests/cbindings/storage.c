@@ -168,9 +168,6 @@ static void callback(int ret, const char *msg, size_t len, void *userData)
         return;
     }
 
-    // Assign the return code to the response structure.
-    r->ret = ret;
-
     // If the reponse already has a message, just free it first.
     if (r->msg)
     {
@@ -213,6 +210,10 @@ static void callback(int ret, const char *msg, size_t len, void *userData)
         r->msg = NULL;
         r->len = 0;
     }
+
+    // Publish the return code last. wait_resp uses this as the completion flag,
+    // so setting it earlier lets the caller read/free a partially written Resp.
+    r->ret = ret;
 }
 
 static int read_file(const char *filepath, char **res)
@@ -343,9 +344,9 @@ int check_repo(void *storage_ctx)
 
     int ret = is_resp_ok(r, &res);
 
-    if (strcmp(res, "./data-dir") != 0)
+    if (res == NULL || strcmp(res, "./data-dir") != 0)
     {
-        printf("repo mismatch: %s\n", res);
+        printf("repo mismatch: %s\n", res ? res : "(null)");
         ret = RET_ERR;
     }
 
@@ -368,9 +369,9 @@ int check_debug(void *storage_ctx)
     int ret = is_resp_ok(r, &res);
 
     // Simple check to ensure the response contains spr
-    if (strstr(res, "spr") == NULL)
+    if (res == NULL || strstr(res, "spr") == NULL)
     {
-        fprintf(stderr, "debug content mismatch, res:%s\n", res);
+        fprintf(stderr, "debug content mismatch, res:%s\n", res ? res : "(null)");
         ret = RET_ERR;
     }
 
@@ -392,9 +393,9 @@ int check_spr(void *storage_ctx)
 
     int ret = is_resp_ok(r, &res);
 
-    if (strstr(res, "spr") == NULL)
+    if (res == NULL || strstr(res, "spr") == NULL)
     {
-        fprintf(stderr, "spr content mismatch, res:%s\n", res);
+        fprintf(stderr, "spr content mismatch, res:%s\n", res ? res : "(null)");
         ret = RET_ERR;
     }
 
@@ -562,7 +563,7 @@ int check_upload_file(void *storage_ctx, const char *filepath, char **res)
 
     int ret = is_resp_ok(r, res);
 
-    if (res == NULL || strlen(*res) == 0)
+    if (res == NULL || *res == NULL || strlen(*res) == 0)
     {
         fprintf(stderr, "CID is missing\n");
         return RET_ERR;
@@ -600,9 +601,9 @@ int check_download_stream(void *storage_ctx, const char *cid, const char *filepa
 
     int ret = is_resp_ok(r, &res);
 
-    if (strncmp(res, "Hello World!", strlen("Hello World!")) != 0)
+    if (res == NULL || strncmp(res, "Hello World!", strlen("Hello World!")) != 0)
     {
-        fprintf(stderr, "downloaded content mismatch, res:%s\n", res);
+        fprintf(stderr, "downloaded content mismatch, res:%s\n", res ? res : "(null)");
         ret = RET_ERR;
     }
 
@@ -612,9 +613,9 @@ int check_download_stream(void *storage_ctx, const char *cid, const char *filepa
         ret = RET_ERR;
     }
 
-    if (strncmp(res, "Hello World!", strlen("Hello World!")) != 0)
+    if (res == NULL || strncmp(res, "Hello World!", strlen("Hello World!")) != 0)
     {
-        fprintf(stderr, "downloaded content mismatch, res:%s\n", res);
+        fprintf(stderr, "downloaded content mismatch, res:%s\n", res ? res : "(null)");
         ret = RET_ERR;
     }
 
@@ -652,9 +653,9 @@ int check_download_chunk(void *storage_ctx, const char *cid)
 
     int ret = is_resp_ok(r, &res);
 
-    if (strncmp(res, "Hello World!", strlen("Hello World!")) != 0)
+    if (res == NULL || strncmp(res, "Hello World!", strlen("Hello World!")) != 0)
     {
-        fprintf(stderr, "downloaded chunk content mismatch, res:%s\n", res);
+        fprintf(stderr, "downloaded chunk content mismatch, res:%s\n", res ? res : "(null)");
         ret = RET_ERR;
     }
 
@@ -691,9 +692,9 @@ int check_download_manifest(void *storage_ctx, const char *cid)
 
     const char *expected_manifest = "{\"manifestVersion\":0,\"treeCid\":\"zDzSvJTf8JYwvysKPmG7BtzpbiAHfuwFMRphxm4hdvnMJ4XPJjKX\",\"datasetSize\":12,\"blockSize\":65536,\"filename\":\"hello_world.txt\",\"mimetype\":\"text/plain\"}";
 
-    if (strncmp(res, expected_manifest, strlen(expected_manifest)) != 0)
+    if (res == NULL || strncmp(res, expected_manifest, strlen(expected_manifest)) != 0)
     {
-        fprintf(stderr, "downloaded manifest content mismatch, res:%s\n", res);
+        fprintf(stderr, "downloaded manifest content mismatch, res:%s\n", res ? res : "(null)");
         ret = RET_ERR;
     }
 
@@ -717,9 +718,9 @@ int check_list(void *storage_ctx)
 
     const char *expected_manifest = "{\"manifestVersion\":0,\"treeCid\":\"zDzSvJTf8JYwvysKPmG7BtzpbiAHfuwFMRphxm4hdvnMJ4XPJjKX\",\"datasetSize\":12,\"blockSize\":65536,\"filename\":\"hello_world.txt\",\"mimetype\":\"text/plain\"}";
 
-    if (strstr(res, expected_manifest) == NULL)
+    if (res == NULL || strstr(res, expected_manifest) == NULL)
     {
-        fprintf(stderr, "downloaded manifest content mismatch, res:%s\n", res);
+        fprintf(stderr, "downloaded manifest content mismatch, res:%s\n", res ? res : "(null)");
         ret = RET_ERR;
     }
 
@@ -742,9 +743,9 @@ int check_space(void *storage_ctx)
     int ret = is_resp_ok(r, &res);
 
     // Simple check to ensure the response contains totalBlocks
-    if (strstr(res, "totalBlocks") == NULL)
+    if (res == NULL || strstr(res, "totalBlocks") == NULL)
     {
-        fprintf(stderr, "list content mismatch, res:%s\n", res);
+        fprintf(stderr, "space content mismatch, res:%s\n", res ? res : "(null)");
         ret = RET_ERR;
     }
 
@@ -768,17 +769,17 @@ int check_exists(void *storage_ctx, const char *cid, bool expected)
 
     if (expected)
     {
-        if (strcmp(res, "true") != 0)
+        if (res == NULL || strcmp(res, "true") != 0)
         {
-            fprintf(stderr, "exists content mismatch, res:%s\n", res);
+            fprintf(stderr, "exists content mismatch, res:%s\n", res ? res : "(null)");
             ret = RET_ERR;
         }
     }
     else
     {
-        if (strcmp(res, "false") != 0)
+        if (res == NULL || strcmp(res, "false") != 0)
         {
-            fprintf(stderr, "exists content mismatch, res:%s\n", res);
+            fprintf(stderr, "exists content mismatch, res:%s\n", res ? res : "(null)");
             ret = RET_ERR;
         }
     }
@@ -813,9 +814,9 @@ int check_toggle_private_queries(void *storage_ctx)
     }
 
     int ret = is_resp_ok(r, &res);
-    if (strcmp(res, "false") != 0)
+    if (res == NULL || strcmp(res, "false") != 0)
     {
-        fprintf(stderr, "toggle private queries content mismatch, res:%s\n", res);
+        fprintf(stderr, "toggle private queries content mismatch, res:%s\n", res ? res : "(null)");
         free(res);
         return RET_ERR;
     }
@@ -830,9 +831,9 @@ int check_toggle_private_queries(void *storage_ctx)
     }
 
     ret = is_resp_ok(r, &res);
-    if (strcmp(res, "true") != 0)
+    if (res == NULL || strcmp(res, "true") != 0)
     {
-        fprintf(stderr, "toggle private queries content mismatch, res:%s\n", res);
+        fprintf(stderr, "toggle private queries content mismatch, res:%s\n", res ? res : "(null)");
         free(res);
         return RET_ERR;
     }
@@ -860,7 +861,7 @@ int check_get_metrics(void *storage_ctx)
     }
 
     // Checks that response contains a metric we are SURE must exist
-    if (strstr(res, "libp2p_successful_dials_total") == NULL)
+    if (res == NULL || strstr(res, "libp2p_successful_dials_total") == NULL)
     {
         fprintf(stderr, "get_metrics missing expected metric\n");
         free(res);
