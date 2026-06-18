@@ -431,11 +431,6 @@ proc runWithDhtProxy(
     config = discoveryConfig,
   )
 
-  let maxReplyBytes = getMaxMessageSizeForCodec(DhtProxyCodec, 0).valueOr:
-    raise
-      newException(ValueError, "DhtProxyCodec does not fit Sphinx payload: " & error)
-  mixProto.registerDestReadBehavior(DhtProxyCodec, readLp(maxReplyBytes))
-
   let proxyProto = DhtProxyProtocol.new(dht, maxInFlight = conf.maxInFlight)
 
   try:
@@ -572,6 +567,11 @@ proc run(conf: Conf) {.async: (raises: [CatchableError]).} =
     .build()
 
   let mixProto = MixProtocol.new(nodeInfo, switch)
+
+  let maxReplyBytes = getMaxMessageSizeForCodec(DhtProxyCodec, 0).valueOr:
+    raise
+      newException(ValueError, "DhtProxyCodec does not fit Sphinx payload: " & error)
+  mixProto.registerDestReadBehavior(DhtProxyCodec, readLp(maxReplyBytes))
 
   if conf.noDhtProxy:
     await runRelayOnly(conf, switch, mixProto, peerId, tcpAddr)
