@@ -94,7 +94,7 @@ task bootstrapHealthCheck, "ping preset bootstrap nodes; non-zero exit if any ar
   for i in 2 ..< paramCount():
     if "ci" in paramStr(i) and truthy paramStr(i).split('=')[1]:
       # Writes the JSON summary to a file before exiting, so the scheduled workflow
-      args = "--format json --out build/bootstrap-health-report.json"
+      args = "--network logos.dev --network logos.test --format json --out build/bootstrap-health-report.json"
       break
   
   # can read it. check_spr exits non-zero when a node is unreachable, failing
