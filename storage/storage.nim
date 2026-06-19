@@ -120,6 +120,9 @@ proc start*(s: StorageServer) {.async.} =
 
     s.storageNode.discovery.mixProto = mixProto
 
+    discard s.storageNode.discovery.togglePrivateQueries(s.config.mixEnabled).valueOr:
+      raise newException(StorageError, "Failed to enable private queries: " & error.msg)
+
     s.storageNode.engine.network.excludeRelays(relayPool.keys.toSeq)
 
   let (announceAddrs, discoveryAddrs) = nattedAddress(
@@ -372,11 +375,6 @@ proc new*(
 
   switch.mount(network)
   switch.mount(manifestProto)
-
-  # Enables private queries by default when mix is enabled.
-  if config.mixEnabled:
-    info "Enabling private queries over DHT by default", enabled = config.mixEnabled
-    discard discovery.togglePrivateQueries(true)
 
   StorageServer(
     config: config,

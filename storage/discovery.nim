@@ -262,10 +262,12 @@ proc close*(d: Discovery) {.async: (raises: []).} =
   else:
     trace "Discovery store closed"
 
-proc togglePrivateQueries*(d: Discovery, enabled: bool): bool =
+proc togglePrivateQueries*(d: Discovery, enabled: bool): ?!bool =
+  if enabled and (d.mixProto.isNil or d.dhtMixProxies.len == 0):
+    return failure("Cannot enable private queries: Mix is not configured")
   let old = d.privateQueries
   d.privateQueries = enabled
-  return old
+  success(old)
 
 proc new*(
     T: type Discovery,

@@ -151,5 +151,13 @@ asyncchecksuite "Block Advertising and Discovery":
     discovery.refCid = refCid
 
     check (await discovery.find(refCid)) == @[directSpr]
-    check discovery.togglePrivateQueries(true) == false
+    let toggleRes = discovery.togglePrivateQueries(true)
+    check toggleRes.isOk
+    check toggleRes.get == false
     check (await discovery.find(refCid)) == @[privateSpr]
+
+  test "should fail to enable private queries when MixProtocol is nil":
+    let discovery = MixMockDiscovery.new()
+    discovery.dhtMixProxies = @[SignedPeerRecord.example]
+    let res = discovery.togglePrivateQueries(true)
+    check res.isErr
