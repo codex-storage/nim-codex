@@ -6,8 +6,6 @@ name: Bootstrap nodes health check
 # fails the job and opens/updates a tracking issue labelled `bootstrap-health`.
 
 on:
-  push:
-    branches: [feat/bootstrap-health-check] # ← temporary for testing; remove before merge
   schedule:
     - cron: "0 6 * * *" # daily 06:00 UTC
   workflow_dispatch:
