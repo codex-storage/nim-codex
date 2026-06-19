@@ -14,8 +14,8 @@
 ## reachable and defeat the purpose.
 ##
 ## Usage:
-##   check_spr [--source <file>] [--network <name>] [--timeout <secs>]
-##            [--format text|json] [--out <file>]
+##   check_spr [--source <file>] [--network <name>]... [--timeout <secs>]
+##            [--format table|json] [--out <file>]
 ##   check_spr <spr-uri> [--timeout <secs>]
 ##   check_spr --help
 ##
@@ -40,7 +40,7 @@ const
 type OutputFormat = enum
   ## String values double as the accepted `--format` argument spellings, so the
   ## parser can compare against them directly.
-  ofText = "text"
+  ofTable = "table"
   ofJson = "json"
 
 type Verdict = object
@@ -61,8 +61,8 @@ proc setupLogging() =
   ## The project's `config.nims` forces `dynamic` chronicles sinks, whose output
   ## writers must be configured at runtime. Without this, every log message is
   ## dropped with a noisy "dynamic log output writer not configured" warning.
-  ## Route libp2p logs to stderr so the tool's stdout (the ALIVE/DEAD verdict)
-  ## stays clean and parseable.
+  ## Route libp2p logs to stderr so the tool's stdout (the report — a table or
+  ## JSON, or the single-SPR ALIVE/DEAD verdict) stays clean and parseable.
   when defaultChroniclesStream.outputs.type.arity == 3:
     proc noOutput(logLevel: LogLevel, msg: LogOutputStr) =
       discard
@@ -224,19 +224,20 @@ proc parseTimeout(s: string): int =
 
 proc parseFormat(s: string): OutputFormat =
   case s
-  of $ofText:
-    ofText
+  of $ofTable:
+    ofTable
   of $ofJson:
     ofJson
   else:
-    quit("Error: format must be '" & $ofText & "' or '" & $ofJson & "'", QuitFailure)
+    quit("Error: format must be '" & $ofTable & "' or '" & $ofJson & "'", QuitFailure)
 
 proc printHelp() =
   echo """check_spr - bootstrap-node liveness checker.
 
 Reads bootstrap SPRs from a config file and probes each one (libp2p connect for
-TCP addresses, discv5 ping for UDP). Prints a per-node table and exits non-zero
-if any node is unreachable. A single spr: URI can be passed for an ad-hoc check.
+TCP addresses, discv5 ping for UDP). Prints a per-node report (a table by
+default, JSON with --format json) and exits non-zero if any node is unreachable.
+A single spr: URI can be passed for an ad-hoc check.
 
 IMPORTANT: run from a host OUTSIDE the fleet VPCs (e.g. a GitHub-hosted runner),
 otherwise nodes advertising private/cloud-internal IPs appear reachable and
@@ -252,10 +253,10 @@ Options:
   --network <name>   Only probe the preset with this network name.
   --timeout <secs>   Per-node probe timeout in seconds (default: """ &
     $DefaultTimeoutSecs & """).
-  --format <fmt>     Output format: "text" (default) or "json". "text" is the
+  --format <fmt>     Output format: "table" (default) or "json". "table" is the
                      human-readable table; "json" is a pretty-printed summary.
   --out <file>       Write the output to <file> instead of stdout. The content
-                     is whichever --format is selected (text or json).
+                     is whichever --format is selected (table or json).
   --help, -h         Show this help and exit.
 
 Arguments:
@@ -271,7 +272,7 @@ when isMainModule:
     networkFilter = ""
     timeoutSecs = DefaultTimeoutSecs
     singleSpr = ""
-    format = ofText
+    format = ofTable
     outFile = ""
 
   let params = commandLineParams()
@@ -321,7 +322,7 @@ when isMainModule:
     # trailing newline the way echo does, so add one to keep the file POSIX-clean.
     let output =
       case format
-      of ofText:
+      of ofTable:
         renderTable(rows)
       of ofJson:
         pretty(rowsToJson(rows))
@@ -342,7 +343,7 @@ when isMainModule:
       #!fmt: on
   else:
     case format
-    of ofText:
+    of ofTable:
       # Color only when stdout is an interactive terminal; when piped or
       # redirected, fall back to the plain table so escapes never reach the
       # consumer (std/terminal emits ANSI unconditionally on POSIX).
