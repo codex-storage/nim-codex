@@ -120,6 +120,13 @@ extern "C"
         StorageCallback callback,
         void *userData);
 
+    // Returns node metrics in the Logos openmetrics-compatible
+    // format (https://github.com/logos-co/openmetrics-module).
+    int storage_get_metrics(
+        void *ctx,
+        StorageCallback callback,
+        void *userData);
+
     // Set the log level at run time.
     // `logLevel` can be one of:
     // TRACE, DEBUG, INFO, NOTICE, WARN, ERROR or FATAL

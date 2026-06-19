@@ -185,6 +185,19 @@ proc storage_peer_id(
 
   return callback.okOrError(res, userData)
 
+proc storage_get_metrics(
+    ctx: ptr StorageContext, callback: StorageCallback, userData: pointer
+): cint {.dynlib, exportc.} =
+  initializeLibrary()
+  checkLibstorageParams(ctx, callback, userData)
+
+  let reqContent = NodeInfoRequest.createShared(NodeInfoMsgType.METRICS)
+  let res = storage_context.sendRequestToStorageThread(
+    ctx, RequestType.INFO, reqContent, callback, userData
+  )
+
+  return callback.okOrError(res, userData)
+
 ## Set the log level of the library at runtime.
 ## It uses updateLogLevel which is a synchronous proc and
 ## cannot be used inside an async context because of gcsafe issue.
