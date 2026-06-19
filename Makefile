@@ -152,6 +152,22 @@ testIntegration: | build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
 		$(ENV_SCRIPT) nim testIntegration $(TEST_PARAMS) $(NIM_PARAMS) build.nims
 
+BOOTSTRAP_HEALTH_CHECK_PARAMS :=
+ifdef CI
+	BOOTSTRAP_HEALTH_CHECK_PARAMS := $(BOOTSTRAP_HEALTH_CHECK_PARAMS) -d:ci=$(CI)
+endif
+
+checkSpr: | build deps
+	echo -e $(BUILD_MSG) "build/check_spr" && \
+		$(ENV_SCRIPT) nim checkSpr $(NIM_PARAMS) build.nims
+		
+# Pings the preset bootstrap nodes and fails if any are unreachable.
+# Run from OUTSIDE the fleet VPCs (e.g. a GitHub-hosted runner) so nodes that
+# advertise private/cloud-internal IPs are correctly seen as unreachable.
+bootstrapHealthCheck: | build deps
+	echo -e $(BUILD_MSG) "build/check_spr" && \
+		$(ENV_SCRIPT) nim bootstrapHealthCheck $(NIM_PARAMS) $(BOOTSTRAP_HEALTH_CHECK_PARAMS) build.nims
+
 # Builds a C example that uses the libstorage C library and runs it
 testLibstorageC: | build deps
 	$(MAKE) $(if $(ncpu),-j$(ncpu),) libstorage

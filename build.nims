@@ -81,6 +81,26 @@ task mixTools, "build mix tools (mix_pool, mix_relay_dht)":
   buildBinary "mix_relay_dht",
     outName = "mix_relay_dht", srcDir = "tools/mix/", params = mixParams
 
+task checkSpr, "build check_spr used for checking bootstrap node health":
+  buildBinary "check_spr",
+    srcDir = "tools/",
+    params = "-d:release -d:chronicles_runtime_filtering -d:chronicles_log_level=WARN"
+
+task bootstrapHealthCheck, "ping preset bootstrap nodes; non-zero exit if any are unreachable":
+  checkSprTask()
+
+  # get CI param from make if present
+  var args = ""
+  for i in 2 ..< paramCount():
+    if "ci" in paramStr(i) and truthy paramStr(i).split('=')[1]:
+      # Writes the JSON summary to a file before exiting, so the scheduled workflow
+      args = "--format json --out build/bootstrap-health-report.json"
+      break
+  
+  # can read it. check_spr exits non-zero when a node is unreachable, failing
+  # the workflow run.
+  exec "build/check_spr " & args
+
 task testStorage, "Build & run Logos Storage tests":
   test "testStorage", outName = "testStorage"
 
