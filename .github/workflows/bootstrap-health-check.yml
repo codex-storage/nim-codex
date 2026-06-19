@@ -1,0 +1,100 @@
+name: Bootstrap nodes health check
+
+# Scheduled liveness check for the preset bootstrap nodes. Runs on a
+# GitHub-hosted runner (public internet) so nodes advertising private/cloud
+# internal IPs are correctly seen as unreachable. On any unreachable node it
+# fails the job and opens/updates a tracking issue labelled `bootstrap-health`.
+
+on:
+  schedule:
+    - cron: "0 6 * * *" # daily 06:00 UTC
+  workflow_dispatch:
+
+env:
+  nim_version: v2.2.10
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  ping:
+    name: Ping preset bootstrap nodes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Setup Nimbus Build System
+        uses: ./.github/actions/nimbus-build-system
+        with:
+          os: linux
+          nim_version: ${{ env.nim_version }}
+
+      - name: Ping bootstrap nodes
+        id: ping
+        continue-on-error: true
+        run: make CI=true bootstrapHealthCheck
+        shell: bash
+
+      - name: Build report
+        id: report
+        if: always()
+        run: |
+          json=build/bootstrap-health-report.json
+          if [ ! -f "$json" ]; then
+            echo "no_output=true" >> "$GITHUB_OUTPUT"
+            echo "::error::check_spr produced no output file"
+            exit 0
+          fi
+          dead=$(jq '[.[] | select(.alive==false)] | length' "$json")
+          total=$(jq 'length' "$json")
+          echo "dead=$dead" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Bootstrap node liveness ($((total - dead))/$total reachable)"
+            echo
+            echo "| Network | Result | Address | Reason |"
+            echo "|---|---|---|---|"
+            jq -r '.[] | "| \(.network) | \(if .alive then "✅ ALIVE" else "❌ DEAD" end) | \(.address) | \(.reason) |"' "$json"
+          } | tee report.md >> "$GITHUB_STEP_SUMMARY"
+        shell: bash
+
+      - name: Open or update tracking issue
+        if: always() && steps.report.outputs.dead != '0' && steps.report.outputs.dead != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEAD: ${{ steps.report.outputs.dead }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh label create bootstrap-health --color B60205 \
+            --description "Automated bootstrap-node liveness alerts" 2>/dev/null || true
+          {
+            echo "Scheduled bootstrap-node liveness check found **${DEAD}** unreachable node(s)."
+            echo
+            echo "Run: ${RUN_URL}"
+            echo
+            cat report.md
+          } > issue-body.md
+          existing=$(gh issue list --label bootstrap-health --state open --json number --jq '.[0].number')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body-file issue-body.md
+          else
+            gh issue create --title "Bootstrap nodes unreachable" \
+              --label bootstrap-health --body-file issue-body.md
+          fi
+        shell: bash
+
+      - name: Fail if any node is unreachable
+        if: always() && ((steps.report.outputs.dead != '0' && steps.report.outputs.dead != '') || steps.report.outputs.no_output == 'true')
+        env:
+          DEAD: ${{ steps.report.outputs.dead }}
+        run: |
+          echo "Bootstrap liveness check failed: ${DEAD} unreachable node(s)."
+          exit 1
+        shell: bash
