@@ -5,9 +5,11 @@
 ## the record:
 ##   * TCP addresses -> a libp2p connection is attempted.
 ##   * UDP addresses -> a discovery v5 (DHT) ping is sent.
-## It prints a per-node report — a human-readable table by default, or JSON with
-## `--format json` — and exits non-zero if any node is unreachable. A single
-## `spr:` URI can also be passed for ad-hoc checks.
+## It prints a per-node report — a human-readable table (alive rows green, dead
+## red on a terminal) by default, or JSON with `--format json` — and exits
+## non-zero if any node is unreachable. The `--network` filter may be repeated to
+## probe several presets. A single `spr:` URI can also be passed for ad-hoc
+## checks.
 ##
 ## IMPORTANT: run this from a host OUTSIDE the fleet VPCs (e.g. a GitHub-hosted
 ## runner), otherwise nodes advertising private/cloud-internal IPs will appear
@@ -151,11 +153,13 @@ proc probe(record: SignedPeerRecord, timeout: Duration): Future[Verdict] {.async
     return Verdict(alive: false, reason: "no tcp or udp addresses to probe")
 
 proc probeRecords(
-    source, networkFilter: string, timeout: Duration
+    source: string, networkFilters: seq[string], timeout: Duration
 ): Future[seq[Row]] {.async.} =
   let presets = loadNetworkPresets(source)
   for preset in presets:
-    if networkFilter.len > 0 and preset.name != networkFilter:
+    # An empty filter list means "probe everything"; otherwise keep only presets
+    # whose name was named on the command line (--network may be repeated).
+    if networkFilters.len > 0 and preset.name notin networkFilters:
       continue
     for rec in preset.rawRecords:
       let parsed = SignedPeerRecord.parse(rec)
@@ -222,6 +226,18 @@ proc parseTimeout(s: string): int =
   except ValueError:
     quit("Error: timeout must be an integer number of seconds", QuitFailure)
 
+proc nextValue(params: seq[string], i: var int, flag: string): string =
+  ## Consume the value that follows a value-expecting flag. The flag sits at
+  ## params[i]; its value is the next token, so advance and return it. It is a
+  ## usage error (not an IndexDefect crash) if there is no next token — a trailing
+  ## `--network` — or if the next token is itself a flag, as in `--network
+  ## --timeout`, where `--timeout` would otherwise be swallowed as the value. No
+  ## value this tool accepts begins with "-", so that is a reliable flag marker.
+  inc i
+  if i >= params.len or params[i].startsWith("-"):
+    quit("Error: " & flag & " requires a value", QuitFailure)
+  params[i]
+
 proc parseFormat(s: string): OutputFormat =
   case s
   of $ofTable:
@@ -250,7 +266,10 @@ Usage:
 Options:
   --source <file>    Config file to read SPRs from (default: """ &
     DefaultSource & """).
-  --network <name>   Only probe the preset with this network name.
+  --network <name>   Restrict probing to the named preset. Repeat the flag to
+                     probe several, e.g.
+                     --network logos.test --network logos.dev
+                     Omit entirely to probe every preset in the config.
   --timeout <secs>   Per-node probe timeout in seconds (default: """ &
     $DefaultTimeoutSecs & """).
   --format <fmt>     Output format: "table" (default) or "json". "table" is the
@@ -269,7 +288,7 @@ when isMainModule:
 
   var
     source = DefaultSource
-    networkFilter = ""
+    networkFilters: seq[string] = @[]
     timeoutSecs = DefaultTimeoutSecs
     singleSpr = ""
     format = ofTable
@@ -283,20 +302,15 @@ when isMainModule:
       printHelp()
       quit(QuitSuccess)
     of "--source":
-      inc i
-      source = params[i]
+      source = nextValue(params, i, "--source")
     of "--network":
-      inc i
-      networkFilter = params[i]
+      networkFilters.add nextValue(params, i, "--network")
     of "--timeout":
-      inc i
-      timeoutSecs = parseTimeout(params[i])
+      timeoutSecs = parseTimeout(nextValue(params, i, "--timeout"))
     of "--format":
-      inc i
-      format = parseFormat(params[i])
+      format = parseFormat(nextValue(params, i, "--format"))
     of "--out":
-      inc i
-      outFile = params[i]
+      outFile = nextValue(params, i, "--out")
     else:
       if params[i].startsWith("spr:"):
         singleSpr = params[i]
@@ -314,7 +328,7 @@ when isMainModule:
     echo (if v.alive: "ALIVE: " else: "DEAD: "), v.reason
     quit(if v.alive: QuitSuccess else: QuitFailure)
 
-  let rows = waitFor probeRecords(source, networkFilter, timeout)
+  let rows = waitFor probeRecords(source, networkFilters, timeout)
 
   if outFile.len > 0:
     # Files (and the JSON form) must stay plain — ANSI color codes would corrupt
@@ -355,7 +369,7 @@ when isMainModule:
       echo pretty(rowsToJson(rows))
 
   let dead = rows.filterIt(not it.alive)
-  
+
   if outFile.len > 0:
     if dead.len > 0:
       styledEcho styleBright,
