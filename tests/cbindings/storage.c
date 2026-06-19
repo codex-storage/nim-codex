@@ -869,9 +869,9 @@ int check_toggle_private_queries(void *storage_ctx)
     }
 
     int ret = is_resp_ok(r, &res);
-    if (res == NULL || strcmp(res, "false") != 0)
+    if (ret == RET_OK)
     {
-        fprintf(stderr, "toggle private queries content mismatch, res:%s\n", res ? res : "(null)");
+        fprintf(stderr, "expected toggle(true) to fail when mix is not configured, got ok\n");
         free(res);
         return RET_ERR;
     }
@@ -886,7 +886,7 @@ int check_toggle_private_queries(void *storage_ctx)
     }
 
     ret = is_resp_ok(r, &res);
-    if (res == NULL || strcmp(res, "true") != 0)
+    if (res == NULL || strcmp(res, "false") != 0)
     {
         fprintf(stderr, "toggle private queries content mismatch, res:%s\n", res ? res : "(null)");
         free(res);

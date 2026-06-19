@@ -24,5 +24,6 @@ proc process*(
   defer:
     destroyShared(self)
 
-  let previous = storage[].node.togglePrivateQueries(self.privateQueries)
+  let previous = storage[].node.togglePrivateQueries(self.privateQueries).valueOr:
+    return err(error.msg)
   return ok($previous)
