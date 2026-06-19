@@ -224,7 +224,7 @@ jobs:
       TF_VAR_region: europe-west4
       TF_VAR_zone: europe-west4-a
       TF_PLUGIN_CACHE_DIR: /home/runner/.terraform.d/plugin-cache
-      STORAGEDOCKERIMAGE: ${{ github.ref_type == 'tag' && format('logosstorage/logos-storage-nim:{0}-dist-tests', github.ref_name) || 'logosstorage/logos-storage-nim:latest-dist-tests' }}
+      STORAGEDOCKERIMAGE: ${{ needs.build-docker-dist-tests.outputs.logos_storage_image }}
       TEST_TYPE: release-tests
       BRANCH: ${{ inputs.branch || 'master' }}
       SOURCE: https://github.com/logos-storage/logos-storage-nim-cs-dist-tests
