@@ -120,8 +120,10 @@ proc start*(s: StorageServer) {.async.} =
 
     s.storageNode.discovery.mixProto = mixProto
 
-    discard s.storageNode.discovery.togglePrivateQueries(s.config.mixEnabled).valueOr:
-      raise newException(StorageError, "Failed to enable private queries: " & error.msg)
+    if s.config.dhtMixProxies.len > 0:
+      discard s.storageNode.discovery.togglePrivateQueries(true).valueOr:
+        raise
+          newException(StorageError, "Failed to enable private queries: " & error.msg)
 
     s.storageNode.engine.network.excludeRelays(relayPool.keys.toSeq)
 
