@@ -126,6 +126,11 @@ jobs:
     runs-on: ${{ matrix.builder }}
     env:
       PLATFORM: ${{ format('{0}/{1}', 'linux', matrix.target.arch) }}
+      # docker/build-push-action auto-uploads a build-record (.dockerbuild)
+      # artifact and a job summary by default. We don't consume either, so
+      # disable both to keep the workflow run free of stray artifacts.
+      DOCKER_BUILD_RECORD_UPLOAD: false
+      DOCKER_BUILD_SUMMARY: false
     steps:
       - name: Checkout
         uses: actions/checkout@v6
