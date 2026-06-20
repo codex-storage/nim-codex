@@ -424,14 +424,14 @@ jobs:
       - name: Download binaries from workflow artifacts into temp folder
         uses: actions/download-artifact@v8
         with:
-          pattern: ${{ env.storage_binary_base }}*
+          pattern: ${{ env.storage_binary_base }}*.zip
           merge-multiple: true
           path: /tmp/release
 
       - name: Download ${{ env.c_bindings_lib_base }} from workflow artifacts into temp folder
         uses: actions/download-artifact@v8
         with:
-          pattern: ${{ env.c_bindings_lib_base }}*
+          pattern: ${{ env.c_bindings_lib_base }}*.zip
           merge-multiple: true
           path: /tmp/release
 
