@@ -67,7 +67,7 @@ task storage, "build logos storage binary":
     params = "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE"
 
 task mixTools, "build mix tools (mix_pool, mix_relay_dht)":
-  let (desc, ec) = gorgeEx("git describe --always --dirty")
+  let (desc, ec) = gorgeEx("git describe --tags --always --dirty")
   let mixVersion =
     if ec == 0 and desc.strip().len > 0:
       desc.strip()
