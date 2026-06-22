@@ -6,6 +6,7 @@ import pkg/libp2p_mix
 import pkg/libp2p_mix/curve25519
 import pkg/codexdht/discv5/node as dn
 import pkg/codexdht/discv5/routing_table as rt
+import pkg/stew/byteutils
 import ../node
 import ../conf
 import ../utils/json
@@ -108,7 +109,7 @@ proc init*(_: type DebugInfo, node: StorageNodeRef): DebugInfo =
     peerId = peerInfo.peerId
     libp2pPubKeyBytes = peerInfo.publicKey.getBytes()
 
-  # Cause there's no cannonical way to get your own key from MixProtocol
+  # Cause there's no canonical way to get your own key from MixProtocol
   # that I'm aware of.
   privateAccess(MixProtocol)
 
