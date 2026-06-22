@@ -1,5 +1,9 @@
+import std/importutils
+
 import pkg/questionable
 import pkg/libp2p
+import pkg/libp2p_mix
+import pkg/libp2p_mix/curve25519
 import pkg/codexdht/discv5/node as dn
 import pkg/codexdht/discv5/routing_table as rt
 import ../node
@@ -47,13 +51,20 @@ type
     version* {.serialize.}: string
     revision* {.serialize.}: string
 
-  DebugInfo* = object
+  DebugInfo* = object # Peer's ID
     id* {.serialize.}: PeerId
+    # peer addresses known by the libp2p switch
     addrs* {.serialize.}: seq[MultiAddress]
-    repo* {.serialize.}: string
+    # signed peer record (URI form)
     spr* {.serialize.}: Option[SignedPeerRecord]
+    # provider record (the one we announce for content we provide)
     providerRecord* {.serialize.}: Option[SignedPeerRecord]
+    # addresses contained in the provider record
     announceAddresses* {.serialize.}: seq[MultiAddress]
+    # libp2p public key
+    libp2pPubKey* {.serialize.}: string
+    # mix public key (for nodes that support mix)
+    mixPubKey* {.serialize.}: Option[FieldElement]
     table* {.serialize.}: RestRoutingTable
     storage* {.serialize.}: VersionInfo
 
@@ -92,12 +103,34 @@ proc `%`*(obj: RestNodeId): JsonNode =
   % $obj.id
 
 proc init*(_: type DebugInfo, node: StorageNodeRef): DebugInfo =
+  let
+    peerInfo = node.switch.peerInfo
+    peerId = peerInfo.peerId
+    libp2pPubKeyBytes = peerInfo.publicKey.getBytes()
+
+  # Cause there's no cannonical way to get your own key from MixProtocol
+  # that I'm aware of.
+  privateAccess(MixProtocol)
+
   DebugInfo(
-    id: node.switch.peerInfo.peerId,
-    addrs: node.switch.peerInfo.addrs,
+    id: peerId,
+    addrs: peerInfo.addrs,
     spr: node.discovery.dhtRecord,
     providerRecord: node.discovery.providerRecord,
     announceAddresses: node.discovery.announceAddrs,
     table: RestRoutingTable.init(node.discovery.protocol.routingTable),
     storage: VersionInfo(version: $storageVersion, revision: $storageRevision),
+    # Serialization has no error contract in nim-serde, so we need to
+    # handle this here.
+    libp2pPubKey:
+      if libp2pPubKeyBytes.isErr:
+        $libp2pPubKeyBytes.error
+      else:
+        byteutils.toHex(libp2pPubKeyBytes.get),
+    mixPubKey:
+      if node.discovery.mixProto.isNil():
+        none(FieldElement)
+      else:
+        # It's a bug if we don't have the peer in the pool, so let it throw an exception.
+        some(node.discovery.mixProto.mixNodeInfo.mixPubKey),
   )

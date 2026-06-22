@@ -4,7 +4,9 @@ from pkg/libp2p import
 import pkg/contractabi
 import pkg/codexdht/discv5/node as dn
 import pkg/codexdht/discv5/spr as spr
+import pkg/libp2p_mix/curve25519
 import pkg/serde/json
+import pkg/stew/byteutils
 import pkg/questionable/results
 import ../errors
 
@@ -31,3 +33,6 @@ func `%`*(obj: AddressInfo): JsonNode =
 
 func `%`*(obj: MultiAddress): JsonNode =
   % $obj
+
+func `%`*(obj: FieldElement): JsonNode =
+  %byteutils.toHex(fieldElementToBytes(obj))
