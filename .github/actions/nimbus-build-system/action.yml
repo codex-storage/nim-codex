@@ -41,6 +41,15 @@ runs:
     - name: Homebrew (macOS)
       if: inputs.os == 'macos'
       shell: ${{ inputs.shell }} {0}
+      env:
+        # The macOS runner image ships preinstalled, untrusted taps
+        # (aws/tap, azure/bicep) that make brew emit a "taps are not trusted"
+        # warning on every invocation. We only install the core `libomp`
+        # formula (always trusted), so opt into Homebrew's upcoming default
+        # of ignoring untrusted taps to silence the warning. Using the
+        # forward-compatible flag; HOMEBREW_NO_REQUIRE_TAP_TRUST is slated
+        # for removal.
+        HOMEBREW_REQUIRE_TAP_TRUST: 1
       run: |
         brew install libomp
 

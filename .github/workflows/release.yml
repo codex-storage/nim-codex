@@ -3,24 +3,24 @@ name: Release
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - "v*.*.*"
     branches:
       - master
   workflow_dispatch:
     inputs:
       branch:
-        description: 'dist-tests branch to run tests from'
+        description: "dist-tests branch to run tests from"
         required: false
-        default: 'master'
+        default: "master"
         type: string
 
-concurrency: 
+concurrency:
   # Prenvent concurrent release runs. This happens, eg, in a
   # double-dispatch (clicking "Run workflow" multiple times in a row) or if
   # multiple commits are pushed in quick succession to master (eg, a bugfix
   # right after a release commit).
-  # All runs target the same shared GCP cluster/Terraform state, so serialize 
-  # them instead of racing for the state lock. 
+  # All runs target the same shared GCP cluster/Terraform state, so serialize
+  # them instead of racing for the state lock.
   group: ${{ github.workflow }}
   cancel-in-progress: false
 
@@ -30,8 +30,8 @@ env:
   storage_binary_base: logos-storage
   c_bindings_lib_base: libstorage
   build_dir: build
-  nim_flags: ''
-  windows_libs: 'libstdc++-6.dll libgomp-1.dll libgcc_s_seh-1.dll libwinpthread-1.dll'
+  nim_flags: ""
+  windows_libs: "libstdc++-6.dll libgomp-1.dll libgcc_s_seh-1.dll libwinpthread-1.dll"
 
 jobs:
   # Matrix
@@ -40,15 +40,15 @@ jobs:
     outputs:
       matrix: ${{ steps.matrix.outputs.matrix }}
     steps:
-    - name: Compute matrix
-      id: matrix
-      uses: fabiocaccamo/create-matrix-action@v5
-      with:
-        matrix: |
-          os {linux},   cpu {amd64}, builder {ubuntu-22.04},     nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
-          os {linux},   cpu {arm64}, builder {ubuntu-22.04-arm}, nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
-          os {macos},   cpu {arm64}, builder {macos-14},         nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
-          os {windows}, cpu {amd64}, builder {windows-latest},   nim_version {${{ env.nim_version }}}, shell {msys2}
+      - name: Compute matrix
+        id: matrix
+        uses: fabiocaccamo/create-matrix-action@v5
+        with:
+          matrix: |
+            os {linux},   cpu {amd64}, builder {ubuntu-22.04},     nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
+            os {linux},   cpu {arm64}, builder {ubuntu-22.04-arm}, nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
+            os {macos},   cpu {arm64}, builder {macos-14},         nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
+            os {windows}, cpu {amd64}, builder {windows-latest},   nim_version {${{ env.nim_version }}}, shell {msys2}
 
   # Build
   build:
@@ -113,7 +113,7 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -y zip
           zip -j "${{ env.build_dir }}/${{env.storage_binary}}.zip" ./${{ env.build_dir }}/*
-          
+
       - name: Package ${{ env.storage_binary_base }} MacOS (compress and preserve perms)
         if: matrix.os == 'macos'
         run: |
@@ -174,7 +174,7 @@ jobs:
           sudo apt-get update && sudo apt-get install -y zip
           zip -j "${{ env.build_dir }}/${{ env.c_bindings_lib }}.zip" ${{ env.build_dir }}/${{ env.c_bindings_lib_base }}.so
           zip -j "${{ env.build_dir }}/${{ env.c_bindings_lib }}.zip" library/${{ env.c_bindings_lib_base }}.h
-          
+
       - name: Package ${{ env.c_bindings_lib_base }} MacOS
         if: matrix.os == 'macos'
         run: |
@@ -201,7 +201,7 @@ jobs:
     if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
     uses: ./.github/workflows/docker-reusable.yml
     with:
-      nimflags: '-d:disableMarchNative -d:storage_enable_api_debug_peers=true -d:storage_enable_log_counter=true'
+      nimflags: "-d:disableMarchNative -d:storage_enable_api_debug_peers=true -d:storage_enable_log_counter=true"
       nat_ip_auto: true
       tag_latest: false
       tag_stable: false
@@ -424,14 +424,14 @@ jobs:
       - name: Download binaries from workflow artifacts into temp folder
         uses: actions/download-artifact@v8
         with:
-          pattern: ${{ env.storage_binary_base }}*
+          pattern: ${{ env.storage_binary_base }}*.zip
           merge-multiple: true
           path: /tmp/release
 
       - name: Download ${{ env.c_bindings_lib_base }} from workflow artifacts into temp folder
         uses: actions/download-artifact@v8
         with:
-          pattern: ${{ env.c_bindings_lib_base }}*
+          pattern: ${{ env.c_bindings_lib_base }}*.zip
           merge-multiple: true
           path: /tmp/release
 
