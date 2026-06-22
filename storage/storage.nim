@@ -103,6 +103,8 @@ proc start*(s: StorageServer) {.async.} =
         raise newException(StorageError, "Failed to load Mix relay pool: " & error.msg)
       mixProto = MixProtocol.new(mixNodeInfo, switch)
 
+    info "Starting node with Mix relay pool", count = relayPool.len
+
     for info in relayPool.values:
       mixProto.nodePool.add(info)
 
