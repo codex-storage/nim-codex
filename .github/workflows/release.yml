@@ -40,15 +40,15 @@ jobs:
     outputs:
       matrix: ${{ steps.matrix.outputs.matrix }}
     steps:
-      - name: Compute matrix
-        id: matrix
-        uses: fabiocaccamo/create-matrix-action@v5
-        with:
-          matrix: |
-            os {linux},   cpu {amd64}, builder {ubuntu-22.04},     nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
-            os {linux},   cpu {arm64}, builder {ubuntu-22.04-arm}, nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
-            os {macos},   cpu {arm64}, builder {macos-14},         nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
-            os {windows}, cpu {amd64}, builder {windows-latest},   nim_version {${{ env.nim_version }}}, shell {msys2}
+    - name: Compute matrix
+      id: matrix
+      uses: fabiocaccamo/create-matrix-action@v5
+      with:
+        matrix: |
+          os {linux},   cpu {amd64}, builder {ubuntu-24.04},     nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
+          os {linux},   cpu {arm64}, builder {ubuntu-24.04-arm}, nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
+          os {macos},   cpu {arm64}, builder {macos-14},         nim_version {${{ env.nim_version }}}, shell {bash --noprofile --norc -e -o pipefail}
+          os {windows}, cpu {amd64}, builder {windows-latest},   nim_version {${{ env.nim_version }}}, shell {msys2}
 
   # Build
   build:
@@ -106,7 +106,14 @@ jobs:
 
       - name: Build Logos Storage binary
         run: |
-          make NIMFLAGS="--out:${{ env.build_dir }}/${{ env.storage_binary }} ${{ env.nim_flags }}"
+          nim_flags="${{ env.nim_flags }}"
+          # secp256k1's x86_64 inline asm can hit a GCC register-allocation
+          # failure when -march=native expands against this runner's CPU, so
+          # pin a fixed baseline instead. arm64/macOS don't use that asm path.
+          if [[ "${{ matrix.os }}" == "linux" && "${{ matrix.cpu }}" == "amd64" ]]; then
+            nim_flags="${nim_flags} -d:disableMarchNative"
+          fi
+          make NIMFLAGS="--out:${{ env.build_dir }}/${{ env.storage_binary }} ${nim_flags}"
 
       - name: Package ${{ env.storage_binary_base }} Linux (compress and preserve perms)
         if: matrix.os == 'linux'
