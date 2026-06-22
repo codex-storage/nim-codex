@@ -2,6 +2,8 @@ import pkg/questionable
 import pkg/libp2p
 import pkg/codexdht/discv5/node as dn
 import pkg/codexdht/discv5/routing_table as rt
+import ../node
+import ../conf
 import ../utils/json
 import ../manifest
 import ../units
@@ -41,6 +43,20 @@ type
     quotaUsedBytes* {.serialize.}: NBytes
     quotaReservedBytes* {.serialize.}: NBytes
 
+  VersionInfo* = object
+    version* {.serialize.}: string
+    revision* {.serialize.}: string
+
+  DebugInfo* = object
+    id* {.serialize.}: PeerId
+    addrs* {.serialize.}: seq[MultiAddress]
+    repo* {.serialize.}: string
+    spr* {.serialize.}: Option[SignedPeerRecord]
+    providerRecord* {.serialize.}: Option[SignedPeerRecord]
+    announceAddresses* {.serialize.}: seq[MultiAddress]
+    table* {.serialize.}: RestRoutingTable
+    storage* {.serialize.}: VersionInfo
+
 proc init*(_: type RestContentList, content: seq[RestContent]): RestContentList =
   RestContentList(content: content)
 
@@ -74,3 +90,14 @@ proc init*(_: type RestNodeId, id: NodeId): RestNodeId =
 
 proc `%`*(obj: RestNodeId): JsonNode =
   % $obj.id
+
+proc init*(_: type DebugInfo, node: StorageNodeRef): DebugInfo =
+  DebugInfo(
+    id: node.switch.peerInfo.peerId,
+    addrs: node.switch.peerInfo.addrs,
+    spr: node.discovery.dhtRecord,
+    providerRecord: node.discovery.providerRecord,
+    announceAddresses: node.discovery.announceAddrs,
+    table: RestRoutingTable.init(node.discovery.protocol.routingTable),
+    storage: VersionInfo(version: $storageVersion, revision: $storageRevision),
+  )

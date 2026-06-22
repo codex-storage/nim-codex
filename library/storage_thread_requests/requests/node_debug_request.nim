@@ -49,19 +49,8 @@ proc destroyShared(self: ptr NodeDebugRequest) =
 proc getDebug(
     storage: ptr StorageServer
 ): Future[Result[string, string]] {.async: (raises: []).} =
-  let node = storage[].node
-  let table = RestRoutingTable.init(node.discovery.protocol.routingTable)
-
-  let json = %*{
-    "id": $node.switch.peerInfo.peerId,
-    "addrs": node.switch.peerInfo.addrs.mapIt($it),
-    "spr":
-      if node.discovery.dhtRecord.isSome: node.discovery.dhtRecord.get.toURI else: "",
-    "announceAddresses": node.discovery.announceAddrs,
-    "table": table,
-  }
-
-  return ok($json)
+  let nodeInfo = %DebugInfo.init(storage[].node)
+  return ok($nodeInfo)
 
 proc getPeer(
     storage: ptr StorageServer, peerId: cstring

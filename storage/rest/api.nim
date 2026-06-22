@@ -557,7 +557,7 @@ proc initNodeApi(node: StorageNodeRef, conf: StorageConf, router: var RestRouter
       return
         RestApiResponse.error(Http500, "Unknown error dialling peer", headers = headers)
 
-proc initDebugApi(node: StorageNodeRef, conf: StorageConf, router: var RestRouter) =
+proc initDebugApi(node: StorageNodeRef, router: var RestRouter) =
   let allowedOrigin = router.allowedOrigin
 
   router.api(MethodGet, "/api/storage/v1/debug/info") do() -> RestApiResponse:
@@ -566,27 +566,11 @@ proc initDebugApi(node: StorageNodeRef, conf: StorageConf, router: var RestRoute
     var headers = buildCorsHeaders("GET", allowedOrigin)
 
     try:
-      let table = RestRoutingTable.init(node.discovery.protocol.routingTable)
-
-      let json = %*{
-        "id": $node.switch.peerInfo.peerId,
-        "addrs": node.switch.peerInfo.addrs.mapIt($it),
-        "repo": $conf.dataDir,
-        "spr":
-          if node.discovery.dhtRecord.isSome: node.discovery.dhtRecord.get.toURI else: "",
-        "providerRecord":
-          if node.discovery.providerRecord.isSome:
-            node.discovery.providerRecord.get.toURI
-          else:
-            "",
-        "announceAddresses": node.discovery.announceAddrs,
-        "table": table,
-        "storage": {"version": $storageVersion, "revision": $storageRevision},
-      }
-
       # return pretty json for human readability
       return RestApiResponse.response(
-        json.pretty(), contentType = "application/json", headers = headers
+        DebugInfo.init(node).toJson(pretty = true),
+        contentType = "application/json",
+        headers = headers,
       )
     except CatchableError as exc:
       trace "Excepting processing request", exc = exc.msg
@@ -648,6 +632,6 @@ proc initRestApi*(
 
   initDataApi(node, repoStore, router)
   initNodeApi(node, conf, router)
-  initDebugApi(node, conf, router)
+  initDebugApi(node, router)
 
   return router
