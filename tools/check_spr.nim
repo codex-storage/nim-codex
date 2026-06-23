@@ -23,7 +23,7 @@
 ##
 ## Run `check_spr --help` for a full description of every option.
 
-import std/[json, options, os, sequtils, strutils, typetraits, strformat, terminal]
+import std/[json, net, options, os, sequtils, strutils, typetraits, strformat, terminal]
 
 import pkg/chronicles
 import pkg/chronos
@@ -119,8 +119,11 @@ proc checkDiscv5(
   let rng = newRng()
   let privKey = PrivateKey.random(rng).tryGet()
   let proto = discv5.newProtocol(
-    privKey, none(IpAddress), none(Port), none(Port), bindPort = Port(0), rng = rng
+    privKey, IPv4_any().some, none(Port), none(Port), bindPort = Port(0), rng = rng
   )
+  # Use IPv4_any address as the enrIp param in newProtocol to avoid the
+  # warnings. It changes the SPR of the discv5 protocol ping tool (this), but
+  # does not affect the SPRs of the target.
 
   try:
     proto.open()
