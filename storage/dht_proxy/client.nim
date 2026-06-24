@@ -29,8 +29,7 @@ logScope:
   topics = "storage dht-proxy client"
 
 type LookupResult = object
-  status: ResponseStatus
-  errorKind: ErrorKind
+  code: LookupCode
   providers: seq[SignedPeerRecord]
 
 proc requestLookup(
@@ -57,10 +56,7 @@ proc requestLookup(
         providers.add(res.get)
       else:
         warn "Failed to decode SignedPeerRecord from response", err = $res.error
-
-    return success LookupResult(
-      status: resp.status, errorKind: resp.errorKind, providers: providers
-    )
+    return success LookupResult(code: resp.code, providers: providers)
   except LPStreamError as exc:
     return failure("Stream error: " & exc.msg)
   except CatchableError as exc:
@@ -103,13 +99,14 @@ proc lookupProviders*(
       return failure(lookupRes.error)
     let lookup = lookupRes.get()
 
-    case lookup.status
-    of ResponseStatus.Ok:
+    case lookup.code
+    of LookupCode.Ok:
       return success lookup.providers
-    of ResponseStatus.NotFound:
+    of LookupCode.NotFound:
       return success newSeq[SignedPeerRecord]()
-    of ResponseStatus.Error:
-      return failure("Remote returned error: " & $lookup.errorKind)
+    of LookupCode.ErrDecodeFailed, LookupCode.ErrInvalidCid, LookupCode.ErrInternal,
+        LookupCode.ErrResponseTooLarge, LookupCode.ErrTooBusy:
+      return failure("Remote returned error: " & $lookup.code)
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
