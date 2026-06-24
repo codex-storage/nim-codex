@@ -107,7 +107,7 @@ proc init*(_: type DebugInfo, node: StorageNodeRef): DebugInfo =
   let
     peerInfo = node.switch.peerInfo
     peerId = peerInfo.peerId
-    libp2pPubKeyBytes = peerInfo.publicKey.getBytes()
+    libp2pPubKeyBytes = peerInfo.publicKey.getRawBytes()
 
   # Cause there's no canonical way to get your own key from MixProtocol
   # that I'm aware of.
