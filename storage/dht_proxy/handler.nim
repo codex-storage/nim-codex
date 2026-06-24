@@ -34,14 +34,13 @@ proc handleFindProviders(
   let
     cid = Cid.init(queryBytes).valueOr:
       warn "Invalid CID in lookup request"
-      return
-        LookupResponse(status: ResponseStatus.Error, errorKind: ErrorKind.InvalidCid)
+      return LookupResponse(code: LookupCode.ErrInvalidCid)
     providers = (await self.discovery.findDirect(cid)).valueOr:
       warn "Direct lookup failed", cid, err = error.msg
-      return LookupResponse(status: ResponseStatus.Error, errorKind: ErrorKind.Internal)
+      return LookupResponse(code: LookupCode.ErrInternal)
 
   if providers.len == 0:
-    return LookupResponse(status: ResponseStatus.NotFound)
+    return LookupResponse(code: LookupCode.NotFound)
 
   var encoded = newSeqOfCap[seq[byte]](providers.len)
   for spr in providers:
@@ -51,23 +50,21 @@ proc handleFindProviders(
     encoded.add(bytes)
 
   if encoded.len == 0:
-    return LookupResponse(status: ResponseStatus.Error, errorKind: ErrorKind.Internal)
+    return LookupResponse(code: LookupCode.ErrInternal)
 
   let packed = packProviders(encoded, MaxLookupResponseBytes).valueOr:
-    return LookupResponse(status: ResponseStatus.Error, errorKind: error)
+    return LookupResponse(code: error)
 
-  LookupResponse(status: ResponseStatus.Ok, providers: packed)
+  LookupResponse(code: LookupCode.Ok, providers: packed)
 
 proc handleLookupRequest(
     self: DhtProxyProtocol, conn: Connection
 ) {.async: (raises: [CancelledError]).} =
   try:
     if self.inFlight >= self.maxInFlight:
-      debug "DHT proxy at capacity, replying TooBusy",
+      debug "DHT proxy at capacity, replying ErrTooBusy",
         inFlight = self.inFlight, max = self.maxInFlight
-      await conn.writeLp(
-        LookupResponse(status: ResponseStatus.Error, errorKind: ErrorKind.TooBusy).encode()
-      )
+      await conn.writeLp(LookupResponse(code: LookupCode.ErrTooBusy).encode())
       return
 
     inc self.inFlight
@@ -78,11 +75,7 @@ proc handleLookupRequest(
       reqBytes = await conn.readLp(MaxLookupRequestBytes)
       req = LookupRequest.decode(reqBytes).valueOr:
         warn "Failed to decode lookup request"
-        await conn.writeLp(
-          LookupResponse(
-            status: ResponseStatus.Error, errorKind: ErrorKind.DecodeFailed
-          ).encode()
-        )
+        await conn.writeLp(LookupResponse(code: LookupCode.ErrDecodeFailed).encode())
         return
 
     let resp =

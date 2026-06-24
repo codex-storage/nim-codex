@@ -12,6 +12,7 @@
 import pkg/libp2p/protobuf/minprotobuf
 import pkg/libp2p_mix
 import pkg/libp2p/routing_record
+import pkg/stew/objects
 
 import ../logutils
 
@@ -31,25 +32,21 @@ type
   QueryType* {.pure.} = enum
     FindProviders = 0
 
-  ResponseStatus* {.pure.} = enum
+  LookupCode* {.pure.} = enum
     Ok = 0
     NotFound = 1
-    Error = 2
-
-  ErrorKind* {.pure.} = enum
-    DecodeFailed = 0
-    InvalidCid = 1
-    Internal = 2
-    ResponseTooLarge = 3
-    TooBusy = 4
+    ErrDecodeFailed = 100
+    ErrInvalidCid = 101
+    ErrInternal = 200
+    ErrResponseTooLarge = 201
+    ErrTooBusy = 202
 
   LookupRequest* = object
     queryType*: QueryType
     queryBytes*: seq[byte]
 
   LookupResponse* = object
-    status*: ResponseStatus
-    errorKind*: ErrorKind
+    code*: LookupCode
     providers*: seq[seq[byte]]
 
 proc encode*(req: LookupRequest): seq[byte] =
@@ -61,11 +58,9 @@ proc encode*(req: LookupRequest): seq[byte] =
 
 proc encode*(resp: LookupResponse): seq[byte] =
   var pb = initProtoBuffer()
-  pb.write(1, resp.status.uint32)
-  if resp.status == ResponseStatus.Error:
-    pb.write(2, resp.errorKind.uint32)
+  pb.write(1, resp.code.uint32)
   for spr in resp.providers:
-    pb.write(3, spr)
+    pb.write(2, spr)
   pb.finish()
   pb.buffer
 
@@ -76,9 +71,8 @@ proc decode*(_: type LookupRequest, data: openArray[byte]): ProtoResult[LookupRe
     qt: uint32
 
   if ?pb.getField(1, qt):
-    if qt > QueryType.high.uint32:
+    if not checkedEnumAssign(req.queryType, qt):
       return err(ProtoError.IncorrectBlob)
-    req.queryType = QueryType(qt)
 
   discard ?pb.getField(2, req.queryBytes)
   ok(req)
@@ -89,34 +83,25 @@ proc decode*(
   let pb = initProtoBuffer(data)
   var
     resp = LookupResponse()
-    status: uint32
+    codeOrd: uint32
 
-  if ?pb.getField(1, status):
-    if status > ResponseStatus.high.uint32:
+  if ?pb.getField(1, codeOrd):
+    if not checkedEnumAssign(resp.code, codeOrd):
       return err(ProtoError.IncorrectBlob)
-    resp.status = ResponseStatus(status)
 
-  if resp.status == ResponseStatus.Error:
-    var ek: uint32
-    if ?pb.getField(2, ek):
-      if ek > ErrorKind.high.uint32:
-        return err(ProtoError.IncorrectBlob)
-      resp.errorKind = ErrorKind(ek)
-
-  discard ?pb.getRepeatedField(3, resp.providers)
-
+  discard ?pb.getRepeatedField(2, resp.providers)
   ok(resp)
 
 proc packProviders*(
     providers: seq[seq[byte]], budget_bytes: int
-): Result[seq[seq[byte]], ErrorKind] =
+): Result[seq[seq[byte]], LookupCode] =
   if providers.len == 0:
     error "packProviders called with no providers"
-    return err(ErrorKind.Internal)
+    return err(LookupCode.ErrInternal)
 
-  let single = LookupResponse(status: ResponseStatus.Ok, providers: providers[0 ..< 1])
+  let single = LookupResponse(code: LookupCode.Ok, providers: providers[0 ..< 1])
   if single.encode().len > budget_bytes:
-    return err(ErrorKind.ResponseTooLarge)
+    return err(LookupCode.ErrResponseTooLarge)
 
   var
     lo = 1
@@ -124,7 +109,7 @@ proc packProviders*(
   while lo < hi:
     let
       mid = (lo + hi + 1) div 2
-      test = LookupResponse(status: ResponseStatus.Ok, providers: providers[0 ..< mid])
+      test = LookupResponse(code: LookupCode.Ok, providers: providers[0 ..< mid])
     if test.encode().len <= budget_bytes:
       lo = mid
     else:
