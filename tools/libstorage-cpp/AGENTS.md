@@ -73,6 +73,7 @@ Keep daemon commands low-level:
 - `exists`
 - `delete`
 - `fetch`
+- `stream-sink`
 - `manifest`
 - `connect`
 - `shutdown`
@@ -100,6 +101,8 @@ The protocol currently does not support paths or arguments containing spaces. If
 3. `~/.logos/storage/libstorage/storage_lib.sock`
 
 `storage_lib_ctl` should return nonzero when the daemon responds with `"ok":false`.
+
+`stream-sink <cid> [local]` uses released libstorage download primitives: `storage_download_init` followed by `storage_download_stream` with an empty output path. It discards progress bytes while counting transferred byte lengths and waits for terminal completion.
 
 File paths sent over IPC are resolved by the daemon process. Callers that run from a different working directory, such as `tools/storage-test/storage-test.sh`, should send absolute paths.
 

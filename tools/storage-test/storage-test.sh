@@ -40,6 +40,9 @@ Target commands:
   <target> fetch <cid> [--wait]
       Fetch CID from network into target local store. --wait is REST-only.
 
+  <target> stream-sink <cid> [--local]
+      Stream CID and discard data. Used by test metrics.
+
   <target> list
       List manifest CIDs stored locally by target.
 
@@ -59,8 +62,8 @@ Target commands:
       Show target peer ID.
 
   <target> test
-      Upload random files to remote, download via local/lib target, validate hashes,
-      and clean up involved CIDs. Supported targets: local, lib.
+      Upload random files to remote, measure manifest/network-stream/local-write,
+      validate hashes, and clean up involved CIDs. Supported targets: local, lib.
 
 Lib-only target commands:
   lib spr
@@ -483,6 +486,93 @@ size_to_bytes() {
   esac
 }
 
+now_ns() {
+  date +%s%N
+}
+
+elapsed_seconds() {
+  local start_ns="$1"
+  local end_ns="$2"
+  awk -v start="$start_ns" -v end="$end_ns" 'BEGIN { printf "%.3f", (end - start) / 1000000000 }'
+}
+
+sum_seconds() {
+  awk -v a="$1" -v b="$2" -v c="$3" 'BEGIN { printf "%.3f", a + b + c }'
+}
+
+format_speed() {
+  local bytes="$1"
+  local seconds="$2"
+  awk -v bytes="$bytes" -v seconds="$seconds" '
+    BEGIN {
+      if (seconds <= 0) {
+        printf "n/a"
+        exit
+      }
+      speed = bytes / seconds
+      unit = "B/s"
+      if (speed >= 1024) { speed /= 1024; unit = "KiB/s" }
+      if (speed >= 1024) { speed /= 1024; unit = "MiB/s" }
+      if (speed >= 1024) { speed /= 1024; unit = "GiB/s" }
+      printf "%.2f %s", speed, unit
+    }
+  '
+}
+
+target_manifest_cid() {
+  local target="$1"
+  local cid="${2:-}"
+  [[ -n "$cid" ]] || die 'manifest requires <cid>'
+  if [[ "$target" == 'lib' ]]; then
+    lib_result manifest "$cid" >/dev/null
+    return 0
+  fi
+
+  check_common_deps
+  local api
+  api="$(target_api "$target")"
+  curl -fsS "${api}/data/${cid}/network/manifest" >/dev/null
+}
+
+target_stream_sink() {
+  local target="$1"
+  local cid="${2:-}"
+  local local_flag="${3:-}"
+  [[ -n "$cid" ]] || die 'stream-sink requires <cid> [--local]'
+  [[ -z "$local_flag" || "$local_flag" == '--local' ]] || die 'stream-sink only supports optional --local'
+
+  if [[ "$target" == 'lib' ]]; then
+    lib_result stream-sink "$cid" "$([[ "$local_flag" == '--local' ]] && printf true || printf false)" >/dev/null
+    return 0
+  fi
+
+  check_common_deps
+  local api path
+  api="$(target_api "$target")"
+  if [[ "$local_flag" == '--local' ]]; then
+    path="${api}/data/${cid}"
+  else
+    path="${api}/data/${cid}/network/stream"
+  fi
+  curl -fLsS "$path" -o /dev/null
+}
+
+target_download_local_cid() {
+  local target="$1"
+  local cid="${2:-}"
+  local out="${3:-}"
+  [[ -n "$cid" && -n "$out" ]] || die 'local download requires <cid> <output-file>'
+  if [[ "$target" == 'lib' ]]; then
+    target_download_cid lib "$cid" "$out" --local >/dev/null
+    return 0
+  fi
+
+  check_common_deps
+  local api
+  api="$(target_api "$target")"
+  curl -fLsS "${api}/data/${cid}" -o "$out"
+}
+
 target_test() {
   local target="$1"
   [[ "$target" == 'local' || "$target" == 'lib' ]] || die 'test is supported only for local and lib targets'
@@ -504,6 +594,13 @@ target_test() {
   local -a result_downloads=()
   local -a result_cids=()
   local -a result_hashes=()
+  local -a result_manifest_times=()
+  local -a result_network_times=()
+  local -a result_network_speeds=()
+  local -a result_write_times=()
+  local -a result_write_speeds=()
+  local -a result_total_times=()
+  local -a result_total_speeds=()
   local -a cleanup_messages=()
 
   cleanup() {
@@ -557,13 +654,20 @@ target_test() {
       printf -- "- **Cleanup failures:** \`%s\`\n\n" "$cleanup_failures"
 
       printf '## Files\n\n'
-      printf '| # | Size | Bytes | CID | SHA-256 | Source | Download |\n'
-      printf '|---:|---:|---:|---|---|---|---|\n'
+      printf '| # | Size | Bytes | Manifest Time | Network Stream Time | Network Stream Speed | Local Write Time | Local Write Speed | Total Time | Total Speed | CID | SHA-256 | Source | Download |\n'
+      printf '|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---|---|---|\n'
       for i in "${!result_cids[@]}"; do
-        printf "| %d | \`%s\` | \`%s\` | \`%s\` | \`%s\` | \`%s\` | \`%s\` |\n" \
+        printf "| %d | \`%s\` | \`%s\` | \`%s\` | \`%s\` | \`%s\` | \`%s\` | \`%s\` | \`%s\` | \`%s\` | \`%s\` | \`%s\` | \`%s\` | \`%s\` |\n" \
           "$((i + 1))" \
           "${result_sizes[$i]}" \
           "${result_bytes[$i]}" \
+          "${result_manifest_times[$i]}" \
+          "${result_network_times[$i]}" \
+          "${result_network_speeds[$i]}" \
+          "${result_write_times[$i]}" \
+          "${result_write_speeds[$i]}" \
+          "${result_total_times[$i]}" \
+          "${result_total_speeds[$i]}" \
           "${result_cids[$i]}" \
           "${result_hashes[$i]}" \
           "${result_sources[$i]}" \
@@ -589,6 +693,9 @@ target_test() {
   local size index=0
   for size in $TEST_FILE_SIZES; do
     local bytes src out cid src_hash out_hash
+    local manifest_start manifest_end network_start network_end write_start write_end
+    local manifest_seconds network_seconds write_seconds total_seconds
+    local network_speed write_speed total_speed
     bytes="$(size_to_bytes "$size")"
     (( bytes <= max_bytes )) || die "test file size exceeds 10MB limit: $size"
 
@@ -603,15 +710,28 @@ target_test() {
     cid="$(target_upload_file remote "$src")"
     cids+=("$cid")
 
-    printf '[%d] Download via %s: %s\n' "$index" "$target" "$cid"
-    if [[ "$target" == 'local' ]]; then
-      target_fetch_cid local "$cid" --wait >/dev/null
-      local_cids+=("$cid")
-      target_download_cid local "$cid" "$out" >/dev/null
-    else
-      target_download_cid lib "$cid" "$out" >/dev/null
-      local_cids+=("$cid")
-    fi
+    printf '[%d] Resolve manifest via %s: %s\n' "$index" "$target" "$cid"
+    manifest_start="$(now_ns)"
+    target_manifest_cid "$target" "$cid"
+    manifest_end="$(now_ns)"
+    manifest_seconds="$(elapsed_seconds "$manifest_start" "$manifest_end")"
+
+    printf '[%d] Network stream via %s\n' "$index" "$target"
+    network_start="$(now_ns)"
+    target_stream_sink "$target" "$cid"
+    network_end="$(now_ns)"
+    network_seconds="$(elapsed_seconds "$network_start" "$network_end")"
+    network_speed="$(format_speed "$bytes" "$network_seconds")"
+    local_cids+=("$cid")
+
+    printf '[%d] Local write via %s\n' "$index" "$target"
+    write_start="$(now_ns)"
+    target_download_local_cid "$target" "$cid" "$out"
+    write_end="$(now_ns)"
+    write_seconds="$(elapsed_seconds "$write_start" "$write_end")"
+    write_speed="$(format_speed "$bytes" "$write_seconds")"
+    total_seconds="$(sum_seconds "$manifest_seconds" "$network_seconds" "$write_seconds")"
+    total_speed="$(format_speed "$bytes" "$total_seconds")"
 
     out_hash="$(sha256sum "$out" | awk '{ print $1 }')"
     [[ "$src_hash" == "$out_hash" ]] || die "hash mismatch for cid $cid"
@@ -621,6 +741,17 @@ target_test() {
     result_downloads+=("$out")
     result_cids+=("$cid")
     result_hashes+=("$src_hash")
+    result_manifest_times+=("${manifest_seconds}s")
+    result_network_times+=("${network_seconds}s")
+    result_network_speeds+=("$network_speed")
+    result_write_times+=("${write_seconds}s")
+    result_write_speeds+=("$write_speed")
+    result_total_times+=("${total_seconds}s")
+    result_total_speeds+=("$total_speed")
+    printf '[%d] Manifest:       %ss\n' "$index" "$manifest_seconds"
+    printf '[%d] Network stream: %ss, %s\n' "$index" "$network_seconds" "$network_speed"
+    printf '[%d] Local write:    %ss, %s\n' "$index" "$write_seconds" "$write_speed"
+    printf '[%d] Total:          %ss, %s\n' "$index" "$total_seconds" "$total_speed"
     printf '[%d] OK sha256=%s\n' "$index" "$src_hash"
   done
 
@@ -646,6 +777,7 @@ target_command() {
     upload-random) target_upload_random "$target" "$@" ;;
     download) target_download_cid "$target" "$@" ;;
     fetch) target_fetch_cid "$target" "$@" ;;
+    stream-sink) target_stream_sink "$target" "$@" ;;
     list) [[ $# -eq 0 ]] || die 'list does not accept arguments'; target_list_cids "$target" ;;
     delete) target_delete_cid "$target" "$@" ;;
     delete-all) target_delete_all "$target" "$@" ;;

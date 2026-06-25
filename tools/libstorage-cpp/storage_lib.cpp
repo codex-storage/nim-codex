@@ -205,6 +205,13 @@ std::string dispatch(StorageClient& client, const Options& options, const std::s
         const bool local = parts.size() == 4 ? parseBool(parts[3]) : false;
         return client.downloadFile(parts[1], parts[2], options.chunkSize, local);
     }
+    if (cmd == "stream-sink") {
+        if (parts.size() < 2 || parts.size() > 3) {
+            throw std::runtime_error("usage: stream-sink <cid> [local]");
+        }
+        const bool local = parts.size() == 3 ? parseBool(parts[2]) : false;
+        return std::to_string(client.streamSink(parts[1], options.chunkSize, local));
+    }
     if (cmd == "exists") {
         if (parts.size() != 2) throw std::runtime_error("usage: exists <cid>");
         return client.exists(parts[1]);

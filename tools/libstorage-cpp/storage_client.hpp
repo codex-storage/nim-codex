@@ -23,6 +23,7 @@ public:
     int status() const;
     std::string data() const;
     size_t progressCount() const;
+    size_t progressBytes() const;
     std::string lastProgress() const;
 
 private:
@@ -32,6 +33,7 @@ private:
     int status_ = -1;
     std::string result_;
     size_t progressCount_ = 0;
+    size_t progressBytes_ = 0;
     std::string lastProgress_;
 };
 
@@ -68,6 +70,7 @@ public:
         const std::string& outputPath,
         size_t chunkSize,
         bool local);
+    size_t streamSink(const std::string& cid, size_t chunkSize, bool local);
 
 private:
     using AsyncCall = std::function<int(StorageCallback, void*)>;

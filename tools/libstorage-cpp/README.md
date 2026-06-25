@@ -73,6 +73,7 @@ Send commands with `storage_lib_ctl`:
 ./storage_lib_ctl --socket ./storage_lib.sock manifest <cid>
 ./storage_lib_ctl --socket ./storage_lib.sock exists <cid>
 ./storage_lib_ctl --socket ./storage_lib.sock download <cid> ./downloaded.md true
+./storage_lib_ctl --socket ./storage_lib.sock stream-sink <cid> false
 ./storage_lib_ctl --socket ./storage_lib.sock delete <cid>
 ./storage_lib_ctl --socket ./storage_lib.sock shutdown
 ```
@@ -102,6 +103,7 @@ or:
 - `manifest <cid>`: prints manifest JSON.
 - `delete <cid>`: deletes locally stored content.
 - `fetch <cid>`: fetches content into the local store.
+- `stream-sink <cid> [local]`: streams content and discards data, returning transferred bytes.
 - `roundtrip <in> <out>`: uploads one file, downloads it, compares bytes, and prints the cid.
 - `repeat-roundtrip <in> <out-prefix> <count>`: repeats roundtrip in one node session.
 - `upload-many <file> <count>`: uploads the same file repeatedly in one node session.

@@ -87,6 +87,7 @@ void printUsage() {
         "  fetch <cid>            Fetch content into the local store\n"
         "  upload <file>          Upload a file and print its cid\n"
         "  download <cid> <file>  Download cid into file\n"
+        "  stream-sink <cid>      Stream cid and discard data; prints bytes\n"
         "  roundtrip <in> <out>   Upload, download, compare, and print cid\n"
         "  repeat-roundtrip <in> <out-prefix> <count>\n"
         "                         Repeat roundtrip in one node session\n"
@@ -272,6 +273,9 @@ int main(int argc, char** argv) {
             std::cout << client.downloadFile(
                              options.args[0], options.args[1], options.chunkSize, options.local)
                       << "\n";
+        } else if (options.command == "stream-sink") {
+            requireArgCount(options, 1);
+            std::cout << client.streamSink(options.args[0], options.chunkSize, options.local) << "\n";
         } else if (options.command == "roundtrip") {
             requireArgCount(options, 2);
             std::cout << roundtrip(client, options, options.args[0], options.args[1]) << "\n";

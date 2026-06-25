@@ -35,6 +35,7 @@ void StorageResponse::setResult(int callerRet, const char* msg, size_t len) {
 
     if (callerRet == RET_PROGRESS) {
         progressCount_ += 1;
+        progressBytes_ += len;
         if (msg && len > 0) {
             lastProgress_.assign(msg, len);
         } else {
@@ -76,6 +77,11 @@ std::string StorageResponse::data() const {
 size_t StorageResponse::progressCount() const {
     std::lock_guard<std::mutex> lock(mtx_);
     return progressCount_;
+}
+
+size_t StorageResponse::progressBytes() const {
+    std::lock_guard<std::mutex> lock(mtx_);
+    return progressBytes_;
 }
 
 std::string StorageResponse::lastProgress() const {
@@ -262,6 +268,29 @@ std::string StorageClient::downloadFile(
         return storage_download_stream(
             ctx_, cid.c_str(), chunkSize, local, outputPath.c_str(), cb, userData);
     });
+}
+
+size_t StorageClient::streamSink(const std::string& cid, size_t chunkSize, bool local) {
+    call("storage_download_init", [this, &cid, chunkSize, local](StorageCallback cb, void* userData) {
+        return storage_download_init(ctx_, cid.c_str(), chunkSize, local, cb, userData);
+    });
+
+    StorageResponse resp;
+    const int dispatchRet = storage_download_stream(
+        ctx_, cid.c_str(), chunkSize, local, "", callback, &resp);
+    if (!isOk(dispatchRet)) {
+        throw std::runtime_error("storage_download_stream dispatch failed");
+    }
+
+    if (!resp.wait(timeout_)) {
+        throw std::runtime_error("storage_download_stream timed out");
+    }
+
+    if (!isOk(resp.status())) {
+        throw std::runtime_error("storage_download_stream failed: " + resp.data());
+    }
+
+    return resp.progressBytes();
 }
 
 std::string StorageClient::call(const char* name, const AsyncCall& fn) {

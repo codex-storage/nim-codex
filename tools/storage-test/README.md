@@ -238,7 +238,9 @@ Run the same scenario against the libstorage daemon:
 tools/storage-test/storage-test.sh lib test
 ```
 
-The scenario uploads random files to the remote Linode node, downloads them using the selected local target, validates SHA-256 hashes, and deletes involved CIDs from both sides. The default file sizes are `4K 1M 10M`; override with `TEST_FILE_SIZES`.
+The scenario uploads random files to the remote Linode node, measures manifest resolution, network stream-to-sink, and local-only write through the selected local target, validates SHA-256 hashes, and deletes involved CIDs from both sides. The default file sizes are `4K 1M 10M`; override with `TEST_FILE_SIZES`.
+
+The per-file metrics are `Manifest Time`, `Network Stream Time`, `Network Stream Speed`, `Local Write Time`, `Local Write Speed`, `Total Time`, and `Total Speed`. The local REST target uses `/network/manifest`, `/network/stream` to `/dev/null`, then local-only `/data/{cid}`. The lib target uses `manifest`, `stream-sink`, then local-only `download` through the daemon.
 
 The scenario prints a detailed progress summary and writes a Markdown report in the current directory:
 
@@ -256,6 +258,7 @@ The scenario prints a detailed progress summary and writes a Markdown report in 
 | Fetch from network into node | `POST /api/storage/v1/data/{cid}/network` |
 | Fetch progress | `GET /api/storage/v1/data/{cid}/network/progress/{downloadId}` |
 | Stream from network | `GET /api/storage/v1/data/{cid}/network/stream` |
+| Stream local-only | `GET /api/storage/v1/data/{cid}` |
 | Local existence check | `GET /api/storage/v1/data/{cid}/exists` |
 | Storage space | `GET /api/storage/v1/space` |
 

@@ -98,6 +98,7 @@ Common target commands:
 - `upload-random <size> [--keep]`
 - `download <cid> <output-file> [--local]`
 - `fetch <cid> [--wait]`
+- `stream-sink <cid> [--local]`
 - `list`
 - `delete <cid>`
 - `delete-all --yes`
@@ -139,11 +140,13 @@ Important: lib daemon file paths are resolved in the daemon process working dire
 
 1. Generate random files with sizes from `TEST_FILE_SIZES`.
 2. Upload each file to the `remote` Linode REST node.
-3. Download through selected target: `local` REST or `lib` daemon.
-4. Validate SHA-256 of source and downloaded file.
-5. Delete involved CIDs from the selected local target and `remote`.
-6. Remove temp workspace unless `TEST_KEEP_FILES=1`.
-7. Write a Markdown report in the caller's current directory: `./report-YYYY-MM-DD_HH-MM-SS.md`.
+3. Measure manifest resolution through selected target.
+4. Measure network stream-to-sink through selected target.
+5. Measure local-only write through selected target.
+6. Validate SHA-256 of source and downloaded file.
+7. Delete involved CIDs from the selected local target and `remote`.
+8. Remove temp workspace unless `TEST_KEEP_FILES=1`.
+9. Write a Markdown report in the caller's current directory: `./report-YYYY-MM-DD_HH-MM-SS.md`.
 
 Defaults:
 
@@ -151,7 +154,9 @@ Defaults:
 - `TEST_KEEP_FILES=0`
 - Max per-file test size is 10 MB.
 
-The report includes timestamps, duration, target, file size list, workspace path, per-file CID/hash/path details, and cleanup results. `report-*.md` is ignored by the root `.gitignore`.
+The report includes timestamps, duration, target, file size list, workspace path, per-file CID/hash/path details, manifest time, network stream time/speed, local write time/speed, total time/speed, and cleanup results. `report-*.md` is ignored by the root `.gitignore`.
+
+The metrics flow intentionally mirrors storage-module/UI primitives while splitting work for more detail. REST local uses `/network/manifest`, `/network/stream` to `/dev/null`, then local-only `/data/{cid}`. Lib uses daemon `manifest`, `stream-sink`, then local-only `download`.
 
 ## Verification Commands
 
