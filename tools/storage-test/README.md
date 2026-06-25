@@ -33,7 +33,13 @@ make -j1 NIMFLAGS="-d:disableMarchNative"
 Start a local node in the foreground:
 
 ```bash
-scripts/start-local-node.sh
+tools/storage-test/start-local-node.sh
+```
+
+Start a libstorage-based local node in the foreground:
+
+```bash
+tools/storage-test/start-local-node.sh --client lib
 ```
 
 Default local settings:
@@ -41,11 +47,12 @@ Default local settings:
 | Setting | Default |
 |---|---|
 | Binary | `./build/storage` |
-| Data dir | `~/.logos/storage/local-node` |
+| Data dir | `~/.logos/storage/local-node` for `storage`, `~/.logos/storage/libstorage/node` for `lib` |
 | Log level | `info` |
 | P2P TCP | `8071` |
 | Discovery UDP | `8091` |
 | REST API | `127.0.0.1:8080` |
+| Lib IPC socket | `~/.logos/storage/libstorage/storage_lib.sock` |
 | Network | `logos.test` |
 
 `info` is a good default log level: it shows startup, networking, and high-level node events without the volume of `debug` or `trace`.
@@ -53,19 +60,19 @@ Default local settings:
 Use `debug` when diagnosing behavior:
 
 ```bash
-scripts/start-local-node.sh --log-level debug
+tools/storage-test/start-local-node.sh --log-level debug
 ```
 
 Use `trace` only for detailed protocol/debug investigation because it can be noisy:
 
 ```bash
-scripts/start-local-node.sh --log-level trace
+tools/storage-test/start-local-node.sh --log-level trace
 ```
 
 Show all local-node options:
 
 ```bash
-scripts/start-local-node.sh --help
+tools/storage-test/start-local-node.sh --help
 ```
 
 The local node runs in the foreground. Press `Ctrl-C` to stop it.
@@ -75,7 +82,7 @@ The local node runs in the foreground. Press `Ctrl-C` to stop it.
 Show commands:
 
 ```bash
-scripts/storage-test.sh --help
+tools/storage-test/storage-test.sh --help
 ```
 
 Defaults:
@@ -85,6 +92,7 @@ Defaults:
 | Remote SSH | `storage@172.235.163.25` |
 | Remote API tunnel | `127.0.0.1:18080` |
 | Local API | `127.0.0.1:8080` |
+| Libstorage socket | `~/.logos/storage/libstorage/storage_lib.sock` |
 | CID state file | `~/.logos/storage/test/cids.log` |
 | Generated test files | `~/.logos/storage/test/files/` |
 
@@ -93,8 +101,8 @@ Defaults:
 Recover the latest CID from the upload history:
 
 ```bash
-scripts/storage-test.sh last-cid
-scripts/storage-test.sh last-cid remote
+tools/storage-test/storage-test.sh last-cid
+tools/storage-test/storage-test.sh last-cid remote
 ```
 
 ## SSH Tunnel
@@ -102,19 +110,19 @@ scripts/storage-test.sh last-cid remote
 Start the tunnel:
 
 ```bash
-scripts/storage-test.sh tunnel start
+tools/storage-test/storage-test.sh tunnel start
 ```
 
 Check it:
 
 ```bash
-scripts/storage-test.sh tunnel status
+tools/storage-test/storage-test.sh tunnel status
 ```
 
 Stop it:
 
 ```bash
-scripts/storage-test.sh tunnel stop
+tools/storage-test/storage-test.sh tunnel stop
 ```
 
 You do not have to stop the tunnel after each test. It is safe to leave it running while you are actively testing. Stop it when you are done, when you want to free local port `18080`, or before changing tunnel settings.
@@ -126,71 +134,111 @@ Commands that target `remote` start the tunnel automatically if it is not alread
 Terminal 1: start local node and watch logs.
 
 ```bash
-scripts/start-local-node.sh --log-level info
+tools/storage-test/start-local-node.sh --log-level info
 ```
 
 Terminal 2: upload random content to the Linode node.
 
 ```bash
-CID="$(scripts/storage-test.sh upload-random remote 10M)"
+CID="$(tools/storage-test/storage-test.sh remote upload-random 10M)"
 printf '%s\n' "$CID"
 ```
 
 If you prefer copy/paste, you can also run the upload command directly and copy the printed CID:
 
 ```bash
-scripts/storage-test.sh upload-random remote 10M
+tools/storage-test/storage-test.sh remote upload-random 10M
 ```
 
 Recover it later from the upload history:
 
 ```bash
-CID="$(scripts/storage-test.sh last-cid remote)"
+CID="$(tools/storage-test/storage-test.sh last-cid remote)"
 ```
 
 Ask the local node to fetch and store the content from the network:
 
 ```bash
-scripts/storage-test.sh fetch-local "$CID" --wait
+tools/storage-test/storage-test.sh local fetch "$CID" --wait
 ```
 
 Or stream the content through the local node without explicitly storing it first:
 
 ```bash
-scripts/storage-test.sh stream-local "$CID" /tmp/logos-download.bin
+tools/storage-test/storage-test.sh local download "$CID" /tmp/logos-download.bin
 ```
 
 Check local presence:
 
 ```bash
-scripts/storage-test.sh exists local "$CID"
+tools/storage-test/storage-test.sh local exists "$CID"
 ```
 
-List local and remote CIDs:
+List local, remote, and lib CIDs:
 
 ```bash
-scripts/storage-test.sh list local
-scripts/storage-test.sh list remote
+tools/storage-test/storage-test.sh local list
+tools/storage-test/storage-test.sh remote list
+tools/storage-test/storage-test.sh lib list
 ```
 
 Delete by CID:
 
 ```bash
-scripts/storage-test.sh delete local "$CID"
-scripts/storage-test.sh delete remote "$CID"
+tools/storage-test/storage-test.sh local delete "$CID"
+tools/storage-test/storage-test.sh remote delete "$CID"
 ```
 
 Delete all local CIDs:
 
 ```bash
-scripts/storage-test.sh delete-all local --yes
+tools/storage-test/storage-test.sh local delete-all --yes
 ```
 
 Delete all remote CIDs:
 
 ```bash
-scripts/storage-test.sh delete-all remote --yes
+tools/storage-test/storage-test.sh remote delete-all --yes
 ```
+
+## Libstorage Daemon Target
+
+Build and start the libstorage daemon from `tools/libstorage-cpp`:
+
+```bash
+cd tools/libstorage-cpp
+make
+cd ../..
+tools/storage-test/start-local-node.sh --client lib
+```
+
+Then use the `lib` target from the repository root:
+
+```bash
+tools/storage-test/storage-test.sh lib peerid
+tools/storage-test/storage-test.sh lib upload README.md
+tools/storage-test/storage-test.sh lib download <CID> /tmp/logos-lib-download.bin
+tools/storage-test/storage-test.sh lib spr
+tools/storage-test/storage-test.sh lib debug
+```
+
+Override the socket with `STORAGE_LIB_SOCKET` if the daemon was started with a non-default socket path.
+
+## Test Scenario
+
+Run the first remote-to-local scenario against a standard local REST node:
+
+```bash
+tools/storage-test/storage-test.sh local test
+```
+
+Run the same scenario against the libstorage daemon:
+
+```bash
+tools/storage-test/storage-test.sh lib test
+```
+
+The scenario uploads random files to the remote Linode node, downloads them using the selected local target, validates SHA-256 hashes, and deletes involved CIDs from both sides. The default file sizes are `4K 1M 10M`; override with `TEST_FILE_SIZES`.
 
 ## Useful API Endpoints
 
@@ -212,7 +260,7 @@ Stop the local node with `Ctrl-C`.
 Stop the SSH tunnel when finished:
 
 ```bash
-scripts/storage-test.sh tunnel stop
+tools/storage-test/storage-test.sh tunnel stop
 ```
 
 Remove local test data if desired:

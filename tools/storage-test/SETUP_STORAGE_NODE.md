@@ -343,7 +343,7 @@ Then use:
 curl http://127.0.0.1:18080/api/storage/v1/peerid
 ```
 
-In this repository, `scripts/storage-test.sh` manages this tunnel automatically for commands targeting `remote`.
+In this repository, `tools/storage-test/storage-test.sh` manages this tunnel automatically for commands targeting `remote`.
 
 ## Operational Commands
 
