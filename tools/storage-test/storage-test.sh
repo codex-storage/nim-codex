@@ -546,21 +546,21 @@ target_test() {
 
     {
       printf '# Logos Storage Test Report\n\n'
-      printf '- **Status:** PASS\n'
-      printf '- **Started:** `%s`\n' "$start_time"
-      printf '- **Finished:** `%s`\n' "$end_time"
-      printf '- **Duration:** `%ss`\n' "$duration"
-      printf '- **Target:** `%s`\n' "$target"
-      printf '- **Remote source:** `remote`\n'
-      printf '- **File sizes:** `%s`\n' "$TEST_FILE_SIZES"
-      printf '- **Workspace:** `%s`\n' "$workspace"
-      printf '- **Cleanup failures:** `%s`\n\n' "$cleanup_failures"
+      printf -- '- **Status:** PASS\n'
+      printf -- "- **Started:** \`%s\`\n" "$start_time"
+      printf -- "- **Finished:** \`%s\`\n" "$end_time"
+      printf -- "- **Duration:** \`%ss\`\n" "$duration"
+      printf -- "- **Target:** \`%s\`\n" "$target"
+      printf -- "- **Remote source:** \`remote\`\n"
+      printf -- "- **File sizes:** \`%s\`\n" "$TEST_FILE_SIZES"
+      printf -- "- **Workspace:** \`%s\`\n" "$workspace"
+      printf -- "- **Cleanup failures:** \`%s\`\n\n" "$cleanup_failures"
 
       printf '## Files\n\n'
       printf '| # | Size | Bytes | CID | SHA-256 | Source | Download |\n'
       printf '|---:|---:|---:|---|---|---|---|\n'
       for i in "${!result_cids[@]}"; do
-        printf '| %d | `%s` | `%s` | `%s` | `%s` | `%s` | `%s` |\n' \
+        printf "| %d | \`%s\` | \`%s\` | \`%s\` | \`%s\` | \`%s\` | \`%s\` |\n" \
           "$((i + 1))" \
           "${result_sizes[$i]}" \
           "${result_bytes[$i]}" \
@@ -572,10 +572,10 @@ target_test() {
 
       printf '\n## Cleanup\n\n'
       if [[ ${#cleanup_messages[@]} -eq 0 ]]; then
-        printf '- No cleanup actions recorded.\n'
+        printf -- '- No cleanup actions recorded.\n'
       else
         for i in "${!cleanup_messages[@]}"; do
-          printf '- %s\n' "${cleanup_messages[$i]}"
+          printf -- '- %s\n' "${cleanup_messages[$i]}"
         done
       fi
     } > "$report_path"
