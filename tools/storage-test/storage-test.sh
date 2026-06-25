@@ -490,28 +490,101 @@ target_test() {
   need sha256sum
 
   local max_bytes=$((10 * 1024 * 1024))
-  local workspace
+  local workspace report_ts report_path start_time start_epoch cleanup_done=0 cleanup_failures=0
   workspace="$(mktemp -d "${TMPDIR:-/tmp}/logos-storage-test.XXXXXX")"
+  report_ts="$(date +%Y-%m-%d_%H-%M-%S)"
+  report_path="./report-${report_ts}.md"
+  start_time="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  start_epoch="$(date +%s)"
   local -a cids=()
   local -a local_cids=()
+  local -a result_sizes=()
+  local -a result_bytes=()
+  local -a result_sources=()
+  local -a result_downloads=()
+  local -a result_cids=()
+  local -a result_hashes=()
+  local -a cleanup_messages=()
 
   cleanup() {
+    if [[ "$cleanup_done" == '1' ]]; then
+      return 0
+    fi
+    cleanup_done=1
     local cid
     for cid in "${local_cids[@]:-}"; do
-      target_delete_cid "$target" "$cid" >/dev/null 2>&1 || true
+      if target_delete_cid "$target" "$cid" >/dev/null 2>&1; then
+        cleanup_messages+=("deleted $cid from $target")
+      else
+        cleanup_messages+=("failed to delete $cid from $target")
+        cleanup_failures=$((cleanup_failures + 1))
+      fi
     done
     for cid in "${cids[@]:-}"; do
-      target_delete_cid remote "$cid" >/dev/null 2>&1 || true
+      if target_delete_cid remote "$cid" >/dev/null 2>&1; then
+        cleanup_messages+=("deleted $cid from remote")
+      else
+        cleanup_messages+=("failed to delete $cid from remote")
+        cleanup_failures=$((cleanup_failures + 1))
+      fi
     done
     if [[ "$TEST_KEEP_FILES" != '1' ]]; then
       rm -rf "$workspace"
+      cleanup_messages+=("removed workspace $workspace")
     else
       printf 'kept test workspace: %s\n' "$workspace" >&2
+      cleanup_messages+=("kept workspace $workspace")
     fi
   }
   trap cleanup RETURN
 
-  printf 'test workspace: %s\n' "$workspace" >&2
+  write_report() {
+    local end_time end_epoch duration i
+    end_time="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    end_epoch="$(date +%s)"
+    duration=$((end_epoch - start_epoch))
+
+    {
+      printf '# Logos Storage Test Report\n\n'
+      printf '- **Status:** PASS\n'
+      printf '- **Started:** `%s`\n' "$start_time"
+      printf '- **Finished:** `%s`\n' "$end_time"
+      printf '- **Duration:** `%ss`\n' "$duration"
+      printf '- **Target:** `%s`\n' "$target"
+      printf '- **Remote source:** `remote`\n'
+      printf '- **File sizes:** `%s`\n' "$TEST_FILE_SIZES"
+      printf '- **Workspace:** `%s`\n' "$workspace"
+      printf '- **Cleanup failures:** `%s`\n\n' "$cleanup_failures"
+
+      printf '## Files\n\n'
+      printf '| # | Size | Bytes | CID | SHA-256 | Source | Download |\n'
+      printf '|---:|---:|---:|---|---|---|---|\n'
+      for i in "${!result_cids[@]}"; do
+        printf '| %d | `%s` | `%s` | `%s` | `%s` | `%s` | `%s` |\n' \
+          "$((i + 1))" \
+          "${result_sizes[$i]}" \
+          "${result_bytes[$i]}" \
+          "${result_cids[$i]}" \
+          "${result_hashes[$i]}" \
+          "${result_sources[$i]}" \
+          "${result_downloads[$i]}"
+      done
+
+      printf '\n## Cleanup\n\n'
+      if [[ ${#cleanup_messages[@]} -eq 0 ]]; then
+        printf '- No cleanup actions recorded.\n'
+      else
+        for i in "${!cleanup_messages[@]}"; do
+          printf '- %s\n' "${cleanup_messages[$i]}"
+        done
+      fi
+    } > "$report_path"
+  }
+
+  printf 'Starting Logos Storage remote-to-%s test\n' "$target"
+  printf '  workspace: %s\n' "$workspace"
+  printf '  report:    %s\n' "$report_path"
+  printf '  sizes:     %s\n' "$TEST_FILE_SIZES"
 
   local size index=0
   for size in $TEST_FILE_SIZES; do
@@ -525,11 +598,12 @@ target_test() {
     dd if=/dev/urandom of="$src" bs="$size" count=1 status=none
     src_hash="$(sha256sum "$src" | awk '{ print $1 }')"
 
-    printf '[%d] upload remote %s\n' "$index" "$size" >&2
+    printf '\n[%d] Generate %s random file (%s bytes)\n' "$index" "$size" "$bytes"
+    printf '[%d] Upload to remote\n' "$index"
     cid="$(target_upload_file remote "$src")"
     cids+=("$cid")
 
-    printf '[%d] download via %s cid=%s\n' "$index" "$target" "$cid" >&2
+    printf '[%d] Download via %s: %s\n' "$index" "$target" "$cid"
     if [[ "$target" == 'local' ]]; then
       target_fetch_cid local "$cid" --wait >/dev/null
       local_cids+=("$cid")
@@ -541,10 +615,25 @@ target_test() {
 
     out_hash="$(sha256sum "$out" | awk '{ print $1 }')"
     [[ "$src_hash" == "$out_hash" ]] || die "hash mismatch for cid $cid"
-    printf '[%d] ok cid=%s sha256=%s\n' "$index" "$cid" "$src_hash"
+    result_sizes+=("$size")
+    result_bytes+=("$bytes")
+    result_sources+=("$src")
+    result_downloads+=("$out")
+    result_cids+=("$cid")
+    result_hashes+=("$src_hash")
+    printf '[%d] OK sha256=%s\n' "$index" "$src_hash"
   done
 
-  printf 'test passed target=%s files=%d\n' "$target" "$index"
+  printf '\nCleaning up remote and %s CIDs...\n' "$target"
+  cleanup
+  trap - RETURN
+  write_report
+
+  printf '\nTest passed\n'
+  printf '  target:           %s\n' "$target"
+  printf '  files validated:  %d\n' "$index"
+  printf '  cleanup failures: %d\n' "$cleanup_failures"
+  printf '  report:           %s\n' "$report_path"
 }
 
 target_command() {

@@ -51,6 +51,8 @@ data/
 tests/cbindings/data-dir
 tests/cbindings/downloaded_hello.txt
 
+report-*.md
+
 nimbledeps
 CLAUDE.local.md
 .claude/settings.local.json

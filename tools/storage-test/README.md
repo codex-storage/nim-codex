@@ -240,6 +240,12 @@ tools/storage-test/storage-test.sh lib test
 
 The scenario uploads random files to the remote Linode node, downloads them using the selected local target, validates SHA-256 hashes, and deletes involved CIDs from both sides. The default file sizes are `4K 1M 10M`; override with `TEST_FILE_SIZES`.
 
+The scenario prints a detailed progress summary and writes a Markdown report in the current directory:
+
+```text
+./report-YYYY-MM-DD_HH-MM-SS.md
+```
+
 ## Useful API Endpoints
 
 | Operation | Endpoint |
