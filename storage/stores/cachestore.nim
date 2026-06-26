@@ -89,7 +89,8 @@ method getCidAndProof*(
   else:
     failure(
       newException(
-        BlockNotFoundError, "Block not in cache: " & $BlockAddress.init(treeCid, index)
+        BlockNotFoundError,
+        "Block not in cache: " & $BlockAddress.init(treeCid, index.uint64),
       )
     )
 

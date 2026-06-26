@@ -9,6 +9,7 @@ import pkg/storage/blockexchange/engine/swarm
 import pkg/storage/blockexchange/engine/peertracker
 import pkg/storage/blockexchange/peers/peercontext
 import pkg/storage/blockexchange/peers/peerstats
+import pkg/storage/blockexchange/protocol/message
 import pkg/storage/blockexchange/utils
 import pkg/storage/storagetypes
 
@@ -38,7 +39,7 @@ suite "BlockAvailability":
 
   test "ranges availability - hasBlock":
     let avail = BlockAvailability.fromRanges(
-      @[(start: 10'u64, count: 20'u64), (start: 50'u64, count: 10'u64)]
+      @[Range(start: 10'u64, count: 20'u64), Range(start: 50'u64, count: 10'u64)]
     )
     check avail.kind == bakRanges
 
@@ -56,7 +57,7 @@ suite "BlockAvailability":
 
   test "ranges availability - hasRange":
     let avail = BlockAvailability.fromRanges(
-      @[(start: 10'u64, count: 20'u64), (start: 50'u64, count: 10'u64)]
+      @[Range(start: 10'u64, count: 20'u64), Range(start: 50'u64, count: 10'u64)]
     )
 
     check avail.hasRange(10, 20) == true
@@ -72,7 +73,7 @@ suite "BlockAvailability":
 
   test "ranges availability - hasAnyInRange":
     let avail = BlockAvailability.fromRanges(
-      @[(start: 10'u64, count: 20'u64), (start: 50'u64, count: 10'u64)]
+      @[Range(start: 10'u64, count: 20'u64), Range(start: 50'u64, count: 10'u64)]
     )
 
     check avail.hasAnyInRange(5, 10) == true
@@ -129,15 +130,15 @@ suite "BlockAvailability":
   test "merge unknown with ranges":
     let
       unknown = BlockAvailability.unknown()
-      ranges = BlockAvailability.fromRanges(@[(start: 10'u64, count: 20'u64)])
+      ranges = BlockAvailability.fromRanges(@[Range(start: 10'u64, count: 20'u64)])
       merged = unknown.merge(ranges)
     check merged.kind == bakRanges
     check merged.hasBlock(15) == true
 
   test "merge ranges with ranges":
     let
-      r1 = BlockAvailability.fromRanges(@[(start: 0'u64, count: 10'u64)])
-      r2 = BlockAvailability.fromRanges(@[(start: 20'u64, count: 10'u64)])
+      r1 = BlockAvailability.fromRanges(@[Range(start: 0'u64, count: 10'u64)])
+      r2 = BlockAvailability.fromRanges(@[Range(start: 20'u64, count: 10'u64)])
       merged = r1.merge(r2)
 
     check merged.kind == bakRanges
@@ -147,8 +148,8 @@ suite "BlockAvailability":
 
   test "merge overlapping ranges":
     let
-      r1 = BlockAvailability.fromRanges(@[(start: 0'u64, count: 15'u64)])
-      r2 = BlockAvailability.fromRanges(@[(start: 10'u64, count: 15'u64)])
+      r1 = BlockAvailability.fromRanges(@[Range(start: 0'u64, count: 15'u64)])
+      r2 = BlockAvailability.fromRanges(@[Range(start: 10'u64, count: 15'u64)])
       merged = r1.merge(r2)
 
     check merged.kind == bakRanges
@@ -159,13 +160,13 @@ suite "BlockAvailability":
   test "merge bitmap with ranges converts bitmap to ranges":
     let
       bitmap = BlockAvailability.fromBitmap(@[0x0F'u8], 8)
-      ranges = BlockAvailability.fromRanges(@[(start: 6'u64, count: 2'u64)])
+      ranges = BlockAvailability.fromRanges(@[Range(start: 6'u64, count: 2'u64)])
       merged = bitmap.merge(ranges)
 
     check merged.kind == bakRanges
     check merged.ranges.len == 2
-    check merged.ranges[0] == (start: 0'u64, count: 4'u64)
-    check merged.ranges[1] == (start: 6'u64, count: 2'u64)
+    check merged.ranges[0] == Range(start: 0'u64, count: 4'u64)
+    check merged.ranges[1] == Range(start: 6'u64, count: 2'u64)
 
 suite "SwarmPeer":
   test "touch updates lastSeen":
@@ -177,9 +178,9 @@ suite "SwarmPeer":
 
   test "updateAvailability merges":
     let peer =
-      SwarmPeer.new(BlockAvailability.fromRanges(@[(start: 0'u64, count: 10'u64)]))
+      SwarmPeer.new(BlockAvailability.fromRanges(@[Range(start: 0'u64, count: 10'u64)]))
     peer.updateAvailability(
-      BlockAvailability.fromRanges(@[(start: 20'u64, count: 10'u64)])
+      BlockAvailability.fromRanges(@[Range(start: 20'u64, count: 10'u64)])
     )
 
     check peer.availability.hasBlock(5) == true
@@ -243,11 +244,11 @@ suite "Swarm":
   test "updatePeerAvailability":
     let peerId = PeerId.example
     discard swarm.addPeer(
-      peerId, BlockAvailability.fromRanges(@[(start: 0'u64, count: 10'u64)])
+      peerId, BlockAvailability.fromRanges(@[Range(start: 0'u64, count: 10'u64)])
     )
 
     swarm.updatePeerAvailability(
-      peerId, BlockAvailability.fromRanges(@[(start: 20'u64, count: 10'u64)])
+      peerId, BlockAvailability.fromRanges(@[Range(start: 20'u64, count: 10'u64)])
     )
 
     let peer = swarm.getPeer(peerId).get()
@@ -272,7 +273,7 @@ suite "Swarm":
 
     discard swarm.addPeer(peer1, BlockAvailability.complete())
     discard swarm.addPeer(
-      peer2, BlockAvailability.fromRanges(@[(start: 0'u64, count: 100'u64)])
+      peer2, BlockAvailability.fromRanges(@[Range(start: 0'u64, count: 100'u64)])
     )
 
     let peersForRange = swarm.peersWithRange(0, 50)
@@ -287,10 +288,10 @@ suite "Swarm":
       peer2 = PeerId.example
 
     discard swarm.addPeer(
-      peer1, BlockAvailability.fromRanges(@[(start: 0'u64, count: 50'u64)])
+      peer1, BlockAvailability.fromRanges(@[Range(start: 0'u64, count: 50'u64)])
     )
     discard swarm.addPeer(
-      peer2, BlockAvailability.fromRanges(@[(start: 100'u64, count: 50'u64)])
+      peer2, BlockAvailability.fromRanges(@[Range(start: 100'u64, count: 50'u64)])
     )
 
     let peers1 = swarm.peersWithAnyInRange(25, 50)

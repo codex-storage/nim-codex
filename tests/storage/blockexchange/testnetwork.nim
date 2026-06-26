@@ -72,7 +72,8 @@ asyncchecksuite "Network - Handlers":
   test "Presence Handler":
     let
       treeCid = Cid.example
-      addresses = (0 ..< blocks.len).mapIt(BlockAddress(treeCid: treeCid, index: it))
+      addresses =
+        (0 ..< blocks.len).mapIt(BlockAddress(treeCid: treeCid, index: it.uint64))
 
     proc presenceHandler(
         peer: PeerId, presence: seq[BlockPresence]
@@ -130,7 +131,8 @@ asyncchecksuite "Network - Senders":
   test "Send want list":
     let
       treeCid = Cid.example
-      addresses = (0 ..< blocks.len).mapIt(BlockAddress(treeCid: treeCid, index: it))
+      addresses =
+        (0 ..< blocks.len).mapIt(BlockAddress(treeCid: treeCid, index: it.uint64))
 
     proc wantListHandler(peer: PeerId, wantList: WantList) {.async: (raises: []).} =
       check wantList.entries.len == 4
@@ -154,7 +156,8 @@ asyncchecksuite "Network - Senders":
   test "send presence":
     let
       treeCid = Cid.example
-      addresses = (0 ..< blocks.len).mapIt(BlockAddress(treeCid: treeCid, index: it))
+      addresses =
+        (0 ..< blocks.len).mapIt(BlockAddress(treeCid: treeCid, index: it.uint64))
 
     proc presenceHandler(
         peer: PeerId, precense: seq[BlockPresence]

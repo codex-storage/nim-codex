@@ -15,7 +15,7 @@ type
     address*: BlockAddress
     have*: bool
     presenceType*: BlockPresenceType
-    ranges*: seq[tuple[start: uint64, count: uint64]]
+    ranges*: seq[Range]
 
 func init*(_: type Presence, message: PresenceMessage): ?Presence =
   some Presence(

@@ -10,11 +10,12 @@
 import std/algorithm
 
 import ./protocol/constants
+import ./protocol/message
 
 func isIndexInRanges*(
-    index: uint64, ranges: openArray[(uint64, uint64)], sortedRanges: bool = false
+    index: uint64, ranges: openArray[Range], sortedRanges: bool = false
 ): bool =
-  func binarySearch(r: openArray[(uint64, uint64)]): bool =
+  func binarySearch(r: openArray[Range]): bool =
     var
       lo = 0
       hi = r.len - 1
@@ -22,15 +23,14 @@ func isIndexInRanges*(
 
     while lo <= hi:
       let mid = (lo + hi) div 2
-      if r[mid][0] <= index:
+      if r[mid].start <= index:
         candidate = mid
         lo = mid + 1
       else:
         hi = mid - 1
 
     if candidate >= 0:
-      let (start, count) = r[candidate]
-      return index < start + count
+      return index < r[candidate].start + r[candidate].count
 
     return false
 
@@ -41,8 +41,8 @@ func isIndexInRanges*(
     binarySearch(ranges)
   else:
     let sorted = @ranges.sorted(
-      proc(a, b: (uint64, uint64)): int =
-        cmp(a[0], b[0])
+      proc(a, b: Range): int =
+        cmp(a.start, b.start)
     )
     binarySearch(sorted)
 

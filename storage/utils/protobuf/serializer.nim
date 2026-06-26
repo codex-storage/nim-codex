@@ -30,9 +30,7 @@ macro serializerForResult*(_: type Protobuf, Types: untyped): untyped =
       proc `helperName`(buf: seq[byte]): `T` {.raises: [SerializationError].} =
         decode(Protobuf, buf, `T`)
 
-      proc decode*(
-          _: type `T`, buf: seq[byte]
-      ): Result[`T`, ProtobufDecodeError] =
+      proc decode*(_: type `T`, buf: seq[byte]): Result[`T`, ProtobufDecodeError] =
         try:
           ok(`helperName`(buf))
         except SerializationError as exc:

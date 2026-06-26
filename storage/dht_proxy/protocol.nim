@@ -16,7 +16,7 @@ import pkg/protobuf_serialization/std/enums
 import pkg/protobuf_serialization/pkg/results
 
 import ../logutils
-import ../utils/protobuf_serializer
+import ../utils/protobuf/serializer
 
 const DhtProxyCodec* = "/storage/dht-proxy/1.0.0"
 
