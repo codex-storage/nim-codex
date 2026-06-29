@@ -24,10 +24,12 @@ when defined(linux):
   # Define the canonical name for this library
   {.passl: "-Wl,-soname,libstorage.so".}
 
-import std/[atomics]
+import std/[atomics, exitprocs, locks]
 import chronicles
 import chronos
 import chronos/threadsync
+import results
+import taskpools/channels_spsc_single
 import ./storage_context
 import ./storage_thread_requests/storage_thread_request
 import ./storage_thread_requests/requests/node_lifecycle_request
@@ -53,6 +55,17 @@ type ShutdownContext = object
   ret: cint
   msg: ptr cchar
   len: csize_t
+
+type ShutdownSupervisor = object
+  thread: Thread[void]
+  lock: Lock
+  reqChannel: ChannelSPSCSingle[ptr ShutdownContext]
+  reqSignal: ThreadSignalPtr
+  running: Atomic[bool]
+
+var
+  shutdownSupervisor: ShutdownSupervisor
+  shutdownSupervisorReady: Atomic[bool]
 
 template checkLibstorageParams*(
     ctx: ptr StorageContext, callback: StorageCallback, userData: pointer
@@ -114,7 +127,7 @@ proc shutdownStorageCallback(
   setShutdownResult(sctx, ret, msg, len)
   discard sctx[].doneSignal.fireSync()
 
-proc runShutdown(sctx: ptr ShutdownContext) {.thread.} =
+proc runShutdown(sctx: ptr ShutdownContext) =
   if isNil(sctx):
     return
 
@@ -150,6 +163,62 @@ proc runShutdown(sctx: ptr ShutdownContext) {.thread.} =
   discard sctx[].doneSignal.close()
   deallocShared(sctx)
 
+proc runShutdownSupervisor() {.thread.} =
+  while true:
+    let waitRes = shutdownSupervisor.reqSignal.waitSync(InfiniteDuration)
+    if waitRes.isErr:
+      error "Failure in Logos Storage shutdown supervisor while waiting for reqSignal.",
+        error = waitRes.error
+      continue
+
+    var sctx: ptr ShutdownContext
+    var recvOk = false
+    shutdownSupervisor.lock.acquire()
+    try:
+      recvOk = shutdownSupervisor.reqChannel.tryRecv(sctx)
+    finally:
+      shutdownSupervisor.lock.release()
+
+    if recvOk:
+      runShutdown(sctx)
+
+    if shutdownSupervisor.running.load == false:
+      break
+
+proc stopShutdownSupervisor() {.noconv.} =
+  if not shutdownSupervisorReady.exchange(false):
+    return
+
+  shutdownSupervisor.running.store(false)
+  discard shutdownSupervisor.reqSignal.fireSync()
+  joinThread(shutdownSupervisor.thread)
+
+  shutdownSupervisor.lock.deinitLock()
+  discard shutdownSupervisor.reqSignal.close()
+
+proc startShutdownSupervisor(): Result[void, string] =
+  shutdownSupervisor.reqSignal = ThreadSignalPtr.new().valueOr:
+    return err(
+      "Failed to initialize Logos Storage shutdown supervisor: unable to create reqSignal."
+    )
+
+  shutdownSupervisor.lock.initLock()
+  shutdownSupervisor.running.store(true)
+
+  try:
+    createThread(shutdownSupervisor.thread, runShutdownSupervisor)
+  except ValueError, ResourceExhaustedError:
+    shutdownSupervisor.lock.deinitLock()
+    discard shutdownSupervisor.reqSignal.close()
+    return err(
+      "Failed to initialize Logos Storage shutdown supervisor: unable to create thread: " &
+        getCurrentExceptionMsg()
+    )
+
+  shutdownSupervisorReady.store(true)
+  addExitProc(stopShutdownSupervisor)
+  return ok()
+
 # From Nim doc:
 # "the C targets require you to initialize Nim's internals, which is done calling a NimMain function."
 # "The name NimMain can be influenced via the --nimMainPrefix:prefix switch."
@@ -172,6 +241,8 @@ proc initializeLibrary() {.exported.} =
   if not initialized.exchange(true):
     ## Every Nim library must call `<prefix>NimMain()` once
     libstorageNimMain()
+    startShutdownSupervisor().isOkOr:
+      error "Failed to initialize Logos Storage shutdown supervisor.", error = error
   when declared(setupForeignThreadGc):
     setupForeignThreadGc()
   when declared(nimGC_setStackBottom):
@@ -367,17 +438,46 @@ proc storage_shutdown(
   sctx[].doneSignal = doneSignal
   sctx[].ret = RET_ERR
 
-  var shutdownThread: Thread[ptr ShutdownContext]
-  try:
-    createThread(shutdownThread, runShutdown, sctx)
-  except ValueError, ResourceExhaustedError:
+  if not shutdownSupervisorReady.load:
     discard doneSignal.close()
     deallocShared(sctx)
     return callback.error(
-      "Failed to shutdown Logos Storage context: unable to create shutdown thread: " &
-        getCurrentExceptionMsg(),
+      "Failed to shutdown Logos Storage context: shutdown supervisor is not initialized.",
       userData,
     )
+
+  shutdownSupervisor.lock.acquire()
+  let sentOk = shutdownSupervisor.reqChannel.trySend(sctx)
+  shutdownSupervisor.lock.release()
+
+  if not sentOk:
+    discard doneSignal.close()
+    deallocShared(sctx)
+    return callback.error(
+      "Failed to shutdown Logos Storage context: shutdown supervisor is busy.",
+      userData,
+    )
+
+  let fireRes = shutdownSupervisor.reqSignal.fireSync()
+  if fireRes.isErr or fireRes.get() == false:
+    var queuedCtx: ptr ShutdownContext
+    var recvOk = false
+    shutdownSupervisor.lock.acquire()
+    try:
+      recvOk = shutdownSupervisor.reqChannel.tryRecv(queuedCtx)
+    finally:
+      shutdownSupervisor.lock.release()
+
+    if recvOk and queuedCtx == sctx:
+      discard doneSignal.close()
+      deallocShared(sctx)
+      return callback.error(
+        "Failed to shutdown Logos Storage context: unable to signal shutdown supervisor.",
+        userData,
+      )
+
+    warn "Failed to signal Logos Storage shutdown supervisor after shutdown request was accepted."
+    return RET_OK
 
   return RET_OK
 
