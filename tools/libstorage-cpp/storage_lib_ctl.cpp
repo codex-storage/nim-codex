@@ -35,7 +35,11 @@ void printUsage() {
         "  storage_lib_ctl info\n"
         "  storage_lib_ctl upload README.md\n"
         "  storage_lib_ctl download <cid> ./out true\n"
-        "  storage_lib_ctl shutdown\n";
+        "  storage_lib_ctl stop\n"
+        "  storage_lib_ctl start\n"
+        "  storage_lib_ctl close\n"
+        "  storage_lib_ctl shutdown\n"
+        "  storage_lib_ctl destroy\n";
 }
 
 struct Options {

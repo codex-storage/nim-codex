@@ -33,6 +33,37 @@ struct Options {
 std::atomic<bool> g_stop{false};
 int g_serverFd = -1;
 
+enum class NodeState {
+    Running,
+    Stopped,
+    Closed,
+};
+
+std::string stateName(NodeState state) {
+    switch (state) {
+    case NodeState::Running: return "RUNNING";
+    case NodeState::Stopped: return "STOPPED";
+    case NodeState::Closed: return "CLOSED";
+    }
+    return "UNKNOWN";
+}
+
+std::string availableCommands(NodeState state) {
+    switch (state) {
+    case NodeState::Running:
+        return "all storage commands, stop, shutdown, destroy";
+    case NodeState::Stopped:
+        return "start, close, shutdown, destroy";
+    case NodeState::Closed:
+        return "shutdown, destroy";
+    }
+    return "shutdown, destroy";
+}
+
+std::string unavailableForState(NodeState state) {
+    return "node is " + stateName(state) + "; available commands: " + availableCommands(state);
+}
+
 std::string homeDir() {
     const char* home = std::getenv("HOME");
     if (!home || std::strlen(home) == 0) {
@@ -176,13 +207,56 @@ std::string infoResult(StorageClient& client) {
            "\"peer_id\":\"" + jsonEscape(client.peerId()) + "\"}";
 }
 
-std::string dispatch(StorageClient& client, const Options& options, const std::string& line) {
+std::string dispatch(
+    StorageClient& client,
+    const Options& options,
+    NodeState& state,
+    const std::string& line) {
     const auto parts = splitLine(line);
     if (parts.empty()) {
         throw std::runtime_error("empty command");
     }
 
     const auto& cmd = parts[0];
+
+    if (cmd == "shutdown" || cmd == "destroy") {
+        g_stop = true;
+        return "shutting down";
+    }
+
+    if (state == NodeState::Closed) {
+        throw std::runtime_error(unavailableForState(state));
+    }
+
+    if (cmd == "start") {
+        if (state == NodeState::Running) return "node is already started";
+        client.start();
+        state = NodeState::Running;
+        return "started";
+    }
+
+    if (cmd == "stop") {
+        if (state == NodeState::Stopped) {
+            return "node is not started; available commands: " + availableCommands(state);
+        }
+        client.stop();
+        state = NodeState::Stopped;
+        return "stopped";
+    }
+
+    if (cmd == "close") {
+        if (state == NodeState::Running) {
+            throw std::runtime_error("node is RUNNING; call stop before close");
+        }
+        client.close();
+        state = NodeState::Closed;
+        return "closed";
+    }
+
+    if (state == NodeState::Stopped) {
+        throw std::runtime_error(unavailableForState(state));
+    }
+
     if (cmd == "info") return infoResult(client);
     if (cmd == "version") return client.version();
     if (cmd == "revision") return client.revision();
@@ -233,11 +307,6 @@ std::string dispatch(StorageClient& client, const Options& options, const std::s
         std::vector<std::string> addresses(parts.begin() + 2, parts.end());
         return client.connect(parts[1], addresses);
     }
-    if (cmd == "shutdown") {
-        g_stop = true;
-        return "shutting down";
-    }
-
     throw std::runtime_error("unknown command: " + cmd);
 }
 
@@ -310,6 +379,7 @@ int main(int argc, char** argv) {
 
         StorageClient client(configJson(options), options.timeout);
         client.start();
+        NodeState state = NodeState::Running;
 
         g_serverFd = createServerSocket(options.socketPath);
         std::cout << "storage_lib listening on " << options.socketPath << "\n";
@@ -325,7 +395,7 @@ int main(int argc, char** argv) {
 
             try {
                 const std::string line = readLine(clientFd);
-                writeAll(clientFd, okResponse(dispatch(client, options, line)));
+                writeAll(clientFd, okResponse(dispatch(client, options, state, line)));
             } catch (const std::exception& err) {
                 writeAll(clientFd, errorResponse(err.what()));
             }

@@ -68,6 +68,7 @@ Target commands:
 Lib-only target commands:
   lib spr
   lib debug
+  lib peers
   lib manifest <cid>
   lib connect <peer-id> [addr...]
 
@@ -453,9 +454,17 @@ lib_only_command() {
   local command="$1"
   shift
   case "$command" in
-    spr|debug)
+    spr)
       [[ $# -eq 0 ]] || die "$command does not accept arguments"
       lib_result "$command"
+      ;;
+    debug)
+      [[ $# -eq 0 ]] || die 'debug does not accept arguments'
+      lib_result debug | jq .
+      ;;
+    peers)
+      [[ $# -eq 0 ]] || die 'peers does not accept arguments'
+      lib_result debug | jq -r '.table.nodes | length'
       ;;
     manifest)
       [[ $# -eq 1 ]] || die 'manifest requires <cid>'
@@ -785,7 +794,7 @@ target_command() {
     space) [[ $# -eq 0 ]] || die 'space does not accept arguments'; target_simple_get "$target" 'space' ;;
     peerid) [[ $# -eq 0 ]] || die 'peerid does not accept arguments'; target_simple_get "$target" 'peerid' ;;
     test) [[ $# -eq 0 ]] || die 'test does not accept arguments yet'; target_test "$target" ;;
-    spr|debug|manifest|connect)
+    spr|debug|peers|manifest|connect)
       [[ "$target" == 'lib' ]] || die "$command is currently supported only for lib target"
       lib_only_command "$command" "$@"
       ;;
