@@ -259,6 +259,11 @@ proc storage_new(
     error "Failed to create Storage instance: the callback is missing."
     return nil
 
+  if not shutdownSupervisorReady.load:
+    let msg = "Failed to create Storage instance: shutdown supervisor is not initialized."
+    callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
+    return nil
+
   var ctx = storage_context.createStorageContext().valueOr:
     let msg = $error
     callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
