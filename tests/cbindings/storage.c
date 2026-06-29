@@ -342,35 +342,14 @@ int cleanup(void *storage_ctx)
 {
     Resp *r = alloc_resp();
 
-    // Stop node
-    if (storage_stop(storage_ctx, (StorageCallback)callback, r) != RET_OK)
+    // storage_shutdown owns and invalidates storage_ctx after successful dispatch.
+    if (storage_shutdown(storage_ctx, (StorageCallback)callback, r) != RET_OK)
     {
         free_resp(r);
         return RET_ERR;
     }
 
     if (is_resp_ok(r, NULL) != RET_OK)
-    {
-        return RET_ERR;
-    }
-
-    r = alloc_resp();
-
-    // Close node
-    if (storage_close(storage_ctx, (StorageCallback)callback, r) != RET_OK)
-    {
-        free_resp(r);
-        return RET_ERR;
-    }
-
-    if (is_resp_ok(r, NULL) != RET_OK)
-    {
-        return RET_ERR;
-    }
-
-    // Destroy node
-    // No need to wait here as storage_destroy is synchronous
-    if (storage_destroy(storage_ctx) != RET_OK)
     {
         return RET_ERR;
     }

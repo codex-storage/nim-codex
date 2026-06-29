@@ -52,7 +52,7 @@ type StorageContext* = object
   # returned with every event callback
   eventUserData*: pointer
 
-  # Set to false to stop the Logos Storage thread (during storage_destroy)
+  # Set to false to stop the Logos Storage thread during context shutdown.
   running: Atomic[bool]
 
 template callEventCallback(ctx: ptr StorageContext, eventName: string, body: untyped) =
@@ -135,7 +135,7 @@ proc runStorage(ctx: ptr StorageContext) {.async: (raises: []).} =
         error = e.msg
       continue
 
-    # If storage_destroy was called, exit the loop
+    # If context shutdown was requested, exit the loop.
     if ctx.running.load == false:
       break
 
@@ -188,7 +188,7 @@ proc createStorageContext*(): Result[ptr StorageContext, string] =
   # Protects shared state inside StorageContext
   ctx.lock.initLock()
 
-  # Logos Storage thread will loop until storage_destroy is called
+  # Logos Storage thread will loop until context shutdown is requested.
   ctx.running.store(true)
 
   try:
