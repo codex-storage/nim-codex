@@ -1,0 +1,12 @@
+storage_lib_cli
+storage_lib
+storage_lib_ctl
+storage-lib-cli-data/
+storage-lib-data/
+storage_lib.sock
+daemon.log
+downloaded*
+*.download
+*.download.*
+*.roundtrip
+*.out.*
