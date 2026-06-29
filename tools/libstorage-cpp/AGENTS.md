@@ -76,7 +76,11 @@ Keep daemon commands low-level:
 - `stream-sink`
 - `manifest`
 - `connect`
+- `start`
+- `stop`
+- `close`
 - `shutdown`
+- `destroy`
 
 Do not add scenario commands like `roundtrip`, `many`, or cross-target tests to the daemon unless explicitly requested. Put scenario orchestration in `tools/storage-test/storage-test.sh` so the same scenario can run against REST targets and the libstorage daemon target.
 
@@ -101,6 +105,16 @@ The protocol currently does not support paths or arguments containing spaces. If
 3. `~/.logos/storage/libstorage/storage_lib.sock`
 
 `storage_lib_ctl` should return nonzero when the daemon responds with `"ok":false`.
+
+Lifecycle IPC commands are daemon-level state controls over the libstorage C API:
+
+- Initial daemon state is `RUNNING` after startup calls `StorageClient::start()`.
+- `stop` works only from `RUNNING`; repeated `stop` reports the node is not started.
+- `start` works only from `STOPPED`; it is rejected after `close` because restarting after close is not supported.
+- `close` works only from `STOPPED`; calling it while `RUNNING` tells the caller to stop first.
+- `shutdown` and `destroy` are aliases; both stop the daemon loop and process exit triggers `StorageClient` destructor cleanup (`stop` if needed, `close` if needed, then `storage_destroy`).
+- In `STOPPED`, normal storage commands are rejected with available commands: `start`, `close`, `shutdown`, `destroy`.
+- In `CLOSED`, all commands except `shutdown`/`destroy` are rejected with available commands: `shutdown`, `destroy`.
 
 `stream-sink <cid> [local]` uses released libstorage download primitives: `storage_download_init` followed by `storage_download_stream` with an empty output path. It discards progress bytes while counting transferred byte lengths and waits for terminal completion.
 

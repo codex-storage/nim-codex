@@ -111,6 +111,7 @@ Lib-only target commands:
 
 - `spr`
 - `debug`
+- `peers`
 - `manifest <cid>`
 - `connect <peer-id> [addr...]`
 
@@ -133,6 +134,12 @@ The daemon IPC protocol is intentionally simple:
 Important: lib daemon file paths are resolved in the daemon process working directory. `storage-test.sh` converts upload/download paths to absolute paths before sending them to `storage_lib_ctl`.
 
 `--timeout-ms 0` means wait indefinitely in libstorage C++ tooling.
+
+Lib-only utility behavior:
+
+- `debug` calls daemon `debug` and pretty-prints the returned JSON with `jq .`.
+- `peers` calls daemon `debug` and prints `.table.nodes | length`, giving the number of peers known to the node.
+- Lifecycle commands (`start`, `stop`, `close`, `shutdown`, `destroy`) intentionally remain out of `storage-test.sh`; use `tools/libstorage-cpp/storage_lib_ctl` directly for lifecycle testing.
 
 ## Test Scenario
 
