@@ -190,8 +190,8 @@ std::string dispatch(
     const auto& cmd = parts[0];
 
     if (cmd == "shutdown" || cmd == "destroy") {
-        client.shutdown();
         g_stop = true;
+        client.shutdown();
         return "shutdown complete";
     }
 
