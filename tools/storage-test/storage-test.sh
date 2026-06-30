@@ -439,8 +439,10 @@ target_download_cid() {
     die 'download only supports optional --local'
   fi
 
+  out="$(abs_output_path "$out")"
+
   if [[ "$target" == 'lib' ]]; then
-    lib_result download "$cid" "$(abs_output_path "$out")" "$local_only" >/dev/null
+    lib_result download "$cid" "$out" "$local_only" >/dev/null
   else
     check_common_deps
     local api
