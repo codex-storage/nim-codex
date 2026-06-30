@@ -134,7 +134,8 @@ int main(int argc, char** argv) {
         ::close(fd);
 
         std::cout << response;
-        return response.find("\"ok\":false") == std::string::npos ? 0 : 1;
+        if (response.empty()) return 1;
+        return response.rfind("{\"ok\":false", 0) == 0 ? 1 : 0;
     } catch (const std::exception& err) {
         std::cerr << "error: " << err.what() << "\n";
         return 1;
