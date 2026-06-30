@@ -303,8 +303,7 @@ else
 		echo -e $(BUILD_MSG) "build/$@.so" && \
 		$(ENV_SCRIPT) nim libstorageDynamic $(NIM_PARAMS) $(LIBSTORAGE_PARAMS) storage.nims
 endif
-endif # "variables.mk" was not included
-
+endif # "variables.mk" was not includedMa
 ################
 ## Presets    ##
 ################
