@@ -9,9 +9,13 @@ declare -A _networks
 #_networks=([test]="Logos testnet" [dev]="Logos devnet")
 _networks=([dev]="Logos devnet")
 
+echoerr() {
+    echo "[storage_config] $1" >&2
+}
+
 require() {
     if ! command -v "$1" &> /dev/null; then
-        echo "Error: $1 is not installed" >&2
+        echoerr "Error: $1 is not installed"
         exit 1
     fi
 }
@@ -19,7 +23,7 @@ require() {
 check_network() {
     local network=$1
     if [[ -z "${_networks[$network]+x}" ]]; then
-        echo "Invalid network: $network. Use one of: ${!_networks[*]}" >&2
+        echoerr "Invalid network: $network. Use one of: ${!_networks[*]}"
         exit 1
     fi
 }
@@ -68,25 +72,29 @@ full_config() {
 EOF
 }
 
-generate_presets() {
-   cat <<EOF
-   {
-     "presets": [
+presets() {
+    local _keys=("${!_networks[@]}")
+    local _last_network="${_keys[-1]}"
+
+    echoerr "Re-generating network presets."
+    cat <<'EOF'
+    {
+      "presets": [
 EOF
 
-    for network in "${!_networks[@]}"; do
+    for network in "${_keys[@]}"; do
     cat <<EOF
-       {
-         "name": "logos.${network}",
-         "description": "${_networks[$network]}",
-         "records": $(bootstrap_sprs "$network")
-       }$( [[ "$network" != "${!_networks[*]: -1}" ]] && echo "," )
+      {
+        "name": "logos.${network}",
+        "description": "${_networks[$network]}",
+        "records": $(bootstrap_sprs "$network")
+      }$( [[ "$network" != "$_last_network" ]] && echo "," )
 EOF
     done
 
-cat <<EOF
-     ]
-   }
+    cat <<EOF
+    ]
+  }
 EOF
 }
 
@@ -121,9 +129,6 @@ if [[ $# -eq 0 || "$1" == "-h" || "$1" == "--help" || "$1" == "help" ]]; then
     exit 0
 fi
 
-if [ "$1" == "presets" ]; then
-    generate_presets | jq .
-    exit 0
-fi
-
+echoerr "Running command: $*"
 "$@" | jq .
+echoerr "Done."
