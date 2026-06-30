@@ -1,6 +1,7 @@
 #include "storage_client.hpp"
 
 #include <cstdlib>
+#include <memory>
 #include <mutex>
 #include <stdexcept>
 #include <utility>
@@ -37,11 +38,15 @@ void shutdownContextBestEffort(
         return;
     }
 
-    StorageResponse resp;
-    if (storage_shutdown(ctx, callback, &resp) != RET_OK) {
+    auto resp = std::make_unique<StorageResponse>();
+    if (storage_shutdown(ctx, callback, resp.get()) != RET_OK) {
         return;
     }
-    resp.wait(timeout);
+
+    if (!resp->wait(timeout)) {
+        // The callback may still fire after timeout; keep userData alive.
+        resp.release();
+    }
 }
 }
 
@@ -108,20 +113,21 @@ StorageClient::StorageClient(std::string configJson, std::chrono::milliseconds t
     : timeout_(timeout) {
     ensureNimRuntime();
 
-    StorageResponse resp;
-    ctx_ = storage_new(configJson.c_str(), callback, &resp);
+    auto resp = std::make_unique<StorageResponse>();
+    ctx_ = storage_new(configJson.c_str(), callback, resp.get());
     if (!ctx_) {
         throw std::runtime_error("storage_new returned null context");
     }
 
-    if (!resp.wait(timeout_)) {
+    if (!resp->wait(timeout_)) {
+        resp.release();
         shutdownContextBestEffort(ctx_, callback, timeout_);
         ctx_ = nullptr;
         throw std::runtime_error("storage_new timed out");
     }
 
-    if (!isOk(resp.status())) {
-        std::string error = resp.data();
+    if (!isOk(resp->status())) {
+        std::string error = resp->data();
         shutdownContextBestEffort(ctx_, callback, timeout_);
         ctx_ = nullptr;
         throw std::runtime_error("storage_new failed: " + error);
@@ -153,8 +159,8 @@ void StorageClient::shutdown() {
         return;
     }
 
-    StorageResponse resp;
-    const int dispatchRet = storage_shutdown(ctx_, callback, &resp);
+    auto resp = std::make_unique<StorageResponse>();
+    const int dispatchRet = storage_shutdown(ctx_, callback, resp.get());
     if (!isOk(dispatchRet)) {
         throw std::runtime_error("storage_shutdown dispatch failed");
     }
@@ -163,12 +169,14 @@ void StorageClient::shutdown() {
     ctx_ = nullptr;
     started_ = false;
 
-    if (!resp.wait(timeout_)) {
+    if (!resp->wait(timeout_)) {
+        // After dispatch, libstorage owns ctx_ and may still call back later.
+        resp.release();
         throw std::runtime_error("storage_shutdown timed out");
     }
 
-    if (!isOk(resp.status())) {
-        throw std::runtime_error("storage_shutdown failed: " + resp.data());
+    if (!isOk(resp->status())) {
+        throw std::runtime_error("storage_shutdown failed: " + resp->data());
     }
 }
 
@@ -294,40 +302,42 @@ size_t StorageClient::streamSink(const std::string& cid, size_t chunkSize, bool 
         return storage_download_init(ctx_, cid.c_str(), chunkSize, local, cb, userData);
     });
 
-    StorageResponse resp;
+    auto resp = std::make_unique<StorageResponse>();
     const int dispatchRet = storage_download_stream(
-        ctx_, cid.c_str(), chunkSize, local, "", callback, &resp);
+        ctx_, cid.c_str(), chunkSize, local, "", callback, resp.get());
     if (!isOk(dispatchRet)) {
         throw std::runtime_error("storage_download_stream dispatch failed");
     }
 
-    if (!resp.wait(timeout_)) {
+    if (!resp->wait(timeout_)) {
+        resp.release();
         throw std::runtime_error("storage_download_stream timed out");
     }
 
-    if (!isOk(resp.status())) {
-        throw std::runtime_error("storage_download_stream failed: " + resp.data());
+    if (!isOk(resp->status())) {
+        throw std::runtime_error("storage_download_stream failed: " + resp->data());
     }
 
-    return resp.progressBytes();
+    return resp->progressBytes();
 }
 
 std::string StorageClient::call(const char* name, const AsyncCall& fn) {
-    StorageResponse resp;
-    const int dispatchRet = fn(callback, &resp);
+    auto resp = std::make_unique<StorageResponse>();
+    const int dispatchRet = fn(callback, resp.get());
     if (!isOk(dispatchRet)) {
         throw std::runtime_error(std::string(name) + " dispatch failed");
     }
 
-    if (!resp.wait(timeout_)) {
+    if (!resp->wait(timeout_)) {
+        resp.release();
         throw std::runtime_error(std::string(name) + " timed out");
     }
 
-    if (!isOk(resp.status())) {
-        throw std::runtime_error(std::string(name) + " failed: " + resp.data());
+    if (!isOk(resp->status())) {
+        throw std::runtime_error(std::string(name) + " failed: " + resp->data());
     }
 
-    return resp.data();
+    return resp->data();
 }
 
 void StorageClient::callback(int callerRet, const char* msg, size_t len, void* userData) {

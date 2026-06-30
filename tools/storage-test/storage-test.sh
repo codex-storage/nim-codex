@@ -642,7 +642,7 @@ target_test() {
       cleanup_messages+=("kept workspace $workspace")
     fi
   }
-  trap cleanup RETURN
+  trap cleanup ERR RETURN
 
   write_report() {
     local end_time end_epoch duration i
@@ -766,7 +766,7 @@ target_test() {
 
   printf '\nCleaning up remote and %s CIDs...\n' "$target"
   cleanup
-  trap - RETURN
+  trap - ERR RETURN
   write_report
 
   printf '\nTest passed\n'
