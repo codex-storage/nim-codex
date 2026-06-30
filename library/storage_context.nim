@@ -217,6 +217,10 @@ proc destroyStorageContext*(ctx: ptr StorageContext): Result[void, string] =
   # Wait for the thread to finish
   joinThread(ctx.thread)
 
+  var request: ptr StorageThreadRequest
+  while ctx.reqChannel.tryRecv(request):
+    destroyShared(request)
+
   # Clean up
   ctx.lock.deinitLock()
   ?ctx.reqSignal.close()

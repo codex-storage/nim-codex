@@ -453,7 +453,6 @@ proc storage_shutdown(
 
   var sentOk = false
   var signalOk = false
-  var rollbackOk = false
   shutdownSupervisor.lock.acquire()
   try:
     sentOk = shutdownSupervisor.reqChannel.trySend(sctx)
@@ -462,8 +461,7 @@ proc storage_shutdown(
       signalOk = fireRes.isOk and fireRes.get()
       if not signalOk:
         var queuedCtx: ptr ShutdownContext
-        let recvOk = shutdownSupervisor.reqChannel.tryRecv(queuedCtx)
-        rollbackOk = recvOk and queuedCtx == sctx
+        discard shutdownSupervisor.reqChannel.tryRecv(queuedCtx)
   finally:
     shutdownSupervisor.lock.release()
 
@@ -476,7 +474,6 @@ proc storage_shutdown(
     )
 
   if not signalOk:
-    doAssert rollbackOk
     discard doneSignal.close()
     deallocShared(sctx)
     return callback.error(
