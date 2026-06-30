@@ -94,27 +94,26 @@ proc sendRequestToStorageThread*(
   # Send the request to the Logos Storage thread
   let sentOk = ctx.reqChannel.trySend(req)
   if not sentOk:
-    deallocShared(req)
+    destroyShared(req)
     return err("Failed to send request to the Logos Storage thread: " & $req[])
 
   # Notify the Logos Storage thread that a request is available
   let fireSyncRes = ctx.reqSignal.fireSync()
   if fireSyncRes.isErr():
-    deallocShared(req)
+    destroyShared(req)
     return err(
       "Failed to send request to the Logos Storage thread: unable to fireSync: " &
         $fireSyncRes.error
     )
 
   if fireSyncRes.get() == false:
-    deallocShared(req)
+    destroyShared(req)
     return
       err("Failed to send request to the Logos Storage thread: fireSync timed out.")
 
   # Wait until the Logos Storage thread properly received the request
   let res = ctx.reqReceivedSignal.waitSync(timeout)
   if res.isErr():
-    deallocShared(req)
     return err(
       "Failed to send request to the Logos Storage thread: unable to receive reqReceivedSignal signal."
     )

@@ -31,7 +31,7 @@ proc createShared*(T: type NodeInfoRequest, op: NodeInfoMsgType): ptr type T =
   ret[].operation = op
   return ret
 
-proc destroyShared(self: ptr NodeInfoRequest) =
+proc destroyShared*(self: ptr NodeInfoRequest) =
   deallocShared(self)
 
 proc getRepo(

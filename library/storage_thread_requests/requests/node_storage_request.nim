@@ -50,7 +50,7 @@ proc createShared*(
 
   return ret
 
-proc destroyShared(self: ptr NodeStorageRequest) =
+proc destroyShared*(self: ptr NodeStorageRequest) =
   deallocShared(self[].cid)
   deallocShared(self)
 

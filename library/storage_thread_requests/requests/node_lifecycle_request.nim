@@ -89,7 +89,7 @@ proc createShared*(
   ret[].configJson = configJson.alloc()
   return ret
 
-proc destroyShared(self: ptr NodeLifecycleRequest) =
+proc destroyShared*(self: ptr NodeLifecycleRequest) =
   deallocShared(self[].configJson)
   deallocShared(self)
 
