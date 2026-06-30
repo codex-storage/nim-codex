@@ -37,12 +37,15 @@ raw_data() {
 mix_pool_json() {
     local network=$1
     check_network "$network"
-    raw_data "$network" | jq 'map({
-      "peerId": .peerId,
-      "mixPubKey": .mixPubKey,
-      "libp2pPubKey": .libp2pPubKey,
-      "multiAddr": "/ip4/\(.address)/tcp/\(.port)",
-    })'
+    raw_data "$network" | jq -c '{
+      "version": 1,
+      "relays": map({
+        "peerId": .peerId,
+        "mixPubKey": .mixPubKey,
+        "libp2pPubKey": .libp2pPubKey,
+        "multiAddr": "/ip4/\(.address)/tcp/\(.port)",
+      })
+    }'
 }
 
 bootstrap_sprs() {
@@ -67,7 +70,7 @@ full_config() {
         "network": "logos.${network}",
         "mix-enabled": true,
         "dht-mix-proxy": $(mix_proxy_sprs "$network"),
-        "mix-pool-json": $(mix_pool_json "$network"),
+        "mix-pool-json": $(mix_pool_json "$network" | jq -c '. | tostring')
     }
 EOF
 }
