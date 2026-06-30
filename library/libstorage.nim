@@ -451,9 +451,21 @@ proc storage_shutdown(
       userData,
     )
 
+  var sentOk = false
+  var signalOk = false
+  var rollbackOk = false
   shutdownSupervisor.lock.acquire()
-  let sentOk = shutdownSupervisor.reqChannel.trySend(sctx)
-  shutdownSupervisor.lock.release()
+  try:
+    sentOk = shutdownSupervisor.reqChannel.trySend(sctx)
+    if sentOk:
+      let fireRes = shutdownSupervisor.reqSignal.fireSync()
+      signalOk = fireRes.isOk and fireRes.get()
+      if not signalOk:
+        var queuedCtx: ptr ShutdownContext
+        let recvOk = shutdownSupervisor.reqChannel.tryRecv(queuedCtx)
+        rollbackOk = recvOk and queuedCtx == sctx
+  finally:
+    shutdownSupervisor.lock.release()
 
   if not sentOk:
     discard doneSignal.close()
@@ -463,26 +475,14 @@ proc storage_shutdown(
       userData,
     )
 
-  let fireRes = shutdownSupervisor.reqSignal.fireSync()
-  if fireRes.isErr or fireRes.get() == false:
-    var queuedCtx: ptr ShutdownContext
-    var recvOk = false
-    shutdownSupervisor.lock.acquire()
-    try:
-      recvOk = shutdownSupervisor.reqChannel.tryRecv(queuedCtx)
-    finally:
-      shutdownSupervisor.lock.release()
-
-    if recvOk and queuedCtx == sctx:
-      discard doneSignal.close()
-      deallocShared(sctx)
-      return callback.error(
-        "Failed to shutdown Logos Storage context: unable to signal shutdown supervisor.",
-        userData,
-      )
-
-    warn "Failed to signal Logos Storage shutdown supervisor after shutdown request was accepted."
-    return RET_OK
+  if not signalOk:
+    doAssert rollbackOk
+    discard doneSignal.close()
+    deallocShared(sctx)
+    return callback.error(
+      "Failed to shutdown Logos Storage context: unable to signal shutdown supervisor.",
+      userData,
+    )
 
   return RET_OK
 
