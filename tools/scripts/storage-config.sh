@@ -14,10 +14,23 @@ echoerr() {
 }
 
 require() {
+    if [[ $# -eq 0 || $# -gt 2 ]]; then
+        echoerr "Usage: require <command>"
+        echoerr "Usage: require <command> <min_version>"
+        exit 1
+    fi
     if ! command -v "$1" &> /dev/null; then
         echoerr "Error: $1 is not installed"
         exit 1
     fi
+    if [[ $# -eq 2 ]]; then
+        ver=$($1 --version | grep -oE '[0-9]+' | head -n1)
+        if [[ $ver -lt $2 ]]; then
+            echoerr "Error: $1 version $2+ is required, but found version $ver"
+            exit 1
+        fi
+    fi
+    
 }
 
 check_network() {
@@ -99,6 +112,7 @@ EOF
 }
 
 require jq
+require bash 4
 
 usage() {
     cat <<EOF
