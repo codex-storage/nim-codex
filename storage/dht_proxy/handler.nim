@@ -61,6 +61,18 @@ proc handleLookupRequest(
     self: DhtProxyProtocol, conn: Connection
 ) {.async: (raises: [CancelledError]).} =
   try:
+    let reqBytes =
+      try:
+        await conn.readLp(MaxLookupRequestBytes).wait(DhtProxyRequestReadTimeout)
+      except AsyncTimeoutError:
+        debug "DHT proxy request read timed out"
+        return
+
+    let req = LookupRequest.decode(reqBytes).valueOr:
+      warn "Failed to decode lookup request"
+      await conn.writeLp(LookupResponse(code: LookupCode.ErrDecodeFailed).encode())
+      return
+
     if self.inFlight >= self.maxInFlight:
       debug "DHT proxy at capacity, replying ErrTooBusy",
         inFlight = self.inFlight, max = self.maxInFlight
@@ -70,13 +82,6 @@ proc handleLookupRequest(
     inc self.inFlight
     defer:
       dec self.inFlight
-
-    let
-      reqBytes = await conn.readLp(MaxLookupRequestBytes)
-      req = LookupRequest.decode(reqBytes).valueOr:
-        warn "Failed to decode lookup request"
-        await conn.writeLp(LookupResponse(code: LookupCode.ErrDecodeFailed).encode())
-        return
 
     let resp =
       case req.queryType
