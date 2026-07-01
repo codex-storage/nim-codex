@@ -18,6 +18,8 @@ NETWORK="${STORAGE_NETWORK:-logos.test}"
 LIB_SOCKET="${STORAGE_LIB_SOCKET:-${HOME}/.logos/storage/libstorage/storage_lib.sock}"
 LIB_TIMEOUT_MS="${STORAGE_LIB_TIMEOUT_MS:-0}"
 LIB_CHUNK_SIZE="${STORAGE_LIB_CHUNK_SIZE:-65536}"
+CONFIG_SOURCE="${STORAGE_CONFIG:-${HOME}/.logos/storage}"
+CONFIG_FILE=""
 
 usage() {
   cat <<EOF
@@ -36,6 +38,7 @@ Options:
   --api-bindaddr <ip>   REST API bind address [$API_BINDADDR]
   --api-port <port>     REST API port [$API_PORT]
   --network <name>      Network preset [$NETWORK]
+  --config <path>       Config file or directory [$CONFIG_SOURCE]
   --socket <path>       Libstorage Unix socket [$LIB_SOCKET]
   --timeout-ms <ms>     Libstorage async timeout, 0 waits forever [$LIB_TIMEOUT_MS]
   --chunk-size <bytes>  Libstorage upload/download chunk size [$LIB_CHUNK_SIZE]
@@ -45,7 +48,7 @@ Environment overrides:
   STORAGE_CLIENT, STORAGE_BINARY, STORAGE_LIB_BINARY, STORAGE_DATA_DIR,
   STORAGE_LOG_LEVEL, STORAGE_LISTEN_PORT, STORAGE_DISC_PORT, STORAGE_API_BINDADDR,
   STORAGE_API_PORT, STORAGE_NETWORK, STORAGE_LIB_SOCKET, STORAGE_LIB_TIMEOUT_MS,
-  STORAGE_LIB_CHUNK_SIZE
+  STORAGE_LIB_CHUNK_SIZE, STORAGE_CONFIG
 
 Examples:
   $0
@@ -100,6 +103,10 @@ while [[ $# -gt 0 ]]; do
       NETWORK="${2:-}"
       shift 2
       ;;
+    --config)
+      CONFIG_SOURCE="${2:-}"
+      shift 2
+      ;;
     --socket)
       LIB_SOCKET="${2:-}"
       shift 2
@@ -133,6 +140,27 @@ case "$CLIENT" in
   *) printf 'error: --client must be storage or lib\n' >&2; exit 1 ;;
 esac
 
+resolve_config_file() {
+  local source="$1"
+  local name
+
+  [[ -n "$source" ]] || return 0
+
+  if [[ "$CLIENT" == 'storage' ]]; then
+    name='config.toml'
+  else
+    name='config.json'
+  fi
+
+  if [[ -f "$source" ]]; then
+    CONFIG_FILE="$source"
+  elif [[ -d "$source" && -f "$source/$name" ]]; then
+    CONFIG_FILE="$source/$name"
+  fi
+}
+
+resolve_config_file "$CONFIG_SOURCE"
+
 if [[ -z "$DATA_DIR" ]]; then
   if [[ "$CLIENT" == 'lib' ]]; then
     DATA_DIR="$LIB_DATA_DIR_DEFAULT"
@@ -149,7 +177,9 @@ else
   [[ -x "$LIB_BINARY" ]] || { printf 'error: libstorage daemon binary not executable: %s\n' "$LIB_BINARY" >&2; exit 1; }
 fi
 
-mkdir -p "$DATA_DIR"
+if [[ -z "$CONFIG_FILE" ]]; then
+  mkdir -p "$DATA_DIR"
+fi
 
 printf 'Starting local Logos Storage node\n'
 printf '  client:      %s\n' "$CLIENT"
@@ -158,13 +188,19 @@ if [[ "$CLIENT" == 'storage' ]]; then
 else
   printf '  binary:      %s\n' "$LIB_BINARY"
 fi
-printf '  data dir:    %s\n' "$DATA_DIR"
-printf '  log level:   %s\n' "$LOG_LEVEL"
-printf '  listen TCP:  %s\n' "$LISTEN_PORT"
-printf '  discovery:   %s/udp\n' "$DISC_PORT"
-printf '  network:     %s\n' "$NETWORK"
+if [[ -n "$CONFIG_FILE" ]]; then
+  printf '  config:      %s\n' "$CONFIG_FILE"
+else
+  printf '  data dir:    %s\n' "$DATA_DIR"
+  printf '  log level:   %s\n' "$LOG_LEVEL"
+  printf '  listen TCP:  %s\n' "$LISTEN_PORT"
+  printf '  discovery:   %s/udp\n' "$DISC_PORT"
+  printf '  network:     %s\n' "$NETWORK"
+fi
 if [[ "$CLIENT" == 'storage' ]]; then
-  printf '  REST API:    %s:%s\n' "$API_BINDADDR" "$API_PORT"
+  if [[ -z "$CONFIG_FILE" ]]; then
+    printf '  REST API:    %s:%s\n' "$API_BINDADDR" "$API_PORT"
+  fi
 else
   printf '  socket:      %s\n' "$LIB_SOCKET"
   printf '  timeout ms:  %s\n' "$LIB_TIMEOUT_MS"
@@ -173,6 +209,10 @@ fi
 printf '\n'
 
 if [[ "$CLIENT" == 'storage' ]]; then
+  if [[ -n "$CONFIG_FILE" ]]; then
+    exec "$BINARY" --config-file="$CONFIG_FILE" "$@"
+  fi
+
   exec "$BINARY" \
     --data-dir="$DATA_DIR" \
     --log-level="$LOG_LEVEL" \
@@ -181,6 +221,15 @@ if [[ "$CLIENT" == 'storage' ]]; then
     --api-bindaddr="$API_BINDADDR" \
     --api-port="$API_PORT" \
     --network="$NETWORK" \
+    "$@"
+fi
+
+if [[ -n "$CONFIG_FILE" ]]; then
+  exec "$LIB_BINARY" \
+    --config-file "$CONFIG_FILE" \
+    --socket "$LIB_SOCKET" \
+    --timeout-ms "$LIB_TIMEOUT_MS" \
+    --chunk-size "$LIB_CHUNK_SIZE" \
     "$@"
 fi
 

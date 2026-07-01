@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstring>
 #include <exception>
+#include <fstream>
 #include <filesystem>
 #include <iostream>
 #include <sstream>
@@ -22,6 +23,7 @@ constexpr size_t DefaultChunkSize = 64 * 1024;
 struct Options {
     std::string socketPath;
     std::string dataDir;
+    std::string configFile;
     std::string logLevel = "WARN";
     std::string network = "logos.test";
     uint16_t listenPort = 8071;
@@ -113,6 +115,24 @@ std::string configJson(const Options& options) {
            "\"metrics\":false}";
 }
 
+std::string readFile(const std::string& path) {
+    std::ifstream input(path);
+    if (!input) {
+        throw std::runtime_error("failed to open config file: " + path);
+    }
+
+    std::ostringstream buffer;
+    buffer << input.rdbuf();
+    return buffer.str();
+}
+
+std::string storageConfigJson(const Options& options) {
+    if (!options.configFile.empty()) {
+        return readFile(options.configFile);
+    }
+    return configJson(options);
+}
+
 size_t parseSize(const std::string& value) {
     size_t pos = 0;
     const auto parsed = std::stoull(value, &pos);
@@ -156,6 +176,7 @@ void printUsage() {
         "  storage_lib [options]\n\n"
         "Options:\n"
         "  --socket <path>       Unix socket path\n"
+        "  --config-file <path>  JSON config file for the libstorage node\n"
         "  --data-dir <path>     Node data directory\n"
         "  --log-level <level>   TRACE, DEBUG, INFO, NOTICE, WARN, ERROR, FATAL\n"
         "  --listen-port <port>  Local libp2p TCP listen port (default: 8071)\n"
@@ -178,6 +199,8 @@ Options parseArgs(int argc, char** argv) {
             std::exit(0);
         } else if (arg == "--socket" && i + 1 < argc) {
             options.socketPath = argv[++i];
+        } else if (arg == "--config-file" && i + 1 < argc) {
+            options.configFile = argv[++i];
         } else if (arg == "--data-dir" && i + 1 < argc) {
             options.dataDir = argv[++i];
         } else if (arg == "--log-level" && i + 1 < argc) {
@@ -377,7 +400,7 @@ int main(int argc, char** argv) {
         std::signal(SIGINT, handleSignal);
         std::signal(SIGTERM, handleSignal);
 
-        StorageClient client(configJson(options), options.timeout);
+        StorageClient client(storageConfigJson(options), options.timeout);
         client.start();
         NodeState state = NodeState::Running;
 
