@@ -8,7 +8,7 @@ echoerr() {
 }
 
 # Needs bash 4 or higher
-if ((${BASH_VERSION:-0} < 4)); then
+if (( BASH_VERSINFO[0] < 4 )); then
     echoerr "Error: This script requires Bash 4 or higher."
     exit 1
 fi
@@ -21,7 +21,11 @@ fi
 
 # Valid networks
 declare -A _networks
-_networks=([dev]="Logos devnet" [test]="Logos testnet")
+_networks=([test]="Logos testnet" [dev]="Logos devnet")
+# Associative arrays are unordered, but presets must be ordered
+# as the first network will be the one that the node connects by
+# default.
+_preset_order=("test" "dev")
 
 check_network() {
     local network=$1
@@ -34,7 +38,7 @@ check_network() {
 raw_data() {
     local network=$1
     check_network "$network"
-    curl -s "https://fleets.logos.co/logos-${network}/storage-network.json"
+    curl -fsSL "https://fleets.logos.co/logos-${network}/storage-network.json"
 }
 
 mix_pool_json() {
@@ -73,35 +77,20 @@ full_config() {
         "network": "logos.${network}",
         "mix-enabled": true,
         "dht-mix-proxy": $(mix_proxy_sprs "$network"),
-        "mix-pool-json": $(mix_pool_json "$network" | jq -c '. | tostring')
+        "mix-pool-json": $(mix_pool_json "$network" | jq -c 'tostring')
     }
 EOF
 }
 
 presets() {
-    local _keys=("${!_networks[@]}")
-    local _last_network="${_keys[-1]}"
-
     echoerr "Re-generating network presets."
-    cat <<'EOF'
-    {
-      "presets": [
-EOF
 
-    for network in "${_keys[@]}"; do
-    cat <<EOF
-      {
-        "name": "logos.${network}",
-        "description": "${_networks[$network]}",
-        "records": $(bootstrap_sprs "$network")
-      }$( [[ "$network" != "$_last_network" ]] && echo "," )
-EOF
-    done
-
-    cat <<EOF
-    ]
-  }
-EOF
+    for network in "${_preset_order[@]}"; do
+        bootstrap_sprs "$network" | jq \
+            --arg name "logos.${network}" \
+            --arg description "${_networks[$network]}" \
+            '{name: $name, description: $description, records: .}'
+    done | jq -s '{presets: .}'
 }
 
 usage() {
