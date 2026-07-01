@@ -1,24 +1,27 @@
 #!/usr/bin/env bash
 # Script for generating configuration files and network presets for
 # Logos Storage.
-
 set -euo pipefail
-
-# Valid networks
-declare -A _networks
-#_networks=([test]="Logos testnet" [dev]="Logos devnet")
-_networks=([dev]="Logos devnet")
 
 echoerr() {
     echo "[storage_config] $1" >&2
 }
 
-require() {
-    if ! command -v "$1" &> /dev/null; then
-        echoerr "Error: $1 is not installed"
-        exit 1
-    fi
-}
+# Needs bash 4 or higher
+if ((${BASH_VERSION:-0} < 4)); then
+    echoerr "Error: This script requires Bash 4 or higher."
+    exit 1
+fi
+
+# Needs jq
+if ! command -v jq &> /dev/null; then
+    echoerr "Error: jq is not installed"
+    exit 1
+fi
+
+# Valid networks
+declare -A _networks
+_networks=([dev]="Logos devnet" [test]="Logos testnet")
 
 check_network() {
     local network=$1
@@ -101,8 +104,6 @@ EOF
 EOF
 }
 
-require jq
-
 usage() {
     cat <<EOF
 Usage: $0 <command> [network]
@@ -113,7 +114,7 @@ Commands:
   raw_data <network>        Fetch raw storage-network data from fleets.logos.co
   mix_pool_json <network>   Generate mix pool JSON configuration
   bootstrap_sprs <network>  List bootstrap SPRs
-  mix_proxy_sprs <network>  List mix proxy SPRs (tcpSpr)
+  mix_proxy_sprs <network>  List mix proxy SPRs
   full_config <network>     Generate full node configuration JSON
   presets                   Generate network presets JSON for all networks
 
@@ -127,7 +128,7 @@ Examples:
 EOF
 }
 
-if [[ $# -eq 0 || "$1" == "-h" || "$1" == "--help" || "$1" == "help" ]]; then
+if [[ $# -eq 0 ]]; then
     usage
     exit 0
 fi
