@@ -75,27 +75,53 @@ EOF
 presets() {
     local _keys=("${!_networks[@]}")
     local _last_network="${_keys[-1]}"
+    local _json
 
     echoerr "Re-generating network presets."
-    cat <<'EOF'
-    {
-      "presets": [
+    _json=$(cat <<'EOF'
+      {
+        "presets": [
 EOF
+    )
 
     for network in "${_keys[@]}"; do
-    cat <<EOF
-      {
-        "name": "logos.${network}",
-        "description": "${_networks[$network]}",
-        "records": $(bootstrap_sprs "$network")
-      }$( [[ "$network" != "$_last_network" ]] && echo "," )
+      _json+=$(cat <<EOF
+        {
+          "name": "logos.${network}",
+          "description": "${_networks[$network]}",
+          "records": $(bootstrap_sprs "$network")
+        }$( [[ "$network" != "$_last_network" ]] && echo "," )
 EOF
+      )
     done
 
-    cat <<EOF
-    ]
-  }
+    _json+=$(cat <<'EOF'
+      ]
+    }
 EOF
+    )
+    # validate json
+    if ! echo $_json | jq -e . >/dev/null 2>&1; then
+      echoerr "Failed to generate valid JSON: $_json"
+      exit 1
+    fi
+
+    # pretty print json
+    _json=$(echo "$_json" | jq .)
+
+    # write to network_presets.json if --out is specified
+    local _out="${1:-}"
+    if [[ $_out == "--out" ]]; then
+      local _root="$(realpath "$(dirname "${BASH_SOURCE[0]}")/../..")"
+      local _out_file="${_root}/network_presets.json"
+
+      rm -f "$_out_file"
+      echo "$_json" >> "$_out_file"
+      echoerr "Network presets written to: $_out_file"
+    fi
+
+    # always write generated json to stdout
+    echo "$_json"
 }
 
 require jq
@@ -112,7 +138,8 @@ Commands:
   bootstrap_sprs <network>  List bootstrap SPRs
   mix_proxy_sprs <network>  List mix proxy SPRs (tcpSpr)
   full_config <network>     Generate full node configuration JSON
-  presets                   Generate network presets JSON for all networks
+  presets (--out)           Generate network presets JSON for all networks
+                              --out writes to root/network_presets.json
 
 Networks:
   ${!_networks[*]}
