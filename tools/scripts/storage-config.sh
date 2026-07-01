@@ -77,7 +77,7 @@ full_config() {
         "network": "logos.${network}",
         "mix-enabled": true,
         "dht-mix-proxy": $(mix_proxy_sprs "$network"),
-        "mix-pool-json": $(mix_pool_json "$network" | jq -c '. | tostring')
+        "mix-pool-json": $(mix_pool_json "$network" | jq -c 'tostring')
     }
 EOF
 }
