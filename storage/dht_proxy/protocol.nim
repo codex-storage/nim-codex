@@ -9,6 +9,7 @@
 
 {.push raises: [].}
 
+import pkg/chronos
 import pkg/libp2p/protobuf/minprotobuf
 import pkg/libp2p_mix
 import pkg/libp2p/routing_record
@@ -19,6 +20,7 @@ import ../logutils
 const DhtProxyCodec* = "/storage/dht-proxy/1.0.0"
 
 const DefaultMaxInFlightLookups* = 100
+const DhtProxyRequestReadTimeout* = 5.seconds
 
 let MaxLookupRequestBytes* = getMaxMessageSizeForCodec(DhtProxyCodec, 1).expect(
     "DhtProxyCodec framing leaves no room for a Sphinx forward payload"
