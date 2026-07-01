@@ -87,7 +87,9 @@ endif
 	testIntegration \
 	testLibstorageC \
 	testLibstorage \
-	update
+	update \
+	updatePresetFile \
+	presets
 
 ifeq ($(NIM_PARAMS),)
 # "variables.mk" was not included, so we update the submodules.
@@ -308,5 +310,7 @@ endif # "variables.mk" was not includedMa
 ## Presets    ##
 ################
 
-presets:
+updatePresetFile:
 	bash ./tools/scripts/storage-config.sh presets > network_presets.json
+
+presets: updatePresetFile bootstrapHealthCheck
