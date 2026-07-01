@@ -7,144 +7,150 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-# This module implements serialization and deserialization of Manifest
-
-import times
+## This module implements serialization and deserialization of Manifest.
+##
+## ```protobuf
+##   Message Manifest {
+##     required uint32 manifestVersion = 1; # manifest format version
+##     optional bytes treeCid = 2;          # cid (root) of the tree
+##     optional uint32 blockSize = 3;       # size of a single block
+##     optional uint64 datasetSize = 4;     # size of the dataset
+##     optional codec: MultiCodec = 5;      # Dataset codec
+##     optional hcodec: MultiCodec = 6;     # Multihash codec
+##     optional version: CidVersion = 7;    # Cid version
+##     optional filename: string = 8;       # original filename
+##     optional mimetype: string = 9;       # original mimetype
+##   }
+## ```
 
 {.push raises: [].}
 
-import std/tables
 import std/options
 
-import pkg/libp2p
+import pkg/faststreams
+import pkg/libp2p/cid
+import pkg/libp2p/multicodec
+import pkg/protobuf_serialization
+import pkg/protobuf_serialization/codec
 import pkg/questionable
 import pkg/questionable/results
-import pkg/chronos
 
 import ./manifest
-import ../errors
 import ../blocktype
-import ../logutils
+import ../errors
+
+proc writeManifestFields(
+    stream: OutputStream, manifest: Manifest
+) {.raises: [IOError].} =
+  writeField(stream, 1, manifest.manifestVersion, puint32, false)
+  writeField(stream, 2, manifest.treeCid.data.buffer, pbytes, false)
+  writeField(stream, 3, manifest.blockSize.uint64, puint64, false)
+  writeField(stream, 4, manifest.datasetSize.uint64, puint64, false)
+  writeField(stream, 5, manifest.codec.uint32, puint32, false)
+  writeField(stream, 6, manifest.hcodec.uint32, puint32, false)
+  writeField(stream, 7, manifest.version.uint32, puint32, false)
+  if manifest.filename.isSome:
+    writeField(stream, 8, manifest.filename.get(), pstring, false)
+  if manifest.mimetype.isSome:
+    writeField(stream, 9, manifest.mimetype.get(), pstring, false)
 
 proc encode*(manifest: Manifest): ?!seq[byte] =
-  ## Encode the manifest into a ``ManifestCodec``
-  ## multicodec container (Dag-pb) for now
-  ##
-
-  var pbNode = initProtoBuffer()
-
-  # NOTE: The `Data` field in the the `dag-pb`
-  # contains the following protobuf `Message`
-  #
-  # ```protobuf
-  #   Message Header {
-  #     required uint32 manifestVersion = 1; # manifest format version
-  #     optional bytes treeCid = 2;          # cid (root) of the tree
-  #     optional uint32 blockSize = 3;       # size of a single block
-  #     optional uint64 datasetSize = 4;     # size of the dataset
-  #     optional codec: MultiCodec = 5;      # Dataset codec
-  #     optional hcodec: MultiCodec = 6;     # Multihash codec
-  #     optional version: CidVersion = 7;    # Cid version
-  #     optional filename: string = 8;       # original filename
-  #     optional mimetype: string = 9;       # original mimetype
-  #   }
-  # ```
-  #
-  var header = initProtoBuffer()
-  header.write(1, manifest.manifestVersion)
-  header.write(2, manifest.treeCid.data.buffer)
-  header.write(3, manifest.blockSize.uint32)
-  header.write(4, manifest.datasetSize.uint64)
-  header.write(5, manifest.codec.uint32)
-  header.write(6, manifest.hcodec.uint32)
-  header.write(7, manifest.version.uint32)
-
-  if manifest.filename.isSome:
-    header.write(8, manifest.filename.get())
-
-  if manifest.mimetype.isSome:
-    header.write(9, manifest.mimetype.get())
-
-  pbNode.write(1, header) # set the treeCid as the data field
-  pbNode.finish()
-
-  return pbNode.buffer.success
+  var
+    output = memoryOutput()
+    fields = memoryOutput()
+  try:
+    writeManifestFields(fields, manifest)
+    writeField(output, 1, fields.getOutput(seq[byte]), pbytes, false)
+  except IOError as exc:
+    return failure(exc.msg)
+  output.getOutput(seq[byte]).success
 
 proc decode*(_: type Manifest, data: openArray[byte]): ?!Manifest =
-  ## Decode a manifest from a data blob
-  ##
-
   var
-    pbNode = initProtoBuffer(data)
-    pbHeader: ProtoBuffer
+    manifestVersion: uint32
     treeCidBuf: seq[byte]
+    blockSize: uint64
     datasetSize: uint64
     codec: uint32
     hcodec: uint32
-    version: uint32
-    blockSize: uint32
-    manifestVersion: uint32
-    filename: string
-    mimetype: string
+    versionRaw: uint32
+    filename = string.none
+    mimetype = string.none
 
-  # Decode `Header` message
-  if pbNode.getField(1, pbHeader).isErr:
-    return failure("Unable to decode `Header` from dag-pb manifest!")
+  try:
+    var input = memoryInput(data)
+    if not input.readable():
+      return failure("Empty manifest input")
 
-  # Decode `Header` contents
-  if pbHeader.getField(1, manifestVersion).isErr:
-    return failure("Unable to decode `manifestVersion` from manifest!")
+    let outer = input.readHeader()
+    if outer.number() != 1:
+      return failure("Unexpected top-level field number: " & $outer.number())
 
-  if pbHeader.getField(2, treeCidBuf).isErr:
-    return failure("Unable to decode `treeCid` from manifest!")
+    var fieldsBytes: seq[byte]
+    if not readFieldInto(input, fieldsBytes, outer, pbytes):
+      return failure("Unable to decode manifest fields")
 
-  if pbHeader.getField(3, blockSize).isErr:
-    return failure("Unable to decode `blockSize` from manifest!")
-
-  if pbHeader.getField(4, datasetSize).isErr:
-    return failure("Unable to decode `datasetSize` from manifest!")
-
-  if pbHeader.getField(5, codec).isErr:
-    return failure("Unable to decode `codec` from manifest!")
-
-  if pbHeader.getField(6, hcodec).isErr:
-    return failure("Unable to decode `hcodec` from manifest!")
-
-  if pbHeader.getField(7, version).isErr:
-    return failure("Unable to decode `version` from manifest!")
-
-  if pbHeader.getField(8, filename).isErr:
-    return failure("Unable to decode `filename` from manifest!")
-
-  if pbHeader.getField(9, mimetype).isErr:
-    return failure("Unable to decode `mimetype` from manifest!")
+    var fields = memoryInput(fieldsBytes)
+    while fields.readable():
+      let h = fields.readHeader()
+      case h.number()
+      of 1:
+        discard readFieldInto(fields, manifestVersion, h, puint32)
+      of 2:
+        discard readFieldInto(fields, treeCidBuf, h, pbytes)
+      of 3:
+        discard readFieldInto(fields, blockSize, h, puint64)
+      of 4:
+        discard readFieldInto(fields, datasetSize, h, puint64)
+      of 5:
+        discard readFieldInto(fields, codec, h, puint32)
+      of 6:
+        discard readFieldInto(fields, hcodec, h, puint32)
+      of 7:
+        discard readFieldInto(fields, versionRaw, h, puint32)
+      of 8:
+        var s: string
+        discard readFieldInto(fields, s, h, pstring)
+        if s.len > 0:
+          filename = s.some
+      of 9:
+        var s: string
+        discard readFieldInto(fields, s, h, pstring)
+        if s.len > 0:
+          mimetype = s.some
+      else:
+        case h.kind()
+        of WireKind.Varint:
+          fields.skipValue(puint64)
+        of WireKind.Fixed64:
+          fields.skipValue(fixed64)
+        of WireKind.LengthDelim:
+          fields.skipValue(pbytes)
+        of WireKind.Fixed32:
+          fields.skipValue(fixed32)
+  except SerializationError as exc:
+    return failure(exc.msg)
+  except IOError as exc:
+    return failure(exc.msg)
 
   if manifestVersion != 0:
     return failure("Unsupported manifest version: " & $manifestVersion)
 
   let treeCid = ?Cid.init(treeCidBuf).mapFailure
 
-  var filenameOption = if filename.len == 0: string.none else: filename.some
-  var mimetypeOption = if mimetype.len == 0: string.none else: mimetype.some
-
-  let self = Manifest.new(
+  Manifest.new(
+    manifestVersion = manifestVersion,
     treeCid = treeCid,
     datasetSize = datasetSize.NBytes,
     blockSize = blockSize.NBytes,
-    version = CidVersion(version),
-    hcodec = hcodec.MultiCodec,
     codec = codec.MultiCodec,
-    filename = filenameOption,
-    mimetype = mimetypeOption,
-    manifestVersion = manifestVersion,
-  )
+    hcodec = hcodec.MultiCodec,
+    version = CidVersion(versionRaw),
+    filename = filename,
+    mimetype = mimetype,
+  ).success
 
-  self.success
-
-func decode*(_: type Manifest, blk: Block): ?!Manifest =
-  ## Decode a manifest using `decoder`
-  ##
-
+proc decode*(_: type Manifest, blk: Block): ?!Manifest =
   if not ?blk.cid.isManifest:
     return failure "Cid not a manifest codec"
 
