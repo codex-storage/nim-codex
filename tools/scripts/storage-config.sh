@@ -4,11 +4,6 @@
 
 set -euo pipefail
 
-# Valid networks
-declare -A _networks
-#_networks=([test]="Logos testnet" [dev]="Logos devnet")
-_networks=([dev]="Logos devnet")
-
 echoerr() {
     echo "[storage_config] $1" >&2
 }
@@ -30,8 +25,15 @@ require() {
             exit 1
         fi
     fi
-    
 }
+
+require jq
+require bash 4
+
+# Valid networks
+declare -A _networks
+#_networks=([test]="Logos testnet" [dev]="Logos devnet")
+_networks=([dev]="Logos devnet")
 
 check_network() {
     local network=$1
@@ -110,9 +112,6 @@ EOF
   }
 EOF
 }
-
-require jq
-require bash 4
 
 usage() {
     cat <<EOF
