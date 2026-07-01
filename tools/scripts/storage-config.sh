@@ -8,7 +8,7 @@ echoerr() {
 }
 
 # Needs bash 4 or higher
-if ((${BASH_VERSION:-0} < 4)); then
+if (( BASH_VERSINFO[0] < 4 )); then
     echoerr "Error: This script requires Bash 4 or higher."
     exit 1
 fi
@@ -21,7 +21,11 @@ fi
 
 # Valid networks
 declare -A _networks
-_networks=([dev]="Logos devnet" [test]="Logos testnet")
+_networks=([test]="Logos testnet" [dev]="Logos devnet")
+# Associative arrays are unordered, but presets must be ordered
+# as the first network will be the one that the node connects by
+# default.
+_preset_order=("test" "dev")
 
 check_network() {
     local network=$1
@@ -79,16 +83,16 @@ EOF
 }
 
 presets() {
-    local _keys=("${!_networks[@]}")
-    local _last_network="${_keys[-1]}"
+    local _last_network="${_preset_order[-1]}"
 
     echoerr "Re-generating network presets."
+
     cat <<'EOF'
     {
       "presets": [
 EOF
 
-    for network in "${_keys[@]}"; do
+    for network in "${_preset_order[@]}"; do
     cat <<EOF
       {
         "name": "logos.${network}",
