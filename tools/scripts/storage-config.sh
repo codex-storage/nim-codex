@@ -38,7 +38,7 @@ check_network() {
 raw_data() {
     local network=$1
     check_network "$network"
-    curl -s "https://fleets.logos.co/logos-${network}/storage-network.json"
+    curl -fsSL "https://fleets.logos.co/logos-${network}/storage-network.json"
 }
 
 mix_pool_json() {
@@ -83,29 +83,14 @@ EOF
 }
 
 presets() {
-    local _last_network="${_preset_order[-1]}"
-
     echoerr "Re-generating network presets."
 
-    cat <<'EOF'
-    {
-      "presets": [
-EOF
-
     for network in "${_preset_order[@]}"; do
-    cat <<EOF
-      {
-        "name": "logos.${network}",
-        "description": "${_networks[$network]}",
-        "records": $(bootstrap_sprs "$network")
-      }$( [[ "$network" != "$_last_network" ]] && echo "," )
-EOF
-    done
-
-    cat <<EOF
-    ]
-  }
-EOF
+        bootstrap_sprs "$network" | jq \
+            --arg name "logos.${network}" \
+            --arg description "${_networks[$network]}" \
+            '{name: $name, description: $description, records: .}'
+    done | jq -s '{presets: .}'
 }
 
 usage() {
