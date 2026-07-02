@@ -12,6 +12,7 @@
 {.push raises: [], gcsafe.}
 
 import pkg/libp2p/[cid, multihash, multicodec]
+import pkg/protobuf_serialization
 import pkg/questionable/results
 
 import ../errors
@@ -23,17 +24,21 @@ import ../logutils
 
 # TODO: Manifest should be reworked to more concrete types,
 # perhaps using inheritance
-type Manifest* = ref object of RootObj
-  manifestVersion {.serialize.}: uint32 # Manifest format version
-  treeCid {.serialize.}: Cid # Root of the merkle tree
-  datasetSize {.serialize.}: NBytes # Total size of all blocks
-  blockSize {.serialize.}: NBytes
+type Manifest* {.proto2.} = ref object of RootObj
+  manifestVersion {.serialize, fieldNumber: 1, required, pint.}: uint32
+    # Manifest format version
+  treeCid {.serialize, fieldNumber: 2, required, ext.}: Cid # Root of the merkle tree
+  blockSize {.serialize, fieldNumber: 3, required, ext.}: NBytes
     # Size of each contained block (might not be needed if blocks are len-prefixed)
-  codec: MultiCodec # Dataset codec
-  hcodec: MultiCodec # Multihash codec
-  version: CidVersion # Cid version
-  filename {.serialize.}: ?string # The filename of the content uploaded (optional)
-  mimetype {.serialize.}: ?string # The mimetype of the content uploaded (optional)
+  datasetSize {.serialize, fieldNumber: 4, required, ext.}: NBytes
+    # Total size of all blocks
+  codec {.fieldNumber: 5, required, ext.}: MultiCodec # Dataset codec
+  hcodec {.fieldNumber: 6, required, ext.}: MultiCodec # Multihash codec
+  version {.fieldNumber: 7, required, ext.}: CidVersion # Cid version
+  filename {.serialize, fieldNumber: 8, ext.}: ?string
+    # The filename of the content uploaded (optional)
+  mimetype {.serialize, fieldNumber: 9, ext.}: ?string
+    # The mimetype of the content uploaded (optional)
 
 type ManifestDescriptor* = ref object
   manifest*: Manifest
