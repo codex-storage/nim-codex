@@ -250,7 +250,7 @@ proc repeatPortMapping(args: PortMappingArgs) {.thread, raises: [ValueError].} =
 
       sleep(sleepDuration)
 
-proc stopNatThreads() {.noconv.} =
+proc stopNatThreads() =
   # stop the thread
   debug "Stopping NAT port mapping renewal threads"
   try:
