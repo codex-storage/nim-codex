@@ -41,7 +41,7 @@ proc createShared*(
       sizeof(cstring) * peerAddresses.len
     ))
     for i in 0 ..< peerAddresses.len:
-      ret[].peerAddresses[i] = peerAddresses[i]
+      ret[].peerAddresses[i] = peerAddresses[i].alloc()
 
   return ret
 
@@ -52,6 +52,8 @@ proc destroyShared*(self: ptr NodeP2PRequest) =
   deallocShared(self[].peerId)
 
   if self[].peerAddresses != nil:
+    for i in 0 ..< self[].peerAddressesLen:
+      deallocShared(self[].peerAddresses[i])
     deallocShared(self[].peerAddresses)
 
   deallocShared(self)
