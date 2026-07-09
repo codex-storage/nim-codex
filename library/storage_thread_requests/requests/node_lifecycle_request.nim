@@ -22,7 +22,7 @@ import ../../../storage/utils
 import ../../../storage/utils/[keyutils, fileutils]
 import ../../../storage/units
 
-from ../../../storage/storage import StorageServer, new, start, stop, close
+from ../../../storage/storage import StorageServer, new, start, shutdown
 
 logScope:
   topics = "libstorage libstoragelifecycle"
@@ -32,8 +32,8 @@ const LibstorageDisableRestApi* {.booldefine.} = true
 type NodeLifecycleMsgType* = enum
   CREATE_NODE
   START_NODE
+  BOOT_NODE
   STOP_NODE
-  CLOSE_NODE
 
 proc readValue*[T: InputFile | InputDir | OutPath | OutDir | OutFile](
     r: var JsonReader, val: var T
@@ -184,16 +184,20 @@ proc process*(
     except Exception as e:
       error "Failed to START_NODE.", error = e.msg
       return err(e.msg)
+  of BOOT_NODE:
+    # storage_boot runs on a fresh context, so create the node then start it.
+    try:
+      storage[] = (await createStorage(self.configJson)).valueOr:
+        error "Failed to BOOT_NODE.", error = error
+        return err($error)
+      await storage[].start()
+    except Exception as e:
+      error "Failed to BOOT_NODE.", error = e.msg
+      return err(e.msg)
   of STOP_NODE:
     try:
-      await storage[].stop()
+      await storage[].shutdown()
     except Exception as e:
       error "Failed to STOP_NODE.", error = e.msg
-      return err(e.msg)
-  of CLOSE_NODE:
-    try:
-      await storage[].close()
-    except Exception as e:
-      error "Failed to CLOSE_NODE.", error = e.msg
       return err(e.msg)
   return ok("")

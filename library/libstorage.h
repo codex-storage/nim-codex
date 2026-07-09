@@ -352,8 +352,8 @@ extern "C"
         StorageCallback callback,
         void *userData);
 
-    // Start the Logos Storage node.
-    // The node can be started and stopped multiple times.
+    // Start a Logos Storage node that was created with storage_new.
+    // storage_stop is terminal: once stopped, a node cannot be restarted.
     //
     // Typical usage:
     // ctx = storage_new(configJson, myCallback, myUserData);
@@ -365,8 +365,20 @@ extern "C"
                       StorageCallback callback,
                       void *userData);
 
-    // Stop the Logos Storage node.
-    // The node can be started and stopped multiple times.
+    // Create a new context, then create and start the node in one call.
+    // A shortcut for storage_new + storage_start; returns the new context.
+    //
+    // Typical usage:
+    // ctx = storage_boot(configJson, myCallback, myUserData);
+    // ...
+    // storage_stop(ctx, ...);
+    // storage_destroy(ctx, ...);
+    void *storage_boot(const char *configJson,
+                       StorageCallback callback,
+                       void *userData);
+
+    // Stop the Logos Storage node. This is terminal: it tears the node down
+    // (switch, datastores, taskpool). A stopped node cannot be restarted.
     //
     // Typical usage:
     // ctx = storage_new(configJson, myCallback, myUserData);
@@ -378,22 +390,16 @@ extern "C"
                      StorageCallback callback,
                      void *userData);
 
-    // Close the Logos Storage node.
-    // Use this to release resources before destroying the node.
-    //
-    // Typical usage:
-    // ctx = storage_new(configJson, myCallback, myUserData);
-    // storage_start(ctx, ...);
-    // ...
-    // storage_stop(ctx, ...);
-    // storage_close(ctx, ...);
+    // Deprecated no-op, kept for ABI compatibility. Does nothing.
+    // The node is torn down by storage_stop; call it before storage_destroy.
+    __attribute__((deprecated("no-op; call storage_stop to tear down the node")))
     int storage_close(void *ctx,
                       StorageCallback callback,
                       void *userData);
 
     // Destroys an instance of a Logos Storage node.
     // This will free all resources associated with the node.
-    // The node must be stopped and closed before calling this function.
+    // The node must be stopped (storage_stop) before calling this function.
     // The call is synchronous, so it does not require a callback.
     //
     // Typical usage:
@@ -401,7 +407,6 @@ extern "C"
     // storage_start(ctx, ...);
     // ...
     // storage_stop(ctx, ...);
-    // storage_close(ctx, ...);
     // storage_destroy(ctx, ...);
     int storage_destroy(void *ctx);
 

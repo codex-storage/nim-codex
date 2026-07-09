@@ -262,17 +262,11 @@ proc storage_peer_debug(
 proc storage_close(
     ctx: ptr StorageContext, callback: StorageCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
+  ## Deprecated no-op: the node is torn down by storage_stop. Kept for ABI compatibility.
   initializeLibrary()
   checkLibstorageParams(ctx, callback, userData)
 
-  let reqContent = NodeLifecycleRequest.createShared(NodeLifecycleMsgType.CLOSE_NODE)
-  var res = storage_context.sendRequestToStorageThread(
-    ctx, RequestType.LIFECYCLE, reqContent, callback, userData
-  )
-  if res.isErr:
-    return callback.error(res.error, userData)
-
-  return callback.okOrError(res, userData)
+  return callback.success("", userData)
 
 proc storage_destroy(ctx: ptr StorageContext): cint {.dynlib, exportc.} =
   initializeLibrary()
@@ -561,6 +555,36 @@ proc storage_start(
   )
 
   return callback.okOrError(res, userData)
+
+proc storage_boot(
+    configJson: cstring, callback: StorageCallback, userData: pointer
+): pointer {.dynlib, exported.} =
+  ## Create a new context, then create and start the node in one call.
+  ## A shortcut for storage_new + storage_start; returns the new context.
+  initializeLibrary()
+
+  if isNil(callback):
+    error "Failed to boot Storage instance: the callback is missing."
+    return nil
+
+  var ctx = storage_context.createStorageContext().valueOr:
+    let msg = $error
+    callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
+    return nil
+
+  ctx.userData = userData
+
+  let reqContent =
+    NodeLifecycleRequest.createShared(NodeLifecycleMsgType.BOOT_NODE, configJson)
+
+  storage_context.sendRequestToStorageThread(
+    ctx, RequestType.LIFECYCLE, reqContent, callback, userData
+  ).isOkOr:
+    let msg = $error
+    callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
+    return nil
+
+  return ctx
 
 proc storage_stop(
     ctx: ptr StorageContext, callback: StorageCallback, userData: pointer

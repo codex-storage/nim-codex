@@ -338,26 +338,58 @@ int start(void *storage_ctx)
     return is_resp_ok(r, NULL);
 }
 
-int cleanup(void *storage_ctx)
+int stop_node(void *storage_ctx)
 {
     Resp *r = alloc_resp();
 
-    // Stop node
     if (storage_stop(storage_ctx, (StorageCallback)callback, r) != RET_OK)
     {
         free_resp(r);
         return RET_ERR;
     }
 
-    if (is_resp_ok(r, NULL) != RET_OK)
+    return is_resp_ok(r, NULL);
+}
+
+// storage_boot creates a NEW context, then creates and starts the node.
+// The old context (already stopped) is destroyed first.
+int boot(void **storage_ctx)
+{
+    if (*storage_ctx != NULL)
     {
+        storage_destroy(*storage_ctx);
+        *storage_ctx = NULL;
+    }
+
+    Resp *r = alloc_resp();
+    const char *cfg = "{\"log-level\":\"WARN\",\"data-dir\":\"./data-dir\"}";
+
+    void *ctx = storage_boot(cfg, (StorageCallback)callback, r);
+    if (!ctx)
+    {
+        free_resp(r);
         return RET_ERR;
     }
 
-    r = alloc_resp();
+    wait_resp(r);
 
-    // Close node
-    if (storage_close(storage_ctx, (StorageCallback)callback, r) != RET_OK)
+    if (get_ret(r) != RET_OK)
+    {
+        free_resp(r);
+        return RET_ERR;
+    }
+
+    *storage_ctx = ctx;
+    free_resp(r);
+    return RET_OK;
+}
+
+int cleanup(void *storage_ctx)
+{
+    Resp *r = alloc_resp();
+
+    // Stop node
+    if (storage_stop(storage_ctx, (StorageCallback)callback, r) != RET_OK)
     {
         free_resp(r);
         return RET_ERR;
@@ -973,6 +1005,14 @@ int main(void)
     RUN_TEST(check_list(storage_ctx));
     RUN_TEST(check_space(storage_ctx));
     RUN_TEST(check_exists(storage_ctx, cid, true));
+
+    // Stop the node and create a new context with storage_boot,
+    // then check that the block is still retrievable.
+    RUN_TEST(stop_node(storage_ctx));
+    RUN_TEST(boot(&storage_ctx));
+    RUN_TEST(check_peer_id(storage_ctx));
+    RUN_TEST(check_download_stream(storage_ctx, cid, "downloaded_hello.txt"));
+
     RUN_TEST(check_delete(storage_ctx, cid));
     RUN_TEST(check_exists(storage_ctx, cid, false));
 
@@ -981,6 +1021,7 @@ int main(void)
     RUN_TEST(check_toggle_private_queries(storage_ctx));
     RUN_TEST(update_log_level(storage_ctx, "TRACE"));
     RUN_TEST(check_get_metrics(storage_ctx));
+
     RUN_TEST(cleanup(storage_ctx));
 
     END_SUITE

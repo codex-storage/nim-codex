@@ -55,6 +55,7 @@ type
     maintenance: BlockMaintainer
     taskpool: Taskpool
     isStarted: bool
+    isShutdown: bool
 
   StoragePrivateKey* = libp2p.PrivateKey # alias
 
@@ -68,6 +69,11 @@ func repoStore*(self: StorageServer): RepoStore =
   return self.repoStore
 
 proc start*(s: StorageServer) {.async.} =
+  if s.isShutdown:
+    raise newException(
+      StorageError,
+      "Storage has been shut down and cannot be restarted; create a new instance",
+    )
   if s.isStarted:
     warn "Storage server already started, skipping"
     return
@@ -153,14 +159,19 @@ proc start*(s: StorageServer) {.async.} =
 
   s.isStarted = true
 
-proc stop*(s: StorageServer) {.async.} =
-  if not s.isStarted:
-    warn "Storage is not started"
+# The libp2p Switch cannot be restarted once stopped (its ConnManager is closed
+# permanently), so there is no meaningful start/stop cycle: shutting down is
+# terminal. `stop` and `close` are intentionally not exposed separately; the only
+# teardown path is a single, one-shot `shutdown`.
+proc shutdown*(s: StorageServer) {.async.} =
+  if s.isShutdown:
+    warn "Storage already shut down"
     return
+  s.isShutdown = true
 
   notice "Stopping Storage node"
 
-  var futures = @[
+  var stopFutures = @[
     s.storageNode.switch.stop(),
     s.storageNode.stop(),
     s.repoStore.stop(),
@@ -168,32 +179,18 @@ proc stop*(s: StorageServer) {.async.} =
   ]
 
   if s.restServer != nil:
-    futures.add(s.restServer.stop())
+    stopFutures.add(s.restServer.stop())
 
-  let res = await noCancel allDone[void](futures)
-
+  let stopRes = await noCancel allDone[void](stopFutures)
   s.isStarted = false
 
-  if res.failed.len > 0:
-    error "Failed to stop Storage node", failures = res.failed.len
-    raise newException(
-      StorageError,
-      "Failed to stop Storage node: " & res.failed.mapIt(it.error.msg).join(", "),
-    )
-  if res.cancelled.len > 0:
-    warn "Storage node stop was cancelled due to child stop routine(s) being cancelled, child routines cancelled: ",
-      cancellations = res.cancelled.len
-    raise newException(
-      CancelledError,
-      "Storage node stop was cancelled due to child stop routine(s) being cancelled, child routines cancelled: " &
-        $res.cancelled.len,
-    )
-
-proc close*(s: StorageServer) {.async.} =
-  var futures =
-    @[s.storageNode.close(), s.repoStore.close(), s.storageNode.discovery.close()]
-
-  let res = await noCancel allDone[void](futures)
+  # storageNode.close() already closes the repoStore (via networkStore.localStore),
+  # so we must not close it again here: two concurrent closes on the same LevelDB
+  # leave it in an inconsistent state and blocks written before the close are lost
+  # on the next open (breaks storage_boot on the same data-dir).
+  let closeRes = await noCancel allDone[void](
+    @[s.storageNode.close(), s.storageNode.discovery.close()]
+  )
 
   if not s.taskpool.isNil:
     s.taskpool.shutdown()
@@ -208,24 +205,23 @@ proc close*(s: StorageServer) {.async.} =
     if error =? closeFile(s.logFile.get()).errorOption:
       error "Failed to close log file", errorCode = $error
 
-  if res.failed.len > 0:
-    error "Failed to close Storage node", failures = res.failed.len
+  let failed = stopRes.failed & closeRes.failed
+  if failed.len > 0:
+    error "Failed to shut down Storage node", failures = failed.len
     raise newException(
       StorageError,
-      "Failed to close Storage node: " & res.failed.mapIt(it.error.msg).join(", "),
-    )
-  if res.cancelled.len > 0:
-    warn "Storage node close was cancelled due to child close routine(s) being cancelled, child routines cancelled: ",
-      cancellations = res.cancelled.len
-    raise newException(
-      CancelledError,
-      "Storage node close was cancelled due to child close routine(s) being cancelled, child routines cancelled: " &
-        $res.cancelled.len,
+      "Failed to shut down Storage node: " & failed.mapIt(it.error.msg).join(", "),
     )
 
-proc shutdown*(server: StorageServer) {.async.} =
-  await server.stop()
-  await server.close()
+  let cancelled = stopRes.cancelled.len + closeRes.cancelled.len
+  if cancelled > 0:
+    warn "Storage node shutdown was cancelled due to child routine(s) being cancelled",
+      cancellations = cancelled
+    raise newException(
+      CancelledError,
+      "Storage node shutdown was cancelled due to child routine(s) being cancelled: " &
+        $cancelled,
+    )
 
 proc new*(
     T: type StorageServer,
