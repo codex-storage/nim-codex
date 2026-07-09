@@ -394,6 +394,7 @@ int boot(void **storage_ctx)
 
     if (get_ret(r) != RET_OK)
     {
+        storage_destroy(ctx);
         free_resp(r);
         return RET_ERR;
     }
