@@ -338,26 +338,113 @@ int start(void *storage_ctx)
     return is_resp_ok(r, NULL);
 }
 
-int cleanup(void *storage_ctx)
+int stop_node(void *storage_ctx)
 {
     Resp *r = alloc_resp();
 
-    // Stop node
     if (storage_stop(storage_ctx, (StorageCallback)callback, r) != RET_OK)
     {
         free_resp(r);
         return RET_ERR;
     }
 
-    if (is_resp_ok(r, NULL) != RET_OK)
+    return is_resp_ok(r, NULL);
+}
+
+int check_start_after_stop_errors(void *storage_ctx)
+{
+    Resp *r = alloc_resp();
+
+    // Dispatch itself should succeed; the refusal comes via the callback.
+    if (storage_start(storage_ctx, (StorageCallback)callback, r) != RET_OK)
     {
+        free_resp(r);
         return RET_ERR;
     }
 
-    r = alloc_resp();
+    wait_resp(r);
+    int ret = get_ret(r);
+    free_resp(r);
 
-    // Close node
-    if (storage_close(storage_ctx, (StorageCallback)callback, r) != RET_OK)
+    // We expect RET_ERR: a stopped node cannot be restarted.
+    return (ret == RET_ERR) ? RET_OK : RET_ERR;
+}
+
+// storage_boot creates a NEW context, then creates and starts the node.
+// The old context (already stopped) is destroyed first.
+int boot(void **storage_ctx)
+{
+    if (*storage_ctx != NULL)
+    {
+        storage_destroy(*storage_ctx);
+        *storage_ctx = NULL;
+    }
+
+    Resp *r = alloc_resp();
+    const char *cfg = "{\"log-level\":\"WARN\",\"data-dir\":\"./data-dir\"}";
+
+    void *ctx = storage_boot(cfg, (StorageCallback)callback, r);
+    if (!ctx)
+    {
+        free_resp(r);
+        return RET_ERR;
+    }
+
+    wait_resp(r);
+
+    if (get_ret(r) != RET_OK)
+    {
+        storage_destroy(ctx);
+        free_resp(r);
+        return RET_ERR;
+    }
+
+    *storage_ctx = ctx;
+    free_resp(r);
+    return RET_OK;
+}
+
+// Stopping without starting should not crash.
+int check_stop_without_start(void)
+{
+    Resp *r = alloc_resp();
+    const char *cfg =
+        "{\"log-level\":\"WARN\",\"data-dir\":\"./data-dir-nostart\"}";
+
+    void *ctx = storage_new(cfg, (StorageCallback)callback, r);
+    if (!ctx)
+    {
+        free_resp(r);
+        return RET_ERR;
+    }
+
+    // Wait for CREATE_NODE to complete.
+    if (is_resp_ok(r, NULL) != RET_OK)
+    {
+        storage_destroy(ctx);
+        return RET_ERR;
+    }
+
+    // Stop without ever starting: must not crash and must report OK.
+    r = alloc_resp();
+    if (storage_stop(ctx, (StorageCallback)callback, r) != RET_OK)
+    {
+        free_resp(r);
+        storage_destroy(ctx);
+        return RET_ERR;
+    }
+    int ret = is_resp_ok(r, NULL);
+
+    storage_destroy(ctx);
+    return ret;
+}
+
+int cleanup(void *storage_ctx)
+{
+    Resp *r = alloc_resp();
+
+    // Stop node
+    if (storage_stop(storage_ctx, (StorageCallback)callback, r) != RET_OK)
     {
         free_resp(r);
         return RET_ERR;
@@ -946,6 +1033,7 @@ int main(void)
     BEGIN_SUITE
 
     RUN_TEST(setup(&storage_ctx));
+    RUN_TEST(check_stop_without_start());
     RUN_TEST(check_version(storage_ctx));
     RUN_TEST(start(storage_ctx));
     RUN_TEST(check_repo(storage_ctx));
@@ -973,6 +1061,15 @@ int main(void)
     RUN_TEST(check_list(storage_ctx));
     RUN_TEST(check_space(storage_ctx));
     RUN_TEST(check_exists(storage_ctx, cid, true));
+
+    // Stop the node and create a new context with storage_boot,
+    // then check that the block is still retrievable.
+    RUN_TEST(stop_node(storage_ctx));
+    RUN_TEST(check_start_after_stop_errors(storage_ctx));
+    RUN_TEST(boot(&storage_ctx));
+    RUN_TEST(check_peer_id(storage_ctx));
+    RUN_TEST(check_download_stream(storage_ctx, cid, "downloaded_hello.txt"));
+
     RUN_TEST(check_delete(storage_ctx, cid));
     RUN_TEST(check_exists(storage_ctx, cid, false));
 
@@ -981,6 +1078,7 @@ int main(void)
     RUN_TEST(check_toggle_private_queries(storage_ctx));
     RUN_TEST(update_log_level(storage_ctx, "TRACE"));
     RUN_TEST(check_get_metrics(storage_ctx));
+
     RUN_TEST(cleanup(storage_ctx));
 
     END_SUITE

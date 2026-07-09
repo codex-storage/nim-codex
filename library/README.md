@@ -2,10 +2,10 @@
 
 Logos Storage exposes a C binding that serves as a stable contract, making it straightforward to integrate Logos Storage into other languages such as Go.
 
-The implementation was inspired by [nim-library-template](https://github.com/logos-co/nim-library-template)  
+The implementation was inspired by [nim-library-template](https://github.com/logos-co/nim-library-template)
 and by the [nwaku](https://github.com/waku-org/nwaku/tree/master/library) library.
 
-The source code contains detailed comments to explain the threading and callback flow.  
+The source code contains detailed comments to explain the threading and callback flow.
 The diagram below summarizes the lifecycle: context creation, request execution, and shutdown.
 
 ```mermaid
@@ -26,7 +26,7 @@ sequenceDiagram
     Thr->>Ctx: dequeue request
     Thr-->>Ctx: ACK
     Ctx-->>C: forward ACK
-    C-->>Go: RET OK 
+    C-->>Go: RET OK
     Go->>App: Unblock
     Thr->>Eng: execute (async)
     Eng-->>Thr: result ready
@@ -47,7 +47,7 @@ Unless explicitly stated otherwise, all functions are asynchronous and execute t
 - `RET_ERR`: immediate failure
 - `RET_MISSING_CALLBACK`: callback is missing
 
-Some functions may emit progress updates via the callback using `RET_PROGRESS`, and finally complete with `RET_OK` or `RET_ERR`.  
+Some functions may emit progress updates via the callback using `RET_PROGRESS`, and finally complete with `RET_OK` or `RET_ERR`.
 
 The `msg` parameter can carry different kinds of data depending on the return code:
 
@@ -105,9 +105,13 @@ Typical usage:
 
 ---
 
+> **Restart is not supported.** Use `storage_stop` to stop the node and free its
+> resources. To run again, create a fresh instance with `storage_boot` (or
+> `storage_new` + `storage_start`).
+
 ### `storage_start`
 
-Start the Logos Storage node (can be started/stopped multiple times).
+Start a node previously created with `storage_new`. Errors if the node was already stopped.
 
 ```c
 int storage_start(void *ctx, StorageCallback callback, void *userData);
@@ -115,9 +119,20 @@ int storage_start(void *ctx, StorageCallback callback, void *userData);
 
 ---
 
+### `storage_boot`
+
+Create a new context, then create and start the node in one call. A shortcut for
+`storage_new` + `storage_start`; returns the new context.
+
+```c
+void *storage_boot(const char *configJson, StorageCallback callback, void *userData);
+```
+
+---
+
 ### `storage_stop`
 
-Stop the Logos Storage node (can be started/stopped multiple times).
+Stop the Logos Storage node. Terminal: tears the node down. A stopped node cannot be restarted.
 
 ```c
 int storage_stop(void *ctx, StorageCallback callback, void *userData);
@@ -127,7 +142,8 @@ int storage_stop(void *ctx, StorageCallback callback, void *userData);
 
 ### `storage_close`
 
-Close the node and release resources before destruction.
+**Deprecated — no-op.** Does nothing, kept for compatibility. Use `storage_stop` to tear
+the node down before `storage_destroy`.
 
 ```c
 int storage_close(void *ctx, StorageCallback callback, void *userData);
@@ -137,8 +153,8 @@ int storage_close(void *ctx, StorageCallback callback, void *userData);
 
 ### `storage_destroy`
 
-Destroys the node instance and frees associated resources. Node must be stopped and closed.
-The call is synchronous, so it does not require a callback.
+Destroys the node instance and frees associated resources. The node must be stopped
+(`storage_stop`) before calling this. The call is synchronous, so it does not require a callback.
 
 ```c
 int storage_destroy(void *ctx);
