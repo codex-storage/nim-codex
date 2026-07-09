@@ -404,6 +404,41 @@ int boot(void **storage_ctx)
     return RET_OK;
 }
 
+// Stopping without starting should not crash.
+int check_stop_without_start(void)
+{
+    Resp *r = alloc_resp();
+    const char *cfg =
+        "{\"log-level\":\"WARN\",\"data-dir\":\"./data-dir-nostart\"}";
+
+    void *ctx = storage_new(cfg, (StorageCallback)callback, r);
+    if (!ctx)
+    {
+        free_resp(r);
+        return RET_ERR;
+    }
+
+    // Wait for CREATE_NODE to complete.
+    if (is_resp_ok(r, NULL) != RET_OK)
+    {
+        storage_destroy(ctx);
+        return RET_ERR;
+    }
+
+    // Stop without ever starting: must not crash and must report OK.
+    r = alloc_resp();
+    if (storage_stop(ctx, (StorageCallback)callback, r) != RET_OK)
+    {
+        free_resp(r);
+        storage_destroy(ctx);
+        return RET_ERR;
+    }
+    int ret = is_resp_ok(r, NULL);
+
+    storage_destroy(ctx);
+    return ret;
+}
+
 int cleanup(void *storage_ctx)
 {
     Resp *r = alloc_resp();
@@ -998,6 +1033,7 @@ int main(void)
     BEGIN_SUITE
 
     RUN_TEST(setup(&storage_ctx));
+    RUN_TEST(check_stop_without_start());
     RUN_TEST(check_version(storage_ctx));
     RUN_TEST(start(storage_ctx));
     RUN_TEST(check_repo(storage_ctx));
