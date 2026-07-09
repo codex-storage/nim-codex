@@ -355,10 +355,11 @@ int check_start_after_stop_errors(void *storage_ctx)
 {
     Resp *r = alloc_resp();
 
+    // Dispatch itself should succeed; the refusal comes via the callback.
     if (storage_start(storage_ctx, (StorageCallback)callback, r) != RET_OK)
     {
         free_resp(r);
-        return RET_OK;
+        return RET_ERR;
     }
 
     wait_resp(r);
