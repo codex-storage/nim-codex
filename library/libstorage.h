@@ -39,6 +39,15 @@
 // with progress updates.
 #define RET_PROGRESS 3
 
+// Portable deprecation marker (GCC/Clang, MSVC, or no-op elsewhere).
+#if defined(__GNUC__) || defined(__clang__)
+#define STORAGE_DEPRECATED(msg) __attribute__((deprecated(msg)))
+#elif defined(_MSC_VER)
+#define STORAGE_DEPRECATED(msg) __declspec(deprecated(msg))
+#else
+#define STORAGE_DEPRECATED(msg)
+#endif
+
 #ifdef __cplusplus
 extern "C"
 {
@@ -392,7 +401,7 @@ extern "C"
 
     // Deprecated no-op, kept for ABI compatibility. Does nothing.
     // The node is torn down by storage_stop; call it before storage_destroy.
-    __attribute__((deprecated("no-op; call storage_stop to tear down the node")))
+    STORAGE_DEPRECATED("no-op; call storage_stop to tear down the node")
     int storage_close(void *ctx,
                       StorageCallback callback,
                       void *userData);
