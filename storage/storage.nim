@@ -169,22 +169,31 @@ proc shutdown*(s: StorageServer) {.async.} =
 
   notice "Stopping Storage node"
 
-  var stopFutures = @[
-    s.storageNode.switch.stop(),
-    s.storageNode.stop(),
-    s.repoStore.stop(),
-    s.maintenance.stop(),
-  ]
+  var failures: seq[string]
+  var cancellations = 0
 
-  if s.restServer != nil:
-    stopFutures.add(s.restServer.stop())
+  if s.isStarted:
+    var stopFutures = @[
+      s.storageNode.switch.stop(),
+      s.storageNode.stop(),
+      s.repoStore.stop(),
+      s.maintenance.stop(),
+    ]
 
-  let stopRes = await noCancel allDone[void](stopFutures)
-  s.isStarted = false
+    if s.restServer != nil:
+      stopFutures.add(s.restServer.stop())
 
+    let stopRes = await noCancel allDone[void](stopFutures)
+    s.isStarted = false
+    failures.add(stopRes.failed.mapIt(it.error.msg))
+    cancellations += stopRes.cancelled.len
+
+  # Close resources created by new() regardless of whether the node started.
   let closeRes = await noCancel allDone[void](
     @[s.storageNode.close(), s.storageNode.discovery.close()]
   )
+  failures.add(closeRes.failed.mapIt(it.error.msg))
+  cancellations += closeRes.cancelled.len
 
   if not s.taskpool.isNil:
     s.taskpool.shutdown()
@@ -199,22 +208,19 @@ proc shutdown*(s: StorageServer) {.async.} =
     if error =? closeFile(s.logFile.get()).errorOption:
       error "Failed to close log file", errorCode = $error
 
-  let failed = stopRes.failed & closeRes.failed
-  if failed.len > 0:
-    error "Failed to shut down Storage node", failures = failed.len
+  if failures.len > 0:
+    error "Failed to shut down Storage node", failures = failures.len
     raise newException(
-      StorageError,
-      "Failed to shut down Storage node: " & failed.mapIt(it.error.msg).join(", "),
+      StorageError, "Failed to shut down Storage node: " & failures.join(", ")
     )
 
-  let cancelled = stopRes.cancelled.len + closeRes.cancelled.len
-  if cancelled > 0:
+  if cancellations > 0:
     warn "Storage node shutdown was cancelled due to child routine(s) being cancelled",
-      cancellations = cancelled
+      cancellations = cancellations
     raise newException(
       CancelledError,
       "Storage node shutdown was cancelled due to child routine(s) being cancelled: " &
-        $cancelled,
+        $cancellations,
     )
 
 proc new*(
