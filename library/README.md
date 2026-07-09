@@ -105,10 +105,9 @@ Typical usage:
 
 ---
 
-> **Restart is not supported.**.
-> `storage_stop` to stop the node and free resource.
-> Use `storage_boot` to start a new instance with a clean state or `storage_new`
-> to create a new instance.
+> **Restart is not supported.** Use `storage_stop` to stop the node and free its
+> resources. To run again, create a fresh instance with `storage_boot` (or
+> `storage_new` + `storage_start`).
 
 ### `storage_start`
 
