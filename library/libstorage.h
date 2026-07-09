@@ -378,7 +378,7 @@ extern "C"
                        void *userData);
 
     // Stop the Logos Storage node. This is terminal: it tears the node down
-    // (switch, datastores, taskpool). A stopped node cannot be restarted.
+    // resources. A stopped node cannot be restarted.
     //
     // Typical usage:
     // ctx = storage_new(configJson, myCallback, myUserData);
