@@ -351,6 +351,24 @@ int stop_node(void *storage_ctx)
     return is_resp_ok(r, NULL);
 }
 
+int check_start_after_stop_errors(void *storage_ctx)
+{
+    Resp *r = alloc_resp();
+
+    if (storage_start(storage_ctx, (StorageCallback)callback, r) != RET_OK)
+    {
+        free_resp(r);
+        return RET_OK;
+    }
+
+    wait_resp(r);
+    int ret = get_ret(r);
+    free_resp(r);
+
+    // We expect RET_ERR: a stopped node cannot be restarted.
+    return (ret == RET_ERR) ? RET_OK : RET_ERR;
+}
+
 // storage_boot creates a NEW context, then creates and starts the node.
 // The old context (already stopped) is destroyed first.
 int boot(void **storage_ctx)
@@ -1009,6 +1027,7 @@ int main(void)
     // Stop the node and create a new context with storage_boot,
     // then check that the block is still retrievable.
     RUN_TEST(stop_node(storage_ctx));
+    RUN_TEST(check_start_after_stop_errors(storage_ctx));
     RUN_TEST(boot(&storage_ctx));
     RUN_TEST(check_peer_id(storage_ctx));
     RUN_TEST(check_download_stream(storage_ctx, cid, "downloaded_hello.txt"));
