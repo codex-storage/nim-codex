@@ -159,10 +159,8 @@ proc start*(s: StorageServer) {.async.} =
 
   s.isStarted = true
 
-# The libp2p Switch cannot be restarted once stopped (its ConnManager is closed
-# permanently), so there is no meaningful start/stop cycle: shutting down is
-# terminal. `stop` and `close` are intentionally not exposed separately; the only
-# teardown path is a single, one-shot `shutdown`.
+# Stop the node and close all resources.
+# The node cannot be restarted after shutdown, a new instance must be created.
 proc shutdown*(s: StorageServer) {.async.} =
   if s.isShutdown:
     warn "Storage already shut down"
@@ -184,10 +182,6 @@ proc shutdown*(s: StorageServer) {.async.} =
   let stopRes = await noCancel allDone[void](stopFutures)
   s.isStarted = false
 
-  # storageNode.close() already closes the repoStore (via networkStore.localStore),
-  # so we must not close it again here: two concurrent closes on the same LevelDB
-  # leave it in an inconsistent state and blocks written before the close are lost
-  # on the next open (breaks storage_boot on the same data-dir).
   let closeRes = await noCancel allDone[void](
     @[s.storageNode.close(), s.storageNode.discovery.close()]
   )
