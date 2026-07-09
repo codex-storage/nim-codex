@@ -143,7 +143,7 @@ int storage_stop(void *ctx, StorageCallback callback, void *userData);
 
 ### `storage_close`
 
-**Deprecated — no-op.** Does nothing, kept for ABI compatibility. Use `storage_stop` to tear
+**Deprecated — no-op.** Does nothing, kept for compatibility. Use `storage_stop` to tear
 the node down before `storage_destroy`.
 
 ```c
