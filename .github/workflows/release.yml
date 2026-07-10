@@ -208,6 +208,32 @@ jobs:
           path: ${{ env.build_dir }}/${{ env.c_bindings_lib }}.zip
           if-no-files-found: error
 
+      - name: Build ${{ env.c_bindings_lib_base }} static (Linux/MacOS)
+        if: matrix.os == 'linux' || matrix.os == 'macos'
+        run: |
+          STATIC=1 make -j${ncpu} NIMFLAGS="${NIMFLAGS} ${{ steps.platform-nim-flags.outputs.nim_flags }}" libstorage
+
+      - name: Package ${{ env.c_bindings_lib_base }} static (Linux/MacOS)
+        if: matrix.os == 'linux' || matrix.os == 'macos'
+        run: |
+          if [[ "${{ matrix.os }}" == "linux" ]]; then
+            sudo apt-get update && sudo apt-get install -y zip
+          fi
+          zip -j "${{ env.build_dir }}/${{ env.c_bindings_lib }}-static.zip" \
+            "${{ env.build_dir }}/${{ env.c_bindings_lib_base }}.a" \
+            "vendor/nim-nat-traversal/vendor/libnatpmp-upstream/libnatpmp.a" \
+            "vendor/nim-nat-traversal/vendor/miniupnp/miniupnpc/build/libminiupnpc.a" \
+            "vendor/nim-libbacktrace/install/usr/lib/libbacktrace.a" \
+            "library/${{ env.c_bindings_lib_base }}.h"
+
+      - name: Upload ${{ env.c_bindings_lib_base }} static to workflow artifacts
+        if: matrix.os == 'linux' || matrix.os == 'macos'
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.c_bindings_lib }}-static.zip
+          path: ${{ env.build_dir }}/${{ env.c_bindings_lib }}-static.zip
+          if-no-files-found: error
+
   # Build Docker logosstorage/logos-storage-nim:latest-dist-tests image for Logos Storage nodes in the cluster
   build-docker-dist-tests:
     name: Build Docker dist-tests image
