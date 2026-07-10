@@ -210,7 +210,11 @@ components:
           description: "Amount of storage reserved (in bytes) in the Logos Storage's local repository for future use when storage requests will be picked up and hosted by the node using node's availabilities. This does not include the storage currently in use."
 
 servers:
-  - url: "http://localhost:8080/api/storage/v1"
+  - url: "http://localhost:{port}/api/storage/v1"
+    variables:
+      port:
+        default: "8080"
+        description: "The port of your local node."
 
 tags:
   - name: Data
