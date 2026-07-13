@@ -160,6 +160,9 @@ proc stop*(s: StorageServer) {.async.} =
 
   notice "Stopping Storage node"
 
+  {.gcsafe.}:
+    stopNat()
+
   var futures = @[
     s.storageNode.switch.stop(),
     s.storageNode.stop(),

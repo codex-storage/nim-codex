@@ -9,7 +9,7 @@
 {.push raises: [].}
 
 import
-  std/[options, os, times, net, atomics, exitprocs],
+  std/[options, os, times, net, atomics],
   nat_traversal/[miniupnpc, natpmp],
   json_serialization/std/net,
   results
@@ -250,7 +250,7 @@ proc repeatPortMapping(args: PortMappingArgs) {.thread, raises: [ValueError].} =
 
       sleep(sleepDuration)
 
-proc stopNatThreads() {.noconv.} =
+proc stopNatThreads() =
   # stop the thread
   debug "Stopping NAT port mapping renewal threads"
   try:
@@ -301,6 +301,14 @@ proc stopNatThreads() {.noconv.} =
             debug "NAT-PMP: deleted port mapping",
               externalPort = eport, internalPort = iport, protocol = protocol
 
+proc stopNat*() =
+  stopNatThreads()
+  natThreads.setLen(0)
+  activeMappings.setLen(0)
+  extIp = IpAddress.none
+  strategy = NatStrategy.NatNone
+  natClosed.store(false)
+
 proc redirectPorts*(
     strategy: NatStrategy, tcpPort, udpPort: Port, description: string
 ): Option[(Port, Port)] =
@@ -325,10 +333,6 @@ proc redirectPorts*(
       natThreads[^1].createThread(
         repeatPortMapping, (strategy, externalTcpPort, externalUdpPort, description)
       )
-      # atexit() in disguise
-      if natThreads.len == 1:
-        # we should register the thread termination function only once
-        addExitProc(stopNatThreads)
     except Exception as exc:
       warn "Failed to create NAT port mapping renewal thread", exc = exc.msg
 
@@ -339,8 +343,10 @@ proc setupNat*(
   ## If any of this fails, we don't return any IP address but do return the
   ## original ports as best effort.
   ## TODO: Allow for tcp or udp port mapping to be optional.
-  if extIp.isNone:
-    extIp = getExternalIP(natStrategy)
+
+  # getExternalIP initialises the threadvars upnp and npmp,
+  # so we need to call to make sure they are initialised in the current thread.
+  extIp = getExternalIP(natStrategy)
   if extIp.isSome:
     let ip = extIp.get
     let extPorts = (
