@@ -6,6 +6,7 @@ import pkg/chronos
 
 import pkg/storage/blockexchange/engine/downloadcontext {.all.}
 import pkg/storage/blockexchange/engine/scheduler {.all.}
+import pkg/storage/blockexchange/protocol/message
 
 privateAccess(BroadcastAvailabilityTracker)
 
@@ -45,7 +46,7 @@ suite "BroadcastAvailabilityTracker (sequential OOO)":
     check tracker.shouldBroadcast(sched)
 
     let ranges = tracker.getRanges(sched)
-    check ranges == @[(start: 100'u64, count: BatchSize)]
+    check ranges == @[IndexRange(start: 100'u64, count: BatchSize)]
     check tracker.pendingOOOSnapshot == toHashSet([100'u64])
 
     tracker.markBroadcasted(sched)
@@ -62,7 +63,7 @@ suite "BroadcastAvailabilityTracker (sequential OOO)":
     sched.markComplete(200)
     check tracker.shouldBroadcast(sched)
     let ranges = tracker.getRanges(sched)
-    check ranges == @[(start: 200'u64, count: BatchSize)]
+    check ranges == @[IndexRange(start: 200'u64, count: BatchSize)]
 
   test "Multiple new OOO batches are all emitted in a single broadcast":
     for _ in 0 ..< 4:
@@ -96,7 +97,7 @@ suite "BroadcastAvailabilityTracker (sequential OOO)":
     check tracker.shouldBroadcast(sched)
 
     let ranges = tracker.getRanges(sched)
-    check ranges == @[(start: 0'u64, count: 200'u64)]
+    check ranges == @[IndexRange(start: 0'u64, count: 200'u64)]
 
     tracker.markBroadcasted(sched)
     check tracker.broadcastedOutOfOrder.len == 0
@@ -115,7 +116,7 @@ suite "BroadcastAvailabilityTracker (sequential OOO)":
     check tracker.shouldBroadcast(sched)
 
     let ranges = tracker.getRanges(sched)
-    check ranges == @[(start: 0'u64, count: BatchSize)]
+    check ranges == @[IndexRange(start: 0'u64, count: BatchSize)]
     check tracker.pendingOOOSnapshot.len == 0
 
     tracker.markBroadcasted(sched)
@@ -128,7 +129,7 @@ suite "BroadcastAvailabilityTracker (sequential OOO)":
     sched.markComplete(100)
 
     let ranges = tracker.getRanges(sched)
-    check ranges == @[(start: 100'u64, count: BatchSize)]
+    check ranges == @[IndexRange(start: 100'u64, count: BatchSize)]
     check tracker.pendingOOOSnapshot == toHashSet([100'u64])
 
     sched.markComplete(200)
@@ -139,7 +140,7 @@ suite "BroadcastAvailabilityTracker (sequential OOO)":
 
     check tracker.shouldBroadcast(sched)
     let ranges2 = tracker.getRanges(sched)
-    check ranges2 == @[(start: 200'u64, count: BatchSize)]
+    check ranges2 == @[IndexRange(start: 200'u64, count: BatchSize)]
     check tracker.pendingOOOSnapshot == toHashSet([200'u64])
 
   test "getRanges clears stale snapshot when mark was skipped":
@@ -153,5 +154,5 @@ suite "BroadcastAvailabilityTracker (sequential OOO)":
     check sched.completedWatermark() == 200
 
     let ranges = tracker.getRanges(sched)
-    check ranges == @[(start: 0'u64, count: 200'u64)]
+    check ranges == @[IndexRange(start: 0'u64, count: 200'u64)]
     check tracker.pendingOOOSnapshot.len == 0

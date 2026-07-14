@@ -10,12 +10,13 @@
 {.push raises: [].}
 
 import pkg/chronos
-import pkg/libp2p/protobuf/minprotobuf
 import pkg/libp2p_mix
-import pkg/libp2p/routing_record
-import pkg/stew/objects
+import pkg/protobuf_serialization
+import pkg/protobuf_serialization/std/enums
+import pkg/protobuf_serialization/pkg/results
 
 import ../logutils
+import ../utils/protobuf/serializer
 
 const DhtProxyCodec* = "/storage/dht-proxy/1.0.0"
 
@@ -43,56 +44,15 @@ type
     ErrResponseTooLarge = 201
     ErrTooBusy = 202
 
-  LookupRequest* = object
-    queryType*: QueryType
-    queryBytes*: seq[byte]
+  LookupRequest* {.proto2.} = object
+    queryType* {.fieldNumber: 1, required, ext.}: QueryType
+    queryBytes* {.fieldNumber: 2, required.}: seq[byte]
 
-  LookupResponse* = object
-    code*: LookupCode
-    providers*: seq[seq[byte]]
+  LookupResponse* {.proto2.} = object
+    code* {.fieldNumber: 1, required, ext.}: LookupCode
+    providers* {.fieldNumber: 2.}: seq[seq[byte]]
 
-proc encode*(req: LookupRequest): seq[byte] =
-  var pb = initProtoBuffer()
-  pb.write(1, req.queryType.uint32)
-  pb.write(2, req.queryBytes)
-  pb.finish()
-  pb.buffer
-
-proc encode*(resp: LookupResponse): seq[byte] =
-  var pb = initProtoBuffer()
-  pb.write(1, resp.code.uint32)
-  for spr in resp.providers:
-    pb.write(2, spr)
-  pb.finish()
-  pb.buffer
-
-proc decode*(_: type LookupRequest, data: openArray[byte]): ProtoResult[LookupRequest] =
-  let pb = initProtoBuffer(data)
-  var
-    req = LookupRequest()
-    qt: uint32
-
-  if ?pb.getField(1, qt):
-    if not checkedEnumAssign(req.queryType, qt):
-      return err(ProtoError.IncorrectBlob)
-
-  discard ?pb.getField(2, req.queryBytes)
-  ok(req)
-
-proc decode*(
-    _: type LookupResponse, data: openArray[byte]
-): ProtoResult[LookupResponse] =
-  let pb = initProtoBuffer(data)
-  var
-    resp = LookupResponse()
-    codeOrd: uint32
-
-  if ?pb.getField(1, codeOrd):
-    if not checkedEnumAssign(resp.code, codeOrd):
-      return err(ProtoError.IncorrectBlob)
-
-  discard ?pb.getRepeatedField(2, resp.providers)
-  ok(resp)
+Protobuf.serializerForResult([LookupRequest, LookupResponse])
 
 proc packProviders*(
     providers: seq[seq[byte]], budget_bytes: int

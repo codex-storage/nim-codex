@@ -97,7 +97,7 @@ proc readLoop*(self: NetworkPeer, conn: Connection) {.async: (raises: []).} =
         if dataLen > 0:
           await conn.readExactly(addr data[0], dataLen)
 
-        let msg = Message.protobufDecode(data).mapFailure().tryGet()
+        let msg = Message.decode(data).mapFailure().tryGet()
         await self.handler(self, msg)
       of mtWantBlocksRequest:
         let reqResult = await readWantBlocksRequest(conn, dataLen)
@@ -164,7 +164,7 @@ proc send*(
     return
 
   try:
-    let msgData = protobufEncode(msg)
+    let msgData = msg.encode()
 
     let
       frameLen = 1 + msgData.len

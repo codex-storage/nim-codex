@@ -1,3 +1,5 @@
+import std/options
+
 import pkg/chronos
 
 import pkg/storage/blockexchange/protocol/presence
@@ -22,11 +24,17 @@ suite "Block presence protobuf messages":
     check PresenceMessage.init(presence).kind == BlockPresenceType.DontHave
 
   test "decodes CID":
-    check Presence.init(message) .? address == address.some
+    let p = Presence.init(message)
+    check p.isSome
+    check p.get.address == address
 
   test "decodes have/donthave":
     var message = message
     message.kind = BlockPresenceType.HaveRange
-    check Presence.init(message) .? have == true.some
+    let pHave = Presence.init(message)
+    check pHave.isSome
+    check pHave.get.have == true
     message.kind = BlockPresenceType.DontHave
-    check Presence.init(message) .? have == false.some
+    let pDontHave = Presence.init(message)
+    check pDontHave.isSome
+    check pDontHave.get.have == false
