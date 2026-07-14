@@ -222,14 +222,14 @@ let cidB = fixedCid(0xBB)
 suite "Block exchange Message wire-format contract":
   test "Should encode an empty Message":
     let msg = Message()
-    check msg.protobufEncode() == Expected_emptyMessage
+    check msg.encode() == Expected_emptyMessage
 
   test "Should encode a WantList with no entries":
     let msg1 = Message(wantList: WantList(entries: @[], full: false))
-    check msg1.protobufEncode() == Expected_wantListEmptyFullFalse
+    check msg1.encode() == Expected_wantListEmptyFullFalse
 
     let msg2 = Message(wantList: WantList(entries: @[], full: true))
-    check msg2.protobufEncode() == Expected_wantListEmptyFullTrue
+    check msg2.encode() == Expected_wantListEmptyFullTrue
 
   test "Should encode a WantList containing a single entry":
     let msg = Message(
@@ -247,7 +247,7 @@ suite "Block exchange Message wire-format contract":
         ]
       )
     )
-    check msg.protobufEncode() == Expected_wantListSingleEntry
+    check msg.encode() == Expected_wantListSingleEntry
 
   test "Should encode a WantList containing multiple entries":
     let msg = Message(
@@ -275,7 +275,7 @@ suite "Block exchange Message wire-format contract":
         full: true,
       )
     )
-    check msg.protobufEncode() == Expected_wantListMultipleFullTrue
+    check msg.encode() == Expected_wantListMultipleFullTrue
 
   test "Should encode a BlockPresence with DontHave kind":
     let msg = Message(
@@ -288,7 +288,7 @@ suite "Block exchange Message wire-format contract":
         )
       ]
     )
-    check msg.protobufEncode() == Expected_presenceDontHave
+    check msg.encode() == Expected_presenceDontHave
 
   test "Should encode a BlockPresence with HaveRange kind and multiple ranges":
     let msg = Message(
@@ -302,7 +302,7 @@ suite "Block exchange Message wire-format contract":
         )
       ]
     )
-    check msg.protobufEncode() == Expected_presenceHaveRange
+    check msg.encode() == Expected_presenceHaveRange
 
   test "Should encode a BlockPresence with Complete kind":
     let msg = Message(
@@ -315,7 +315,7 @@ suite "Block exchange Message wire-format contract":
         )
       ]
     )
-    check msg.protobufEncode() == Expected_presenceComplete
+    check msg.encode() == Expected_presenceComplete
 
   test "Should encode a Message combining WantList and multiple BlockPresences":
     let msg = Message(
@@ -348,7 +348,7 @@ suite "Block exchange Message wire-format contract":
         ),
       ],
     )
-    check msg.protobufEncode() == Expected_fullMessage
+    check msg.encode() == Expected_fullMessage
 
   test "Should encode a Message with maximum-width varint values":
     let msg = Message(
@@ -366,7 +366,7 @@ suite "Block exchange Message wire-format contract":
         ]
       )
     )
-    check msg.protobufEncode() == Expected_largeVarints
+    check msg.encode() == Expected_largeVarints
 
   test "Should encode a Message with all-zero default values":
     let msg = Message(
@@ -379,7 +379,7 @@ suite "Block exchange Message wire-format contract":
         )
       ]
     )
-    check msg.protobufEncode() == Expected_allZeroValues
+    check msg.encode() == Expected_allZeroValues
 
   test "Should round-trip every captured byte fixture (decode + re-encode)":
     let fixtures = @[
@@ -403,9 +403,9 @@ suite "Block exchange Message wire-format contract":
     ]
     for (name, expected) in fixtures:
       checkpoint("fixture: " & name)
-      let decoded = Message.protobufDecode(expected)
+      let decoded = Message.decode(expected)
       check decoded.isOk
-      check decoded.get.protobufEncode() == expected
+      check decoded.get.encode() == expected
 
   test "Should encode a WantList combined with BlockPresences":
     let msg = Message(
@@ -432,7 +432,7 @@ suite "Block exchange Message wire-format contract":
         )
       ],
     )
-    check msg.protobufEncode() == Expected_wantListFullTrueWithPresences
+    check msg.encode() == Expected_wantListFullTrueWithPresences
 
   test "Should encode a Message containing three BlockPresences":
     let msg = Message(
@@ -457,7 +457,7 @@ suite "Block exchange Message wire-format contract":
         ),
       ]
     )
-    check msg.protobufEncode() == Expected_threeBlockPresences
+    check msg.encode() == Expected_threeBlockPresences
 
   test "Should encode a WantList where multiple entries have cancel=true":
     let msg = Message(
@@ -485,7 +485,7 @@ suite "Block exchange Message wire-format contract":
         full: false,
       )
     )
-    check msg.protobufEncode() == Expected_multipleEntriesCancelTrue
+    check msg.encode() == Expected_multipleEntriesCancelTrue
 
   test "Should encode a BlockPresence with downloadId at uint64 maximum":
     let msg = Message(
@@ -498,7 +498,7 @@ suite "Block exchange Message wire-format contract":
         )
       ]
     )
-    check msg.protobufEncode() == Expected_presenceDownloadIdMax
+    check msg.encode() == Expected_presenceDownloadIdMax
 
   test "Should encode a WantListEntry with rangeCount at uint64 maximum":
     let msg = Message(
@@ -516,7 +516,7 @@ suite "Block exchange Message wire-format contract":
         ]
       )
     )
-    check msg.protobufEncode() == Expected_entryRangeCountMax
+    check msg.encode() == Expected_entryRangeCountMax
 
   test "Should encode a Range with start near uint64 maximum and count=1":
     let msg = Message(
@@ -529,11 +529,11 @@ suite "Block exchange Message wire-format contract":
         )
       ]
     )
-    check msg.protobufEncode() == Expected_rangeStartNearMax
+    check msg.encode() == Expected_rangeStartNearMax
 
 suite "Block exchange Message decode error handling":
   test "Should reject empty bytes":
-    let decoded = Message.protobufDecode(@[])
+    let decoded = Message.decode(@[])
     check decoded.isErr
 
   test "Should reject random garbage bytes":
@@ -541,39 +541,39 @@ suite "Block exchange Message decode error handling":
       0xFF.byte, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
       0xFF, 0xFF, 0xFF,
     ]
-    let decoded = Message.protobufDecode(garbage)
+    let decoded = Message.decode(garbage)
     check decoded.isErr
 
   test "Should reject truncated bytes":
     let truncated = Expected_fullMessage[0 ..< 8]
-    let decoded = Message.protobufDecode(@truncated)
+    let decoded = Message.decode(@truncated)
     check decoded.isErr
 
   test "Should reject bytes with a length-prefix exceeding buffer":
     # Tag 0x0A = field 1, length-delimited. Length 0xFF claims 255 bytes but
     # only 2 follow.
     let malformed = @[0x0A.byte, 0xFF, 0x00, 0x00]
-    let decoded = Message.protobufDecode(malformed)
+    let decoded = Message.decode(malformed)
     check decoded.isErr
 
   test "Should reject bytes with an unknown wire type":
     # Tag 0x0F = field 1, wire type 7 (reserved/invalid).
     let malformed = @[0x0F.byte, 0x00]
-    let decoded = Message.protobufDecode(malformed)
+    let decoded = Message.decode(malformed)
     check decoded.isErr
 
   test "Should not crash on a varint with continuation bits set indefinitely":
     # 10 bytes with continuation bit set — exceeds varint max length.
     let malformed =
       @[0x08.byte, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]
-    let decoded = Message.protobufDecode(malformed)
+    let decoded = Message.decode(malformed)
     check decoded.isErr
 
   test "Should reject a Message containing an invalid Cid":
     var corrupted = @Expected_presenceDontHave
     for i in 10 .. 45:
       corrupted[i] = 0xCC
-    let decoded = Message.protobufDecode(corrupted)
+    let decoded = Message.decode(corrupted)
     check decoded.isErr
 
 # ============================================================================

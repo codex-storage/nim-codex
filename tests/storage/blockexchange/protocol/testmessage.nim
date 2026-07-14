@@ -13,8 +13,8 @@ suite "Full Message protobuf encoding":
   test "Should encode and decode empty Message":
     let
       msg = Message(wantList: WantList(entries: @[], full: false), blockPresences: @[])
-      encoded = msg.protobufEncode()
-      decoded = Message.protobufDecode(encoded)
+      encoded = msg.encode()
+      decoded = Message.decode(encoded)
 
     check decoded.isOk
     check decoded.get.wantList.entries.len == 0
@@ -39,8 +39,8 @@ suite "Full Message protobuf encoding":
         ),
         blockPresences: @[],
       )
-      encoded = msg.protobufEncode()
-      decoded = Message.protobufDecode(encoded)
+      encoded = msg.encode()
+      decoded = Message.decode(encoded)
 
     check decoded.isOk
     check decoded.get.wantList.entries.len == 1
@@ -59,8 +59,8 @@ suite "Full Message protobuf encoding":
           )
         ],
       )
-      encoded = msg.protobufEncode()
-      decoded = Message.protobufDecode(encoded)
+      encoded = msg.encode()
+      decoded = Message.decode(encoded)
 
     check decoded.isOk
     check decoded.get.blockPresences.len == 1
@@ -82,8 +82,8 @@ suite "Full Message protobuf encoding":
           ),
         ),
       )
-      encoded = msg.protobufEncode()
-      decoded = Message.protobufDecode(encoded)
+      encoded = msg.encode()
+      decoded = Message.decode(encoded)
 
     check decoded.isErr
     check "exceeds" in decoded.error.msg
@@ -108,8 +108,8 @@ suite "Full Message protobuf encoding":
         ),
         blockPresences: @[],
       )
-      encoded = msg.protobufEncode()
-      decoded = Message.protobufDecode(encoded)
+      encoded = msg.encode()
+      decoded = Message.decode(encoded)
 
     check decoded.isErr
     check "exceeds" in decoded.error.msg

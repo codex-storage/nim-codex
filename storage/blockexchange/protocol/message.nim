@@ -98,11 +98,3 @@ proc readFieldInto*(
     false
 
 Protobuf.serializerForResult([Message])
-
-proc protobufEncode*(value: Message): seq[byte] {.inline.} =
-  encode(value)
-
-proc protobufDecode*(
-    _: type Message, msg: seq[byte]
-): Result[Message, ProtobufDecodeError] {.inline.} =
-  Message.decode(msg)

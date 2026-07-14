@@ -65,7 +65,7 @@ asyncchecksuite "Network - Handlers":
       makeWantList(treeCid, blocks.len, 1, true, WantType.WantHave, true, true)
 
     let msg = Message(wantlist: wantList)
-    await buffer.pushData(frameProtobufMessage(protobufEncode(msg)))
+    await buffer.pushData(frameProtobufMessage(msg.encode()))
 
     await done.wait(500.millis)
 
@@ -90,7 +90,7 @@ asyncchecksuite "Network - Handlers":
       blockPresences:
         addresses.mapIt(BlockPresence(address: it, kind: BlockPresenceType.HaveRange))
     )
-    await buffer.pushData(frameProtobufMessage(protobufEncode(msg)))
+    await buffer.pushData(frameProtobufMessage(msg.encode()))
 
     await done.wait(500.millis)
 
