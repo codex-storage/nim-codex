@@ -41,6 +41,9 @@ import ../utils/protobuf/nbytes
 import ../utils/protobuf/option
 import ../utils/protobuf/refobject
 
+type ManifestEnvelope {.proto2.} = object
+  data {.fieldNumber: 1, required.}: seq[byte]
+
 proc encodeManifestFields(manifest: Manifest): seq[byte] {.raises: [IOError].} =
   encode(Protobuf, manifest)
 
@@ -49,37 +52,29 @@ proc decodeManifestFields(
 ): Manifest {.raises: [SerializationError].} =
   decode(Protobuf, fields, Manifest)
 
+proc decodeEnvelope(
+    data: openArray[byte]
+): ManifestEnvelope {.raises: [SerializationError].} =
+  decode(Protobuf, data, ManifestEnvelope)
+
 proc encode*(manifest: Manifest): ?!seq[byte] =
-  var output = memoryOutput()
   try:
-    writeField(output, 1, encodeManifestFields(manifest), pbytes, false)
+    encode(Protobuf, ManifestEnvelope(data: encodeManifestFields(manifest))).success
   except IOError as exc:
-    return failure(exc.msg)
-  output.getOutput(seq[byte]).success
+    failure(exc.msg)
 
 proc decode*(_: type Manifest, data: openArray[byte]): ?!Manifest =
+  if data.len == 0:
+    return failure("Empty manifest input")
+
   try:
-    var input = memoryInput(data)
-    if not input.readable():
-      return failure("Empty manifest input")
-
-    let outer = input.readHeader()
-    if outer.number() != 1:
-      return failure("Unexpected field number: " & $outer.number())
-
-    var fieldsBytes: seq[byte]
-    if not readFieldInto(input, fieldsBytes, outer, pbytes):
-      return failure("Unable to decode manifest fields")
-
-    let manifest = decodeManifestFields(fieldsBytes)
+    let envelope = decodeEnvelope(data)
+    let manifest = decodeManifestFields(envelope.data)
     if manifest.manifestVersion != 0:
       return failure("Unsupported manifest version: " & $manifest.manifestVersion)
-
     manifest.success
   except SerializationError as exc:
-    return failure(exc.msg)
-  except IOError as exc:
-    return failure(exc.msg)
+    failure(exc.msg)
 
 proc decode*(_: type Manifest, blk: Block): ?!Manifest =
   if not ?blk.cid.isManifest:
