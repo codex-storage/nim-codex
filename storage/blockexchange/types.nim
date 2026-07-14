@@ -18,7 +18,7 @@ import ./protocol/message
 type
   BlockRange* = object
     treeCid*: Cid
-    ranges*: seq[Range]
+    ranges*: seq[IndexRange]
 
   BlockAvailabilityKind* = enum
     bakUnknown
@@ -33,7 +33,7 @@ type
     of bakComplete:
       discard
     of bakRanges:
-      ranges*: seq[Range]
+      ranges*: seq[IndexRange]
     of bakBitmap:
       bitmap*: seq[byte]
       totalBlocks*: uint64
@@ -44,7 +44,9 @@ proc unknown*(_: type BlockAvailability): BlockAvailability =
 proc complete*(_: type BlockAvailability): BlockAvailability =
   BlockAvailability(kind: bakComplete)
 
-proc fromRanges*(_: type BlockAvailability, ranges: seq[Range]): BlockAvailability =
+proc fromRanges*(
+    _: type BlockAvailability, ranges: seq[IndexRange]
+): BlockAvailability =
   BlockAvailability(kind: bakRanges, ranges: ranges)
 
 proc fromBitmap*(
@@ -124,13 +126,13 @@ proc hasAnyInRange*(avail: BlockAvailability, start: uint64, count: uint64): boo
         return true
     false
 
-proc mergeRanges(ranges: seq[Range]): seq[Range] =
+proc mergeRanges(ranges: seq[IndexRange]): seq[IndexRange] =
   if ranges.len == 0:
     return @[]
 
   var sorted = ranges
   sorted.sort(
-    proc(a, b: Range): int =
+    proc(a, b: IndexRange): int =
       if a.start < b.start:
         -1
       elif a.start > b.start:
@@ -170,7 +172,7 @@ proc merge*(current: BlockAvailability, other: BlockAvailability): BlockAvailabi
   if other.kind == bakUnknown:
     return current
 
-  proc bitmapToRanges(avail: BlockAvailability): seq[Range] =
+  proc bitmapToRanges(avail: BlockAvailability): seq[IndexRange] =
     result = @[]
     var
       inRange = false
@@ -181,10 +183,10 @@ proc merge*(current: BlockAvailability, other: BlockAvailability): BlockAvailabi
         rangeStart = i
         inRange = true
       elif not hasIt and inRange:
-        result.add(Range(start: rangeStart, count: i - rangeStart))
+        result.add(IndexRange(start: rangeStart, count: i - rangeStart))
         inRange = false
     if inRange:
-      result.add(Range(start: rangeStart, count: avail.totalBlocks - rangeStart))
+      result.add(IndexRange(start: rangeStart, count: avail.totalBlocks - rangeStart))
 
   let currentRanges =
     if current.kind == bakRanges:

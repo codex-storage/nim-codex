@@ -47,14 +47,14 @@ type
     HaveRange = 1
     Complete = 2
 
-  Range* {.proto2.} = object
+  IndexRange* {.proto2.} = object
     start* {.fieldNumber: 1, required, pint.}: uint64
     count* {.fieldNumber: 2, required, pint.}: uint64
 
   BlockPresence* {.proto2.} = object
     address* {.fieldNumber: 1, required.}: BlockAddress
     kind* {.fieldNumber: 2, required, ext.}: BlockPresenceType
-    ranges* {.fieldNumber: 3.}: seq[Range]
+    ranges* {.fieldNumber: 3.}: seq[IndexRange]
     downloadId* {.fieldNumber: 4, required, pint.}: uint64
       # echoed for request/response correlation
 

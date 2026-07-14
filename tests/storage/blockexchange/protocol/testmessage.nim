@@ -55,7 +55,7 @@ suite "Full Message protobuf encoding":
           BlockPresence(
             address: BlockAddress(treeCid: treeCid, index: 0),
             kind: BlockPresenceType.HaveRange,
-            ranges: @[Range(start: 0'u64, count: 500'u64)],
+            ranges: @[IndexRange(start: 0'u64, count: 500'u64)],
           )
         ],
       )

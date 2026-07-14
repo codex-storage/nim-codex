@@ -230,7 +230,7 @@ proc sendWantBlocksRequest(
   let treeCid = download.treeCid
 
   # missingIndices must be sorted ascending with no duplicates for correct coalescing
-  var ranges: seq[Range] = @[]
+  var ranges: seq[IndexRange] = @[]
   if missingIndices.len > 0:
     var
       rangeStart = missingIndices[0]
@@ -240,11 +240,11 @@ proc sendWantBlocksRequest(
       if missingIndices[i] == rangeStart + rangeCount:
         rangeCount += 1
       else:
-        ranges.add(Range(start: rangeStart, count: rangeCount))
+        ranges.add(IndexRange(start: rangeStart, count: rangeCount))
         rangeStart = missingIndices[i]
         rangeCount = 1
 
-    ranges.add(Range(start: rangeStart, count: rangeCount))
+    ranges.add(IndexRange(start: rangeStart, count: rangeCount))
 
   trace "Requesting missing blocks",
     treeCid = treeCid,
@@ -975,7 +975,7 @@ proc wantListHandler*(
 
         let runtimeQuota = 100.milliseconds
         var
-          ranges: seq[Range] = @[]
+          ranges: seq[IndexRange] = @[]
           rangeStart: uint64 = 0
           inRange = false
           lastIdle = Moment.now()
@@ -998,12 +998,16 @@ proc wantListHandler*(
               inRange = true
           else:
             if inRange:
-              ranges.add(Range(start: rangeStart, count: (startIdx + i) - rangeStart))
+              ranges.add(
+                IndexRange(start: rangeStart, count: (startIdx + i) - rangeStart)
+              )
               inRange = false
 
         if inRange:
           ranges.add(
-            Range(start: rangeStart, count: (startIdx + effectiveCount) - rangeStart)
+            IndexRange(
+              start: rangeStart, count: (startIdx + effectiveCount) - rangeStart
+            )
           )
 
         iterBudget -= effectiveCount
@@ -1041,7 +1045,7 @@ proc wantListHandler*(
             BlockPresence(
               address: e.address,
               kind: BlockPresenceType.HaveRange,
-              ranges: @[Range(start: e.address.index, count: 1'u64)],
+              ranges: @[IndexRange(start: e.address.index, count: 1'u64)],
               downloadId: e.downloadId,
             )
           )

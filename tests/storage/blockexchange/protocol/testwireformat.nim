@@ -296,8 +296,10 @@ suite "Block exchange Message wire-format contract":
         BlockPresence(
           address: BlockAddress(treeCid: cidB, index: 0),
           kind: BlockPresenceType.HaveRange,
-          ranges:
-            @[Range(start: 0'u64, count: 10'u64), Range(start: 100'u64, count: 50'u64)],
+          ranges: @[
+            IndexRange(start: 0'u64, count: 10'u64),
+            IndexRange(start: 100'u64, count: 50'u64),
+          ],
           downloadId: 500,
         )
       ]
@@ -337,7 +339,7 @@ suite "Block exchange Message wire-format contract":
         BlockPresence(
           address: BlockAddress(treeCid: cidB, index: 10),
           kind: BlockPresenceType.HaveRange,
-          ranges: @[Range(start: 5'u64, count: 3'u64)],
+          ranges: @[IndexRange(start: 5'u64, count: 3'u64)],
           downloadId: 1,
         ),
         BlockPresence(
@@ -374,7 +376,7 @@ suite "Block exchange Message wire-format contract":
         BlockPresence(
           address: BlockAddress(treeCid: cidA, index: 0),
           kind: BlockPresenceType.DontHave,
-          ranges: @[Range(start: 0'u64, count: 0'u64)],
+          ranges: @[IndexRange(start: 0'u64, count: 0'u64)],
           downloadId: 0,
         )
       ]
@@ -427,7 +429,7 @@ suite "Block exchange Message wire-format contract":
         BlockPresence(
           address: BlockAddress(treeCid: cidB, index: 4),
           kind: BlockPresenceType.HaveRange,
-          ranges: @[Range(start: 0'u64, count: 16'u64)],
+          ranges: @[IndexRange(start: 0'u64, count: 16'u64)],
           downloadId: 11,
         )
       ],
@@ -440,7 +442,7 @@ suite "Block exchange Message wire-format contract":
         BlockPresence(
           address: BlockAddress(treeCid: cidA, index: 1),
           kind: BlockPresenceType.HaveRange,
-          ranges: @[Range(start: 0'u64, count: 8'u64)],
+          ranges: @[IndexRange(start: 0'u64, count: 8'u64)],
           downloadId: 21,
         ),
         BlockPresence(
@@ -518,13 +520,13 @@ suite "Block exchange Message wire-format contract":
     )
     check msg.encode() == Expected_entryRangeCountMax
 
-  test "Should encode a Range with start near uint64 maximum and count=1":
+  test "Should encode a IndexRange with start near uint64 maximum and count=1":
     let msg = Message(
       blockPresences: @[
         BlockPresence(
           address: BlockAddress(treeCid: cidA, index: 0),
           kind: BlockPresenceType.HaveRange,
-          ranges: @[Range(start: 0xFFFFFFFFFFFFFFFE'u64, count: 1'u64)],
+          ranges: @[IndexRange(start: 0xFFFFFFFFFFFFFFFE'u64, count: 1'u64)],
           downloadId: 41,
         )
       ]

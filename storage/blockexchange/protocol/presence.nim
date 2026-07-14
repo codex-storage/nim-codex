@@ -15,7 +15,7 @@ type
     address*: BlockAddress
     have*: bool
     presenceType*: BlockPresenceType
-    ranges*: seq[Range]
+    ranges*: seq[IndexRange]
 
 func init*(_: type Presence, message: PresenceMessage): ?Presence =
   some Presence(

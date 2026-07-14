@@ -690,8 +690,10 @@ suite "DownloadContext - Windowed Presence":
       md = testManifestDesc(Cid.example, 65536, 100000)
       ctx = DownloadContext.new(DownloadDesc(md: md, count: 100000))
       peerId = PeerId.example
-      ranges =
-        @[Range(start: 0'u64, count: 400'u64), Range(start: 2000'u64, count: 500'u64)]
+      ranges = @[
+        IndexRange(start: 0'u64, count: 400'u64),
+        IndexRange(start: 2000'u64, count: 500'u64),
+      ]
 
     discard ctx.swarm.addPeer(peerId, BlockAvailability.fromRanges(ranges))
 
@@ -715,7 +717,7 @@ suite "DownloadContext - Windowed Presence":
       md = testManifestDesc(Cid.example, 65536, 100000)
       ctx = DownloadContext.new(DownloadDesc(md: md, count: 100000))
       peerId = PeerId.example
-      ranges = @[Range(start: 0'u64, count: 1000'u64)]
+      ranges = @[IndexRange(start: 0'u64, count: 1000'u64)]
     discard ctx.swarm.addPeer(peerId, BlockAvailability.fromRanges(ranges))
 
     ctx.scheduler.init(ctx.totalBlocks, 256, WindowSize, Threshold)

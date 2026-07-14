@@ -13,9 +13,9 @@ import ./protocol/constants
 import ./protocol/message
 
 func isIndexInRanges*(
-    index: uint64, ranges: openArray[Range], sortedRanges: bool = false
+    index: uint64, ranges: openArray[IndexRange], sortedRanges: bool = false
 ): bool =
-  func binarySearch(r: openArray[Range]): bool =
+  func binarySearch(r: openArray[IndexRange]): bool =
     var
       lo = 0
       hi = r.len - 1
@@ -41,7 +41,7 @@ func isIndexInRanges*(
     binarySearch(ranges)
   else:
     let sorted = @ranges.sorted(
-      proc(a, b: Range): int =
+      proc(a, b: IndexRange): int =
         cmp(a.start, b.start)
     )
     binarySearch(sorted)

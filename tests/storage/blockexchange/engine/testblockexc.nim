@@ -199,14 +199,14 @@ asyncchecksuite "BlockExchange - Multi-Peer Download":
       desc = DownloadDesc(md: dataset.manifestDesc, count: dataset.blocks.len.uint64)
       download = leecher.downloadManager.startDownload(desc)
       halfPoint = (dataset.blocks.len div 2).uint64
-      ranges1 = @[Range(start: 0'u64, count: halfPoint)]
+      ranges1 = @[IndexRange(start: 0'u64, count: halfPoint)]
 
     download.updatePeerAvailability(
       seeder1.switch.peerInfo.peerId, BlockAvailability.fromRanges(ranges1)
     )
 
     let ranges2 =
-      @[Range(start: halfPoint, count: dataset.blocks.len.uint64 - halfPoint)]
+      @[IndexRange(start: halfPoint, count: dataset.blocks.len.uint64 - halfPoint)]
     download.updatePeerAvailability(
       seeder2.switch.peerInfo.peerId, BlockAvailability.fromRanges(ranges2)
     )
@@ -365,7 +365,7 @@ asyncchecksuite "BlockExchange - Error Handling":
       blockSize = dataset.manifest.blockSize.uint32
       desc = DownloadDesc(md: dataset.manifestDesc, count: dataset.blocks.len.uint64)
       download = leecher.downloadManager.startDownload(desc)
-      ranges = @[Range(start: 0'u64, count: 2'u64)]
+      ranges = @[IndexRange(start: 0'u64, count: 2'u64)]
 
     download.updatePeerAvailability(
       seeder.switch.peerInfo.peerId, BlockAvailability.fromRanges(ranges)

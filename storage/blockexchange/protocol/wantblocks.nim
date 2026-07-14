@@ -55,7 +55,7 @@ type
   WantBlocksRequest* = object
     requestId*: uint64
     treeCid*: Cid
-    ranges*: seq[Range]
+    ranges*: seq[IndexRange]
 
   SharedBlocksBuffer* = ref object
     data*: seq[byte]
@@ -214,13 +214,13 @@ proc decodeRequest*(data: openArray[byte]): WantBlocksResult[WantBlocksRequest] 
   if offset + (rangeCount * SizeRange) > data.len:
     return err(wantBlocksError(RequestTruncated, "Request truncated (ranges)"))
 
-  var ranges = newSeqOfCap[Range](rangeCount)
+  var ranges = newSeqOfCap[IndexRange](rangeCount)
   for _ in 0 ..< rangeCount:
     let start = uint64.fromBytes(data.toOpenArray(offset, offset + 7), littleEndian)
     offset += 8
     let count = uint64.fromBytes(data.toOpenArray(offset, offset + 7), littleEndian)
     offset += 8
-    ranges.add(Range(start: start, count: count))
+    ranges.add(IndexRange(start: start, count: count))
 
   ok(WantBlocksRequest(requestId: requestId, treeCid: treeCid, ranges: ranges))
 

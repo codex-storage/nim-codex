@@ -68,7 +68,7 @@ type
       lastBroadcastTime: Moment
       broadcastInterval: Duration
     of spRandomWindow:
-      pendingRanges: seq[Range]
+      pendingRanges: seq[IndexRange]
 
   DownloadContext* = ref object
     md*: ManifestDescriptor
@@ -111,16 +111,18 @@ proc shouldBroadcast(t: BroadcastAvailabilityTracker, scheduler: Scheduler): boo
     newBlocks >= PresenceBroadcastBlockThreshold or timeSinceLast >= t.broadcastInterval or
       hasNewOOO
 
-proc getRanges(t: var BroadcastAvailabilityTracker, scheduler: Scheduler): seq[Range] =
+proc getRanges(
+    t: var BroadcastAvailabilityTracker, scheduler: Scheduler
+): seq[IndexRange] =
   case t.policy
   of spRandomWindow:
     t.pendingRanges
   of spSequential:
     let watermark = scheduler.completedWatermark()
-    var ranges: seq[Range] = @[]
+    var ranges: seq[IndexRange] = @[]
     if watermark > t.lastBroadcastedWatermark:
       ranges.add(
-        Range(
+        IndexRange(
           start: t.lastBroadcastedWatermark,
           count: watermark - t.lastBroadcastedWatermark,
         )
@@ -128,7 +130,7 @@ proc getRanges(t: var BroadcastAvailabilityTracker, scheduler: Scheduler): seq[R
     t.pendingOOOSnapshot.clear()
     for batchStart in scheduler.completedOutOfOrderItems:
       if batchStart notin t.broadcastedOutOfOrder:
-        ranges.add(Range(start: batchStart, count: scheduler.batchSizeCount))
+        ranges.add(IndexRange(start: batchStart, count: scheduler.batchSizeCount))
         t.pendingOOOSnapshot.incl(batchStart)
     ranges
 
@@ -155,7 +157,7 @@ proc addPendingRange(
 ) =
   case t.policy
   of spRandomWindow:
-    t.pendingRanges.add(Range(start: range.start, count: range.count))
+    t.pendingRanges.add(IndexRange(start: range.start, count: range.count))
   of spSequential:
     discard
 
@@ -250,7 +252,7 @@ proc trimPresenceBeforeWatermark*(ctx: DownloadContext) =
       let peer = peerOpt.get()
       # only trim range-based availability
       if peer.availability.kind == bakRanges:
-        var newRanges: seq[Range] = @[]
+        var newRanges: seq[IndexRange] = @[]
         for r in peer.availability.ranges:
           let rangeEnd = r.start + r.count
           if rangeEnd > watermark:
@@ -261,7 +263,7 @@ proc trimPresenceBeforeWatermark*(ctx: DownloadContext) =
 proc shouldBroadcastAvailability*(ctx: DownloadContext): bool =
   ctx.availabilityTracker.shouldBroadcast(ctx.scheduler)
 
-proc getAvailabilityBroadcast*(ctx: DownloadContext): seq[Range] =
+proc getAvailabilityBroadcast*(ctx: DownloadContext): seq[IndexRange] =
   ctx.availabilityTracker.getRanges(ctx.scheduler)
 
 proc markAvailabilityBroadcasted*(ctx: DownloadContext) =
