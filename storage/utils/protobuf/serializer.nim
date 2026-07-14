@@ -22,7 +22,7 @@ proc `$`*(e: ProtobufDecodeError): string =
 macro serializerForResult*(_: type Protobuf, Types: untyped): untyped =
   var stmts = newStmtList()
   for T in Types:
-    let helperName = ident("decode" & $T)
+    let helperName = genSym(nskProc, "decode" & $T)
     stmts.add quote do:
       proc encode*(c: `T`): seq[byte] =
         encode(Protobuf, c)
