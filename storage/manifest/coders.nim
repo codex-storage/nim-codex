@@ -67,14 +67,22 @@ proc decode*(_: type Manifest, data: openArray[byte]): ?!Manifest =
   if data.len == 0:
     return failure("Empty manifest input")
 
-  try:
-    let envelope = decodeEnvelope(data)
-    let manifest = decodeManifestFields(envelope.data)
-    if manifest.manifestVersion != 0:
-      return failure("Unsupported manifest version: " & $manifest.manifestVersion)
-    manifest.success
-  except SerializationError as exc:
-    failure(exc.msg)
+  let envelope =
+    try:
+      decodeEnvelope(data)
+    except SerializationError as exc:
+      return failure("Unable to decode manifest envelope: " & exc.msg)
+
+  let manifest =
+    try:
+      decodeManifestFields(envelope.data)
+    except SerializationError as exc:
+      return failure("Unable to decode manifest fields: " & exc.msg)
+
+  if manifest.manifestVersion != 0:
+    return failure("Unsupported manifest version: " & $manifest.manifestVersion)
+
+  manifest.success
 
 proc decode*(_: type Manifest, blk: Block): ?!Manifest =
   if not ?blk.cid.isManifest:
