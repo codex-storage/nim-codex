@@ -12,12 +12,12 @@
 ## ```protobuf
 ##   Message Manifest {
 ##     required uint32 manifestVersion = 1; # manifest format version
-##     optional bytes treeCid = 2;          # cid (root) of the tree
-##     optional uint32 blockSize = 3;       # size of a single block
-##     optional uint64 datasetSize = 4;     # size of the dataset
-##     optional codec: MultiCodec = 5;      # Dataset codec
-##     optional hcodec: MultiCodec = 6;     # Multihash codec
-##     optional version: CidVersion = 7;    # Cid version
+##     required bytes treeCid = 2;          # cid (root) of the tree
+##     required uint32 blockSize = 3;       # size of a single block
+##     required uint64 datasetSize = 4;     # size of the dataset
+##     required codec: MultiCodec = 5;      # Dataset codec
+##     required hcodec: MultiCodec = 6;     # Multihash codec
+##     required version: CidVersion = 7;    # Cid version
 ##     optional filename: string = 8;       # original filename
 ##     optional mimetype: string = 9;       # original mimetype
 ##   }
