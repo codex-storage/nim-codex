@@ -2,7 +2,6 @@
 ## The requests are created by the main thread and processed by
 ## the Logos Storage Thread.
 
-import std/json
 import results
 import chronos
 import ../ffi_types
