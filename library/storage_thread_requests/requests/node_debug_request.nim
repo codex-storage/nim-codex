@@ -5,7 +5,6 @@
 ## The PEER type is available only with storage_enable_api_debug_peers flag.
 ## It will return info about a specific peer if available.
 
-import std/[options]
 import chronos
 import chronicles
 import codexdht/discv5/spr

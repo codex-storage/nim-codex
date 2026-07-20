@@ -242,7 +242,8 @@ proc new*(
   let switch = SwitchBuilder
     .new()
     .withPrivateKey(privateKey)
-    .withAddresses(@[listenMultiAddr], enableWildcardResolver = true)
+    .withAddresses(@[listenMultiAddr])
+    .withWildcardResolver(true)
     .withIdentifyPusher(false)
     .withRng(random.Rng.instance().libp2pRng)
     .withNoise()

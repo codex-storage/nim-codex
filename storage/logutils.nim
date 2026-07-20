@@ -94,7 +94,7 @@ import std/typetraits
 import pkg/chronicles except toJson, `%`
 import json_serialization/writer as json_serialization_writer
 from pkg/chronos import TransportAddress
-from pkg/libp2p import Cid, MultiAddress, `$`
+from pkg/libp2p import Cid, MultiAddress, SignedPeerRecord, `$`
 import pkg/questionable
 import pkg/questionable/results
 import ./utils/json except formatIt # TODO: remove exception?
@@ -247,6 +247,8 @@ formatIt(LogFormat.json, Cid):
 formatIt(UInt256):
   $it
 formatIt(MultiAddress):
+  $it
+formatIt(SignedPeerRecord):
   $it
 formatIt(LogFormat.textLines, array[32, byte]):
   it.short0xHexLog
