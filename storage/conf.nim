@@ -380,7 +380,8 @@ type
     isRelayServer* {.
       desc: "Enable circuit relay server (hop) - use on publicly reachable nodes only",
       defaultValue: false,
-      name: "relay-server"
+      name: "relay-server",
+      hidden
     .}: bool
 
 func defaultAddress*(conf: StorageConf): IpAddress =
