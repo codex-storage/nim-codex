@@ -50,8 +50,8 @@ proc getDebug(
     storage: ptr StorageServer
 ): Future[Result[string, string]] {.async: (raises: []).} =
   let nodeInfo = %DebugInfo.init(
-    storage[].node, storage[].config, storage[].autonatService,
-    storage[].autoRelayService, storage[].natMapper,
+    storage[].node, storage[].autonatService, storage[].autoRelayService,
+    storage[].natMapper,
   )
   return ok($nodeInfo)
 

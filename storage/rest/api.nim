@@ -560,7 +560,6 @@ proc initNodeApi(node: StorageNodeRef, conf: StorageConf, router: var RestRouter
 
 proc initDebugApi(
     node: StorageNodeRef,
-    conf: StorageConf,
     autonat: Option[AutonatV2Service],
     autoRelay: Option[AutoRelayService],
     natMapper: Option[NatPortMapper],
@@ -576,7 +575,7 @@ proc initDebugApi(
     try:
       # return pretty json for human readability
       return RestApiResponse.response(
-        DebugInfo.init(node, conf, autonat, autoRelay, natMapper).toJson(pretty = true),
+        DebugInfo.init(node, autonat, autoRelay, natMapper).toJson(pretty = true),
         contentType = "application/json",
         headers = headers,
       )
@@ -643,6 +642,6 @@ proc initRestApi*(
 
   initDataApi(node, repoStore, router)
   initNodeApi(node, conf, router)
-  initDebugApi(node, conf, autonat, autoRelay, natMapper, router)
+  initDebugApi(node, autonat, autoRelay, natMapper, router)
 
   return router

@@ -123,7 +123,6 @@ proc `%`*(obj: RestNodeId): JsonNode =
 proc init*(
     _: type DebugInfo,
     node: StorageNodeRef,
-    conf: StorageConf,
     autonat: Option[AutonatV2Service],
     autoRelay: Option[AutoRelayService],
     natMapper: Option[NatPortMapper],
@@ -140,7 +139,6 @@ proc init*(
   DebugInfo(
     id: peerId,
     addrs: peerInfo.addrs,
-    repo: $conf.dataDir,
     spr: some(node.discovery.getSpr()),
     providerRecord: node.discovery.providerRecord,
     announceAddresses: node.discovery.announceAddrs,
