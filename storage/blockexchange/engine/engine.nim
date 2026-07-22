@@ -188,7 +188,7 @@ proc validateBlockDeliveryView(self: BlockExcEngine, view: BlockDeliveryView): ?
   without proof =? view.proof:
     return failure("Missing proof")
 
-  if proof.index != view.address.index:
+  if proof.index.uint64 != view.address.index:
     return failure(
       "Proof index " & $proof.index & " doesn't match leaf index " & $view.address.index
     )
@@ -230,7 +230,7 @@ proc sendWantBlocksRequest(
   let treeCid = download.treeCid
 
   # missingIndices must be sorted ascending with no duplicates for correct coalescing
-  var ranges: seq[tuple[start: uint64, count: uint64]] = @[]
+  var ranges: seq[IndexRange] = @[]
   if missingIndices.len > 0:
     var
       rangeStart = missingIndices[0]
@@ -240,11 +240,11 @@ proc sendWantBlocksRequest(
       if missingIndices[i] == rangeStart + rangeCount:
         rangeCount += 1
       else:
-        ranges.add((rangeStart, rangeCount))
+        ranges.add(IndexRange(start: rangeStart, count: rangeCount))
         rangeStart = missingIndices[i]
         rangeCount = 1
 
-    ranges.add((rangeStart, rangeCount))
+    ranges.add(IndexRange(start: rangeStart, count: rangeCount))
 
   trace "Requesting missing blocks",
     treeCid = treeCid,
@@ -444,7 +444,7 @@ proc broadcastWantHave(
     count: uint64,
     peers: seq[PeerContext],
 ) {.async: (raises: [CancelledError]).} =
-  let rangeAddress = BlockAddress.init(download.treeCid, start.int)
+  let rangeAddress = BlockAddress.init(download.treeCid, start)
   for peerCtx in peers:
     if not download.addPeerIfAbsent(peerCtx.id, BlockAvailability.unknown()):
       # skip presence request for peer with Complete availability
@@ -537,7 +537,7 @@ proc downloadWorker(
             swarmPeers = ctx.swarm.peerCount()
 
           let presence = BlockPresence(
-            address: BlockAddress(treeCid: treeCid, index: broadcastRanges[0].start.int),
+            address: BlockAddress(treeCid: treeCid, index: broadcastRanges[0].start),
             kind: BlockPresenceType.HaveRange,
             ranges: broadcastRanges,
           )
@@ -811,7 +811,7 @@ proc startTreeDownloadGeneric[T: Block | void](
 
   proc genNext(): Future[?!T] {.async: (raises: [CancelledError]).} =
     while pendingHandle.isNone and nextBlockToRequest < totalBlocks:
-      let address = BlockAddress(treeCid: treeCid, index: nextBlockToRequest.int)
+      let address = BlockAddress(treeCid: treeCid, index: nextBlockToRequest)
       nextBlockToRequest += 1
 
       let handle =
@@ -975,7 +975,7 @@ proc wantListHandler*(
 
         let runtimeQuota = 100.milliseconds
         var
-          ranges: seq[tuple[start: uint64, count: uint64]] = @[]
+          ranges: seq[IndexRange] = @[]
           rangeStart: uint64 = 0
           inRange = false
           lastIdle = Moment.now()
@@ -985,7 +985,7 @@ proc wantListHandler*(
             await idleAsync()
             lastIdle = Moment.now()
 
-          let address = BlockAddress(treeCid: treeCid, index: (startIdx + i).int)
+          let address = BlockAddress(treeCid: treeCid, index: startIdx + i)
           let have =
             try:
               await address in self.localStore
@@ -998,11 +998,17 @@ proc wantListHandler*(
               inRange = true
           else:
             if inRange:
-              ranges.add((rangeStart, (startIdx + i) - rangeStart))
+              ranges.add(
+                IndexRange(start: rangeStart, count: (startIdx + i) - rangeStart)
+              )
               inRange = false
 
         if inRange:
-          ranges.add((rangeStart, (startIdx + effectiveCount) - rangeStart))
+          ranges.add(
+            IndexRange(
+              start: rangeStart, count: (startIdx + effectiveCount) - rangeStart
+            )
+          )
 
         iterBudget -= effectiveCount
 
@@ -1039,7 +1045,7 @@ proc wantListHandler*(
             BlockPresence(
               address: e.address,
               kind: BlockPresenceType.HaveRange,
-              ranges: @[(e.address.index.uint64, 1'u64)],
+              ranges: @[IndexRange(start: e.address.index, count: 1'u64)],
               downloadId: e.downloadId,
             )
           )
@@ -1175,10 +1181,10 @@ proc new*(
       notFoundCount = 0
       totalRequested: uint64 = 0
 
-    for (start, count) in req.ranges:
-      totalRequested += count
-      for i in start ..< start + count:
-        let address = BlockAddress(treeCid: req.treeCid, index: i.Natural)
+    for r in req.ranges:
+      totalRequested += r.count
+      for i in r.start ..< r.start + r.count:
+        let address = BlockAddress(treeCid: req.treeCid, index: i)
 
         let res = await self.localLookup(address)
         if res.isOk:

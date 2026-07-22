@@ -9,6 +9,7 @@
 
 import std/tables
 import std/sequtils
+import std/sets
 
 import pkg/chronos
 
@@ -72,6 +73,7 @@ type
 
   BlockExcNetwork* = ref object of LPProtocol
     peers*: Table[PeerId, NetworkPeer]
+    excludedPeers: HashSet[PeerId]
     switch*: Switch
     handlers*: BlockExcHandlers
     request*: BlockExcRequest
@@ -258,9 +260,15 @@ proc dropPeer*(
   except CatchableError as error:
     warn "Error attempting to disconnect from peer", peer = peer, error = error.msg
 
+proc excludeRelays*(self: BlockExcNetwork, peers: openArray[PeerId]) =
+  for p in peers:
+    self.excludedPeers.incl(p)
+
 proc handlePeerJoined*(
     self: BlockExcNetwork, peer: PeerId
 ) {.async: (raises: [CancelledError]).} =
+  if peer in self.excludedPeers:
+    return
   discard self.getOrCreatePeer(peer)
   if not self.handlers.onPeerJoined.isNil:
     await self.handlers.onPeerJoined(peer)
@@ -271,6 +279,8 @@ proc handlePeerDeparted*(
   ## Cleanup disconnected peer
   ##
 
+  if peer in self.excludedPeers:
+    return
   trace "Cleaning up departed peer", peer
   self.peers.del(peer)
   if not self.handlers.onPeerDeparted.isNil:

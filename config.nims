@@ -114,7 +114,7 @@ when (NimMajor, NimMinor, NimPatch) >= (1, 6, 11):
     "BareExcept:off"
 when (NimMajor, NimMinor) >= (2, 0):
   --mm:
-    orc
+    refc
 
 switch("define", "withoutPCRE")
 

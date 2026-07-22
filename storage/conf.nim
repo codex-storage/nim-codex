@@ -45,6 +45,7 @@ import ./presets
 import ./utils/natutils
 
 from ./blockexchange/engine/downloadmanager import DefaultBlockRetries
+from ./dht_proxy/protocol import DefaultMaxInFlightLookups
 
 export
   units, net, storagetypes, logutils, presets, completeCmdArg, parseCmdArg, NatConfig
@@ -200,6 +201,39 @@ type
       name: "network",
       defaultValue: DefaultNetworkPreset
     .}: NetworkPreset
+
+    dhtMixProxies* {.
+      desc: "Peers used as dht-proxy destinations when Mix is enabled",
+      name: "dht-mix-proxy"
+    .}: seq[SignedPeerRecord]
+
+    mixEnabled* {.
+      desc:
+        "Route DHT provider lookups through the Mix protocol via the " &
+        "dht-mix-proxy. Hides the requester's identity from the proxy",
+      defaultValue: false,
+      name: "mix-enabled"
+    .}: bool
+
+    mixPool* {.
+      desc: "Path to the Mix relay pool JSON file", defaultValue: "", name: "mix-pool"
+    .}: string
+
+    mixPoolJson* {.
+      desc:
+        "Inline JSON content of the Mix relay pool." &
+        "Takes precedence over --mix-pool when non-empty",
+      defaultValue: "",
+      name: "mix-pool-json"
+    .}: string
+
+    dhtProxyMaxInFlight* {.
+      desc:
+        "Max concurrent DHT proxy lookups handled by this node " &
+        "(omit to use the protocol default: " & $DefaultMaxInFlightLookups & ")",
+      defaultValue: int.none,
+      name: "dht-proxy-max-inflight"
+    .}: Option[int]
 
     maxPeers* {.
       desc: "The maximum number of peers to connect to",

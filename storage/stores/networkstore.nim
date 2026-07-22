@@ -66,7 +66,7 @@ method getBlock*(
   ## Get a block from the blockstore
   ##
 
-  self.getBlock(BlockAddress.init(treeCid, index))
+  self.getBlock(BlockAddress.init(treeCid, index.uint64))
 
 method putBlock*(
     self: NetworkStore, blk: Block, ttl = Duration.none

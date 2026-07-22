@@ -574,30 +574,11 @@ proc initDebugApi(
     var headers = buildCorsHeaders("GET", allowedOrigin)
 
     try:
-      let table = RestRoutingTable.init(node.discovery.protocol.routingTable)
-      let nodeSpr = node.discovery.getSpr()
-
-      let json = %*{
-        "id": $node.switch.peerInfo.peerId,
-        "addrs": node.switch.peerInfo.addrs.mapIt($it),
-        "repo": $conf.dataDir,
-        "spr": nodeSpr.toURI,
-        "announceAddresses": node.discovery.announceAddrs,
-        "dhtAddresses": node.discovery.dhtAddrs,
-        "table": table,
-        "storage": {"version": $storageVersion, "revision": $storageRevision},
-        "nat": {
-          "reachability": reachabilityStr(autonat),
-          "clientMode": node.discovery.protocol.clientMode,
-          "relayRunning": autoRelay.isSome and autoRelay.get.isRunning,
-          "portMapping": portMappingStr(natMapper),
-        },
-        "connections": peerConnections(node.switch),
-      }
-
       # return pretty json for human readability
       return RestApiResponse.response(
-        json.pretty(), contentType = "application/json", headers = headers
+        DebugInfo.init(node, conf, autonat, autoRelay, natMapper).toJson(pretty = true),
+        contentType = "application/json",
+        headers = headers,
       )
     except CatchableError as exc:
       trace "Excepting processing request", exc = exc.msg

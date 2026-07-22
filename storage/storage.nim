@@ -23,6 +23,7 @@ import pkg/libp2p/protocols/connectivity/relay/client as relayClientModule
 import pkg/libp2p/protocols/connectivity/relay/relay as relayModule
 import pkg/libp2p/services/autorelayservice
 import pkg/libp2p/transports/tcptransport
+import pkg/libp2p_mix
 import pkg/confutils
 import pkg/confutils/defs
 import pkg/stew/io2
@@ -36,7 +37,9 @@ import ./rng as random
 import ./rest/api
 import ./stores
 import ./blockexchange
+import ./dht_proxy/handler
 import ./utils/fileutils
+import ./utils/mixidentity
 import ./discovery
 import ./utils/addrutils
 import ./namespaces
@@ -94,6 +97,56 @@ proc start*(s: StorageServer) {.async.} =
   if s.holePunchHandler.isSome:
     for t in s.storageNode.switch.transports:
       t.networkReachability = NetworkReachability.NotReachable
+
+  if s.config.mixEnabled:
+    let
+      switch = s.storageNode.switch
+      (mixPub, mixPriv) = loadOrGenerateMixKeys(
+        string(s.config.dataDir) / "mix-identity"
+      ).valueOr:
+        raise newException(
+          StorageError, "Failed to load or generate Mix keys: " & error.msg
+        )
+      mixAddr = pickMixCompatibleMultiAddr(switch.peerInfo.addrs).valueOr:
+        raise newException(StorageError, "No Mix-compatible address among listen addrs")
+      mixNodeInfo = buildMixNodeInfo(
+        mixPub, mixPriv, switch.peerInfo.peerId, mixAddr, switch.peerInfo.privateKey
+      ).valueOr:
+        raise newException(StorageError, "Failed to build Mix node info: " & error.msg)
+      relayPool = (
+        if s.config.mixPoolJson.len > 0:
+          loadRelayPubInfoTableFromJson(s.config.mixPoolJson)
+        else:
+          loadRelayPubInfoTableFromFile(s.config.mixPool)
+      ).valueOr:
+        raise newException(StorageError, "Failed to load Mix relay pool: " & error.msg)
+      mixProto = MixProtocol.new(mixNodeInfo, switch)
+
+    info "Starting node with Mix relay pool", count = relayPool.len
+
+    for info in relayPool.values:
+      mixProto.nodePool.add(info)
+
+    mixProto.registerDestReadBehavior(DhtProxyCodec, readLp(MaxLookupResponseBytes))
+    await mixProto.start()
+    switch.mount(mixProto)
+
+    let dhtProxyProto =
+      if cap =? s.config.dhtProxyMaxInFlight:
+        DhtProxyProtocol.new(s.storageNode.discovery, maxInFlight = cap)
+      else:
+        DhtProxyProtocol.new(s.storageNode.discovery)
+    await dhtProxyProto.start()
+    switch.mount(dhtProxyProto)
+
+    s.storageNode.discovery.mixProto = mixProto
+
+    if s.config.dhtMixProxies.len > 0:
+      discard s.storageNode.discovery.togglePrivateQueries(true).valueOr:
+        raise
+          newException(StorageError, "Failed to enable private queries: " & error.msg)
+
+    s.storageNode.engine.network.excludeRelays(relayPool.keys.toSeq)
 
   if s.natMapper.isSome:
     s.natMapper.get.start()
@@ -197,29 +250,33 @@ proc stop*(s: StorageServer) {.async.} =
   if s.restServer != nil:
     futures.add(s.restServer.stop())
 
-  let res = await noCancel allFinishedFailed[void](futures)
+  let res = await noCancel allDone[void](futures)
 
   s.isStarted = false
 
-  if res.failure.len > 0:
-    error "Failed to stop Storage node", failures = res.failure.len
+  if res.failed.len > 0:
+    error "Failed to stop Storage node", failures = res.failed.len
     raise newException(
       StorageError,
-      "Failed to stop Storage node: " & res.failure.mapIt(it.error.msg).join(", "),
+      "Failed to stop Storage node: " & res.failed.mapIt(it.error.msg).join(", "),
+    )
+  if res.cancelled.len > 0:
+    warn "Storage node stop was cancelled due to child stop routine(s) being cancelled, child routines cancelled: ",
+      cancellations = res.cancelled.len
+    raise newException(
+      CancelledError,
+      "Storage node stop was cancelled due to child stop routine(s) being cancelled, child routines cancelled: " &
+        $res.cancelled.len,
     )
 
 proc close*(s: StorageServer) {.async.} =
   var futures =
     @[s.storageNode.close(), s.repoStore.close(), s.storageNode.discovery.close()]
 
-  let res = await noCancel allFinishedFailed[void](futures)
+  let res = await noCancel allDone[void](futures)
 
   if not s.taskpool.isNil:
-    try:
-      s.taskpool.shutdown()
-    except Exception as exc:
-      error "Failed to stop the taskpool", failures = res.failure.len
-      raise newException(StorageError, "Failure in taskpool shutdown: " & exc.msg)
+    s.taskpool.shutdown()
 
   when defaultChroniclesStream.outputs.type.arity >= 3:
     proc noOutput(logLevel: LogLevel, msg: LogOutputStr) =
@@ -231,11 +288,19 @@ proc close*(s: StorageServer) {.async.} =
     if error =? closeFile(s.logFile.get()).errorOption:
       error "Failed to close log file", errorCode = $error
 
-  if res.failure.len > 0:
-    error "Failed to close Storage node", failures = res.failure.len
+  if res.failed.len > 0:
+    error "Failed to close Storage node", failures = res.failed.len
     raise newException(
       StorageError,
-      "Failed to close Storage node: " & res.failure.mapIt(it.error.msg).join(", "),
+      "Failed to close Storage node: " & res.failed.mapIt(it.error.msg).join(", "),
+    )
+  if res.cancelled.len > 0:
+    warn "Storage node close was cancelled due to child close routine(s) being cancelled, child routines cancelled: ",
+      cancellations = res.cancelled.len
+    raise newException(
+      CancelledError,
+      "Storage node close was cancelled due to child close routine(s) being cancelled, child routines cancelled: " &
+        $res.cancelled.len,
     )
 
 proc shutdown*(server: StorageServer) {.async.} =
@@ -267,7 +332,7 @@ proc new*(
     .new()
     .withPrivateKey(privateKey)
     .withAddresses(@[listenMultiAddr])
-    .withWildcardResolver()
+    .withWildcardResolver(true)
     .withIdentifyPusher(false)
     .withRng(random.Rng.instance().libp2pRng)
     .withNoise()
@@ -385,6 +450,7 @@ proc new*(
       bindPort = config.discoveryPort,
       bootstrapNodes = bootstrapNodes,
       discoveryPort = config.discoveryPort,
+      dhtMixProxies = config.dhtMixProxies,
       store = discoveryStore,
     )
 

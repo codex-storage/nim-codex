@@ -86,9 +86,12 @@ endif
 	test \
 	testAll \
 	testIntegration \
+	testLibstorageC \
 	testLibstorage \
 	buildNatImage \
 	testNatIntegration \
+	updatePresetFile \
+	presets \
 	update
 
 ifeq ($(NIM_PARAMS),)
@@ -112,6 +115,10 @@ else # "variables.mk" was included. Business as usual until the end of this file
 all: | build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
 		$(ENV_SCRIPT) nim storage $(NIM_PARAMS) build.nims
+
+mix-tools: | build deps
+	echo -e $(BUILD_MSG) "build/mix_pool build/mix_relay_dht" && \
+		$(ENV_SCRIPT) nim mixTools $(NIM_PARAMS) build.nims
 
 # must be included after the default target
 -include $(BUILD_SYSTEM_DIR)/makefiles/targets.mk
@@ -161,8 +168,24 @@ buildNatImage:
 testNatIntegration: | deps buildNatImage
 	$(ENV_SCRIPT) nim testNatIntegration $(NIM_PARAMS) build.nims
 
+BOOTSTRAP_HEALTH_CHECK_PARAMS :=
+ifdef CI
+	BOOTSTRAP_HEALTH_CHECK_PARAMS := $(BOOTSTRAP_HEALTH_CHECK_PARAMS) -d:ci=$(CI)
+endif
+
+checkSpr: | build deps
+	echo -e $(BUILD_MSG) "build/check_spr" && \
+		$(ENV_SCRIPT) nim checkSpr $(NIM_PARAMS) build.nims
+
+# Pings the preset bootstrap nodes and fails if any are unreachable.
+# Run from OUTSIDE the fleet VPCs (e.g. a GitHub-hosted runner) so nodes that
+# advertise private/cloud-internal IPs are correctly seen as unreachable.
+bootstrapHealthCheck: | build deps
+	echo -e $(BUILD_MSG) "build/check_spr" && \
+		$(ENV_SCRIPT) nim bootstrapHealthCheck $(NIM_PARAMS) $(BOOTSTRAP_HEALTH_CHECK_PARAMS) build.nims
+
 # Builds a C example that uses the libstorage C library and runs it
-testLibstorage: | build deps
+testLibstorageC: | build deps
 	$(MAKE) $(if $(ncpu),-j$(ncpu),) libstorage
 	cd tests/cbindings && \
 	if [ "$(detected_OS)" = "Windows" ]; then \
@@ -172,6 +195,10 @@ testLibstorage: | build deps
 		gcc -o storage storage.c -L../../build -lstorage -Wl,-rpath,../../ -pthread && \
 		LD_LIBRARY_PATH=../../build ./storage; \
 	fi
+
+testLibstorage: | testLibstorageC
+	echo -e $(BUILD_MSG) "build/$@" && \
+		$(ENV_SCRIPT) nim testLibstorage $(TEST_PARAMS) $(NIM_PARAMS) build.nims
 
 # Builds and runs all tests
 testAll: | build deps
@@ -309,4 +336,12 @@ else
 		echo -e $(BUILD_MSG) "build/$@.so" && \
 		$(ENV_SCRIPT) nim libstorageDynamic $(NIM_PARAMS) $(LIBSTORAGE_PARAMS) storage.nims
 endif
-endif # "variables.mk" was not included
+endif # "variables.mk" was not includedMa
+################
+## Presets    ##
+################
+
+updatePresetFile:
+	bash ./tools/scripts/storage-config.sh presets > network_presets.json
+
+presets: updatePresetFile bootstrapHealthCheck

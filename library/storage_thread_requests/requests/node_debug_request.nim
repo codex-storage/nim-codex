@@ -5,18 +5,15 @@
 ## The PEER type is available only with storage_enable_api_debug_peers flag.
 ## It will return info about a specific peer if available.
 
-import std/[options]
 import chronos
 import chronicles
 import codexdht/discv5/spr
-import pkg/libp2p/services/autorelayservice
 import ../../alloc
 import ../../../storage/conf
 import ../../../storage/rest/json
 import ../../../storage/node
 
 from ../../../storage/storage import StorageServer, node, config
-import ../../../storage/nat
 import ../../../storage/discovery
 
 logScope:
@@ -52,30 +49,11 @@ proc destroyShared(self: ptr NodeDebugRequest) =
 proc getDebug(
     storage: ptr StorageServer
 ): Future[Result[string, string]] {.async: (raises: []).} =
-  let node = storage[].node
-  let table = RestRoutingTable.init(node.discovery.protocol.routingTable)
-  let nodeSpr = node.discovery.getSpr()
-
-  let json = %*{
-    "id": $node.switch.peerInfo.peerId,
-    "addrs": node.switch.peerInfo.addrs.mapIt($it),
-    "repo": storage[].config.dataDir.string,
-    "spr": nodeSpr.toURI,
-    "announceAddresses": node.discovery.announceAddrs,
-    "dhtAddresses": node.discovery.dhtAddrs,
-    "table": table,
-    "storage": {"version": $storageVersion, "revision": $storageRevision},
-    "nat": {
-      "reachability": reachabilityStr(storage[].autonatService),
-      "clientMode": node.discovery.protocol.clientMode,
-      "relayRunning":
-        storage[].autoRelayService.isSome and storage[].autoRelayService.get.isRunning,
-      "portMapping": portMappingStr(storage[].natMapper),
-    },
-    "connections": peerConnections(node.switch),
-  }
-
-  return ok($json)
+  let nodeInfo = %DebugInfo.init(
+    storage[].node, storage[].config, storage[].autonatService,
+    storage[].autoRelayService, storage[].natMapper,
+  )
+  return ok($nodeInfo)
 
 proc getPeer(
     storage: ptr StorageServer, peerId: cstring

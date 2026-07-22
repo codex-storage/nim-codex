@@ -9,7 +9,8 @@ proc newStandardSwitch*(
 ): Switch =
   SwitchBuilder
     .new()
-    .withAddresses(@[addrs], enableWildcardResolver = true)
+    .withAddresses(@[addrs])
+    .withWildcardResolver(true)
     .withSignedPeerRecord(sendSignedPeerRecord)
     .withIdentifyPusher(false)
     .withRng(storage_rng.Rng.instance().libp2pRng)

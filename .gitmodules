@@ -197,3 +197,6 @@
 [submodule "vendor/nim-nat-traversal"]
 	path = vendor/nim-nat-traversal
 	url = https://github.com/status-im/nim-nat-traversal.git
+[submodule "vendor/nim-libp2p-mix"]
+	path = vendor/nim-libp2p-mix
+	url = https://github.com/logos-co/nim-libp2p-mix

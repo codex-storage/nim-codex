@@ -11,10 +11,12 @@
 
 import std/algorithm
 import std/net
+import std/random
 import std/sequtils
 
 import pkg/chronos
 import pkg/libp2p/[cid, multicodec, routing_record, signed_envelope]
+import pkg/libp2p_mix
 import pkg/questionable
 import pkg/questionable/results
 import pkg/contractabi/address as ca
@@ -25,6 +27,7 @@ import ./rng as storage_rng
 import ./utils/addrutils
 import ./errors
 import ./logutils
+import ./dht_proxy/client as dht_proxy_client
 
 export discv5
 
@@ -46,6 +49,9 @@ type Discovery* = ref object of RootObj
   dhtAddrs*: seq[MultiAddress] # UDP discovery addresses, exposed for debugging
   isStarted: bool
   store: Datastore
+  mixProto*: MixProtocol
+  dhtMixProxies*: seq[SignedPeerRecord]
+  privateQueries: bool
 
 proc toNodeId*(cid: Cid): NodeId =
   ## Cid to discovery id
@@ -82,23 +88,45 @@ proc findPeer*(
 
   return PeerRecord.none
 
+method findViaMix*(
+    d: Discovery, cid: Cid
+): Future[?!seq[SignedPeerRecord]] {.base, async: (raises: [CancelledError]).} =
+  var candidates = d.dhtMixProxies
+  shuffle(candidates)
+
+  for record in candidates:
+    let proxy = record.data
+    let res = await dht_proxy_client.lookupProviders(d.mixProto, proxy, cid)
+    if res.isErr:
+      warn "Mix lookup proxy failed", cid, proxy = proxy.peerId, err = res.error.msg
+      continue
+    return success res.get
+
+  failure("All Mix lookup proxies failed (candidates=" & $candidates.len & ")")
+
+method findDirect*(
+    d: Discovery, cid: Cid
+): Future[?!seq[SignedPeerRecord]] {.base, async: (raises: [CancelledError]).} =
+  try:
+    return (await d.protocol.getProviders(cid.toNodeId())).mapFailure
+  except CancelledError as exc:
+    raise exc
+  except CatchableError as exc:
+    return failure("Error finding providers for block " & $cid & ": " & exc.msg)
+
 method find*(
     d: Discovery, cid: Cid
 ): Future[seq[SignedPeerRecord]] {.async: (raises: [CancelledError]), base.} =
-  ## Find block providers
-  ##
-
-  try:
-    without providers =? (await d.protocol.getProviders(cid.toNodeId())).mapFailure,
-      error:
-      warn "Error finding providers for block", cid, error = error.msg
-
-    return providers.filterIt(not (it.data.peerId == d.peerId))
-  except CancelledError as exc:
-    warn "Error finding providers for block", cid, exc = exc.msg
-    raise exc
-  except CatchableError as exc:
-    warn "Error finding providers for block", cid, exc = exc.msg
+  let providers =
+    if d.privateQueries and not d.mixProto.isNil and d.dhtMixProxies.len > 0:
+      (await d.findViaMix(cid)).valueOr:
+        warn "Mix lookup failed", cid, err = error.msg
+        return @[]
+    else:
+      (await d.findDirect(cid)).valueOr:
+        warn "Direct lookup failed", cid, err = error.msg
+        return @[]
+  providers.filterIt(not (it.data.peerId == d.peerId))
 
 method provide*(d: Discovery, cid: Cid) {.async: (raises: [CancelledError]), base.} =
   ## Provide a block Cid
@@ -196,6 +224,9 @@ proc announceDirectAddrs*(
     .init(d.key, PeerRecord.init(d.peerId, tcpAddrs))
     .expect("Should construct signed record").some
 
+  info "Updating announce record",
+    addrs = d.announceAddrs, spr = d.providerRecord.get.toURI
+
   if not d.protocol.isNil:
     let spr = SignedPeerRecord
       .init(d.key, PeerRecord.init(d.peerId, tcpAddrs & udpAddrs))
@@ -245,6 +276,13 @@ proc close*(d: Discovery) {.async: (raises: []).} =
   else:
     trace "Discovery store closed"
 
+proc togglePrivateQueries*(d: Discovery, enabled: bool): ?!bool =
+  if enabled and (d.mixProto.isNil or d.dhtMixProxies.len == 0):
+    return failure("Cannot enable private queries: Mix is not configured")
+  let old = d.privateQueries
+  d.privateQueries = enabled
+  success(old)
+
 proc new*(
     T: type Discovery,
     key: PrivateKey,
@@ -253,6 +291,7 @@ proc new*(
     announceAddrs: openArray[MultiAddress] = [],
     discoveryPort = 0.Port,
     bootstrapNodes: openArray[SignedPeerRecord] = [],
+    dhtMixProxies: openArray[SignedPeerRecord] = [],
     store: Datastore = SQLiteDatastore.new(Memory).expect("Should not fail!"),
     tableIpLimits: TableIpLimits = DefaultTableIpLimits,
 ): Discovery =
@@ -260,7 +299,10 @@ proc new*(
   ##
 
   var self = Discovery(
-    key: key, peerId: PeerId.init(key).expect("Should construct PeerId"), store: store
+    key: key,
+    peerId: PeerId.init(key).expect("Should construct PeerId"),
+    store: store,
+    dhtMixProxies: @dhtMixProxies,
   )
 
   # Called even when announceAddrs is empty: newProtocol below requires

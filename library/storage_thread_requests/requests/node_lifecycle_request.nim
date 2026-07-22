@@ -3,7 +3,7 @@
 ## START_NODE: start the provided Logos Storage node.
 ## STOP_NODE: stop the provided Logos Storage node.
 
-import std/[options, json, strutils, net, os]
+import std/[options, strutils, net, os]
 import codexdht/discv5/spr
 import std/parseutils
 import contractabi/address

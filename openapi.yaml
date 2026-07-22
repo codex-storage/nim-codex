@@ -103,10 +103,10 @@ components:
       required:
         - id
         - addrs
-        - repo
         - spr
         - announceAddresses
         - dhtAddresses
+        - libp2pPubKey
         - table
         - storage
       properties:
@@ -116,10 +116,9 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/MultiAddress"
-        repo:
-          type: string
-          description: Path of the data repository where all nodes data are stored
         spr:
+          $ref: "#/components/schemas/SPR"
+        providerRecord:
           $ref: "#/components/schemas/SPR"
         announceAddresses:
           type: array
@@ -129,6 +128,13 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/MultiAddress"
+        libp2pPubKey:
+          type: string
+          description: Hex-encoded libp2p public key of the node
+        mixPubKey:
+          type: string
+          nullable: true
+          description: Hex-encoded mix public key (present only for nodes that support mix)
         table:
           $ref: "#/components/schemas/PeersTable"
         storage:

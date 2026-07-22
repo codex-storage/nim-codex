@@ -94,7 +94,7 @@ method readOnce*(
           self.manifest.blockSize.int - blockOffset,
         ]
       )
-      address = BlockAddress(treeCid: self.manifest.treeCid, index: blockNum)
+      address = BlockAddress(treeCid: self.manifest.treeCid, index: blockNum.uint64)
 
     # Read contents of block `blockNum`
     without blk =? (await self.store.getBlock(address)).tryGet.catch, error:

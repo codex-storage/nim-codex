@@ -120,10 +120,14 @@ proc updateExpiry*(
         self.networkStore.localStore.ensureExpiry(manifest.treeCid, it, expiry)
       )
 
-    let res = await allFinishedFailed[?!void](ensuringFutures)
-    if res.failure.len > 0:
-      trace "Some blocks failed to update expiry", len = res.failure.len
-      return failure("Some blocks failed to update expiry (" & $res.failure.len & " )")
+    let res = await allDone[?!void](ensuringFutures)
+    if res.failed.len > 0:
+      trace "Some blocks failed to update expiry", len = res.failed.len
+      return failure("Some blocks failed to update expiry (" & $res.failed.len & " )")
+    if res.cancelled.len > 0:
+      trace "Block expiry update was cancelled in some blocks", len = res.cancelled.len
+      raise
+        newException(CancelledError, "Block expiry update was cancelled in some blocks")
   except CancelledError as exc:
     raise exc
   except CatchableError as exc:
@@ -445,6 +449,9 @@ proc iterateManifests*(self: StorageNodeRef, onManifest: OnManifest) {.async.} =
         return
 
       onManifest(cid, manifest)
+
+proc togglePrivateQueries*(self: StorageNodeRef, enable: bool): ?!bool =
+  self.discovery.togglePrivateQueries(enable)
 
 proc onExpiryUpdate(
     self: StorageNodeRef, rootCid: Cid, expiry: SecondsSince1970
