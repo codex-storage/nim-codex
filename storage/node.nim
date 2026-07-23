@@ -12,12 +12,14 @@
 import std/options
 import std/sequtils
 import std/strformat
+import std/tables
 import times
 
 import pkg/taskpools
 import pkg/questionable
 import pkg/questionable/results
 import pkg/chronos
+import pkg/serde/json
 
 import pkg/libp2p/[switch, multicodec, multihash]
 import pkg/libp2p/stream/bufferstream
@@ -36,6 +38,7 @@ import ./blockexchange
 import ./streams
 import ./discovery
 import ./utils
+import ./units
 import ./errors
 import ./logutils
 import ./utils/safeasynciter
@@ -449,6 +452,51 @@ proc iterateManifests*(self: StorageNodeRef, onManifest: OnManifest) {.async.} =
         return
 
       onManifest(cid, manifest)
+
+type DatasetTypeUsage* {.serialize.} = object
+  bytesLocal*: NBytes
+  count*: int
+
+proc datasetUsageByType*(
+    self: StorageNodeRef
+): Future[?!Table[string, DatasetTypeUsage]] {.async: (raises: [CancelledError]).} =
+  var usage = initTable[string, DatasetTypeUsage]()
+
+  without cidsIter =? await self.networkStore.listBlocks(BlockType.Manifest), err:
+    return failure(err)
+
+  for c in cidsIter:
+    if cid =? await c:
+      without blk =? await self.networkStore.getBlock(cid), err:
+        warn "Failed to get manifest block by cid", cid
+        continue
+
+      without manifest =? Manifest.decode(blk), err:
+        warn "Failed to decode manifest", cid
+        continue
+
+      let store = self.networkStore.localStore
+
+      without hasFirst =? await store.hasBlock(manifest.treeCid, 0), err:
+        warn "Failed to check first block", cid, err = err.msg
+        continue
+
+      without hasLast =? await store.hasBlock(
+        manifest.treeCid, manifest.blocksCount - 1
+      ), err:
+        warn "Failed to check last block", cid, err = err.msg
+        continue
+
+      if not (hasFirst and hasLast):
+        continue
+
+      let mimetype = if manifest.mimetype.isSome: manifest.mimetype.get else: "unknown"
+      var entry = usage.getOrDefault(mimetype)
+      entry.bytesLocal += manifest.datasetSize
+      entry.count += 1
+      usage[mimetype] = entry
+
+  success(usage)
 
 proc togglePrivateQueries*(self: StorageNodeRef, enable: bool): ?!bool =
   self.discovery.togglePrivateQueries(enable)

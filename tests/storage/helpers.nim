@@ -82,13 +82,13 @@ proc testManifestDesc*(
   ManifestDescriptor(manifest: manifest, manifestCid: Cid.example)
 
 proc storeDataGetManifest*(
-    store: BlockStore, blocks: seq[Block]
+    store: BlockStore, blocks: seq[Block], mimetype: Option[string] = string.none
 ): Future[ManifestDescriptor] {.async.} =
   for blk in blocks:
     (await store.putBlock(blk)).tryGet()
 
   let
-    (_, tree, manifest, manifestCid) = makeDataset(blocks).tryGet()
+    (_, tree, manifest, manifestCid) = makeDataset(blocks, mimetype).tryGet()
     treeCid = tree.rootCid.tryGet()
     manifestBlock =
       Block.new(manifest.encode().tryGet(), codec = ManifestCodec).tryGet()

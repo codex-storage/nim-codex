@@ -1,6 +1,8 @@
 import std/os
 import std/math
+import std/options
 import std/importutils
+import std/tables
 
 import pkg/chronos
 import pkg/stew/byteutils
@@ -248,3 +250,58 @@ asyncchecksuite "Test Node - Basic":
       expiry = SecondsSince1970(9999999999)
     let res = await node.updateExpiry(manifestBlk.cid, expiry)
     check res.isErr
+
+asyncchecksuite "Test Node - Usage by type":
+  setupAndTearDown()
+
+  setup:
+    await node.start()
+
+  test "get fully-downloaded datasets grouped by mimetype":
+    let largeBlocks = await makeRandomBlocks(datasetSize = 1024, blockSize = 256'nb)
+    discard await storeDataGetManifest(localStore, largeBlocks, some("video/mp4"))
+
+    let mediumBlocks = await makeRandomBlocks(datasetSize = 512, blockSize = 256'nb)
+    discard await storeDataGetManifest(localStore, mediumBlocks, some("video/mp4"))
+
+    let smallBlocks = await makeRandomBlocks(datasetSize = 768, blockSize = 256'nb)
+    discard await storeDataGetManifest(localStore, smallBlocks, some("image/png"))
+
+    let usage = (await node.datasetUsageByType()).tryGet()
+
+    check:
+      usage["video/mp4"].bytesLocal == 1024'nb + 512'nb
+      usage["video/mp4"].count == 2
+      usage["image/png"].bytesLocal == 768'nb
+      usage["image/png"].count == 1
+
+  test "datasets without a mimetype are grouped under 'unknown'":
+    let blocks = await makeRandomBlocks(datasetSize = 1024, blockSize = 256'nb)
+    discard await storeDataGetManifest(localStore, blocks, string.none)
+
+    let usage = (await node.datasetUsageByType()).tryGet()
+    check:
+      usage["unknown"].bytesLocal == 1024'nb
+      usage["unknown"].count == 1
+
+  test "excludes a dataset missing its last block":
+    let blocks = await makeRandomBlocks(datasetSize = 1024, blockSize = 256'nb)
+    let md = await storeDataGetManifest(localStore, blocks, some("video/mp4"))
+    (await localStore.delBlock(md.manifest.treeCid, md.manifest.blocksCount - 1)).tryGet()
+
+    let usage = (await node.datasetUsageByType()).tryGet()
+    check "video/mp4" notin usage
+
+  test "excludes a dataset missing its first block":
+    let blocks = await makeRandomBlocks(datasetSize = 1024, blockSize = 256'nb)
+    let md = await storeDataGetManifest(localStore, blocks, some("video/mp4"))
+    (await localStore.delBlock(md.manifest.treeCid, 0)).tryGet()
+
+    let usage = (await node.datasetUsageByType()).tryGet()
+    check "video/mp4" notin usage
+
+  test "excludes an existing manifest with no data":
+    discard (await node.storeManifest(Manifest.example)).tryGet()
+
+    let usage = (await node.datasetUsageByType()).tryGet()
+    check usage.len == 0
