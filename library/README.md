@@ -100,14 +100,13 @@ void *storage_new(
 Typical usage:
 - `storage_new(...)`
 - `storage_start(...)`
-- `storage_stop(...)`
-- `storage_destroy(...)`
+- `storage_shutdown(...)`
 
 ---
 
 ### `storage_start`
 
-Start the Logos Storage node (can be started/stopped multiple times).
+Start the Logos Storage node.
 
 ```c
 int storage_start(void *ctx, StorageCallback callback, void *userData);
@@ -115,33 +114,14 @@ int storage_start(void *ctx, StorageCallback callback, void *userData);
 
 ---
 
-### `storage_stop`
+### `storage_shutdown`
 
-Stop the Logos Storage node (can be started/stopped multiple times).
-
-```c
-int storage_stop(void *ctx, StorageCallback callback, void *userData);
-```
-
----
-
-### `storage_close`
-
-Close the node and release resources before destruction.
+Cleanly shuts down and destroys the node instance. After this call is accepted,
+the context belongs to libstorage and must not be used again. Completion is
+reported through the callback.
 
 ```c
-int storage_close(void *ctx, StorageCallback callback, void *userData);
-```
-
----
-
-### `storage_destroy`
-
-Destroys the node instance and frees associated resources. Node must be stopped and closed.
-The call is synchronous, so it does not require a callback.
-
-```c
-int storage_destroy(void *ctx);
+int storage_shutdown(void *ctx, StorageCallback callback, void *userData);
 ```
 
 ---

@@ -24,10 +24,12 @@ when defined(linux):
   # Define the canonical name for this library
   {.passl: "-Wl,-soname,libstorage.so".}
 
-import std/[atomics]
+import std/[atomics, exitprocs, locks]
 import chronicles
 import chronos
 import chronos/threadsync
+import results
+import taskpools/channels_spsc_single
 import ./storage_context
 import ./storage_thread_requests/storage_thread_request
 import ./storage_thread_requests/requests/node_lifecycle_request
@@ -44,6 +46,26 @@ from ../storage/conf import storageVersion
 
 logScope:
   topics = "libstorage"
+
+type ShutdownContext = object
+  ctx: ptr StorageContext
+  callback: StorageCallback
+  userData: pointer
+  doneSignal: ThreadSignalPtr
+  ret: cint
+  msg: ptr cchar
+  len: csize_t
+
+type ShutdownSupervisor = object
+  thread: Thread[void]
+  lock: Lock
+  reqChannel: ChannelSPSCSingle[ptr ShutdownContext]
+  reqSignal: ThreadSignalPtr
+  running: Atomic[bool]
+
+var
+  shutdownSupervisor: ShutdownSupervisor
+  shutdownSupervisorReady: Atomic[bool]
 
 template checkLibstorageParams*(
     ctx: ptr StorageContext, callback: StorageCallback, userData: pointer
@@ -65,6 +87,137 @@ proc asNewCString(s: string): ptr cchar =
     copyMem(cstr, addr s[0], n)
   cstr[n] = 0.cchar
   cast[ptr cchar](cstr)
+
+proc copySharedMsg(msg: ptr cchar, len: csize_t): ptr cchar =
+  if isNil(msg) or len == 0:
+    return nil
+
+  let size = len + 1
+  let copied = cast[ptr cchar](allocShared(size))
+  let bytes = cast[ptr UncheckedArray[cchar]](copied)
+  copyMem(copied, msg, len)
+  bytes[len] = '\0'
+  return copied
+
+proc setShutdownResult(
+    sctx: ptr ShutdownContext, ret: cint, msg: ptr cchar, len: csize_t
+) =
+  if not isNil(sctx[].msg):
+    deallocShared(sctx[].msg)
+    sctx[].msg = nil
+
+  sctx[].ret = ret
+  sctx[].msg = copySharedMsg(msg, len)
+  sctx[].len = len
+
+proc setShutdownError(sctx: ptr ShutdownContext, msg: string) =
+  if msg.len == 0:
+    setShutdownResult(sctx, RET_ERR, nil, 0)
+    return
+
+  setShutdownResult(sctx, RET_ERR, unsafeAddr msg[0], cast[csize_t](msg.len))
+
+proc shutdownStorageCallback(
+    ret: cint, msg: ptr cchar, len: csize_t, userData: pointer
+) {.callback.} =
+  let sctx = cast[ptr ShutdownContext](userData)
+  if isNil(sctx):
+    return
+
+  setShutdownResult(sctx, ret, msg, len)
+  discard sctx[].doneSignal.fireSync()
+
+proc runShutdown(sctx: ptr ShutdownContext) =
+  if isNil(sctx):
+    return
+
+  let reqContent: ptr NodeLifecycleRequest =
+    NodeLifecycleRequest.createShared(NodeLifecycleMsgType.SHUTDOWN_NODE)
+  let dispatchRes = storage_context.sendRequestToStorageThread(
+    sctx[].ctx,
+    RequestType.LIFECYCLE,
+    reqContent,
+    shutdownStorageCallback,
+    cast[pointer](sctx),
+  )
+
+  if dispatchRes.isOk:
+    let waitRes = sctx[].doneSignal.waitSync(InfiniteDuration)
+    if waitRes.isErr:
+      setShutdownError(
+        sctx,
+        "Failed to shutdown Logos Storage context: unable to receive shutdown result.",
+      )
+  else:
+    setShutdownError(sctx, dispatchRes.error)
+
+  let destroyRes = storage_context.destroyStorageContext(sctx[].ctx)
+  if destroyRes.isErr and sctx[].ret == RET_OK:
+    setShutdownError(sctx, destroyRes.error)
+
+  foreignThreadGc:
+    sctx[].callback(sctx[].ret, sctx[].msg, sctx[].len, sctx[].userData)
+
+  if not isNil(sctx[].msg):
+    deallocShared(sctx[].msg)
+  discard sctx[].doneSignal.close()
+  deallocShared(sctx)
+
+proc runShutdownSupervisor() {.thread.} =
+  while true:
+    let waitRes = shutdownSupervisor.reqSignal.waitSync(InfiniteDuration)
+    if waitRes.isErr:
+      error "Failure in Logos Storage shutdown supervisor while waiting for reqSignal.",
+        error = waitRes.error
+      continue
+
+    var sctx: ptr ShutdownContext
+    var recvOk = false
+    shutdownSupervisor.lock.acquire()
+    try:
+      recvOk = shutdownSupervisor.reqChannel.tryRecv(sctx)
+    finally:
+      shutdownSupervisor.lock.release()
+
+    if recvOk:
+      runShutdown(sctx)
+
+    if shutdownSupervisor.running.load == false:
+      break
+
+proc stopShutdownSupervisor() {.noconv.} =
+  if not shutdownSupervisorReady.exchange(false):
+    return
+
+  shutdownSupervisor.running.store(false)
+  discard shutdownSupervisor.reqSignal.fireSync()
+  joinThread(shutdownSupervisor.thread)
+
+  shutdownSupervisor.lock.deinitLock()
+  discard shutdownSupervisor.reqSignal.close()
+
+proc startShutdownSupervisor(): Result[void, string] =
+  shutdownSupervisor.reqSignal = ThreadSignalPtr.new().valueOr:
+    return err(
+      "Failed to initialize Logos Storage shutdown supervisor: unable to create reqSignal."
+    )
+
+  shutdownSupervisor.lock.initLock()
+  shutdownSupervisor.running.store(true)
+
+  try:
+    createThread(shutdownSupervisor.thread, runShutdownSupervisor)
+  except ValueError, ResourceExhaustedError:
+    shutdownSupervisor.lock.deinitLock()
+    discard shutdownSupervisor.reqSignal.close()
+    return err(
+      "Failed to initialize Logos Storage shutdown supervisor: unable to create thread: " &
+        getCurrentExceptionMsg()
+    )
+
+  shutdownSupervisorReady.store(true)
+  addExitProc(stopShutdownSupervisor)
+  return ok()
 
 # From Nim doc:
 # "the C targets require you to initialize Nim's internals, which is done calling a NimMain function."
@@ -88,6 +241,8 @@ proc initializeLibrary() {.exported.} =
   if not initialized.exchange(true):
     ## Every Nim library must call `<prefix>NimMain()` once
     libstorageNimMain()
+    startShutdownSupervisor().isOkOr:
+      error "Failed to initialize Logos Storage shutdown supervisor.", error = error
   when declared(setupForeignThreadGc):
     setupForeignThreadGc()
   when declared(nimGC_setStackBottom):
@@ -102,6 +257,11 @@ proc storage_new(
 
   if isNil(callback):
     error "Failed to create Storage instance: the callback is missing."
+    return nil
+
+  if not shutdownSupervisorReady.load:
+    let msg = "Failed to create Storage instance: shutdown supervisor is not initialized."
+    callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
     return nil
 
   var ctx = storage_context.createStorageContext().valueOr:
@@ -259,25 +419,69 @@ proc storage_peer_debug(
 
   return callback.okOrError(res, userData)
 
-proc storage_close(
+proc storage_shutdown(
     ctx: ptr StorageContext, callback: StorageCallback, userData: pointer
 ): cint {.dynlib, exportc.} =
   initializeLibrary()
-  checkLibstorageParams(ctx, callback, userData)
 
-  let reqContent = NodeLifecycleRequest.createShared(NodeLifecycleMsgType.CLOSE_NODE)
-  var res = storage_context.sendRequestToStorageThread(
-    ctx, RequestType.LIFECYCLE, reqContent, callback, userData
-  )
-  if res.isErr:
-    return callback.error(res.error, userData)
+  if isNil(callback):
+    return RET_MISSING_CALLBACK
 
-  return callback.okOrError(res, userData)
+  if isNil(ctx):
+    return callback.error("Storage context not initialized.", userData)
 
-proc storage_destroy(ctx: ptr StorageContext): cint {.dynlib, exportc.} =
-  initializeLibrary()
-  let res = storage_context.destroyStorageContext(ctx)
-  if res.isErr: RET_ERR else: RET_OK
+  let doneSignal = ThreadSignalPtr.new().valueOr:
+    return callback.error(
+      "Failed to shutdown Logos Storage context: unable to create done signal.",
+      userData,
+    )
+
+  let sctx = createShared(ShutdownContext, 1)
+  sctx[].ctx = ctx
+  sctx[].callback = callback
+  sctx[].userData = userData
+  sctx[].doneSignal = doneSignal
+  sctx[].ret = RET_ERR
+
+  if not shutdownSupervisorReady.load:
+    discard doneSignal.close()
+    deallocShared(sctx)
+    return callback.error(
+      "Failed to shutdown Logos Storage context: shutdown supervisor is not initialized.",
+      userData,
+    )
+
+  var sentOk = false
+  var signalOk = false
+  shutdownSupervisor.lock.acquire()
+  try:
+    sentOk = shutdownSupervisor.reqChannel.trySend(sctx)
+    if sentOk:
+      let fireRes = shutdownSupervisor.reqSignal.fireSync()
+      signalOk = fireRes.isOk and fireRes.get()
+      if not signalOk:
+        var queuedCtx: ptr ShutdownContext
+        discard shutdownSupervisor.reqChannel.tryRecv(queuedCtx)
+  finally:
+    shutdownSupervisor.lock.release()
+
+  if not sentOk:
+    discard doneSignal.close()
+    deallocShared(sctx)
+    return callback.error(
+      "Failed to shutdown Logos Storage context: shutdown supervisor is busy.",
+      userData,
+    )
+
+  if not signalOk:
+    discard doneSignal.close()
+    deallocShared(sctx)
+    return callback.error(
+      "Failed to shutdown Logos Storage context: unable to signal shutdown supervisor.",
+      userData,
+    )
+
+  return RET_OK
 
 proc storage_upload_init(
     ctx: ptr StorageContext,
@@ -556,20 +760,6 @@ proc storage_start(
 
   let reqContent: ptr NodeLifecycleRequest =
     NodeLifecycleRequest.createShared(NodeLifecycleMsgType.START_NODE)
-  let res = storage_context.sendRequestToStorageThread(
-    ctx, RequestType.LIFECYCLE, reqContent, callback, userData
-  )
-
-  return callback.okOrError(res, userData)
-
-proc storage_stop(
-    ctx: ptr StorageContext, callback: StorageCallback, userData: pointer
-): cint {.dynlib, exportc.} =
-  initializeLibrary()
-  checkLibstorageParams(ctx, callback, userData)
-
-  let reqContent: ptr NodeLifecycleRequest =
-    NodeLifecycleRequest.createShared(NodeLifecycleMsgType.STOP_NODE)
   let res = storage_context.sendRequestToStorageThread(
     ctx, RequestType.LIFECYCLE, reqContent, callback, userData
   )

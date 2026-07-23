@@ -15,7 +15,7 @@ proc createShared*(T: type NodeMixRequest, privateQueries: bool): ptr type T =
   ret[].privateQueries = privateQueries
   return ret
 
-proc destroyShared(self: ptr NodeMixRequest) =
+proc destroyShared*(self: ptr NodeMixRequest) =
   deallocShared(self)
 
 proc process*(

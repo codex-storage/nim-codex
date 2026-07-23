@@ -41,7 +41,7 @@ proc createShared*(
   ret[].logLevel = logLevel.alloc()
   return ret
 
-proc destroyShared(self: ptr NodeDebugRequest) =
+proc destroyShared*(self: ptr NodeDebugRequest) =
   deallocShared(self[].peerId)
   deallocShared(self[].logLevel)
   deallocShared(self)

@@ -80,7 +80,7 @@ proc createShared*(
 
   return ret
 
-proc destroyShared(self: ptr NodeUploadRequest) =
+proc destroyShared*(self: ptr NodeUploadRequest) =
   deallocShared(self[].filepath)
   deallocShared(self[].sessionId)
   deallocShared(self)

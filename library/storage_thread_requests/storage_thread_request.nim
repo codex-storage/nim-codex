@@ -53,6 +53,27 @@ proc createShared*(
   ret[].userData = userData
   return ret
 
+proc destroyShared*(request: ptr StorageThreadRequest) =
+  case request[].reqType
+  of LIFECYCLE:
+    destroyShared(cast[ptr NodeLifecycleRequest](request[].reqContent))
+  of INFO:
+    destroyShared(cast[ptr NodeInfoRequest](request[].reqContent))
+  of RequestType.DEBUG:
+    destroyShared(cast[ptr NodeDebugRequest](request[].reqContent))
+  of P2P:
+    destroyShared(cast[ptr NodeP2PRequest](request[].reqContent))
+  of STORAGE:
+    destroyShared(cast[ptr NodeStorageRequest](request[].reqContent))
+  of DOWNLOAD:
+    destroyShared(cast[ptr NodeDownloadRequest](request[].reqContent))
+  of UPLOAD:
+    destroyShared(cast[ptr NodeUploadRequest](request[].reqContent))
+  of MIX:
+    destroyShared(cast[ptr NodeMixRequest](request[].reqContent))
+
+  deallocShared(request)
+
 # NOTE: User callbacks are executed on the working thread.
 # They must be fast and non-blocking; otherwise this thread will be blocked
 # and no further requests can be processed.

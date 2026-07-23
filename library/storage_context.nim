@@ -52,7 +52,7 @@ type StorageContext* = object
   # returned with every event callback
   eventUserData*: pointer
 
-  # Set to false to stop the Logos Storage thread (during storage_destroy)
+  # Set to false to stop the Logos Storage thread during context shutdown.
   running: Atomic[bool]
 
 template callEventCallback(ctx: ptr StorageContext, eventName: string, body: untyped) =
@@ -94,27 +94,26 @@ proc sendRequestToStorageThread*(
   # Send the request to the Logos Storage thread
   let sentOk = ctx.reqChannel.trySend(req)
   if not sentOk:
-    deallocShared(req)
+    destroyShared(req)
     return err("Failed to send request to the Logos Storage thread: " & $req[])
 
   # Notify the Logos Storage thread that a request is available
   let fireSyncRes = ctx.reqSignal.fireSync()
   if fireSyncRes.isErr():
-    deallocShared(req)
+    destroyShared(req)
     return err(
       "Failed to send request to the Logos Storage thread: unable to fireSync: " &
         $fireSyncRes.error
     )
 
   if fireSyncRes.get() == false:
-    deallocShared(req)
+    destroyShared(req)
     return
       err("Failed to send request to the Logos Storage thread: fireSync timed out.")
 
   # Wait until the Logos Storage thread properly received the request
   let res = ctx.reqReceivedSignal.waitSync(timeout)
   if res.isErr():
-    deallocShared(req)
     return err(
       "Failed to send request to the Logos Storage thread: unable to receive reqReceivedSignal signal."
     )
@@ -135,7 +134,7 @@ proc runStorage(ctx: ptr StorageContext) {.async: (raises: []).} =
         error = e.msg
       continue
 
-    # If storage_destroy was called, exit the loop
+    # If context shutdown was requested, exit the loop.
     if ctx.running.load == false:
       break
 
@@ -188,7 +187,7 @@ proc createStorageContext*(): Result[ptr StorageContext, string] =
   # Protects shared state inside StorageContext
   ctx.lock.initLock()
 
-  # Logos Storage thread will loop until storage_destroy is called
+  # Logos Storage thread will loop until context shutdown is requested.
   ctx.running.store(true)
 
   try:
@@ -217,6 +216,10 @@ proc destroyStorageContext*(ctx: ptr StorageContext): Result[void, string] =
 
   # Wait for the thread to finish
   joinThread(ctx.thread)
+
+  var request: ptr StorageThreadRequest
+  while ctx.reqChannel.tryRecv(request):
+    destroyShared(request)
 
   # Clean up
   ctx.lock.deinitLock()

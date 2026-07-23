@@ -63,7 +63,7 @@ make coverage && make show-coverage
 
 **REST API** (`storage/rest/`): HTTP API surface. See `openapi.yaml` for the full spec.
 
-**C library bindings** (`library/`): `libstorage.nim` exposes a C ABI via `storage_new / storage_start / storage_stop / storage_destroy`. All API calls are async and deliver results via a `StorageCallback`. Callbacks must be fast and non-blocking (they run on the worker thread).
+**C library bindings** (`library/`): `libstorage.nim` exposes a C ABI via `storage_new / storage_start / storage_shutdown`. All API calls are async and deliver results via a `StorageCallback`. Callbacks must be fast and non-blocking (they run on the worker thread).
 
 **Integration tests** (`tests/integration/`): Tests that spawn actual node processes. `twonodessuite` / `multinodesuite` macros set up N nodes and `StorageClient` (HTTP client) for interacting with them.
 

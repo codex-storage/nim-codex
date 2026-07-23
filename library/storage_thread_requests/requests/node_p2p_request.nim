@@ -35,7 +35,7 @@ proc createShared*(
   ret[].peerAddresses = peerAddresses
   return ret
 
-proc destroyShared(self: ptr NodeP2PRequest) =
+proc destroyShared*(self: ptr NodeP2PRequest) =
   deallocShared(self[].peerId)
   deallocShared(self)
 
