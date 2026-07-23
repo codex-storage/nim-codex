@@ -11,7 +11,7 @@ import ../composehelper
 
 proc announcesDirectAddr(info: JsonNode): bool =
   ## A reachable node announces at least one direct (non-circuit) address.
-  info{"announceAddresses"}.getElems.anyIt("p2p-circuit" notin it.getStr)
+  info{"providerAddresses"}.getElems.anyIt("p2p-circuit" notin it.getStr)
 
 asyncchecksuite "NAT upnp":
   let
@@ -43,8 +43,8 @@ asyncchecksuite "NAT upnp":
     check nat{"relayRunning"}.getBool == false
     check nat{"portMapping"}.getStr == "upnp"
     check info.announcesDirectAddr()
-    let announced = info{"announceAddresses"}.getElems.mapIt(it.getStr)
+    let announced = info{"providerAddresses"}.getElems.mapIt(it.getStr)
     check announced.anyIt(("/ip4/" & routerWanIp & "/tcp/8070") in it)
     # public mapped address
     # a reachable node announces its UDP address to the DHT routing record
-    check info{"dhtAddresses"}.getElems.len > 0
+    check info{"discoveryAddresses"}.getElems.len > 0

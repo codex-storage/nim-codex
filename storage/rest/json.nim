@@ -70,9 +70,9 @@ type
     # provider record (the one we announce for content we provide)
     providerRecord* {.serialize.}: Option[SignedPeerRecord]
     # addresses contained in the provider record
-    announceAddresses* {.serialize.}: seq[MultiAddress]
+    providerAddresses* {.serialize.}: seq[MultiAddress]
     # UDP addresses announced in the DHT
-    dhtAddresses* {.serialize.}: seq[MultiAddress]
+    discoveryAddresses* {.serialize.}: seq[MultiAddress]
     # libp2p public key
     libp2pPubKey* {.serialize.}: string
     # mix public key (for nodes that support mix)
@@ -139,8 +139,8 @@ proc init*(
     addrs: peerInfo.addrs,
     spr: some(node.discovery.getSpr()),
     providerRecord: node.discovery.providerRecord,
-    announceAddresses: node.discovery.announceAddrs,
-    dhtAddresses: node.discovery.dhtAddrs,
+    providerAddresses: node.discovery.providerAddrs,
+    discoveryAddresses: node.discovery.discoveryAddrs,
     table: RestRoutingTable.init(node.discovery.protocol.routingTable),
     storage: VersionInfo(version: $storageVersion, revision: $storageRevision),
     # Serialization has no error contract in nim-serde, so we need to

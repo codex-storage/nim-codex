@@ -195,7 +195,7 @@ method handleNatStatus*(
   of NotReachable:
     discovery.protocol.clientMode = true
 
-    if not autoRelayService.isRunning and discovery.announceAddrs.len > 0:
+    if not autoRelayService.isRunning and discovery.providerAddrs.len > 0:
       # Remove any announced addresses, they will be replaced.
       # If the relay is running, the addresses will be updated on reservation.
       discovery.announceDirectAddrs(@[], udpPort = discoveryPort)

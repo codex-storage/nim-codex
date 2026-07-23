@@ -95,7 +95,7 @@ template setupAndTearDown*() {.dirty.} =
 
     blockDiscovery = Discovery.new(
       switch.peerInfo.privateKey,
-      announceAddrs = @[
+      providerAddrs = @[
         MultiAddress.init("/ip4/127.0.0.1/tcp/0").expect("Should return multiaddress")
       ],
     )

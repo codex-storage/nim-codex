@@ -21,20 +21,45 @@ suite "Discovery - SPR record logic":
 
   setup:
     key = PrivateKey.random(Rng.instance().libp2pRng).get()
-    disc = Discovery.new(key, announceAddrs = @[])
+    disc = Discovery.new(key, providerAddrs = @[])
 
-  test "announceDirectAddrs sets the SPR with both TCP and UDP addresses":
+  test "SPR contains provider (TCP) and discovery addresses (UDP) after announceDirectAddrs":
     disc.announceDirectAddrs(@[directAddr], udpPort)
 
-    let spr = disc.getSpr()
-    let addrs = spr.data.addresses.mapIt($it.address)
+    let addrs = disc.getSpr().data.addresses.mapIt($it.address)
     check addrs.anyIt(it.contains("/tcp/"))
     check addrs.anyIt(it.contains("/udp/"))
 
-  test "announceRelayAddrs updates the SPR with the announce addresses":
+  test "announceDirectAddrs update the provider record with TCP addresses only":
     disc.announceDirectAddrs(@[directAddr], udpPort)
 
-    disc.announceRelayAddrs(@[relayAddr])
+    let providerAddrs = disc.providerRecord.get.data.addresses.mapIt($it.address)
+    check providerAddrs.anyIt(it.contains("/tcp/"))
+    check not providerAddrs.anyIt(it.contains("/udp/"))
+
+  test "announceDirectAddrs update the local record with UDP addresses only":
+    disc.announceDirectAddrs(@[directAddr], udpPort)
+
+    let discoveryAddrs = disc.protocol.getRecord().data.addresses.mapIt($it.address)
+    check discoveryAddrs.anyIt(it.contains("/udp/"))
+    check not discoveryAddrs.anyIt(it.contains("/tcp/"))
+
+  test "SPR contains provider (TCP) after announceRelayAddrs":
+    disc.announceRelayAddrs(@[directAddr])
 
     let addrs = disc.getSpr().data.addresses.mapIt($it.address)
-    check addrs == @[$relayAddr]
+    check addrs.anyIt(it.contains("/tcp/"))
+    check not addrs.anyIt(it.contains("/udp/"))
+
+  test "announceRelayAddrs update the provider record with TCP addresses only":
+    disc.announceRelayAddrs(@[directAddr])
+
+    let providerAddrs = disc.providerRecord.get.data.addresses.mapIt($it.address)
+    check providerAddrs.anyIt(it.contains("/tcp/"))
+    check not providerAddrs.anyIt(it.contains("/udp/"))
+
+  test "announceRelayAddrs does not update the local record":
+    disc.announceRelayAddrs(@[directAddr])
+
+    let discoveryAddrs = disc.protocol.getRecord().data.addresses.mapIt($it.address)
+    check discoveryAddrs.len == 0

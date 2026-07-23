@@ -13,7 +13,7 @@ const directConnLog = "Direct connection created."
 
 proc announcesCircuitAddr(info: JsonNode): bool =
   ## A node behind the relay announces its circuit (p2p-circuit) address.
-  info{"announceAddresses"}.getElems.anyIt("p2p-circuit" in it.getStr)
+  info{"providerAddresses"}.getElems.anyIt("p2p-circuit" in it.getStr)
 
 asyncchecksuite "NAT connection reversal":
   let

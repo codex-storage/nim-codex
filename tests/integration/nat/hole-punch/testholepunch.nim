@@ -10,7 +10,7 @@ import ../../storageclient
 import ../composehelper
 
 proc announcesCircuitAddr(info: JsonNode): bool =
-  info{"announceAddresses"}.getElems.anyIt("p2p-circuit" in it.getStr)
+  info{"providerAddresses"}.getElems.anyIt("p2p-circuit" in it.getStr)
 
 asyncchecksuite "NAT hole punching":
   let

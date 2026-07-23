@@ -77,7 +77,7 @@ asyncchecksuite "NAT reaction - port mapping":
       1, relayClientModule.RelayClient.new(), nil, Rng.instance().libp2pRng
     )
     key = PrivateKey.random(Rng.instance().libp2pRng).get()
-    disc = Discovery.new(key, announceAddrs = @[])
+    disc = Discovery.new(key, providerAddrs = @[])
     sw = newStandardSwitch()
     await sw.start()
 
@@ -114,7 +114,7 @@ asyncchecksuite "NAT reaction - port mapping":
     )
 
     check autoRelay.isRunning
-    check disc.announceAddrs == newSeq[MultiAddress]()
+    check disc.providerAddrs == newSeq[MultiAddress]()
     check disc.protocol.clientMode
 
   test "handleNatStatus keeps a live mapping and starts relay when NotReachable":
@@ -137,7 +137,7 @@ asyncchecksuite "NAT reaction - port mapping":
     )
 
     check autoRelay.isRunning
-    check disc.announceAddrs == newSeq[MultiAddress]()
+    check disc.providerAddrs == newSeq[MultiAddress]()
     check disc.protocol.clientMode
     check mapper.portMapping.isSome # the live mapping is kept
     check mapper.destroyed.len == 0 # never torn down
@@ -195,7 +195,7 @@ asyncchecksuite "NAT reaction - port mapping":
     )
 
     check not autoRelay.isRunning
-    check disc.announceAddrs == newSeq[MultiAddress]()
+    check disc.providerAddrs == newSeq[MultiAddress]()
 
   test "handleNatStatus retries the port mapping on the next NotReachable after a failure":
     # A failed mapping must not disable the mapper: close() resets plum so the
@@ -226,7 +226,7 @@ asyncchecksuite "NAT reaction - address announcing":
       1, relayClientModule.RelayClient.new(), nil, Rng.instance().libp2pRng
     )
     key = PrivateKey.random(Rng.instance().libp2pRng).get()
-    disc = Discovery.new(key, announceAddrs = @[])
+    disc = Discovery.new(key, providerAddrs = @[])
     sw = newStandardSwitch()
     await sw.start()
 
@@ -245,7 +245,7 @@ asyncchecksuite "NAT reaction - address announcing":
       Reachable, Opt.some(dialBack), discoveryPort, disc, sw, autoRelay
     )
 
-    check disc.announceAddrs == @[dialBack]
+    check disc.providerAddrs == @[dialBack]
 
   test "handleNatStatus does not announce when Reachable without a dial-back address":
     let mapper = NatPortMapper(discoveryPort: discoveryPort)
@@ -253,7 +253,7 @@ asyncchecksuite "NAT reaction - address announcing":
       Reachable, Opt.none(MultiAddress), discoveryPort, disc, sw, autoRelay
     )
 
-    check disc.announceAddrs == newSeq[MultiAddress]()
+    check disc.providerAddrs == newSeq[MultiAddress]()
 
   test "handleNatStatus clears the DHT routing addresses when it becomes NotReachable":
     let dialBack = MultiAddress.init("/ip4/1.2.3.4/tcp/9000").expect("valid")
@@ -265,25 +265,25 @@ asyncchecksuite "NAT reaction - address announcing":
     await mapper.handleNatStatus(
       Reachable, Opt.some(dialBack), discoveryPort, disc, sw, autoRelay
     )
-    check disc.dhtAddrs.len > 0
+    check disc.discoveryAddrs.len > 0
 
     # NotReachable: the DHT routing addresses are cleared
     await mapper.handleNatStatus(
       NotReachable, Opt.some(dialBack), discoveryPort, disc, sw, autoRelay
     )
-    check disc.dhtAddrs.len == 0
+    check disc.discoveryAddrs.len == 0
 
   test "announceRelayReservation announces only the publicly dialable circuit address":
     disc.announceRelayReservation(
       @[circuitAddr("127.0.0.1"), circuitAddr("204.168.234.45")]
     )
 
-    check disc.announceAddrs == @[circuitAddr("204.168.234.45")]
+    check disc.providerAddrs == @[circuitAddr("204.168.234.45")]
 
   test "announceRelayReservation does not announce a private circuit address":
     disc.announceRelayReservation(@[circuitAddr("127.0.0.1")])
 
-    check disc.announceAddrs.len == 0
+    check disc.providerAddrs.len == 0
 
 proc mapperWith(protocol: MappingProtocol): Option[NatPortMapper] =
   some(NatPortMapper(portMapping: some(PortMapping(activeMappingProtocol: protocol))))

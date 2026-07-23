@@ -170,13 +170,13 @@ proc start*(s: StorageServer) {.async.} =
 
     # extip means that we assume the IP is reachable.
     # So we just take the first peer addr and remap it with extip to keep the port only.
-    let announceAddresses = @[
+    let providerAddrs = @[
       s.storageNode.switch.peerInfo.addrs[0].remapAddr(
         ip = some(s.config.nat.extIp), port = none(Port)
       )
     ]
     s.storageNode.discovery.announceDirectAddrs(
-      announceAddresses, udpPort = s.config.discoveryPort
+      providerAddrs, udpPort = s.config.discoveryPort
     )
   else:
     # Other nodes wait for AutoNAT to announce addresses and update SPR.
@@ -446,7 +446,7 @@ proc new*(
 
     discovery = Discovery.new(
       switch.peerInfo.privateKey,
-      announceAddrs = @[],
+      providerAddrs = @[],
       bindPort = config.discoveryPort,
       bootstrapNodes = bootstrapNodes,
       discoveryPort = config.discoveryPort,

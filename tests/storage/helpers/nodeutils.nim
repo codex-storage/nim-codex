@@ -176,7 +176,7 @@ proc generateNodes*(
             if config.enableDiscovery:
               Discovery.new(
                 switch.peerInfo.privateKey,
-                announceAddrs = @[listenAddr],
+                providerAddrs = @[listenAddr],
                 bindPort = bindPort.Port,
                 store = blockDiscoveryStore,
                 bootstrapNodes = bootstrapNodes,
@@ -193,7 +193,7 @@ proc generateNodes*(
           store = CacheStore.new(blocks.mapIt(it))
           discovery = Discovery.new(
             switch.peerInfo.privateKey,
-            announceAddrs = @[listenAddr],
+            providerAddrs = @[listenAddr],
             tableIpLimits =
               TableIpLimits(tableIpLimit: high(uint), bucketIpLimit: high(uint)),
           )

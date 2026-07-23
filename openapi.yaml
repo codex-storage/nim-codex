@@ -104,8 +104,8 @@ components:
         - id
         - addrs
         - spr
-        - announceAddresses
-        - dhtAddresses
+        - providerAddresses
+        - discoveryAddresses
         - libp2pPubKey
         - table
         - storage
@@ -120,11 +120,11 @@ components:
           $ref: "#/components/schemas/SPR"
         providerRecord:
           $ref: "#/components/schemas/SPR"
-        announceAddresses:
+        providerAddresses:
           type: array
           items:
             $ref: "#/components/schemas/MultiAddress"
-        dhtAddresses:
+        discoveryAddresses:
           type: array
           items:
             $ref: "#/components/schemas/MultiAddress"

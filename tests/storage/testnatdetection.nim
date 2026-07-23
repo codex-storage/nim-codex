@@ -108,7 +108,7 @@ asyncchecksuite "NAT detection - simulated NAT":
     relay = AutoRelayService.new(1, relayClient, nil, Rng.instance().libp2pRng)
     autorelayservice.setup(relay, natNode)
     disc = Discovery.new(
-      PrivateKey.random(Rng.instance().libp2pRng).get(), announceAddrs = @[]
+      PrivateKey.random(Rng.instance().libp2pRng).get(), providerAddrs = @[]
     )
     # nodes start in client mode until Reachable
     disc.protocol.clientMode = true
