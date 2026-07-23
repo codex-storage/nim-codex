@@ -210,9 +210,9 @@ proc getSpr*(d: Discovery): SignedPeerRecord =
   ## Expose the discovery addresses (UDP) and provider addresses (TCP).
   ## TCP addresses are needed because Autonat requires to connect to
   ## Autonat servers and we are currently using the provider record for that.
-  ## We might get ride of that if we add a new configuration option that gives
-  ## the Autonat servers the TCP addresses directly, something like the Mix options
-  ## that we have.
+  ## We might get rid of that if we add a new configuration option that gives
+  ## the Autonat servers the TCP addresses directly (as Mix options do), or
+  ## once we get proper service discovery/migrate to the libp2p Kad DHT.
   return SignedPeerRecord
     .init(d.key, PeerRecord.init(d.peerId, d.providerAddrs & d.discoveryAddrs))
     .expect("Should construct signed record")
