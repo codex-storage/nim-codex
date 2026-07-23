@@ -12,6 +12,7 @@
 import std/sequtils
 import std/mimetypes
 import std/os
+import std/tables
 
 import pkg/questionable
 import pkg/questionable/results
@@ -469,11 +470,23 @@ proc initDataApi(node: StorageNodeRef, repoStore: RepoStore, router: var RestRou
     return RestApiResponse.response($json, contentType = "application/json")
 
   router.api(MethodGet, "/api/storage/v1/space") do() -> RestApiResponse:
+    without usage =? (await node.datasetUsageByType()), err:
+      return RestApiResponse.error(
+        Http500, "Error when trying to get dataset usage: " & err.msg
+      )
+
+    var usageList: seq[RestDatasetTypeUsage]
+    for mimetype, entry in usage:
+      usageList.add RestDatasetTypeUsage(
+        mimetype: mimetype, bytesLocal: entry.bytesLocal, count: entry.count
+      )
+
     let json = %RestRepoStore(
       totalBlocks: repoStore.totalBlocks,
       quotaMaxBytes: repoStore.quotaMaxBytes,
       quotaUsedBytes: repoStore.quotaUsedBytes,
       quotaReservedBytes: repoStore.quotaReservedBytes,
+      usage: usageList,
     )
     return RestApiResponse.response($json, contentType = "application/json")
 

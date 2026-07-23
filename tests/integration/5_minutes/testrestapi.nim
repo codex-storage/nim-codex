@@ -40,6 +40,18 @@ twonodessuite "REST API":
     check response.status == 200
     check (await response.body) != ""
 
+  test "space reports dataset usage grouped by mimetype", twoNodesConfig:
+    let headers = @[("Content-Type", "text/plain")]
+    let response = await client1.uploadRaw("some file contents", headers)
+    check response.status == 200
+
+    let space = (await client1.space()).get
+    let usage = space.usage.filterIt(it.mimetype == "text/plain")
+
+    check usage.len == 1
+    check usage[0].count == 1
+    check usage[0].bytesLocal > 0'nb
+
   test "node accepts file uploads with content disposition", twoNodesConfig:
     let headers = @[("Content-Disposition", "attachment; filename=\"example.txt\"")]
     let response = await client1.uploadRaw("some file contents", headers)

@@ -45,11 +45,17 @@ type
   RestNodeId* = object
     id*: NodeId
 
+  RestDatasetTypeUsage* = object
+    mimetype* {.serialize.}: string
+    bytesLocal* {.serialize.}: NBytes
+    count* {.serialize.}: int
+
   RestRepoStore* = object
     totalBlocks* {.serialize.}: Natural
     quotaMaxBytes* {.serialize.}: NBytes
     quotaUsedBytes* {.serialize.}: NBytes
     quotaReservedBytes* {.serialize.}: NBytes
+    usage* {.serialize.}: seq[RestDatasetTypeUsage]
 
   VersionInfo* = object
     version* {.serialize.}: string
