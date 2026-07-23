@@ -374,7 +374,7 @@ type
 
     natObservedAddrMinCount* {.
       desc:
-        "Number of identify observations of the same external address required " &
+        "Minimum number of times that an address must show up in identify replies" &
         "before it is used as the node's dialable address",
       defaultValue: 1,
       name: "nat-observed-addr-min-count"
