@@ -72,6 +72,9 @@ proc destroy*(request: ptr StorageThreadRequest) =
     cast[ptr NodeDownloadRequest](request[].reqContent).destroyShared()
   of STORAGE:
     cast[ptr NodeStorageRequest](request[].reqContent).destroyShared()
+  of MIX:
+    cast[ptr NodeMixRequest](request[].reqContent).destroyShared()
+
   deallocShared(request)
 
 # NOTE: User callbacks are executed on the working thread.
