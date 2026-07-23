@@ -1,7 +1,9 @@
 import std/[options, sequtils, sugar, tables]
 
 import pkg/chronos
+import pkg/libp2p_mix
 
+import pkg/storage/discovery
 import pkg/storage/rng
 import pkg/storage/stores
 import pkg/storage/blockexchange
@@ -129,3 +131,33 @@ asyncchecksuite "Block Advertising and Discovery":
     await engine.start()
     await sleepAsync(3.seconds)
     await engine.stop()
+
+  test "should route queries over mix when privacy toggle is enabled":
+    let
+      privateSpr = SignedPeerRecord.example
+      directSpr = SignedPeerRecord.example
+      refCid = Cid.example
+
+    let
+      # this is an invalid object, but we just need it to be non-null
+      mix = MixProtocol()
+      discovery = MixMockDiscovery.new()
+
+    discovery.mixProto = mix
+    discovery.dhtMixProxies = @[SignedPeerRecord.example]
+
+    discovery.privateSpr = privateSpr
+    discovery.directSpr = directSpr
+    discovery.refCid = refCid
+
+    check (await discovery.find(refCid)) == @[directSpr]
+    let toggleRes = discovery.togglePrivateQueries(true)
+    check toggleRes.isOk
+    check toggleRes.get == false
+    check (await discovery.find(refCid)) == @[privateSpr]
+
+  test "should fail to enable private queries when MixProtocol is nil":
+    let discovery = MixMockDiscovery.new()
+    discovery.dhtMixProxies = @[SignedPeerRecord.example]
+    let res = discovery.togglePrivateQueries(true)
+    check res.isErr

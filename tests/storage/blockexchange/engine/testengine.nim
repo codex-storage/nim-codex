@@ -259,8 +259,8 @@ asyncchecksuite "NetworkStore engine handlers":
     ) {.async: (raises: [CancelledError]).} =
       check presence.len == 1
       check presence[0].kind == BlockPresenceType.HaveRange
-      for (start, count) in presence[0].ranges:
-        check start < 2
+      for r in presence[0].ranges:
+        check r.start < 2
       done.complete()
 
     engine.network =
@@ -270,8 +270,11 @@ asyncchecksuite "NetworkStore engine handlers":
     await done
 
   test "WantBlocks: rejects range with count = 0":
-    let req =
-      WantBlocksRequest(requestId: 1, treeCid: Cid.example, ranges: @[(0'u64, 0'u64)])
+    let req = WantBlocksRequest(
+      requestId: 1,
+      treeCid: Cid.example,
+      ranges: @[IndexRange(start: 0'u64, count: 0'u64)],
+    )
 
     let blocks = await network.handlers.onWantBlocksRequest(peerId, req)
     check blocks.len == 0
@@ -280,7 +283,7 @@ asyncchecksuite "NetworkStore engine handlers":
     let req = WantBlocksRequest(
       requestId: 1,
       treeCid: Cid.example,
-      ranges: @[(0'u64, MaxBlocksPerBatch.uint64 + 1)],
+      ranges: @[IndexRange(start: 0'u64, count: MaxBlocksPerBatch.uint64 + 1)],
     )
 
     let blocks = await network.handlers.onWantBlocksRequest(peerId, req)
@@ -288,7 +291,9 @@ asyncchecksuite "NetworkStore engine handlers":
 
   test "WantBlocks: rejects range whose start+count overflows":
     let req = WantBlocksRequest(
-      requestId: 1, treeCid: Cid.example, ranges: @[(uint64.high, 1'u64)]
+      requestId: 1,
+      treeCid: Cid.example,
+      ranges: @[IndexRange(start: uint64.high, count: 1'u64)],
     )
 
     let blocks = await network.handlers.onWantBlocksRequest(peerId, req)
@@ -296,17 +301,19 @@ asyncchecksuite "NetworkStore engine handlers":
 
   test "WantBlocks: rejects range whose max index exceeds Natural":
     let req = WantBlocksRequest(
-      requestId: 1, treeCid: Cid.example, ranges: @[(high(Natural).uint64 + 1, 1'u64)]
+      requestId: 1,
+      treeCid: Cid.example,
+      ranges: @[IndexRange(start: high(Natural).uint64 + 1, count: 1'u64)],
     )
 
     let blocks = await network.handlers.onWantBlocksRequest(peerId, req)
     check blocks.len == 0
 
   test "WantBlocks: rejects when total count across ranges exceeds cap":
-    var ranges: seq[tuple[start: uint64, count: uint64]] = @[]
+    var ranges: seq[IndexRange] = @[]
     let halfMaxBlocksPerBatchPlusOne = (MaxBlocksPerBatch div 2).uint64 + 1
-    ranges.add((0'u64, halfMaxBlocksPerBatchPlusOne))
-    ranges.add((10_000'u64, halfMaxBlocksPerBatchPlusOne))
+    ranges.add(IndexRange(start: 0'u64, count: halfMaxBlocksPerBatchPlusOne))
+    ranges.add(IndexRange(start: 10_000'u64, count: halfMaxBlocksPerBatchPlusOne))
 
     let req = WantBlocksRequest(requestId: 1, treeCid: Cid.example, ranges: ranges)
 
@@ -323,7 +330,9 @@ asyncchecksuite "NetworkStore engine handlers":
       (await localStore.putCidAndProof(rootCid, i, blk.cid, tree.getProof(i).tryGet())).tryGet()
 
     let req = WantBlocksRequest(
-      requestId: 1, treeCid: rootCid, ranges: @[(0'u64, blocks.len.uint64)]
+      requestId: 1,
+      treeCid: rootCid,
+      ranges: @[IndexRange(start: 0'u64, count: blocks.len.uint64)],
     )
 
     let delivered = await network.handlers.onWantBlocksRequest(peerId, req)
@@ -331,24 +340,28 @@ asyncchecksuite "NetworkStore engine handlers":
 
 suite "IsIndexInRanges":
   test "Empty ranges returns false":
-    let ranges: seq[(uint64, uint64)] = @[]
+    let ranges: seq[IndexRange] = @[]
     check not isIndexInRanges(0, ranges)
     check not isIndexInRanges(100, ranges)
 
   test "Single range - index inside":
-    let ranges = @[(10'u64, 5'u64)]
+    let ranges = @[IndexRange(start: 10'u64, count: 5'u64)]
     check isIndexInRanges(10, ranges, sortedRanges = true)
     check isIndexInRanges(12, ranges, sortedRanges = true)
     check isIndexInRanges(14, ranges, sortedRanges = true)
 
   test "Single range - index outside":
-    let ranges = @[(10'u64, 5'u64)]
+    let ranges = @[IndexRange(start: 10'u64, count: 5'u64)]
     check not isIndexInRanges(9, ranges, sortedRanges = true)
     check not isIndexInRanges(15, ranges, sortedRanges = true)
     check not isIndexInRanges(100, ranges, sortedRanges = true)
 
   test "Multiple sorted ranges - index in each":
-    let ranges = @[(0'u64, 3'u64), (10'u64, 5'u64), (100'u64, 10'u64)]
+    let ranges = @[
+      IndexRange(start: 0'u64, count: 3'u64),
+      IndexRange(start: 10'u64, count: 5'u64),
+      IndexRange(start: 100'u64, count: 10'u64),
+    ]
     check isIndexInRanges(0, ranges, sortedRanges = true)
     check isIndexInRanges(2, ranges, sortedRanges = true)
     check isIndexInRanges(10, ranges, sortedRanges = true)
@@ -357,7 +370,11 @@ suite "IsIndexInRanges":
     check isIndexInRanges(109, ranges, sortedRanges = true)
 
   test "Multiple ranges - index in gaps":
-    let ranges = @[(0'u64, 3'u64), (10'u64, 5'u64), (100'u64, 10'u64)]
+    let ranges = @[
+      IndexRange(start: 0'u64, count: 3'u64),
+      IndexRange(start: 10'u64, count: 5'u64),
+      IndexRange(start: 100'u64, count: 10'u64),
+    ]
     check not isIndexInRanges(3, ranges, sortedRanges = true)
     check not isIndexInRanges(9, ranges, sortedRanges = true)
     check not isIndexInRanges(15, ranges, sortedRanges = true)
@@ -365,7 +382,11 @@ suite "IsIndexInRanges":
     check not isIndexInRanges(110, ranges, sortedRanges = true)
 
   test "Unsorted ranges with sortedRanges=false":
-    let ranges = @[(100'u64, 10'u64), (0'u64, 3'u64), (10'u64, 5'u64)]
+    let ranges = @[
+      IndexRange(start: 100'u64, count: 10'u64),
+      IndexRange(start: 0'u64, count: 3'u64),
+      IndexRange(start: 10'u64, count: 5'u64),
+    ]
     check isIndexInRanges(0, ranges, sortedRanges = false)
     check isIndexInRanges(2, ranges, sortedRanges = false)
     check isIndexInRanges(10, ranges, sortedRanges = false)
@@ -373,13 +394,17 @@ suite "IsIndexInRanges":
     check not isIndexInRanges(50, ranges, sortedRanges = false)
 
   test "Adjacent ranges":
-    let ranges = @[(0'u64, 5'u64), (5'u64, 5'u64), (10'u64, 5'u64)]
+    let ranges = @[
+      IndexRange(start: 0'u64, count: 5'u64),
+      IndexRange(start: 5'u64, count: 5'u64),
+      IndexRange(start: 10'u64, count: 5'u64),
+    ]
     for i in 0'u64 ..< 15:
       check isIndexInRanges(i, ranges, sortedRanges = true)
     check not isIndexInRanges(15, ranges, sortedRanges = true)
 
   test "Large range values":
-    let ranges = @[(1_000_000_000'u64, 1_000_000'u64)]
+    let ranges = @[IndexRange(start: 1_000_000_000'u64, count: 1_000_000'u64)]
     check isIndexInRanges(1_000_000_000, ranges, sortedRanges = true)
     check isIndexInRanges(1_000_500_000, ranges, sortedRanges = true)
     check not isIndexInRanges(999_999_999, ranges, sortedRanges = true)

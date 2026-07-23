@@ -1,8 +1,11 @@
+#include <errno.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <time.h>
 #include <unistd.h>
 #include "../../library/libstorage.h"
 
@@ -19,12 +22,41 @@
 #endif
 #endif
 
+#define GRN "\033[0;32m"
+#define RED "\033[0;31m"
+#define YEL "\033[0;33m"
+#define NC "\033[0m" // No Color
+
+#define BEGIN_SUITE int passed = 0;
+// RUN_TEST runs a test expression, printing the test name as it executes.
+#define RUN_TEST(expr)                             \
+    do                                             \
+    {                                              \
+        printf(YEL "[RUN] %s" NC "... ", #expr);    \
+        fflush(stdout);                            \
+        if ((expr) != RET_OK)                      \
+        {                                          \
+            fprintf(stderr, RED "[FAIL]\n" NC); \
+            fprintf(stderr, RED "FAIL. Tests run: %d\n" NC, passed + 1); \
+            return RET_ERR;                        \
+        }                                          \
+        printf(GRN "[PASS]\n" NC);               \
+        passed += 1;                               \
+        fflush(stdout);                            \
+    } while (0)
+
+#define END_SUITE printf(GRN "SUCCESS. Tests passed: %d\n" NC, passed + 1); \
+        fflush(stdout);
+
 // We need 250 as max retries mainly for the start function in CI.
 // Other functions should be not need that many retries.
 #define MAX_RETRIES 250
 
 typedef struct
 {
+    pthread_mutex_t mutex;
+    pthread_cond_t cond;
+    bool done;
     int ret;
     char *msg;
     char *chunk;
@@ -34,6 +66,9 @@ typedef struct
 static Resp *alloc_resp(void)
 {
     Resp *r = (Resp *)calloc(1, sizeof(Resp));
+    pthread_mutex_init(&r->mutex, NULL);
+    pthread_cond_init(&r->cond, NULL);
+    r->done = false;
     r->msg = NULL;
     r->chunk = NULL;
     r->ret = -1;
@@ -57,6 +92,8 @@ static void free_resp(Resp *r)
         free(r->chunk);
     }
 
+    pthread_cond_destroy(&r->cond);
+    pthread_mutex_destroy(&r->mutex);
     free(r);
 }
 
@@ -67,7 +104,11 @@ static int get_ret(Resp *r)
         return RET_ERR;
     }
 
-    return r->ret;
+    pthread_mutex_lock(&r->mutex);
+    int ret = r->ret;
+    pthread_mutex_unlock(&r->mutex);
+
+    return ret;
 }
 
 // wait_resp waits until the async response is ready or max retries is reached.
@@ -75,13 +116,33 @@ static int get_ret(Resp *r)
 // indicate that the response is ready to be consumed.
 static void wait_resp(Resp *r)
 {
-    int retries = 0;
-
-    while (get_ret(r) == -1 && retries < MAX_RETRIES)
+    if (!r)
     {
-        usleep(1000 * 100); // 100 ms
-        retries++;
+        return;
     }
+
+    const long timeout_ms = MAX_RETRIES * 100;
+    struct timespec deadline;
+
+    clock_gettime(CLOCK_REALTIME, &deadline);
+    deadline.tv_sec += timeout_ms / 1000;
+    deadline.tv_nsec += (timeout_ms % 1000) * 1000000;
+    if (deadline.tv_nsec >= 1000000000)
+    {
+        deadline.tv_sec += 1;
+        deadline.tv_nsec -= 1000000000;
+    }
+
+    pthread_mutex_lock(&r->mutex);
+    while (!r->done)
+    {
+        int rc = pthread_cond_timedwait(&r->cond, &r->mutex, &deadline);
+        if (rc == ETIMEDOUT)
+        {
+            break;
+        }
+    }
+    pthread_mutex_unlock(&r->mutex);
 }
 
 // is_resp_ok checks if the async response indicates success.
@@ -95,6 +156,8 @@ static int is_resp_ok(Resp *r, char **res)
     }
 
     wait_resp(r);
+
+    pthread_mutex_lock(&r->mutex);
 
     int ret = (r->ret == RET_OK) ? RET_OK : RET_ERR;
 
@@ -115,6 +178,8 @@ static int is_resp_ok(Resp *r, char **res)
     {
         *res = strdup(r->msg);
     }
+
+    pthread_mutex_unlock(&r->mutex);
 
     free_resp(r);
 
@@ -142,8 +207,7 @@ static void callback(int ret, const char *msg, size_t len, void *userData)
         return;
     }
 
-    // Assign the return code to the response structure.
-    r->ret = ret;
+    pthread_mutex_lock(&r->mutex);
 
     // If the reponse already has a message, just free it first.
     if (r->msg)
@@ -161,8 +225,8 @@ static void callback(int ret, const char *msg, size_t len, void *userData)
         r->len = len;
     }
 
-    // For other cases, copy the message data.
-    if (msg && len > 0)
+    // For terminal responses, copy the message data.
+    if (ret != RET_PROGRESS && msg && len > 0)
     {
         // Allocate memory for the message plus null terminator.
         r->msg = (char *)malloc(len + 1);
@@ -171,6 +235,10 @@ static void callback(int ret, const char *msg, size_t len, void *userData)
         if (!r->msg)
         {
             r->len = 0;
+            r->ret = RET_ERR;
+            r->done = true;
+            pthread_cond_signal(&r->cond);
+            pthread_mutex_unlock(&r->mutex);
             return;
         }
 
@@ -182,11 +250,25 @@ static void callback(int ret, const char *msg, size_t len, void *userData)
 
         r->len = len;
     }
-    else
+    else if (ret != RET_PROGRESS)
     {
         r->msg = NULL;
         r->len = 0;
     }
+
+    // Progress updates are intermediate callbacks. Keep any copied chunk data,
+    // but wait for the final RET_OK/RET_ERR before completing the response.
+    if (ret == RET_PROGRESS)
+    {
+        pthread_mutex_unlock(&r->mutex);
+        return;
+    }
+
+    // Publish completion last so wait_resp can only observe a fully written Resp.
+    r->ret = ret;
+    r->done = true;
+    pthread_cond_signal(&r->cond);
+    pthread_mutex_unlock(&r->mutex);
 }
 
 static int read_file(const char *filepath, char **res)
@@ -230,7 +312,7 @@ int setup(void **storage_ctx)
 
     wait_resp(r);
 
-    if (r->ret != RET_OK)
+    if (get_ret(r) != RET_OK)
     {
         free_resp(r);
         return RET_ERR;
@@ -317,9 +399,9 @@ int check_repo(void *storage_ctx)
 
     int ret = is_resp_ok(r, &res);
 
-    if (strcmp(res, "./data-dir") != 0)
+    if (res == NULL || strcmp(res, "./data-dir") != 0)
     {
-        printf("repo mismatch: %s\n", res);
+        printf("repo mismatch: %s\n", res ? res : "(null)");
         ret = RET_ERR;
     }
 
@@ -342,9 +424,9 @@ int check_debug(void *storage_ctx)
     int ret = is_resp_ok(r, &res);
 
     // Simple check to ensure the response contains spr
-    if (strstr(res, "spr") == NULL)
+    if (res == NULL || strstr(res, "spr") == NULL)
     {
-        fprintf(stderr, "debug content mismatch, res:%s\n", res);
+        fprintf(stderr, "debug content mismatch, res:%s\n", res ? res : "(null)");
         ret = RET_ERR;
     }
 
@@ -366,9 +448,9 @@ int check_spr(void *storage_ctx)
 
     int ret = is_resp_ok(r, &res);
 
-    if (strstr(res, "spr") == NULL)
+    if (res == NULL || strstr(res, "spr") == NULL)
     {
-        fprintf(stderr, "spr content mismatch, res:%s\n", res);
+        fprintf(stderr, "spr content mismatch, res:%s\n", res ? res : "(null)");
         ret = RET_ERR;
     }
 
@@ -536,7 +618,7 @@ int check_upload_file(void *storage_ctx, const char *filepath, char **res)
 
     int ret = is_resp_ok(r, res);
 
-    if (res == NULL || strlen(*res) == 0)
+    if (res == NULL || *res == NULL || strlen(*res) == 0)
     {
         fprintf(stderr, "CID is missing\n");
         return RET_ERR;
@@ -574,9 +656,9 @@ int check_download_stream(void *storage_ctx, const char *cid, const char *filepa
 
     int ret = is_resp_ok(r, &res);
 
-    if (strncmp(res, "Hello World!", strlen("Hello World!")) != 0)
+    if (res == NULL || strncmp(res, "Hello World!", strlen("Hello World!")) != 0)
     {
-        fprintf(stderr, "downloaded content mismatch, res:%s\n", res);
+        fprintf(stderr, "downloaded content mismatch, res:%s\n", res ? res : "(null)");
         ret = RET_ERR;
     }
 
@@ -586,9 +668,9 @@ int check_download_stream(void *storage_ctx, const char *cid, const char *filepa
         ret = RET_ERR;
     }
 
-    if (strncmp(res, "Hello World!", strlen("Hello World!")) != 0)
+    if (res == NULL || strncmp(res, "Hello World!", strlen("Hello World!")) != 0)
     {
-        fprintf(stderr, "downloaded content mismatch, res:%s\n", res);
+        fprintf(stderr, "downloaded content mismatch, res:%s\n", res ? res : "(null)");
         ret = RET_ERR;
     }
 
@@ -626,9 +708,9 @@ int check_download_chunk(void *storage_ctx, const char *cid)
 
     int ret = is_resp_ok(r, &res);
 
-    if (strncmp(res, "Hello World!", strlen("Hello World!")) != 0)
+    if (res == NULL || strncmp(res, "Hello World!", strlen("Hello World!")) != 0)
     {
-        fprintf(stderr, "downloaded chunk content mismatch, res:%s\n", res);
+        fprintf(stderr, "downloaded chunk content mismatch, res:%s\n", res ? res : "(null)");
         ret = RET_ERR;
     }
 
@@ -663,11 +745,11 @@ int check_download_manifest(void *storage_ctx, const char *cid)
 
     int ret = is_resp_ok(r, &res);
 
-    const char *expected_manifest = "{\"manifestVersion\":0,\"treeCid\":\"zDzSvJTf8JYwvysKPmG7BtzpbiAHfuwFMRphxm4hdvnMJ4XPJjKX\",\"datasetSize\":12,\"blockSize\":65536,\"filename\":\"hello_world.txt\",\"mimetype\":\"text/plain\"}";
+    const char *expected_manifest = "{\"manifestVersion\":0,\"treeCid\":\"zDzSvJTf8JYwvysKPmG7BtzpbiAHfuwFMRphxm4hdvnMJ4XPJjKX\",\"blockSize\":65536,\"datasetSize\":12,\"filename\":\"hello_world.txt\",\"mimetype\":\"text/plain\"}";
 
-    if (strncmp(res, expected_manifest, strlen(expected_manifest)) != 0)
+    if (res == NULL || strncmp(res, expected_manifest, strlen(expected_manifest)) != 0)
     {
-        fprintf(stderr, "downloaded manifest content mismatch, res:%s\n", res);
+        fprintf(stderr, "downloaded manifest content mismatch, res:%s\n", res ? res : "(null)");
         ret = RET_ERR;
     }
 
@@ -689,11 +771,11 @@ int check_list(void *storage_ctx)
 
     int ret = is_resp_ok(r, &res);
 
-    const char *expected_manifest = "{\"manifestVersion\":0,\"treeCid\":\"zDzSvJTf8JYwvysKPmG7BtzpbiAHfuwFMRphxm4hdvnMJ4XPJjKX\",\"datasetSize\":12,\"blockSize\":65536,\"filename\":\"hello_world.txt\",\"mimetype\":\"text/plain\"}";
+    const char *expected_manifest = "{\"manifestVersion\":0,\"treeCid\":\"zDzSvJTf8JYwvysKPmG7BtzpbiAHfuwFMRphxm4hdvnMJ4XPJjKX\",\"blockSize\":65536,\"datasetSize\":12,\"filename\":\"hello_world.txt\",\"mimetype\":\"text/plain\"}";
 
-    if (strstr(res, expected_manifest) == NULL)
+    if (res == NULL || strstr(res, expected_manifest) == NULL)
     {
-        fprintf(stderr, "downloaded manifest content mismatch, res:%s\n", res);
+        fprintf(stderr, "downloaded manifest content mismatch, res:%s\n", res ? res : "(null)");
         ret = RET_ERR;
     }
 
@@ -716,9 +798,9 @@ int check_space(void *storage_ctx)
     int ret = is_resp_ok(r, &res);
 
     // Simple check to ensure the response contains totalBlocks
-    if (strstr(res, "totalBlocks") == NULL)
+    if (res == NULL || strstr(res, "totalBlocks") == NULL)
     {
-        fprintf(stderr, "list content mismatch, res:%s\n", res);
+        fprintf(stderr, "space content mismatch, res:%s\n", res ? res : "(null)");
         ret = RET_ERR;
     }
 
@@ -742,17 +824,17 @@ int check_exists(void *storage_ctx, const char *cid, bool expected)
 
     if (expected)
     {
-        if (strcmp(res, "true") != 0)
+        if (res == NULL || strcmp(res, "true") != 0)
         {
-            fprintf(stderr, "exists content mismatch, res:%s\n", res);
+            fprintf(stderr, "exists content mismatch, res:%s\n", res ? res : "(null)");
             ret = RET_ERR;
         }
     }
     else
     {
-        if (strcmp(res, "false") != 0)
+        if (res == NULL || strcmp(res, "false") != 0)
         {
-            fprintf(stderr, "exists content mismatch, res:%s\n", res);
+            fprintf(stderr, "exists content mismatch, res:%s\n", res ? res : "(null)");
             ret = RET_ERR;
         }
     }
@@ -775,6 +857,76 @@ int check_delete(void *storage_ctx, const char *cid)
     return is_resp_ok(r, NULL);
 }
 
+int check_toggle_private_queries(void *storage_ctx)
+{
+    Resp *r = alloc_resp();
+    char *res = NULL;
+    // First toggle is false -> true
+    if (storage_toggle_private_queries(storage_ctx, true, (StorageCallback)callback, r) != RET_OK)
+    {
+        free_resp(r);
+        return RET_ERR;
+    }
+
+    int ret = is_resp_ok(r, &res);
+    if (ret == RET_OK)
+    {
+        fprintf(stderr, "expected toggle(true) to fail when mix is not configured, got ok\n");
+        free(res);
+        return RET_ERR;
+    }
+
+    free(res);
+    // Second toggle is true -> false
+    r = alloc_resp();
+    if (storage_toggle_private_queries(storage_ctx, false, (StorageCallback)callback, r) != RET_OK)
+    {
+        free_resp(r);
+        return RET_ERR;
+    }
+
+    ret = is_resp_ok(r, &res);
+    if (res == NULL || strcmp(res, "false") != 0)
+    {
+        fprintf(stderr, "toggle private queries content mismatch, res:%s\n", res ? res : "(null)");
+        free(res);
+        return RET_ERR;
+    }
+
+    free(res);
+    return RET_OK;
+}
+
+int check_get_metrics(void *storage_ctx)
+{
+    Resp *r = alloc_resp();
+    char *res = NULL;
+
+    if (storage_get_metrics(storage_ctx, (StorageCallback)callback, r) != RET_OK)
+    {
+        free_resp(r);
+        return RET_ERR;
+    }
+
+    int ret = is_resp_ok(r, &res);
+    if (ret != RET_OK)
+    {
+        free(res);
+        return ret;
+    }
+
+    // Checks that response contains a metric we are SURE must exist
+    if (res == NULL || strstr(res, "libp2p_successful_dials_total") == NULL)
+    {
+        fprintf(stderr, "get_metrics missing expected metric\n");
+        free(res);
+        return RET_ERR;
+    }
+
+    free(res);
+    return RET_OK;
+}
+
 // TODO: implement check_fetch
 // It is a bit complicated because it requires two nodes
 // connected together to fetch from peers.
@@ -791,153 +943,45 @@ int main(void)
     char *res = NULL;
     char *cid = NULL;
 
-    if (setup(&storage_ctx) != RET_OK)
-    {
-        fprintf(stderr, "setup failed\n");
-        return RET_ERR;
-    }
+    BEGIN_SUITE
 
-    if (check_version(storage_ctx) != RET_OK)
-    {
-        fprintf(stderr, "check version failed\n");
-        return RET_ERR;
-    }
-
-    if (start(storage_ctx) != RET_OK)
-    {
-        fprintf(stderr, "start failed\n");
-        return RET_ERR;
-    }
-
-    if (check_repo(storage_ctx) != RET_OK)
-    {
-        fprintf(stderr, "check repo failed\n");
-        return RET_ERR;
-    }
-
-    if (check_debug(storage_ctx) != RET_OK)
-    {
-        fprintf(stderr, "check debug failed\n");
-        return RET_ERR;
-    }
-
-    if (check_spr(storage_ctx) != RET_OK)
-    {
-        fprintf(stderr, "check spr failed\n");
-        return RET_ERR;
-    }
-
-    if (check_peer_id(storage_ctx) != RET_OK)
-    {
-        fprintf(stderr, "check peer_id failed\n");
-        return RET_ERR;
-    }
-
-    if (check_upload_chunk(storage_ctx, "hello_world.txt") != RET_OK)
-    {
-        fprintf(stderr, "upload chunk failed\n");
-        return RET_ERR;
-    }
-
-    if (upload_cancel(storage_ctx) != RET_OK)
-    {
-        fprintf(stderr, "upload cancel failed\n");
-        return RET_ERR;
-    }
+    RUN_TEST(setup(&storage_ctx));
+    RUN_TEST(check_version(storage_ctx));
+    RUN_TEST(start(storage_ctx));
+    RUN_TEST(check_repo(storage_ctx));
+    RUN_TEST(check_debug(storage_ctx));
+    RUN_TEST(check_spr(storage_ctx));
+    RUN_TEST(check_peer_id(storage_ctx));
+    RUN_TEST(check_upload_chunk(storage_ctx, "hello_world.txt"));
+    RUN_TEST(upload_cancel(storage_ctx));
 
     char *path = realpath("hello_world.txt", NULL);
-
     if (!path)
     {
         fprintf(stderr, "realpath failed\n");
         return RET_ERR;
     }
 
-    if (check_upload_file(storage_ctx, path, &cid) != RET_OK)
-    {
-        fprintf(stderr, "upload file failed\n");
-        free(path);
-        return RET_ERR;
-    }
+    RUN_TEST(check_upload_file(storage_ctx, path, &cid));
 
     free(path);
 
-    if (check_download_stream(storage_ctx, cid, "downloaded_hello.txt") != RET_OK)
-    {
-        fprintf(stderr, "download stream failed\n");
-        free(cid);
-        return RET_ERR;
-    }
-
-    if (check_download_chunk(storage_ctx, cid) != RET_OK)
-    {
-        fprintf(stderr, "download chunk failed\n");
-        free(cid);
-        return RET_ERR;
-    }
-
-    if (check_download_cancel(storage_ctx, cid) != RET_OK)
-    {
-        fprintf(stderr, "download cancel failed\n");
-        free(cid);
-        return RET_ERR;
-    }
-
-    if (check_download_manifest(storage_ctx, cid) != RET_OK)
-    {
-        fprintf(stderr, "download manifest failed\n");
-        free(cid);
-        return RET_ERR;
-    }
-
-    if (check_list(storage_ctx) != RET_OK)
-    {
-        fprintf(stderr, "list failed\n");
-        free(cid);
-        return RET_ERR;
-    }
-
-    if (check_space(storage_ctx) != RET_OK)
-    {
-        fprintf(stderr, "space failed\n");
-        free(cid);
-        return RET_ERR;
-    }
-
-    if (check_exists(storage_ctx, cid, true) != RET_OK)
-    {
-        fprintf(stderr, "exists failed\n");
-        free(cid);
-        return RET_ERR;
-    }
-
-    if (check_delete(storage_ctx, cid) != RET_OK)
-    {
-        fprintf(stderr, "delete failed\n");
-        free(cid);
-        return RET_ERR;
-    }
-
-    if (check_exists(storage_ctx, cid, false) != RET_OK)
-    {
-        fprintf(stderr, "exists failed\n");
-        free(cid);
-        return RET_ERR;
-    }
+    RUN_TEST(check_download_stream(storage_ctx, cid, "downloaded_hello.txt"));
+    RUN_TEST(check_download_chunk(storage_ctx, cid));
+    RUN_TEST(check_download_cancel(storage_ctx, cid));
+    RUN_TEST(check_download_manifest(storage_ctx, cid));
+    RUN_TEST(check_list(storage_ctx));
+    RUN_TEST(check_space(storage_ctx));
+    RUN_TEST(check_exists(storage_ctx, cid, true));
+    RUN_TEST(check_delete(storage_ctx, cid));
+    RUN_TEST(check_exists(storage_ctx, cid, false));
 
     free(cid);
 
-    if (update_log_level(storage_ctx, "TRACE") != RET_OK)
-    {
-        fprintf(stderr, "update log level failed\n");
-        return RET_ERR;
-    }
+    RUN_TEST(check_toggle_private_queries(storage_ctx));
+    RUN_TEST(update_log_level(storage_ctx, "TRACE"));
+    RUN_TEST(check_get_metrics(storage_ctx));
+    RUN_TEST(cleanup(storage_ctx));
 
-    if (cleanup(storage_ctx) != RET_OK)
-    {
-        fprintf(stderr, "cleanup failed\n");
-        return RET_ERR;
-    }
-
-    return RET_OK;
+    END_SUITE
 }

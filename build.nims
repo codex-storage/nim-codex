@@ -66,6 +66,41 @@ task storage, "build logos storage binary":
     outname = "storage",
     params = "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE"
 
+task mixTools, "build mix tools (mix_pool, mix_relay_dht)":
+  let (desc, ec) = gorgeEx("git describe --tags --always --dirty")
+  let mixVersion =
+    if ec == 0 and desc.strip().len > 0:
+      desc.strip()
+    else:
+      "unknown"
+  let mixParams =
+    "-d:chronicles_runtime_filtering -d:chronicles_log_level=TRACE " & "-d:mixVersion:" &
+    mixVersion
+  buildBinary "mix_pool",
+    outName = "mix_pool", srcDir = "tools/mix/", params = mixParams
+  buildBinary "mix_relay_dht",
+    outName = "mix_relay_dht", srcDir = "tools/mix/", params = mixParams
+
+task checkSpr, "build check_spr used for checking bootstrap node health":
+  buildBinary "check_spr",
+    srcDir = "tools/",
+    params = "-d:release -d:chronicles_runtime_filtering -d:chronicles_log_level=WARN"
+
+task bootstrapHealthCheck, "ping preset bootstrap nodes; non-zero exit if any are unreachable":
+  checkSprTask()
+
+  # get CI param from make if present
+  var args = ""
+  for i in 2 ..< paramCount():
+    if "ci" in paramStr(i) and truthy paramStr(i).split('=')[1]:
+      # Writes the JSON summary to a file before exiting, so the scheduled workflow
+      args = "--network logos.dev --network logos.test --format json --out build/bootstrap-health-report.json"
+      break
+  
+  # can read it. check_spr exits non-zero when a node is unreachable, failing
+  # the workflow run.
+  exec "build/check_spr " & args
+
 task testStorage, "Build & run Logos Storage tests":
   test "testStorage", outName = "testStorage"
 
@@ -77,6 +112,13 @@ task testIntegration, "Run integration tests":
   # use params to enable logging from the integration test executable
   # test "testIntegration", params = "-d:chronicles_sinks=textlines[notimestamps,stdout],textlines[dynamic] " &
   #   "-d:chronicles_enabled_topics:integration:TRACE"
+
+task testNatIntegration,
+  "Run NAT real-topology scenarios (needs the storage-nat image + podman-compose)":
+  test "testNatIntegration"
+
+task testLibstorage, "Run libstorage Nim tests":
+  test "testLibstorage", outName = "testLibstorage"
 
 task build, "build Logos Storage binary":
   storageTask()

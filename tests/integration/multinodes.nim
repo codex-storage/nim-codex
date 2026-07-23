@@ -127,11 +127,15 @@ template multinodesuite*(suiteName: string, body: untyped) =
           lastUsedStorageApiPort = apiPort
           lastUsedStorageDiscPort = discPort
 
-        for bootstrapNode in bootstrapNodes:
-          config.addCliOption("--bootstrap-node", bootstrapNode)
+        if bootstrapNodes.len == 0:
+          # Without this flag the node would bootstrap on the default
+          # network preset.
+          config.addCliOption("--no-bootstrap-node")
+        else:
+          for bootstrapNode in bootstrapNodes:
+            config.addCliOption("--bootstrap-node", bootstrapNode)
 
         config.addCliOption("--data-dir", datadir)
-        config.addCliOption("--nat", "none")
       except StorageConfigError as e:
         raiseMultiNodeSuiteError "invalid cli option, error: " & e.msg
 
@@ -214,10 +218,14 @@ template multinodesuite*(suiteName: string, body: untyped) =
       trace "Setting up test", suite = suiteName, test = currentTestName, nodeConfigs
       if var clients =? nodeConfigs.clients:
         failAndTeardownOnError "failed to start client nodes":
+          # Only the first node (bootstrap) gets a known extip. Other nodes use
+          # nat=auto so AutoNAT can run and determine their reachability.
+          clients = clients.withExtIp(0).withAutonatServer(0)
           for config in clients.configs:
             let node = await startClientNode(config)
             running.add RunningNode(role: Role.Client, node: node)
-            await StorageProcess(node).updateBootstrapNodes()
+            if config.isBootstrapNode:
+              await StorageProcess(node).updateBootstrapNodes()
 
     teardown:
       await teardownImpl()

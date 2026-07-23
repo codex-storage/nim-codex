@@ -10,6 +10,7 @@
 import pkg/chronos
 import pkg/libp2p
 import pkg/questionable
+import pkg/questionable/results
 import pkg/storage/discovery
 import pkg/contractabi/address as ca
 
@@ -98,3 +99,23 @@ proc nullDiscovery*(): MockDiscovery =
     findHostProvidersHandler: findHostProvidersHandler,
     publishHostProvideHandler: publishHostProvideHandler,
   )
+
+# Slightly more contrived Discovery mock to allow testing of the privacy toggle.
+# Since we cannot declare `method` within blocks, we have to do this contortionism
+# here.
+type MixMockDiscovery* = ref object of Discovery
+  privateSpr*: SignedPeerRecord
+  directSpr*: SignedPeerRecord
+  refCid*: Cid
+
+method findViaMix*(
+    d: MixMockDiscovery, cid: Cid
+): Future[?!seq[SignedPeerRecord]] {.async: (raises: [CancelledError]).} =
+  doAssert cid == d.refCid
+  result = success(@[d.privateSpr])
+
+method findDirect*(
+    d: MixMockDiscovery, cid: Cid
+): Future[?!seq[SignedPeerRecord]] {.async: (raises: [CancelledError]).} =
+  doAssert cid == d.refCid
+  result = success(@[d.directSpr])

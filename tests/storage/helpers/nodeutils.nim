@@ -11,8 +11,6 @@ import pkg/storage/stores
 import pkg/storage/blocktype as bt
 import pkg/storage/blockexchange
 import pkg/storage/systemclock
-import pkg/storage/nat
-import pkg/storage/utils/natutils
 import pkg/storage/merkletree
 import pkg/storage/manifest
 
@@ -178,7 +176,7 @@ proc generateNodes*(
             if config.enableDiscovery:
               Discovery.new(
                 switch.peerInfo.privateKey,
-                announceAddrs = @[listenAddr],
+                providerAddrs = @[listenAddr],
                 bindPort = bindPort.Port,
                 store = blockDiscoveryStore,
                 bootstrapNodes = bootstrapNodes,
@@ -195,7 +193,7 @@ proc generateNodes*(
           store = CacheStore.new(blocks.mapIt(it))
           discovery = Discovery.new(
             switch.peerInfo.privateKey,
-            announceAddrs = @[listenAddr],
+            providerAddrs = @[listenAddr],
             tableIpLimits =
               TableIpLimits(tableIpLimit: high(uint), bucketIpLimit: high(uint)),
           )
@@ -226,15 +224,10 @@ proc generateNodes*(
 
         if config.enableBootstrap:
           waitFor switch.peerInfo.update()
-          let (announceAddrs, discoveryAddrs) = nattedAddress(
-            NatConfig(hasExtIp: false, nat: NatNone),
-            switch.peerInfo.addrs,
-            bindPort.Port,
+          blockDiscovery.announceDirectAddrs(
+            switch.peerInfo.addrs, udpPort = bindPort.Port
           )
-          blockDiscovery.updateAnnounceRecord(announceAddrs)
-          blockDiscovery.updateDhtRecord(discoveryAddrs)
-          if blockDiscovery.dhtRecord.isSome:
-            bootstrapNodes.add !blockDiscovery.dhtRecord
+          bootstrapNodes.add blockDiscovery.getSpr()
 
         fullNode
       else:

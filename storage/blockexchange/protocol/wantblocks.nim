@@ -55,7 +55,7 @@ type
   WantBlocksRequest* = object
     requestId*: uint64
     treeCid*: Cid
-    ranges*: seq[tuple[start: uint64, count: uint64]]
+    ranges*: seq[IndexRange]
 
   SharedBlocksBuffer* = ref object
     data*: seq[byte]
@@ -173,11 +173,11 @@ proc encodeRequestInto*(
   copyMem(addr buf[offset], unsafeAddr rangeCountLE, 4)
   offset += 4
 
-  for (start, count) in req.ranges:
-    let startLE = start.toLE
+  for r in req.ranges:
+    let startLE = r.start.toLE
     copyMem(addr buf[offset], unsafeAddr startLE, 8)
     offset += 8
-    let countLE = count.toLE
+    let countLE = r.count.toLE
     copyMem(addr buf[offset], unsafeAddr countLE, 8)
     offset += 8
 
@@ -214,13 +214,13 @@ proc decodeRequest*(data: openArray[byte]): WantBlocksResult[WantBlocksRequest] 
   if offset + (rangeCount * SizeRange) > data.len:
     return err(wantBlocksError(RequestTruncated, "Request truncated (ranges)"))
 
-  var ranges = newSeqOfCap[tuple[start: uint64, count: uint64]](rangeCount)
+  var ranges = newSeqOfCap[IndexRange](rangeCount)
   for _ in 0 ..< rangeCount:
     let start = uint64.fromBytes(data.toOpenArray(offset, offset + 7), littleEndian)
     offset += 8
     let count = uint64.fromBytes(data.toOpenArray(offset, offset + 7), littleEndian)
     offset += 8
-    ranges.add((start, count))
+    ranges.add(IndexRange(start: start, count: count))
 
   ok(WantBlocksRequest(requestId: requestId, treeCid: treeCid, ranges: ranges))
 
@@ -615,7 +615,7 @@ proc toBlockDeliveryView*(
   ok(
     BlockDeliveryView(
       cid: entry.cid,
-      address: BlockAddress(treeCid: treeCid, index: entry.index.Natural),
+      address: BlockAddress(treeCid: treeCid, index: entry.index),
       proof: some(entry.proof),
       sharedBuf: sharedBuf,
       dataOffset: entry.dataOffset,

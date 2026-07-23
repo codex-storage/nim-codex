@@ -48,6 +48,7 @@ static:
 type PeerContext* = ref object of RootObj
   id*: PeerId
   stats*: PeerPerfStats
+  wantListBusy*: bool
 
 proc new*(T: type PeerContext, id: PeerId): PeerContext =
   PeerContext(id: id, stats: PeerPerfStats.new())

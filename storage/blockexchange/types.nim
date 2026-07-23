@@ -13,10 +13,12 @@ import std/algorithm
 
 import pkg/libp2p/cid
 
+import ./protocol/message
+
 type
   BlockRange* = object
     treeCid*: Cid
-    ranges*: seq[tuple[start: uint64, count: uint64]]
+    ranges*: seq[IndexRange]
 
   BlockAvailabilityKind* = enum
     bakUnknown
@@ -31,7 +33,7 @@ type
     of bakComplete:
       discard
     of bakRanges:
-      ranges*: seq[tuple[start: uint64, count: uint64]]
+      ranges*: seq[IndexRange]
     of bakBitmap:
       bitmap*: seq[byte]
       totalBlocks*: uint64
@@ -43,7 +45,7 @@ proc complete*(_: type BlockAvailability): BlockAvailability =
   BlockAvailability(kind: bakComplete)
 
 proc fromRanges*(
-    _: type BlockAvailability, ranges: seq[tuple[start: uint64, count: uint64]]
+    _: type BlockAvailability, ranges: seq[IndexRange]
 ): BlockAvailability =
   BlockAvailability(kind: bakRanges, ranges: ranges)
 
@@ -59,10 +61,10 @@ proc hasBlock*(avail: BlockAvailability, index: uint64): bool =
   of bakComplete:
     true
   of bakRanges:
-    for (start, count) in avail.ranges:
-      if count > high(uint64) - start:
+    for r in avail.ranges:
+      if r.count > high(uint64) - r.start:
         continue
-      if index >= start and index < start + count:
+      if index >= r.start and index < r.start + r.count:
         return true
     false
   of bakBitmap:
@@ -86,11 +88,11 @@ proc hasRange*(avail: BlockAvailability, start: uint64, count: uint64): bool =
     true
   of bakRanges:
     let reqEnd = start + count
-    for (rangeStart, rangeCount) in avail.ranges:
-      if rangeCount > high(uint64) - rangeStart:
+    for r in avail.ranges:
+      if r.count > high(uint64) - r.start:
         continue
-      let rangeEnd = rangeStart + rangeCount
-      if start >= rangeStart and reqEnd <= rangeEnd:
+      let rangeEnd = r.start + r.count
+      if start >= r.start and reqEnd <= rangeEnd:
         return true
     false
   of bakBitmap:
@@ -110,12 +112,12 @@ proc hasAnyInRange*(avail: BlockAvailability, start: uint64, count: uint64): boo
     true
   of bakRanges:
     let reqEnd = start + count
-    for (rangeStart, rangeCount) in avail.ranges:
-      if rangeCount > high(uint64) - rangeStart:
+    for r in avail.ranges:
+      if r.count > high(uint64) - r.start:
         continue
-      let rangeEnd = rangeStart + rangeCount
+      let rangeEnd = r.start + r.count
       # check if they overlap
-      if start < rangeEnd and rangeStart < reqEnd:
+      if start < rangeEnd and r.start < reqEnd:
         return true
     false
   of bakBitmap:
@@ -124,15 +126,13 @@ proc hasAnyInRange*(avail: BlockAvailability, start: uint64, count: uint64): boo
         return true
     false
 
-proc mergeRanges(
-    ranges: seq[tuple[start: uint64, count: uint64]]
-): seq[tuple[start: uint64, count: uint64]] =
+proc mergeRanges(ranges: seq[IndexRange]): seq[IndexRange] =
   if ranges.len == 0:
     return @[]
 
   var sorted = ranges
   sorted.sort(
-    proc(a, b: tuple[start: uint64, count: uint64]): int =
+    proc(a, b: IndexRange): int =
       if a.start < b.start:
         -1
       elif a.start > b.start:
@@ -172,9 +172,7 @@ proc merge*(current: BlockAvailability, other: BlockAvailability): BlockAvailabi
   if other.kind == bakUnknown:
     return current
 
-  proc bitmapToRanges(
-      avail: BlockAvailability
-  ): seq[tuple[start: uint64, count: uint64]] =
+  proc bitmapToRanges(avail: BlockAvailability): seq[IndexRange] =
     result = @[]
     var
       inRange = false
@@ -185,10 +183,10 @@ proc merge*(current: BlockAvailability, other: BlockAvailability): BlockAvailabi
         rangeStart = i
         inRange = true
       elif not hasIt and inRange:
-        result.add((rangeStart, i - rangeStart))
+        result.add(IndexRange(start: rangeStart, count: i - rangeStart))
         inRange = false
     if inRange:
-      result.add((rangeStart, avail.totalBlocks - rangeStart))
+      result.add(IndexRange(start: rangeStart, count: avail.totalBlocks - rangeStart))
 
   let currentRanges =
     if current.kind == bakRanges:

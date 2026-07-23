@@ -6,6 +6,7 @@
 !LICENSE*
 !Makefile
 !Jenkinsfile
+!Dockerfile
 
 nimcache/
 

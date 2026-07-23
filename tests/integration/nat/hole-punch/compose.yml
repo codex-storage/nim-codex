@@ -1,0 +1,126 @@
+# NAT hole-punch scenario — see README.md. Run via testholepunch.nim.
+name: nat-hole-punch
+
+# Two NATed nodes, one behind each router (separate lans), so neither can reach
+# the other on a shared lan: the only direct path is a coordinated hole punch.
+x-addresses:
+  wan_subnet: &wan_subnet 7.7.7.0/24
+  lan1_subnet: &lan1_subnet 10.99.1.0/24
+  lan2_subnet: &lan2_subnet 10.99.2.0/24
+  # A: public bootstrap, autonat + relay server
+  bootstrap_ip: &bootstrap_ip 7.7.7.10
+  # router1 (B's NAT)
+  router1_wan_ip: &router1_wan_ip 7.7.7.3
+  router1_lan_ip: &router1_lan_ip 10.99.1.2
+  # router2 (D's NAT)
+  router2_wan_ip: &router2_wan_ip 7.7.7.4
+  router2_lan_ip: &router2_lan_ip 10.99.2.2
+  # B behind router1, D behind router2
+  node_ip: &node_ip 10.99.1.10
+  peer_ip: &peer_ip 10.99.2.10
+
+networks:
+  wan:
+    internal: true
+    ipam:
+      config:
+        - subnet: *wan_subnet
+  lan1:
+    ipam:
+      config:
+        - subnet: *lan1_subnet
+  lan2:
+    ipam:
+      config:
+        - subnet: *lan2_subnet
+
+services:
+  router1:
+    image: localhost/storage-nat
+    cap_add: [NET_ADMIN]
+    sysctls:
+      net.ipv4.ip_forward: 1
+    networks:
+      wan:
+        ipv4_address: *router1_wan_ip
+      lan1:
+        ipv4_address: *router1_lan_ip
+    environment:
+      ROUTER_WAN_IP: *router1_wan_ip
+      LAN_SUBNET: *lan1_subnet
+    volumes:
+      - ../router-common.sh:/scripts/router-common.sh:ro,z
+      - ./router-entrypoint.sh:/scripts/router-entrypoint.sh:ro,z
+    entrypoint: ["bash", "/scripts/router-entrypoint.sh"]
+
+  router2:
+    image: localhost/storage-nat
+    cap_add: [NET_ADMIN]
+    sysctls:
+      net.ipv4.ip_forward: 1
+    networks:
+      wan:
+        ipv4_address: *router2_wan_ip
+      lan2:
+        ipv4_address: *router2_lan_ip
+    environment:
+      ROUTER_WAN_IP: *router2_wan_ip
+      LAN_SUBNET: *lan2_subnet
+    volumes:
+      - ../router-common.sh:/scripts/router-common.sh:ro,z
+      - ./router-entrypoint.sh:/scripts/router-entrypoint.sh:ro,z
+    entrypoint: ["bash", "/scripts/router-entrypoint.sh"]
+
+  bootstrap:
+    image: localhost/storage-nat
+    networks:
+      wan:
+        ipv4_address: *bootstrap_ip
+    entrypoint: ["/app/build/storage"]
+    command:
+      - --listen-ip=0.0.0.0
+      - --api-bindaddr=0.0.0.0
+      - --listen-port=8070
+      - --disc-port=8090
+      - --api-port=8080
+      # bootstrap_ip (anchors can't go inside a string)
+      - --nat=extip:7.7.7.10
+      - --relay-server
+      - --autonat-server
+      - --no-bootstrap-node
+      - --data-dir=/data
+      - --log-level=DEBUG
+
+  # B: behind router1, uploaded to and downloaded from
+  node:
+    image: localhost/storage-nat
+    cap_add: [NET_ADMIN]
+    depends_on: [router1, bootstrap]
+    networks:
+      lan1:
+        ipv4_address: *node_ip
+    ports:
+      - "127.0.0.1:18090:8080"
+    environment:
+      ROUTER_LAN_IP: *router1_lan_ip
+      BOOTSTRAP_API: http://7.7.7.10:8080
+    volumes:
+      - ../node-entrypoint.sh:/scripts/node-entrypoint.sh:ro,z
+    entrypoint: ["bash", "/scripts/node-entrypoint.sh"]
+
+  # D: behind router2, the one that downloads from B through the relay
+  peer:
+    image: localhost/storage-nat
+    cap_add: [NET_ADMIN]
+    depends_on: [router2, bootstrap]
+    networks:
+      lan2:
+        ipv4_address: *peer_ip
+    ports:
+      - "127.0.0.1:18091:8080"
+    environment:
+      ROUTER_LAN_IP: *router2_lan_ip
+      BOOTSTRAP_API: http://7.7.7.10:8080
+    volumes:
+      - ../node-entrypoint.sh:/scripts/node-entrypoint.sh:ro,z
+    entrypoint: ["bash", "/scripts/node-entrypoint.sh"]

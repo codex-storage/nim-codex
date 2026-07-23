@@ -12,6 +12,7 @@ import std/[tables, sugar, hashes]
 {.push raises: [], gcsafe.}
 
 import pkg/libp2p/[cid, multicodec, multihash]
+import pkg/protobuf_serialization
 import pkg/stew/[byteutils, endians2]
 import pkg/questionable
 import pkg/questionable/results
@@ -30,9 +31,9 @@ type
     cid*: Cid
     data*: ref seq[byte]
 
-  BlockAddress* = object
-    treeCid* {.serialize.}: Cid
-    index* {.serialize.}: Natural
+  BlockAddress* {.proto2.} = object
+    treeCid* {.serialize, fieldNumber: 1, required, ext.}: Cid
+    index* {.serialize, fieldNumber: 2, required, pint.}: uint64
 
 logutils.formatIt(LogFormat.textLines, BlockAddress):
   "treeCid: " & shortLog($it.treeCid) & ", index: " & $it.index
@@ -50,7 +51,7 @@ proc hash*(a: BlockAddress): Hash =
   let data = a.treeCid.data.buffer & @(a.index.uint64.toBytesBE)
   hash(data)
 
-proc init*(_: type BlockAddress, treeCid: Cid, index: Natural): BlockAddress =
+proc init*(_: type BlockAddress, treeCid: Cid, index: uint64): BlockAddress =
   BlockAddress(treeCid: treeCid, index: index)
 
 proc `$`*(b: Block): string =

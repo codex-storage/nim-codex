@@ -5,7 +5,6 @@
 ## The PEER type is available only with storage_enable_api_debug_peers flag.
 ## It will return info about a specific peer if available.
 
-import std/[options]
 import chronos
 import chronicles
 import codexdht/discv5/spr
@@ -14,7 +13,8 @@ import ../../../storage/conf
 import ../../../storage/rest/json
 import ../../../storage/node
 
-from ../../../storage/storage import StorageServer, node
+from ../../../storage/storage import StorageServer, node, config
+import ../../../storage/discovery
 
 logScope:
   topics = "libstorage libstoragedebug"
@@ -49,19 +49,11 @@ proc destroyShared*(self: ptr NodeDebugRequest) =
 proc getDebug(
     storage: ptr StorageServer
 ): Future[Result[string, string]] {.async: (raises: []).} =
-  let node = storage[].node
-  let table = RestRoutingTable.init(node.discovery.protocol.routingTable)
-
-  let json = %*{
-    "id": $node.switch.peerInfo.peerId,
-    "addrs": node.switch.peerInfo.addrs.mapIt($it),
-    "spr":
-      if node.discovery.dhtRecord.isSome: node.discovery.dhtRecord.get.toURI else: "",
-    "announceAddresses": node.discovery.announceAddrs,
-    "table": table,
-  }
-
-  return ok($json)
+  let nodeInfo = %DebugInfo.init(
+    storage[].node, storage[].autonatService, storage[].autoRelayService,
+    storage[].natMapper,
+  )
+  return ok($nodeInfo)
 
 proc getPeer(
     storage: ptr StorageServer, peerId: cstring

@@ -88,7 +88,7 @@ extern "C"
     //  "id": "...",
     //  "addrs": ["..."],
     //  "spr": "",
-    //  "announceAddresses": ["..."],
+    //  "providerAddresses": ["..."],
     //  "table": {
     //   "localNode": "",
     //   "nodes": [
@@ -116,6 +116,13 @@ extern "C"
     // Peer Identity reference as specified at
     // https://docs.libp2p.io/concepts/fundamentals/peers/
     int storage_peer_id(
+        void *ctx,
+        StorageCallback callback,
+        void *userData);
+
+    // Returns node metrics in the Logos openmetrics-compatible
+    // format (https://github.com/logos-co/openmetrics-module).
+    int storage_get_metrics(
         void *ctx,
         StorageCallback callback,
         void *userData);
@@ -215,6 +222,20 @@ extern "C"
     int storage_upload_file(
         void *ctx,
         const char *sessionId,
+        StorageCallback callback,
+        void *userData);
+
+    // When set to true, runs all of the subsequent DHT **queries** over
+    // the Logos mix network. Note that this affects queries only, not
+    // advertisements.
+    //
+    // This is a **temporary** API and will likely be gone by mainnet.
+    //
+    // The callback returns a string containing the previous value for
+    // private queries ("true" if they were enabled, or "false" otherwise).
+    int storage_toggle_private_queries(
+        void *ctx,
+        bool enabled,
         StorageCallback callback,
         void *userData);
 

@@ -15,8 +15,11 @@ proc example*(_: type bt.Block, size: int = 4096): bt.Block =
   let bytes = newSeqWith(size, rand(uint8))
   bt.Block.new(bytes).tryGet()
 
+proc example*(_: type PrivateKey): PrivateKey =
+  PrivateKey.random(storage_rng.Rng.instance().libp2pRng).get
+
 proc example*(_: type PeerId): PeerId =
-  let key = PrivateKey.random(storage_rng.Rng.instance().libp2pRng).get
+  let key = PrivateKey.example
   PeerId.init(key.getPublicKey().get).get
 
 proc example*(_: type PeerContext): PeerContext =
@@ -24,6 +27,15 @@ proc example*(_: type PeerContext): PeerContext =
 
 proc example*(_: type Cid): Cid =
   bt.Block.example.cid
+
+proc example*(_: type SignedPeerRecord): SignedPeerRecord =
+  let
+    key = PrivateKey.example
+    peerId = PeerId.init(key.getPublicKey().get).get
+    record = PeerRecord.init(peerId, @[])
+    spr = SignedPeerRecord.init(key, record).tryGet()
+
+  spr
 
 proc example*(_: type BlockAddress): BlockAddress =
   BlockAddress.init(Cid.example, 0)

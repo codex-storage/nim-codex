@@ -7,144 +7,84 @@
 ## This file may not be copied, modified, or distributed except according to
 ## those terms.
 
-# This module implements serialization and deserialization of Manifest
-
-import times
+## This module implements serialization and deserialization of Manifest.
+##
+## ```protobuf
+##   Message Manifest {
+##     required uint32 manifestVersion = 1; # manifest format version
+##     required bytes treeCid = 2;          # cid (root) of the tree
+##     required uint32 blockSize = 3;       # size of a single block
+##     required uint64 datasetSize = 4;     # size of the dataset
+##     required codec: MultiCodec = 5;      # Dataset codec
+##     required hcodec: MultiCodec = 6;     # Multihash codec
+##     required version: CidVersion = 7;    # Cid version
+##     optional filename: string = 8;       # original filename
+##     optional mimetype: string = 9;       # original mimetype
+##   }
+## ```
 
 {.push raises: [].}
 
-import std/tables
-import std/options
-
-import pkg/libp2p
+import pkg/faststreams
+import pkg/libp2p/cid
+import pkg/protobuf_serialization
+import pkg/protobuf_serialization/codec
+import pkg/protobuf_serialization/std/enums
 import pkg/questionable
 import pkg/questionable/results
-import pkg/chronos
 
 import ./manifest
-import ../errors
 import ../blocktype
-import ../logutils
+import ../utils/protobuf/cid
+import ../utils/protobuf/multicodec
+import ../utils/protobuf/nbytes
+import ../utils/protobuf/option
+import ../utils/protobuf/refobject
+
+type ManifestEnvelope {.proto2.} = object
+  data {.fieldNumber: 1, required.}: seq[byte]
+
+proc encodeManifestFields(manifest: Manifest): seq[byte] {.raises: [IOError].} =
+  encode(Protobuf, manifest)
+
+proc decodeManifestFields(
+    fields: seq[byte]
+): Manifest {.raises: [SerializationError].} =
+  decode(Protobuf, fields, Manifest)
+
+proc decodeEnvelope(
+    data: openArray[byte]
+): ManifestEnvelope {.raises: [SerializationError].} =
+  decode(Protobuf, data, ManifestEnvelope)
 
 proc encode*(manifest: Manifest): ?!seq[byte] =
-  ## Encode the manifest into a ``ManifestCodec``
-  ## multicodec container (Dag-pb) for now
-  ##
-
-  var pbNode = initProtoBuffer()
-
-  # NOTE: The `Data` field in the the `dag-pb`
-  # contains the following protobuf `Message`
-  #
-  # ```protobuf
-  #   Message Header {
-  #     required uint32 manifestVersion = 1; # manifest format version
-  #     optional bytes treeCid = 2;          # cid (root) of the tree
-  #     optional uint32 blockSize = 3;       # size of a single block
-  #     optional uint64 datasetSize = 4;     # size of the dataset
-  #     optional codec: MultiCodec = 5;      # Dataset codec
-  #     optional hcodec: MultiCodec = 6;     # Multihash codec
-  #     optional version: CidVersion = 7;    # Cid version
-  #     optional filename: string = 8;       # original filename
-  #     optional mimetype: string = 9;       # original mimetype
-  #   }
-  # ```
-  #
-  var header = initProtoBuffer()
-  header.write(1, manifest.manifestVersion)
-  header.write(2, manifest.treeCid.data.buffer)
-  header.write(3, manifest.blockSize.uint32)
-  header.write(4, manifest.datasetSize.uint64)
-  header.write(5, manifest.codec.uint32)
-  header.write(6, manifest.hcodec.uint32)
-  header.write(7, manifest.version.uint32)
-
-  if manifest.filename.isSome:
-    header.write(8, manifest.filename.get())
-
-  if manifest.mimetype.isSome:
-    header.write(9, manifest.mimetype.get())
-
-  pbNode.write(1, header) # set the treeCid as the data field
-  pbNode.finish()
-
-  return pbNode.buffer.success
+  try:
+    encode(Protobuf, ManifestEnvelope(data: encodeManifestFields(manifest))).success
+  except IOError as exc:
+    failure(exc.msg)
 
 proc decode*(_: type Manifest, data: openArray[byte]): ?!Manifest =
-  ## Decode a manifest from a data blob
-  ##
+  if data.len == 0:
+    return failure("Empty manifest input")
 
-  var
-    pbNode = initProtoBuffer(data)
-    pbHeader: ProtoBuffer
-    treeCidBuf: seq[byte]
-    datasetSize: uint64
-    codec: uint32
-    hcodec: uint32
-    version: uint32
-    blockSize: uint32
-    manifestVersion: uint32
-    filename: string
-    mimetype: string
+  let envelope =
+    try:
+      decodeEnvelope(data)
+    except SerializationError as exc:
+      return failure("Unable to decode manifest envelope: " & exc.msg)
 
-  # Decode `Header` message
-  if pbNode.getField(1, pbHeader).isErr:
-    return failure("Unable to decode `Header` from dag-pb manifest!")
+  let manifest =
+    try:
+      decodeManifestFields(envelope.data)
+    except SerializationError as exc:
+      return failure("Unable to decode manifest fields: " & exc.msg)
 
-  # Decode `Header` contents
-  if pbHeader.getField(1, manifestVersion).isErr:
-    return failure("Unable to decode `manifestVersion` from manifest!")
+  if manifest.manifestVersion != 0:
+    return failure("Unsupported manifest version: " & $manifest.manifestVersion)
 
-  if pbHeader.getField(2, treeCidBuf).isErr:
-    return failure("Unable to decode `treeCid` from manifest!")
+  manifest.success
 
-  if pbHeader.getField(3, blockSize).isErr:
-    return failure("Unable to decode `blockSize` from manifest!")
-
-  if pbHeader.getField(4, datasetSize).isErr:
-    return failure("Unable to decode `datasetSize` from manifest!")
-
-  if pbHeader.getField(5, codec).isErr:
-    return failure("Unable to decode `codec` from manifest!")
-
-  if pbHeader.getField(6, hcodec).isErr:
-    return failure("Unable to decode `hcodec` from manifest!")
-
-  if pbHeader.getField(7, version).isErr:
-    return failure("Unable to decode `version` from manifest!")
-
-  if pbHeader.getField(8, filename).isErr:
-    return failure("Unable to decode `filename` from manifest!")
-
-  if pbHeader.getField(9, mimetype).isErr:
-    return failure("Unable to decode `mimetype` from manifest!")
-
-  if manifestVersion != 0:
-    return failure("Unsupported manifest version: " & $manifestVersion)
-
-  let treeCid = ?Cid.init(treeCidBuf).mapFailure
-
-  var filenameOption = if filename.len == 0: string.none else: filename.some
-  var mimetypeOption = if mimetype.len == 0: string.none else: mimetype.some
-
-  let self = Manifest.new(
-    treeCid = treeCid,
-    datasetSize = datasetSize.NBytes,
-    blockSize = blockSize.NBytes,
-    version = CidVersion(version),
-    hcodec = hcodec.MultiCodec,
-    codec = codec.MultiCodec,
-    filename = filenameOption,
-    mimetype = mimetypeOption,
-    manifestVersion = manifestVersion,
-  )
-
-  self.success
-
-func decode*(_: type Manifest, blk: Block): ?!Manifest =
-  ## Decode a manifest using `decoder`
-  ##
-
+proc decode*(_: type Manifest, blk: Block): ?!Manifest =
   if not ?blk.cid.isManifest:
     return failure "Cid not a manifest codec"
 

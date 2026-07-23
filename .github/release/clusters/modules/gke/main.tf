@@ -8,6 +8,25 @@ resource "google_container_cluster" "this" {
 
   deletion_protection = false
 
+  network    = var.network
+  subnetwork = var.subnetwork
+
+  # VPC-native cluster, required for private nodes.
+  ip_allocation_policy {
+    cluster_secondary_range_name  = var.pods_range_name
+    services_secondary_range_name = var.services_range_name
+  }
+
+  # Nodes get only internal IPs, avoiding the per-region IN_USE_ADDRESSES
+  # quota. The control plane keeps its public endpoint (no
+  # master_authorized_networks_config) so the GitHub-hosted CI runner can
+  # still reach it.
+  private_cluster_config {
+    enable_private_nodes    = true
+    enable_private_endpoint = false
+    master_ipv4_cidr_block  = var.master_ipv4_cidr_block
+  }
+
   # Send pod stdout/stderr to Cloud Logging automatically
   logging_service    = "logging.googleapis.com/kubernetes"
   monitoring_service = "monitoring.googleapis.com/kubernetes"

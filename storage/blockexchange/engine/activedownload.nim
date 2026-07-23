@@ -94,7 +94,7 @@ proc manifestCid*(download: ActiveDownload): Cid =
   download.ctx.md.manifestCid
 
 proc makeBlockAddress*(download: ActiveDownload, index: uint64): BlockAddress =
-  BlockAddress(treeCid: download.treeCid, index: index.int)
+  BlockAddress(treeCid: download.treeCid, index: index)
 
 proc getOrCreateBlockReq(download: ActiveDownload, address: BlockAddress): BlockReq =
   download.blocks.withValue(address, blkReq):

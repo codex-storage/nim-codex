@@ -61,7 +61,7 @@ proc makeWantList*(
   WantList(
     entries: (0 ..< count).mapIt(
       WantListEntry(
-        address: BlockAddress(treeCid: treeCid, index: it),
+        address: BlockAddress(treeCid: treeCid, index: it.uint64),
         priority: priority.int32,
         cancel: cancel,
         wantType: wantType,

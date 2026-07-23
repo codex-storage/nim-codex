@@ -20,6 +20,7 @@ import ../../manifest
 import ../../storagetypes
 import ../../blocktype
 import ../protocol/constants
+import ../protocol/message
 import ../utils
 
 export scheduler, peercontext, manifest
@@ -28,6 +29,8 @@ const
   PresenceWindowBytes*: uint64 = 1024 * 1024 * 1024
   PresenceWindowBlocks*: uint64 = PresenceWindowBytes div DefaultBlockSize.uint64
   MaxPresenceWindowBlocks*: uint64 = PresenceWindowBytes div MinBlockSize
+  MaxRangeIterationsPerMessage*: uint64 =
+    PresenceWindowBytes div DefaultBlockSize.uint64
   PresenceWindowThreshold*: float = 0.75
   PresenceBroadcastIntervalMin*: Duration = 5.seconds
   PresenceBroadcastIntervalMax*: Duration = 10.seconds
@@ -65,7 +68,7 @@ type
       lastBroadcastTime: Moment
       broadcastInterval: Duration
     of spRandomWindow:
-      pendingRanges: seq[tuple[start: uint64, count: uint64]]
+      pendingRanges: seq[IndexRange]
 
   DownloadContext* = ref object
     md*: ManifestDescriptor
@@ -110,16 +113,16 @@ proc shouldBroadcast(t: BroadcastAvailabilityTracker, scheduler: Scheduler): boo
 
 proc getRanges(
     t: var BroadcastAvailabilityTracker, scheduler: Scheduler
-): seq[tuple[start: uint64, count: uint64]] =
+): seq[IndexRange] =
   case t.policy
   of spRandomWindow:
     t.pendingRanges
   of spSequential:
     let watermark = scheduler.completedWatermark()
-    var ranges: seq[tuple[start: uint64, count: uint64]] = @[]
+    var ranges: seq[IndexRange] = @[]
     if watermark > t.lastBroadcastedWatermark:
       ranges.add(
-        (
+        IndexRange(
           start: t.lastBroadcastedWatermark,
           count: watermark - t.lastBroadcastedWatermark,
         )
@@ -127,7 +130,7 @@ proc getRanges(
     t.pendingOOOSnapshot.clear()
     for batchStart in scheduler.completedOutOfOrderItems:
       if batchStart notin t.broadcastedOutOfOrder:
-        ranges.add((start: batchStart, count: scheduler.batchSizeCount))
+        ranges.add(IndexRange(start: batchStart, count: scheduler.batchSizeCount))
         t.pendingOOOSnapshot.incl(batchStart)
     ranges
 
@@ -154,7 +157,7 @@ proc addPendingRange(
 ) =
   case t.policy
   of spRandomWindow:
-    t.pendingRanges.add(range)
+    t.pendingRanges.add(IndexRange(start: range.start, count: range.count))
   of spSequential:
     discard
 
@@ -249,20 +252,18 @@ proc trimPresenceBeforeWatermark*(ctx: DownloadContext) =
       let peer = peerOpt.get()
       # only trim range-based availability
       if peer.availability.kind == bakRanges:
-        var newRanges: seq[tuple[start: uint64, count: uint64]] = @[]
-        for (start, count) in peer.availability.ranges:
-          let rangeEnd = start + count
+        var newRanges: seq[IndexRange] = @[]
+        for r in peer.availability.ranges:
+          let rangeEnd = r.start + r.count
           if rangeEnd > watermark:
             # keep ranges not entirely below watermark
-            newRanges.add((start, count))
+            newRanges.add(r)
         peer.availability = BlockAvailability.fromRanges(newRanges)
 
 proc shouldBroadcastAvailability*(ctx: DownloadContext): bool =
   ctx.availabilityTracker.shouldBroadcast(ctx.scheduler)
 
-proc getAvailabilityBroadcast*(
-    ctx: DownloadContext
-): seq[tuple[start: uint64, count: uint64]] =
+proc getAvailabilityBroadcast*(ctx: DownloadContext): seq[IndexRange] =
   ctx.availabilityTracker.getRanges(ctx.scheduler)
 
 proc markAvailabilityBroadcasted*(ctx: DownloadContext) =

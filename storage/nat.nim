@@ -8,421 +8,349 @@
 
 {.push raises: [].}
 
-import
-  std/[options, os, times, net, atomics, exitprocs],
-  nat_traversal/[miniupnpc, natpmp],
-  json_serialization/std/net,
-  results
+import std/[options, net, os, sequtils, json]
+import results
 
 import pkg/chronos
 import pkg/chronicles
 import pkg/libp2p
+import pkg/libp2p/services/autorelayservice
+import pkg/libp2p/protocols/connectivity/autonatv2/service
+import pkg/libp2p/protocols/connectivity/relay/relay as relayProtocol
+import pkg/libp2p/protocols/connectivity/dcutr/client as dcutrClientModule
+import pkg/libp2p/protocols/connectivity/dcutr/server as dcutrServerModule
+import pkg/libp2p/wire
 
 import ./utils
 import ./utils/natutils
 import ./utils/addrutils
+import ./discovery
 
-const
-  UPNP_TIMEOUT = 200 # ms
-  PORT_MAPPING_INTERVAL = 20 * 60 # seconds
-  NATPMP_LIFETIME = 60 * 60 # in seconds, must be longer than PORT_MAPPING_INTERVAL
-
-type PortMappings* = object
-  internalTcpPort: Port
-  externalTcpPort: Port
-  internalUdpPort: Port
-  externalUdpPort: Port
-  description: string
-
-type PortMappingArgs =
-  tuple[strategy: NatStrategy, tcpPort, udpPort: Port, description: string]
+logScope:
+  topics = "nat"
 
 type NatConfig* = object
   case hasExtIp*: bool
   of true: extIp*: IpAddress
   of false: nat*: NatStrategy
 
-var
-  upnp {.threadvar.}: Miniupnp
-  npmp {.threadvar.}: NatPmp
-  strategy = NatStrategy.NatNone
-  natClosed: Atomic[bool]
-  extIp: Option[IpAddress]
-  activeMappings: seq[PortMappings]
-  natThreads: seq[Thread[PortMappingArgs]] = @[]
+type PortMapping* = object
+  tcpMappingId: cint
+  udpMappingId: cint
+  activeMappingProtocol*: MappingProtocol
+  activeTcpPort*: Port
+  activeUdpPort*: Port
 
-logScope:
-  topics = "nat"
+type NatPortMapper* = ref object of RootObj
+  natConfig*: NatConfig
+  tcpPort*: Port
+  discoveryPort*: Port
+  discoverTimeout*: int
+  mappingTimeout*: int
+  recheckPeriod*: int
+  portMapping*: Option[PortMapping]
+  plumInitialized: bool
+  stopped: bool
 
-type PrefSrcStatus = enum
-  NoRoutingInfo
-  PrefSrcIsPublic
-  PrefSrcIsPrivate
-  BindAddressIsPublic
-  BindAddressIsPrivate
+# libplum seams, extracted as methods so tests can override them without I/O.
 
-## Also does threadvar initialisation.
-## Must be called before redirectPorts() in each thread.
-proc getExternalIP*(natStrategy: NatStrategy, quiet = false): Option[IpAddress] =
-  var externalIP: IpAddress
+method initPlum*(m: NatPortMapper): Result[void, string] {.base, gcsafe.} =
+  let plumLogLevel =
+    if getEnv("DEBUG") == "1": PlumLogLevel.Verbose else: PlumLogLevel.None
+  init(
+    logLevel = plumLogLevel,
+    discoverTimeout = m.discoverTimeout.int32,
+    mappingTimeout = m.mappingTimeout.int32,
+    recheckPeriod = m.recheckPeriod.int32,
+  )
 
-  if natStrategy == NatStrategy.NatAny or natStrategy == NatStrategy.NatUpnp:
-    if upnp == nil:
-      upnp = newMiniupnp()
+method createMappingFor*(
+    m: NatPortMapper, protocol: PlumProtocol, port: uint16
+): Future[Result[MappingResult, string]] {.
+    base, async: (raises: [CancelledError]), gcsafe
+.} =
+  await createMapping(protocol, port, port)
 
-    upnp.discoverDelay = UPNP_TIMEOUT
-    let dres = upnp.discover()
-    if dres.isErr:
-      debug "UPnP", msg = dres.error
-    else:
-      var
-        msg: cstring
-        canContinue = true
-      case upnp.selectIGD()
-      of IGDNotFound:
-        msg = "Internet Gateway Device not found. Giving up."
-        canContinue = false
-      of IGDFound:
-        msg = "Internet Gateway Device found."
-      of IGDNotConnected:
-        msg = "Internet Gateway Device found but it's not connected. Trying anyway."
-      of NotAnIGD:
-        msg =
-          "Some device found, but it's not recognised as an Internet Gateway Device. Trying anyway."
-      of IGDIpNotRoutable:
-        msg =
-          "Internet Gateway Device found and is connected, but with a reserved or non-routable IP. Trying anyway."
-      if not quiet:
-        debug "UPnP", msg
-      if canContinue:
-        let ires = upnp.externalIPAddress()
-        if ires.isErr:
-          debug "UPnP", msg = ires.error
-        else:
-          # if we got this far, UPnP is working and we don't need to try NAT-PMP
-          try:
-            externalIP = parseIpAddress(ires.value)
-            strategy = NatStrategy.NatUpnp
-            return some(externalIP)
-          except ValueError as e:
-            error "parseIpAddress() exception", err = e.msg
-            return
+method destroyMappingFor*(m: NatPortMapper, id: cint) {.base, gcsafe.} =
+  destroyMapping(id)
 
-  if natStrategy == NatStrategy.NatAny or natStrategy == NatStrategy.NatPmp:
-    if npmp == nil:
-      npmp = newNatPmp()
-    let nres = npmp.init()
-    if nres.isErr:
-      debug "NAT-PMP", msg = nres.error
-    else:
-      let nires = npmp.externalIPAddress()
-      if nires.isErr:
-        debug "NAT-PMP", msg = nires.error
-      else:
-        try:
-          externalIP = parseIpAddress($(nires.value))
-          strategy = NatStrategy.NatPmp
-          return some(externalIP)
-        except ValueError as e:
-          error "parseIpAddress() exception", err = e.msg
-          return
+method hasLivePortMapping*(m: NatPortMapper): bool {.base, gcsafe.} =
+  ## True only when a mapping was created AND both the TCP and UDP mappings are
+  ## still live in the router.
+  if m.portMapping.isNone:
+    return false
 
-# This queries the routing table to get the "preferred source" attribute and
-# checks if it's a public IP. If so, then it's our public IP.
-#
-# Further more, we check if the bind address (user provided, or a "0.0.0.0"
-# default) is a public IP. That's a long shot, because code paths involving a
-# user-provided bind address are not supposed to get here.
-proc getRoutePrefSrc(bindIp: IpAddress): (Option[IpAddress], PrefSrcStatus) =
-  let bindAddress = initTAddress(bindIp, Port(0))
+  let pm = m.portMapping.get
+  hasMapping(pm.tcpMappingId) and hasMapping(pm.udpMappingId)
 
-  if bindAddress.isAnyLocal():
-    let ip = getRouteIpv4()
-    if ip.isErr():
-      # No route was found, log error and continue without IP.
-      error "No routable IP address found, check your network connection",
-        error = ip.error
-      return (none(IpAddress), NoRoutingInfo)
-    elif ip.get().isGlobalUnicast():
-      return (some(ip.get()), PrefSrcIsPublic)
-    else:
-      return (none(IpAddress), PrefSrcIsPrivate)
-  elif bindAddress.isGlobalUnicast():
-    return (some(bindIp), BindAddressIsPublic)
-  else:
-    return (none(IpAddress), BindAddressIsPrivate)
+proc resetMappings(m: NatPortMapper) =
+  if m.portMapping.isSome:
+    let pm = m.portMapping.get
+    m.destroyMappingFor(pm.tcpMappingId)
+    m.destroyMappingFor(pm.udpMappingId)
+    m.portMapping = none(PortMapping)
 
-# Try to detect a public IP assigned to this host, before trying NAT traversal.
-proc getPublicRoutePrefSrcOrExternalIP*(
-    natStrategy: NatStrategy, bindIp: IpAddress, quiet = true
-): Option[IpAddress] =
-  let (prefSrcIp, prefSrcStatus) = getRoutePrefSrc(bindIp)
+method mapNatPorts*(
+    m: NatPortMapper
+): Future[Option[(Port, Port, MappingProtocol)]] {.
+    async: (raises: [CancelledError]), base, gcsafe
+.} =
+  if m.stopped or m.natConfig.hasExtIp:
+    return none((Port, Port, MappingProtocol))
 
-  case prefSrcStatus
-  of NoRoutingInfo, PrefSrcIsPublic, BindAddressIsPublic:
-    return prefSrcIp
-  of PrefSrcIsPrivate, BindAddressIsPrivate:
-    let extIp = getExternalIP(natStrategy, quiet)
-    if extIp.isSome:
-      return some(extIp.get)
+  # If both mappings are still live, return the stored ports without recreating.
+  if m.hasLivePortMapping():
+    let pm = m.portMapping.get
+    return some((pm.activeTcpPort, pm.activeUdpPort, pm.activeMappingProtocol))
 
-proc doPortMapping(
-    strategy: NatStrategy, tcpPort, udpPort: Port, description: string
-): Option[(Port, Port)] {.gcsafe.} =
-  var
-    extTcpPort: Port
-    extUdpPort: Port
+  if not m.plumInitialized:
+    let res = m.initPlum()
+    if res.isErr:
+      warn "Failed to initialize plum", msg = res.error
+      return none((Port, Port, MappingProtocol))
+    m.plumInitialized = true
 
-  if strategy == NatStrategy.NatUpnp:
-    for t in [(tcpPort, UPNPProtocol.TCP), (udpPort, UPNPProtocol.UDP)]:
-      let
-        (port, protocol) = t
-        pmres = upnp.addPortMapping(
-          externalPort = $port,
-          protocol = protocol,
-          internalHost = upnp.lanAddr,
-          internalPort = $port,
-          desc = description,
-          leaseDuration = 0,
-        )
-      if pmres.isErr:
-        error "UPnP port mapping", msg = pmres.error, port
-        return
-      else:
-        # let's check it
-        let cres =
-          upnp.getSpecificPortMapping(externalPort = $port, protocol = protocol)
-        if cres.isErr:
-          warn "UPnP port mapping check failed. Assuming the check itself is broken and the port mapping was done.",
-            msg = cres.error
+  # If there is only one mapping, something went wrong somewhere
+  # so we delete the mappings to recreate them.
+  m.resetMappings()
 
-        info "UPnP: added port mapping",
-          externalPort = port, internalPort = port, protocol = protocol
-        case protocol
-        of UPNPProtocol.TCP:
-          extTcpPort = port
-        of UPNPProtocol.UDP:
-          extUdpPort = port
-  elif strategy == NatStrategy.NatPmp:
-    for t in [(tcpPort, NatPmpProtocol.TCP), (udpPort, NatPmpProtocol.UDP)]:
-      let
-        (port, protocol) = t
-        pmres = npmp.addPortMapping(
-          eport = port.cushort,
-          iport = port.cushort,
-          protocol = protocol,
-          lifetime = NATPMP_LIFETIME,
-        )
-      if pmres.isErr:
-        error "NAT-PMP port mapping", msg = pmres.error, port
-        return
-      else:
-        let extPort = Port(pmres.value)
-        info "NAT-PMP: added port mapping",
-          externalPort = extPort, internalPort = port, protocol = protocol
-        case protocol
-        of NatPmpProtocol.TCP:
-          extTcpPort = extPort
-        of NatPmpProtocol.UDP:
-          extUdpPort = extPort
-  return some((extTcpPort, extUdpPort))
+  let tcpRes = await m.createMappingFor(TCP, m.tcpPort.uint16)
 
-proc repeatPortMapping(args: PortMappingArgs) {.thread, raises: [ValueError].} =
-  ignoreSignalsInThread()
-  let
-    (strategy, tcpPort, udpPort, description) = args
-    interval = initDuration(seconds = PORT_MAPPING_INTERVAL)
-    sleepDuration = 1_000 # in ms, also the maximum delay after pressing Ctrl-C
+  if m.stopped:
+    # Double check in case the node is stopping
+    return none((Port, Port, MappingProtocol))
 
-  var lastUpdate = now()
+  if tcpRes.isErr:
+    warn "TCP port mapping failed", msg = tcpRes.error
+    return none((Port, Port, MappingProtocol))
 
-  # We can't use copies of Miniupnp and NatPmp objects in this thread, because they share
-  # C pointers with other instances that have already been garbage collected, so
-  # we use threadvars instead and initialise them again with getExternalIP(),
-  # even though we don't need the external IP's value.
-  let ipres = getExternalIP(strategy, quiet = true)
-  if ipres.isSome:
-    while natClosed.load() == false:
-      let currTime = now()
-      if currTime >= (lastUpdate + interval):
-        discard doPortMapping(strategy, tcpPort, udpPort, description)
-        lastUpdate = currTime
+  let udpRes = await m.createMappingFor(UDP, m.discoveryPort.uint16)
 
-      sleep(sleepDuration)
+  if m.stopped:
+    # Double check in case the node is stopping
+    return none((Port, Port, MappingProtocol))
 
-proc stopNatThreads() {.noconv.} =
-  # stop the thread
-  debug "Stopping NAT port mapping renewal threads"
-  try:
-    natClosed.store(true)
-    joinThreads(natThreads)
-  except Exception as exc:
-    warn "Failed to stop NAT port mapping renewal thread", exc = exc.msg
+  if udpRes.isErr:
+    warn "UDP port mapping failed", msg = udpRes.error
+    m.destroyMappingFor(tcpRes.value.id)
+    return none((Port, Port, MappingProtocol))
 
-  # delete our port mappings
-
-  # FIXME: if the initial port mapping failed because it already existed for the
-  # required external port, we should not delete it. It might have been set up
-  # by another program.
-
-  # In Windows, a new thread is created for the signal handler, so we need to
-  # initialise our threadvars again.
-
-  let ipres = getExternalIP(strategy, quiet = true)
-  if ipres.isSome:
-    if strategy == NatStrategy.NatUpnp:
-      for entry in activeMappings:
-        for t in [
-          (entry.externalTcpPort, entry.internalTcpPort, UPNPProtocol.TCP),
-          (entry.externalUdpPort, entry.internalUdpPort, UPNPProtocol.UDP),
-        ]:
-          let
-            (eport, iport, protocol) = t
-            pmres = upnp.deletePortMapping(externalPort = $eport, protocol = protocol)
-          if pmres.isErr:
-            error "UPnP port mapping deletion", msg = pmres.error
-          else:
-            debug "UPnP: deleted port mapping",
-              externalPort = eport, internalPort = iport, protocol = protocol
-    elif strategy == NatStrategy.NatPmp:
-      for entry in activeMappings:
-        for t in [
-          (entry.externalTcpPort, entry.internalTcpPort, NatPmpProtocol.TCP),
-          (entry.externalUdpPort, entry.internalUdpPort, NatPmpProtocol.UDP),
-        ]:
-          let
-            (eport, iport, protocol) = t
-            pmres = npmp.deletePortMapping(
-              eport = eport.cushort, iport = iport.cushort, protocol = protocol
-            )
-          if pmres.isErr:
-            error "NAT-PMP port mapping deletion", msg = pmres.error
-          else:
-            debug "NAT-PMP: deleted port mapping",
-              externalPort = eport, internalPort = iport, protocol = protocol
-
-proc redirectPorts*(
-    strategy: NatStrategy, tcpPort, udpPort: Port, description: string
-): Option[(Port, Port)] =
-  result = doPortMapping(strategy, tcpPort, udpPort, description)
-  if result.isSome:
-    let (externalTcpPort, externalUdpPort) = result.get()
-    # needed by NAT-PMP on port mapping deletion
-    # Port mapping works. Let's launch a thread that repeats it, in case the
-    # NAT-PMP lease expires or the router is rebooted and forgets all about
-    # these mappings.
-    activeMappings.add(
-      PortMappings(
-        internalTcpPort: tcpPort,
-        externalTcpPort: externalTcpPort,
-        internalUdpPort: udpPort,
-        externalUdpPort: externalUdpPort,
-        description: description,
-      )
+  m.portMapping = some(
+    PortMapping(
+      tcpMappingId: tcpRes.value.id,
+      udpMappingId: udpRes.value.id,
+      activeMappingProtocol: tcpRes.value.mapping.mappingProtocol,
+      activeTcpPort: Port(tcpRes.value.mapping.externalPort),
+      activeUdpPort: Port(udpRes.value.mapping.externalPort),
     )
+  )
+
+  let pm = m.portMapping.get
+  some((pm.activeTcpPort, pm.activeUdpPort, pm.activeMappingProtocol))
+
+proc close*(m: NatPortMapper) =
+  m.resetMappings()
+
+  if m.plumInitialized:
+    discard cleanup()
+    m.plumInitialized = false
+
+proc start*(m: NatPortMapper) =
+  m.stopped = false
+
+proc stop*(m: NatPortMapper) =
+  ## Ensure that any future AutoNAT callback does not re-initialize libplum.
+  m.stopped = true
+  m.close()
+
+method handleNatStatus*(
+    m: NatPortMapper,
+    networkReachability: NetworkReachability,
+    dialBackAddr: Opt[MultiAddress],
+    discoveryPort: Port,
+    discovery: Discovery,
+    switch: Switch,
+    autoRelayService: AutoRelayService,
+) {.async: (raises: [CancelledError]), base, gcsafe.} =
+  if m.stopped:
+    return
+
+  case networkReachability
+  of Unknown:
+    discard
+  of Reachable:
+    if dialBackAddr.isSome:
+      if autoRelayService.isRunning:
+        await autoRelayService.stop(switch)
+        debug "AutoRelayService stopped"
+
+      discovery.protocol.clientMode = false
+
+      # Here we don't rely on the port mapping because we consider
+      # that port mapped is the same as the discovery port.
+      # This can be wrong for PCP but it is an accepted limitation
+      discovery.announceDirectAddrs(@[dialBackAddr.get], udpPort = discoveryPort)
+    else:
+      warn "Empty dialback address in AutoNat when node is Reachable"
+  of NotReachable:
+    discovery.protocol.clientMode = true
+
+    if not autoRelayService.isRunning and discovery.providerAddrs.len > 0:
+      # Remove any announced addresses, they will be replaced.
+      # If the relay is running, the addresses will be updated on reservation.
+      discovery.announceDirectAddrs(@[], udpPort = discoveryPort)
+
+    if m.hasLivePortMapping():
+      # The mapping is still live but the node is not reachable: keep it and let
+      # the relay take over. A dead mapping falls through to be recreated.
+      debug "Not Reachable with live port mapping, keeping it and starting relay if not started"
+    else:
+      debug "Node is not reachable trying port mapping now"
+
+      let maybePorts = await m.mapNatPorts()
+
+      if m.stopped:
+        # Double check in case the node is stopping
+        return
+
+      if maybePorts.isSome:
+        let (tcpPort, udpPort, protocol) = maybePorts.get()
+
+        info "Port mapping created successfully", tcpPort, udpPort, protocol
+
+        # The announce happens once AutoNAT confirms Reachable.
+
+        return
+      else:
+        # In case of failure, close the port mapping in order to rerun discover
+        # on the next iteration
+        m.close()
+
+    if not autoRelayService.isRunning:
+      debug "No port mapping found let's start autorelay"
+
+      await autoRelayService.start(switch)
+      debug "AutoRelayService started"
+
+proc reachabilityStr*(autonat: Option[AutonatV2Service]): string =
+  if autonat.isSome:
+    $autonat.get.networkReachability
+  else:
+    "Unknown"
+
+proc portMappingStr*(natMapper: Option[NatPortMapper]): string =
+  if natMapper.isNone or natMapper.get.portMapping.isNone:
+    return "none"
+  case natMapper.get.portMapping.get.activeMappingProtocol
+  of MappingProtocol.UPnP: "upnp"
+  of MappingProtocol.NatPmp: "pmp"
+  of MappingProtocol.PCP: "pcp"
+  of MappingProtocol.Direct: "direct"
+  of MappingProtocol.Unknown: "none"
+
+proc peerConnections*(switch: Switch): JsonNode =
+  result = newJArray()
+  for peerId, muxers in switch.connManager.getConnections():
+    let entry = newJObject()
+    entry["peerId"] = newJString($peerId)
+    entry["direct"] = newJBool(muxers.anyIt(not isRelayed(it.connection)))
+    result.add(entry)
+
+proc findAutonatServers*(bootstrapNodes: seq[SignedPeerRecord]): seq[SignedPeerRecord] =
+  ## Returns the list of Autonat servers.
+  ## The nodes are expected to be directly reachable.
+  ## Currently returns bootstrap nodes. In the future, any network participant
+  ## confirmed reachable by AutoNAT and running as AutonatServer could be included.
+  bootstrapNodes
+
+proc announceRelayReservation*(
+    discovery: Discovery, addresses: seq[MultiAddress]
+) {.gcsafe.} =
+  ## Announce the publicly dialable circuit addresses from a relay reservation.
+  ## A reservation response can also carry loopback/private addresses, which a
+  ## remote peer can never dial, so they are dropped. If none are public, the
+  ## previous announce is kept untouched.
+  let publicAddrs = addresses.filterIt(it.hasPublicRelayTransport())
+  if publicAddrs.len == 0:
+    warn "Relay reservation has no publicly dialable address, keeping previous announce",
+      addresses
+    return
+  info "Relay reservation updated", addresses = publicAddrs
+  # relay addresses are for download traffic only, not DHT routing
+  discovery.announceRelayAddrs(publicAddrs)
+
+# Hole punching logic below is adapted from libp2p's HPService
+# (libp2p/services/hpservice.nim). HPService cannot be used directly because it
+# depends on AutoNAT v1 and starts the relay immediately on NotReachable,
+# bypassing the UPnP step.
+
+proc tryStartingDirectConn(
+    switch: Switch, peerId: PeerId
+): Future[bool] {.async: (raises: [CancelledError]).} =
+  proc tryConnect(
+      address: MultiAddress
+  ): Future[bool] {.async: (raises: [DialFailedError, CancelledError]).} =
+    debug "Trying to create direct connection", peerId, address
+    await switch.connect(peerId, @[address], true, false)
+    debug "Direct connection created."
+    return true
+
+  await sleepAsync(500.milliseconds) # wait for AddressBook to be populated
+  for address in switch.peerStore[AddressBook][peerId]:
     try:
-      natThreads.add(Thread[PortMappingArgs]())
-      natThreads[^1].createThread(
-        repeatPortMapping, (strategy, externalTcpPort, externalUdpPort, description)
-      )
-      # atexit() in disguise
-      if natThreads.len == 1:
-        # we should register the thread termination function only once
-        addExitProc(stopNatThreads)
-    except Exception as exc:
-      warn "Failed to create NAT port mapping renewal thread", exc = exc.msg
+      let isRelayedAddr = address.contains(multiCodec("p2p-circuit"))
+      if not isRelayedAddr.get(false) and address.isPublicMA():
+        return await tryConnect(address)
+    except CancelledError as exc:
+      raise exc
+    except CatchableError as err:
+      debug "Failed to create direct connection.", description = err.msg
+      continue
+  return false
 
-proc setupNat*(
-    natStrategy: NatStrategy, tcpPort, udpPort: Port, clientId: string
-): tuple[ip: Option[IpAddress], tcpPort, udpPort: Option[Port]] =
-  ## Setup NAT port mapping and get external IP address.
-  ## If any of this fails, we don't return any IP address but do return the
-  ## original ports as best effort.
-  ## TODO: Allow for tcp or udp port mapping to be optional.
-  if extIp.isNone:
-    extIp = getExternalIP(natStrategy)
-  if extIp.isSome:
-    let ip = extIp.get
-    let extPorts = (
-      {.gcsafe.}:
-        redirectPorts(
-          strategy, tcpPort = tcpPort, udpPort = udpPort, description = clientId
-        )
-    )
-    if extPorts.isSome:
-      let (extTcpPort, extUdpPort) = extPorts.get()
-      (ip: some(ip), tcpPort: some(extTcpPort), udpPort: some(extUdpPort))
-    else:
-      warn "UPnP/NAT-PMP available but port forwarding failed"
-      (ip: none(IpAddress), tcpPort: some(tcpPort), udpPort: some(udpPort))
-  else:
-    warn "UPnP/NAT-PMP not available"
-    (ip: none(IpAddress), tcpPort: some(tcpPort), udpPort: some(udpPort))
+proc closeRelayConn(relayedConn: Connection) {.async: (raises: [CancelledError]).} =
+  await sleepAsync(2000.milliseconds) # grace period before closing relayed connection
+  await relayedConn.close()
 
-proc setupAddress*(
-    natConfig: NatConfig, bindIp: IpAddress, tcpPort, udpPort: Port, clientId: string
-): tuple[ip: Option[IpAddress], tcpPort, udpPort: Option[Port]] {.gcsafe.} =
-  ## Set-up of the external address via any of the ways as configured in
-  ## `NatConfig`. In case all fails an error is logged and the bind ports are
-  ## selected also as external ports, as best effort and in hope that the
-  ## external IP can be figured out by other means at a later stage.
-  ## TODO: Allow for tcp or udp bind ports to be optional.
+proc holePunchIfRelayed*(
+    switch: Switch, peerId: PeerId
+) {.async: (raises: [CancelledError]).} =
+  ## Attempts to establish a direct connection when a peer connected via relay.
+  ## First tries a direct TCP connect (if the peer's address is known and public),
+  ## then falls back to dcutr simultaneous-open hole punching.
+  ## Closes the relay connection once a direct path is established.
+  let connections =
+    switch.connManager.getConnections().getOrDefault(peerId).mapIt(it.connection)
+  if connections.anyIt(not isRelayed(it)):
+    return
+  let incomingRelays = connections.filterIt(it.transportDir == Direction.In)
+  if incomingRelays.len == 0:
+    return
 
-  if natConfig.hasExtIp:
-    # any required port redirection must be done by hand
-    return (some(natConfig.extIp), some(tcpPort), some(udpPort))
+  let relayedConn = incomingRelays[0]
 
-  case natConfig.nat
-  of NatStrategy.NatAny:
-    let (prefSrcIp, prefSrcStatus) = getRoutePrefSrc(bindIp)
+  if await tryStartingDirectConn(switch, peerId):
+    await closeRelayConn(relayedConn)
+    return
 
-    case prefSrcStatus
-    of NoRoutingInfo, PrefSrcIsPublic, BindAddressIsPublic:
-      return (prefSrcIp, some(tcpPort), some(udpPort))
-    of PrefSrcIsPrivate, BindAddressIsPrivate:
-      return setupNat(natConfig.nat, tcpPort, udpPort, clientId)
-  of NatStrategy.NatNone:
-    let (prefSrcIp, prefSrcStatus) = getRoutePrefSrc(bindIp)
+  var natAddrs = switch.peerStore.getMostObservedProtosAndPorts()
+  if natAddrs.len == 0:
+    natAddrs = switch.peerInfo.listenAddrs.mapIt(switch.peerStore.guessDialableAddr(it))
+  try:
+    await DcutrClient.new().startSync(switch, peerId, natAddrs)
+    await closeRelayConn(relayedConn)
+  except DcutrError as err:
+    debug "Hole punching failed during dcutr", description = err.msg
 
-    case prefSrcStatus
-    of NoRoutingInfo, PrefSrcIsPublic, BindAddressIsPublic:
-      return (prefSrcIp, some(tcpPort), some(udpPort))
-    of PrefSrcIsPrivate:
-      error "No public IP address found. Should not use --nat:none option"
-      return (none(IpAddress), some(tcpPort), some(udpPort))
-    of BindAddressIsPrivate:
-      error "Bind IP is not a public IP address. Should not use --nat:none option"
-      return (none(IpAddress), some(tcpPort), some(udpPort))
-  of NatStrategy.NatUpnp, NatStrategy.NatPmp:
-    return setupNat(natConfig.nat, tcpPort, udpPort, clientId)
+proc setupHolePunching*(switch: Switch): PeerEventHandler =
+  try:
+    switch.mount(Dcutr.new(switch))
+  except LPError as err:
+    error "Failed to mount Dcutr protocol", description = err.msg
 
-proc nattedAddress*(
-    natConfig: NatConfig, addrs: seq[MultiAddress], udpPort: Port
-): tuple[libp2p, discovery: seq[MultiAddress]] =
-  ## Takes a NAT configuration, sequence of multiaddresses and UDP port and returns:
-  ## - Modified multiaddresses with NAT-mapped addresses for libp2p
-  ## - Discovery addresses with NAT-mapped UDP ports
-
-  var discoveryAddrs = newSeq[MultiAddress](0)
-  let newAddrs = addrs.mapIt:
-    block:
-      # Extract IP address and port from the multiaddress
-      let (ipPart, port) = getAddressAndPort(it)
-      if ipPart.isSome and port.isSome:
-        # Try to setup NAT mapping for the address
-        let (newIP, tcp, udp) =
-          setupAddress(natConfig, ipPart.get, port.get, udpPort, "storage")
-        if newIP.isSome:
-          # NAT mapping successful - add discovery address with mapped UDP port
-          discoveryAddrs.add(getMultiAddrWithIPAndUDPPort(newIP.get, udp.get))
-          # Remap original address with NAT IP and TCP port
-          it.remapAddr(ip = newIP, port = tcp)
-        else:
-          # NAT mapping failed - use original address
-          echo "Failed to get external IP, using original address", it
-          discoveryAddrs.add(getMultiAddrWithIPAndUDPPort(ipPart.get, udpPort))
-          it
-      else:
-        # Invalid multiaddress format - return as is
-        it
-  (newAddrs, discoveryAddrs)
+  let handler = proc(
+      peerId: PeerId, event: PeerEvent
+  ) {.async: (raises: [CancelledError]).} =
+    await holePunchIfRelayed(switch, peerId)
+  switch.addPeerEventHandler(handler, PeerEventKind.Joined)
+  handler

@@ -1,4 +1,5 @@
 import std/strutils
+import std/sequtils
 
 from pkg/libp2p import Cid, `$`, init
 import pkg/questionable/results
@@ -67,16 +68,6 @@ proc delete(
     async: (raw: true, raises: [CancelledError, HttpError])
 .} =
   return self.request(MethodDelete, url, headers = headers)
-
-proc patch*(
-    self: StorageClient,
-    url: string,
-    body: string = "",
-    headers: seq[HttpHeaderTuple] = @[],
-): Future[HttpClientResponseRef] {.
-    async: (raw: true, raises: [CancelledError, HttpError])
-.} =
-  return self.request(MethodPatch, url, headers = headers, body = body)
 
 proc body*(
     response: HttpClientResponseRef
@@ -228,20 +219,6 @@ proc list*(
     return failure($response.status)
 
   RestContentList.fromJson(await response.body)
-
-proc space*(
-    client: StorageClient
-): Future[?!RestRepoStore] {.async: (raises: [CancelledError, HttpError]).} =
-  let url = client.baseurl & "/space"
-  let response = await client.get(url)
-
-  if response.status != 200:
-    return failure($response.status)
-
-  RestRepoStore.fromJson(await response.body)
-
-proc buildUrl*(client: StorageClient, path: string): string =
-  return client.baseurl & path
 
 proc hasBlock*(
     client: StorageClient, cid: Cid
