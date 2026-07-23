@@ -7,7 +7,8 @@ This folder contains local/Linode test helpers for comparing the standard REST n
 - `start-local-node.sh`: foreground launcher for either the standard storage binary or the libstorage daemon.
 - `storage-test.sh`: target-first test helper for local REST, remote REST, and libstorage daemon targets.
 - `README.md`: operator-facing usage guide.
-- `SETUP_STORAGE_NODE.md`: Linode/headless node setup recipe.
+- `UBUNTU_STORAGE_NODE_SETUP.md`: standalone Ubuntu storage node setup recipe for agents/operators starting from root SSH access.
+- `SETUP_STORAGE_NODE.md`: older Linode/headless node setup recipe; prefer `UBUNTU_STORAGE_NODE_SETUP.md` for new machines.
 
 Related C++ libstorage tools live in `../libstorage-cpp/`:
 
@@ -45,6 +46,15 @@ tools/storage-test/start-local-node.sh --client storage
 tools/storage-test/start-local-node.sh --client lib
 ```
 
+The launcher discovers config files before falling back to CLI defaults. `STORAGE_CONFIG` or `--config <path>` may point to either a config file or a directory. If unset, it checks `${HOME}/.logos/storage`.
+
+Config formats by target:
+
+- `storage`: TOML, default `${HOME}/.logos/storage/config.toml`, passed to `build/storage` as `--config-file=<path>`.
+- `lib`: JSON, default `${HOME}/.logos/storage/config.json`, passed to `storage_lib` as `--config-file <path>`.
+
+If no matching config file exists, the launcher uses the legacy explicit flags listed below.
+
 Shared config between both clients:
 
 - `--data-dir`
@@ -65,6 +75,8 @@ Lib daemon-only config:
 - `--socket`
 - `--timeout-ms`
 - `--chunk-size`
+
+When a lib JSON config file is used, socket, timeout, and chunk size remain daemon CLI settings rather than node config fields.
 
 Default data dirs intentionally differ to avoid datastore locking conflicts:
 

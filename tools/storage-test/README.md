@@ -22,6 +22,8 @@ Remote node ports:
 
 The REST API is not exposed publicly. Use the SSH tunnel managed by `storage-test.sh`.
 
+For setting up a new Ubuntu/Linode storage node from root SSH access, use `UBUNTU_STORAGE_NODE_SETUP.md`. It covers creating the `storage` account, disabling root SSH after verification, building the node, installing the binary, creating `/home/storage/.logos-storage/config.toml`, and running `logos-storage.service` with `--config-file`.
+
 ## Start A Local Node
 
 Build the local binary first if needed:
@@ -54,6 +56,42 @@ Default local settings:
 | REST API | `127.0.0.1:8080` |
 | Lib IPC socket | `~/.logos/storage/libstorage/storage_lib.sock` |
 | Network | `logos.test` |
+
+`start-local-node.sh` looks for config files before falling back to these flag defaults. By default it checks `${HOME}/.logos/storage`.
+
+For the standard `storage` target, use TOML:
+
+```toml
+data-dir = "/home/USER/.logos/storage/local-node"
+disc-port = 8091
+listen-port = 8071
+log-level = "info"
+network = "logos.test"
+api-bindaddr = "127.0.0.1"
+api-port = 8080
+```
+
+For the `lib` target, use JSON:
+
+```json
+{
+  "data-dir": "/home/USER/.logos/storage/libstorage/node",
+  "disc-port": 8091,
+  "listen-port": 8071,
+  "log-level": "info",
+  "network": "logos.test",
+  "metrics": false
+}
+```
+
+Default config paths:
+
+| Target | Config file |
+|---|---|
+| `storage` | `${HOME}/.logos/storage/config.toml` |
+| `lib` | `${HOME}/.logos/storage/config.json` |
+
+Override discovery with `STORAGE_CONFIG` or `--config`. The value can be either a config file or a directory containing `config.toml` and/or `config.json`.
 
 `info` is a good default log level: it shows startup, networking, and high-level node events without the volume of `debug` or `trace`.
 
@@ -223,6 +261,8 @@ tools/storage-test/storage-test.sh lib debug
 ```
 
 Override the socket with `STORAGE_LIB_SOCKET` if the daemon was started with a non-default socket path.
+
+The libstorage daemon supports `--config-file <path>` for JSON node configuration. `start-local-node.sh --client lib` passes the discovered `config.json` when present, while keeping daemon-only settings such as socket, timeout, and chunk size as CLI options.
 
 ## Test Scenario
 

@@ -4,6 +4,8 @@ This recipe describes how to prepare a fresh machine to run a headless Logos Sto
 
 The first section is system-independent. The second section gives the concrete Ubuntu 24.04 setup used for the Linode test node.
 
+For new Ubuntu machines, prefer `UBUNTU_STORAGE_NODE_SETUP.md`. It is the current standalone setup guide and includes the root-to-`storage` account bootstrap, disabling root SSH, TOML config-file based startup, and update procedure.
+
 ## Goal
 
 Set up a machine that:
@@ -27,9 +29,7 @@ The storage node command should look conceptually like:
 
 ```bash
 storage \
-  --data-dir=<data-dir> \
-  --listen-port=8070 \
-  --disc-port=8090
+  --config-file=/home/storage/.logos-storage/config.toml
 ```
 
 Do not pass `--api-bindaddr=0.0.0.0` unless there is a deliberate reason to expose the API. The default API bind address is `127.0.0.1`.
@@ -263,13 +263,25 @@ make -j"$(nproc)" update
 make -j"$(nproc)" NIMFLAGS="-d:disableMarchNative"
 ```
 
-### 8. Install Binary And Data Directory
+### 8. Install Binary, Data Directory, And Config
 
 ```bash
 sudo install -d -m 755 -o root -g root /opt/logos-storage
 sudo install -m 755 -o root -g root ~/logos-storage-nim/build/storage /opt/logos-storage/storage
 sudo install -d -m 700 -o storage -g storage /var/lib/logos-storage
+sudo install -d -m 755 -o storage -g storage /home/storage/.logos-storage
 /opt/logos-storage/storage --help >/dev/null
+
+tmp_config="$(mktemp)"
+cat > "$tmp_config" <<'EOF'
+data-dir = "/var/lib/logos-storage"
+disc-port = 8090
+listen-port = 8070
+log-level = "info"
+network = "logos.test"
+EOF
+sudo install -m 644 -o storage -g storage "$tmp_config" /home/storage/.logos-storage/config.toml
+rm -f "$tmp_config"
 ```
 
 ### 9. Create `systemd` Service
@@ -286,14 +298,14 @@ Type=simple
 User=storage
 Group=storage
 WorkingDirectory=/var/lib/logos-storage
-ExecStart=/opt/logos-storage/storage --data-dir=/var/lib/logos-storage --listen-port=8070 --disc-port=8090
+ExecStart=/opt/logos-storage/storage --config-file=/home/storage/.logos-storage/config.toml
 Restart=on-failure
 RestartSec=10
 LimitNOFILE=1048576
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=full
-ReadWritePaths=/var/lib/logos-storage
+ReadWritePaths=/var/lib/logos-storage /home/storage/.logos-storage
 
 [Install]
 WantedBy=multi-user.target
@@ -307,6 +319,8 @@ sudo systemctl enable --now logos-storage.service
 
 ```bash
 systemctl --no-pager --full status logos-storage.service
+systemctl cat logos-storage.service
+stat -c '%U %G %a %n' /home/storage/.logos-storage/config.toml
 ss -lntup | grep -E ':(8070|8080|8090)\b'
 curl -fsS http://127.0.0.1:8080/api/storage/v1/peerid
 curl -fsS http://127.0.0.1:8080/api/storage/v1/spr
@@ -343,7 +357,7 @@ Then use:
 curl http://127.0.0.1:18080/api/storage/v1/peerid
 ```
 
-In this repository, `tools/storage-test/storage-test.sh` manages this tunnel automatically for commands targeting `remote`.
+In this repository, `tools/storage-test/storage-test.sh` manages this tunnel automatically for commands targeting `remote`. This is test tooling, not part of the node setup itself.
 
 ## Operational Commands
 
