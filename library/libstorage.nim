@@ -119,6 +119,7 @@ proc storage_new(
   ).isOkOr:
     let msg = $error
     callback(RET_ERR, unsafeAddr msg[0], cast[csize_t](len(msg)), userData)
+    discard storage_context.destroyStorageContext(ctx)
     return nil
 
   return ctx
@@ -310,11 +311,8 @@ proc storage_upload_chunk(
   initializeLibrary()
   checkLibstorageParams(ctx, callback, userData)
 
-  let chunk = newSeq[byte](len)
-  copyMem(addr chunk[0], data, len)
-
   let reqContent = NodeUploadRequest.createShared(
-    NodeUploadMsgType.CHUNK, sessionId = sessionId, chunk = chunk
+    NodeUploadMsgType.CHUNK, sessionId = sessionId, chunkData = data, chunkLen = len.int
   )
   let res = storage_context.sendRequestToStorageThread(
     ctx, RequestType.UPLOAD, reqContent, callback, userData

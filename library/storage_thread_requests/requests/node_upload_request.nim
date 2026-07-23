@@ -47,7 +47,9 @@ type NodeUploadRequest* = object
   operation: NodeUploadMsgType
   sessionId: cstring
   filepath: cstring
-  chunk: seq[byte]
+  # Use a pointer to free the memory in destroyShared
+  chunk: pointer
+  chunkLen: int
   chunkSize: csize_t
 
 type
@@ -68,21 +70,30 @@ proc createShared*(
     op: NodeUploadMsgType,
     sessionId: cstring = "",
     filepath: cstring = "",
-    chunk: seq[byte] = @[],
+    chunkData: ptr byte = nil,
+    chunkLen: int = 0,
     chunkSize: csize_t = 0,
 ): ptr type T =
   var ret = createShared(T)
   ret[].operation = op
   ret[].sessionId = sessionId.alloc()
   ret[].filepath = filepath.alloc()
-  ret[].chunk = chunk
+  ret[].chunkLen = chunkLen
   ret[].chunkSize = chunkSize
+
+  if chunkLen > 0:
+    ret[].chunk = allocShared(chunkLen)
+    copyMem(ret[].chunk, chunkData, chunkLen)
 
   return ret
 
-proc destroyShared(self: ptr NodeUploadRequest) =
+proc destroyShared*(self: ptr NodeUploadRequest) =
   deallocShared(self[].filepath)
   deallocShared(self[].sessionId)
+
+  if self[].chunk != nil:
+    deallocShared(self[].chunk)
+
   deallocShared(self)
 
 proc init(
@@ -347,7 +358,13 @@ proc process*(
       return err($res.error)
     return res
   of NodeUploadMsgType.CHUNK:
-    let res = (await chunk(storage, self.sessionId, self.chunk))
+    # self.chunk is a raw memory pointer, but chunk() takes a seq[byte],
+    # so we copy the bytes into a new seq.
+    var data = newSeq[byte](self.chunkLen)
+    if self.chunkLen > 0:
+      copyMem(addr data[0], self.chunk, self.chunkLen)
+
+    let res = (await chunk(storage, self.sessionId, data))
     if res.isErr:
       error "Failed to CHUNK.", error = res.error
       return err($res.error)

@@ -37,7 +37,7 @@ type StorageContext* = object
   # To notify the Logos Storage thread that a request is ready
   reqSignal: ThreadSignalPtr
 
-  # To notify the client thread that the request was received. 
+  # To notify the client thread that the request was received.
   # It is acknowledgment signal (handshake).
   reqReceivedSignal: ThreadSignalPtr
 
@@ -48,7 +48,7 @@ type StorageContext* = object
   # Function called by the library to notify the client of global events
   eventCallback*: pointer
 
-  # Custom state attached by the client to the context, 
+  # Custom state attached by the client to the context,
   # returned with every event callback
   eventUserData*: pointer
 
@@ -56,8 +56,8 @@ type StorageContext* = object
   running: Atomic[bool]
 
 template callEventCallback(ctx: ptr StorageContext, eventName: string, body: untyped) =
-  ## Template used to notify the client of global events 
-  ## Example: onConnectionChanged, onProofMissing, etc. 
+  ## Template used to notify the client of global events
+  ## Example: onConnectionChanged, onProofMissing, etc.
   if isNil(ctx[].eventCallback):
     error eventName & " - eventCallback is nil"
     return
@@ -94,27 +94,28 @@ proc sendRequestToStorageThread*(
   # Send the request to the Logos Storage thread
   let sentOk = ctx.reqChannel.trySend(req)
   if not sentOk:
-    deallocShared(req)
-    return err("Failed to send request to the Logos Storage thread: " & $req[])
+    let reqDesc = $req[]
+    req.destroy()
+    return err("Failed to send request to the Logos Storage thread: " & reqDesc)
+
+  # trySend has succeeded: req is published in the channel and
+  # owned by the Logos Storage thread, which frees it in handleRes.
 
   # Notify the Logos Storage thread that a request is available
   let fireSyncRes = ctx.reqSignal.fireSync()
   if fireSyncRes.isErr():
-    deallocShared(req)
     return err(
       "Failed to send request to the Logos Storage thread: unable to fireSync: " &
         $fireSyncRes.error
     )
 
   if fireSyncRes.get() == false:
-    deallocShared(req)
     return
       err("Failed to send request to the Logos Storage thread: fireSync timed out.")
 
   # Wait until the Logos Storage thread properly received the request
   let res = ctx.reqReceivedSignal.waitSync(timeout)
   if res.isErr():
-    deallocShared(req)
     return err(
       "Failed to send request to the Logos Storage thread: unable to receive reqReceivedSignal signal."
     )
@@ -172,13 +173,13 @@ proc createStorageContext*(): Result[ptr StorageContext, string] =
   # Allocates a StorageContext in shared memory  (for the main thread)
   var ctx = createShared(StorageContext, 1)
 
-  # This signal is used by the main side to wake the Logos Storage thread 
+  # This signal is used by the main side to wake the Logos Storage thread
   # when a new request is enqueued.
   ctx.reqSignal = ThreadSignalPtr.new().valueOr:
     return
       err("Failed to create a context: unable to create reqSignal ThreadSignalPtr.")
 
-  # Used to let the caller know that the Logos Storage thread has 
+  # Used to let the caller know that the Logos Storage thread has
   # acknowledged / picked up a request (like a handshake).
   ctx.reqReceivedSignal = ThreadSignalPtr.new().valueOr:
     return err(

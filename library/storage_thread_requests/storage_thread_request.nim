@@ -53,6 +53,30 @@ proc createShared*(
   ret[].userData = userData
   return ret
 
+proc destroy*(request: ptr StorageThreadRequest) =
+  ## Frees the payload (reqContent) and the wrapper on error paths,
+  ## when the request is not handed to the storage thread.
+  ## On success paths, the storage thread frees the payload and the wrapper.
+  case request[].reqType
+  of LIFECYCLE:
+    cast[ptr NodeLifecycleRequest](request[].reqContent).destroyShared()
+  of INFO:
+    cast[ptr NodeInfoRequest](request[].reqContent).destroyShared()
+  of RequestType.DEBUG:
+    cast[ptr NodeDebugRequest](request[].reqContent).destroyShared()
+  of P2P:
+    cast[ptr NodeP2PRequest](request[].reqContent).destroyShared()
+  of UPLOAD:
+    cast[ptr NodeUploadRequest](request[].reqContent).destroyShared()
+  of DOWNLOAD:
+    cast[ptr NodeDownloadRequest](request[].reqContent).destroyShared()
+  of STORAGE:
+    cast[ptr NodeStorageRequest](request[].reqContent).destroyShared()
+  of MIX:
+    cast[ptr NodeMixRequest](request[].reqContent).destroyShared()
+
+  deallocShared(request)
+
 # NOTE: User callbacks are executed on the working thread.
 # They must be fast and non-blocking; otherwise this thread will be blocked
 # and no further requests can be processed.
