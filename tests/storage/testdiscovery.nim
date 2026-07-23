@@ -30,14 +30,14 @@ suite "Discovery - SPR record logic":
     check addrs.anyIt(it.contains("/tcp/"))
     check addrs.anyIt(it.contains("/udp/"))
 
-  test "announceDirectAddrs update the provider record with TCP addresses only":
+  test "announceDirectAddrs updates the provider record with TCP addresses only":
     disc.announceDirectAddrs(@[directAddr], udpPort)
 
     let providerAddrs = disc.providerRecord.get.data.addresses.mapIt($it.address)
     check providerAddrs.anyIt(it.contains("/tcp/"))
     check not providerAddrs.anyIt(it.contains("/udp/"))
 
-  test "announceDirectAddrs update the local record with UDP addresses only":
+  test "announceDirectAddrs updates the local record with UDP addresses only":
     disc.announceDirectAddrs(@[directAddr], udpPort)
 
     let discoveryAddrs = disc.protocol.getRecord().data.addresses.mapIt($it.address)
@@ -45,21 +45,21 @@ suite "Discovery - SPR record logic":
     check not discoveryAddrs.anyIt(it.contains("/tcp/"))
 
   test "SPR contains provider (TCP) after announceRelayAddrs":
-    disc.announceRelayAddrs(@[directAddr])
+    disc.announceRelayAddrs(@[relayAddr])
 
     let addrs = disc.getSpr().data.addresses.mapIt($it.address)
     check addrs.anyIt(it.contains("/tcp/"))
     check not addrs.anyIt(it.contains("/udp/"))
 
-  test "announceRelayAddrs update the provider record with TCP addresses only":
-    disc.announceRelayAddrs(@[directAddr])
+  test "announceRelayAddrs updates the provider record with TCP addresses only":
+    disc.announceRelayAddrs(@[relayAddr])
 
     let providerAddrs = disc.providerRecord.get.data.addresses.mapIt($it.address)
     check providerAddrs.anyIt(it.contains("/tcp/"))
     check not providerAddrs.anyIt(it.contains("/udp/"))
 
   test "announceRelayAddrs does not update the local record":
-    disc.announceRelayAddrs(@[directAddr])
+    disc.announceRelayAddrs(@[relayAddr])
 
     let discoveryAddrs = disc.protocol.getRecord().data.addresses.mapIt($it.address)
     check discoveryAddrs.len == 0

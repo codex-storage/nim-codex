@@ -244,7 +244,7 @@ proc announceDirectAddrs*(
 
 proc announceRelayAddrs*(d: Discovery, addrs: openArray[MultiAddress]) =
   ## Updates the announce addresses and the SPR with the relay circuit addresses.
-  ## Unlike announceDirectAddrs, no UDP address is derived so dhtAddrs is left untouched.
+  ## Unlike announceDirectAddrs, no UDP address is derived so discoveryAddrs is left untouched.
   d.providerAddrs = @addrs
 
   info "Updating announce record", addrs = d.providerAddrs
