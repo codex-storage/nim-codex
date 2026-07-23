@@ -6,7 +6,6 @@ import std/sugar
 import std/tables
 from pkg/chronicles import LogLevel
 import pkg/storage/conf
-import pkg/storage/units
 import pkg/confutils
 import pkg/confutils/defs
 import libp2p except setup
@@ -234,49 +233,33 @@ proc withBlockMaintenanceInterval*(
     config.addCliOption("--block-mi", $interval)
   return startConfig
 
-proc logLevelWithTopics(
-    config: StorageConfig, topics: varargs[string]
-): string {.raises: [StorageConfigError].} =
-  convertError:
-    var logLevel = LogLevel.INFO
-    let built = config.buildConfig("Invalid storage config cli params")
-    logLevel = parseEnum[LogLevel](built.logLevel.toUpperAscii)
-    let level = $logLevel & ";TRACE: " & topics.join(",")
-    return level
-
-proc withLogTopics*(
-    self: StorageConfigs, idx: int, topics: varargs[string]
-): StorageConfigs {.raises: [StorageConfigError].} =
-  self.checkBounds idx
-
-  convertError:
-    let config = self.configs[idx]
-    let level = config.logLevelWithTopics(topics)
-    var startConfig = self
-    return startConfig.withLogLevel(idx, level)
-
-proc withLogTopics*(
-    self: StorageConfigs, topics: varargs[string]
-): StorageConfigs {.raises: [StorageConfigError].} =
-  var startConfig = self
-  for config in startConfig.configs.mitems:
-    let level = config.logLevelWithTopics(topics)
-    config = config.withLogLevel(level)
-  return startConfig
-
-proc withStorageQuota*(
-    self: StorageConfigs, idx: int, quota: NBytes
+proc withExtIp*(
+    self: StorageConfigs, idx: int, ip = "127.0.0.1"
 ): StorageConfigs {.raises: [StorageConfigError].} =
   self.checkBounds idx
 
   var startConfig = self
-  startConfig.configs[idx].addCliOption("--storage-quota", $quota)
+  startConfig.configs[idx].addCliOption("--nat", "extip:" & ip)
   return startConfig
 
-proc withStorageQuota*(
-    self: StorageConfigs, quota: NBytes
+# For testing, a node with extip (not behind nat) with autonat server
+# enabled is a bootstrap node
+proc isBootstrapNode*(config: StorageConfig): bool {.raises: [].} =
+  let opts = config.cliOptions.getOrDefault(StartUpCmd.noCmd)
+
+  try:
+    if "--nat" in opts and "extip" in opts["--nat"].value and "--autonat-server" in opts:
+      return true
+  except KeyError:
+    warn "Failed to look at the extip config"
+    return false
+
+  return false
+
+proc withAutonatServer*(
+    self: StorageConfigs, idx: int
 ): StorageConfigs {.raises: [StorageConfigError].} =
+  self.checkBounds idx
   var startConfig = self
-  for config in startConfig.configs.mitems:
-    config.addCliOption("--storage-quota", $quota)
+  startConfig.configs[idx].addCliOption("--autonat-server")
   return startConfig

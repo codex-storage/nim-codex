@@ -95,9 +95,10 @@ integration_test () {
     integration_test_job $tests
   done
 
-  # fail when there are integration tests with an unknown duration
+  # fail when there are integration tests with an unknown duration. nat/ is
+  # excluded: those real-topology scenarios run via the nat-integration job.
   local filter='1_minute\|5_minutes\|30_minutes'
-  local unknown=$(find_tests tests/integration | grep -v "$filter")
+  local unknown=$(find_tests tests/integration | grep -v "$filter" | grep -v '/nat/')
   if [ "$unknown" != "" ]; then
     echo "Error: Integration tests need to be in either the 1_minute," >&2
     echo "       5_minutes, or 30_minutes directory, based on the maximum" >&2
@@ -117,11 +118,22 @@ libstorage_test () {
   job
 }
 
+# outputs the NAT real-topology integration job (all scenarios).
+# Linux-only: needs network-namespace + iptables manipulation.
+nat_integration_tests () {
+  job_tests="nat-integration"
+  job_includes=""
+  job
+}
+
 # outputs jobs for all test types
 all_tests () {
   unit_test
   integration_test
   libstorage_test
+  if [ "$job_os" = "linux" ]; then
+    nat_integration_tests
+  fi
 }
 
 # outputs jobs for the specified operating systems and all test types

@@ -104,7 +104,8 @@ components:
         - id
         - addrs
         - spr
-        - announceAddresses
+        - providerAddresses
+        - discoveryAddresses
         - libp2pPubKey
         - table
         - storage
@@ -119,7 +120,11 @@ components:
           $ref: "#/components/schemas/SPR"
         providerRecord:
           $ref: "#/components/schemas/SPR"
-        announceAddresses:
+        providerAddresses:
+          type: array
+          items:
+            $ref: "#/components/schemas/MultiAddress"
+        discoveryAddresses:
           type: array
           items:
             $ref: "#/components/schemas/MultiAddress"
@@ -134,6 +139,47 @@ components:
           $ref: "#/components/schemas/PeersTable"
         storage:
           $ref: "#/components/schemas/StorageVersion"
+        nat:
+          $ref: "#/components/schemas/NatInfo"
+        connections:
+          type: array
+          items:
+            $ref: "#/components/schemas/Connection"
+
+    NatInfo:
+      type: object
+      required:
+        - reachability
+        - clientMode
+        - relayRunning
+        - portMapping
+      properties:
+        reachability:
+          type: string
+          enum: [Unknown, Reachable, NotReachable]
+          description: AutoNAT reachability status
+        clientMode:
+          type: boolean
+          description: Whether the DHT is running in client mode (not added to remote routing tables)
+        relayRunning:
+          type: boolean
+          description: Whether the AutoRelay service is currently running
+        portMapping:
+          type: string
+          enum: [none, upnp, pmp, pcp, direct]
+          description: Active NAT port mapping type
+
+    Connection:
+      type: object
+      required:
+        - peerId
+        - direct
+      properties:
+        peerId:
+          $ref: "#/components/schemas/PeerId"
+        direct:
+          type: boolean
+          description: Whether at least one connection to this peer is direct (not relayed)
 
     DataList:
       type: object

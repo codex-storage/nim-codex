@@ -23,10 +23,13 @@ import pkg/confutils
 
 import pkg/libp2p
 import pkg/libp2p/routing_record
-import pkg/codexdht/discv5/spr as spr
+import pkg/libp2p/protocols/connectivity/autonatv2/service
+import pkg/libp2p/services/autorelayservice
+import pkg/codexdht/discv5/spr
 
 import ../logutils
 import ../node
+import ../discovery
 import ../blocktype
 import ../storagetypes
 import ../conf
@@ -37,6 +40,7 @@ import ../stores/repostore
 import ../blockexchange
 import ../units
 import ../utils/options
+import ../nat
 
 import ./coders
 import ./json
@@ -484,10 +488,7 @@ proc initNodeApi(node: StorageNodeRef, conf: StorageConf, router: var RestRouter
     var headers = buildCorsHeaders("GET", allowedOrigin)
 
     try:
-      without spr =? node.discovery.dhtRecord:
-        return RestApiResponse.response(
-          "", status = Http503, contentType = "application/json", headers = headers
-        )
+      let spr = node.discovery.getSpr()
 
       if $preferredContentType().get() == "text/plain":
         return RestApiResponse.response(
@@ -530,8 +531,8 @@ proc initNodeApi(node: StorageNodeRef, conf: StorageConf, router: var RestRouter
     ## to invoke peer discovery, if it succeeds
     ## the returned addresses will be used to dial
     ##
-    ## `addrs` the listening addresses of the peers to dial, which is 
-    ## /ip4/0.0.0.0/tcp/<port>, where port is specified with the 
+    ## `addrs` the listening addresses of the peers to dial, which is
+    ## /ip4/0.0.0.0/tcp/<port>, where port is specified with the
     ## `--listen-port` CLI flag.
     ##
     var headers = buildCorsHeaders("GET", allowedOrigin)
@@ -557,7 +558,13 @@ proc initNodeApi(node: StorageNodeRef, conf: StorageConf, router: var RestRouter
       return
         RestApiResponse.error(Http500, "Unknown error dialling peer", headers = headers)
 
-proc initDebugApi(node: StorageNodeRef, router: var RestRouter) =
+proc initDebugApi(
+    node: StorageNodeRef,
+    autonat: Option[AutonatV2Service],
+    autoRelay: Option[AutoRelayService],
+    natMapper: Option[NatPortMapper],
+    router: var RestRouter,
+) =
   let allowedOrigin = router.allowedOrigin
 
   router.api(MethodGet, "/api/storage/v1/debug/info") do() -> RestApiResponse:
@@ -568,7 +575,7 @@ proc initDebugApi(node: StorageNodeRef, router: var RestRouter) =
     try:
       # return pretty json for human readability
       return RestApiResponse.response(
-        DebugInfo.init(node).toJson(pretty = true),
+        DebugInfo.init(node, autonat, autoRelay, natMapper).toJson(pretty = true),
         contentType = "application/json",
         headers = headers,
       )
@@ -626,12 +633,15 @@ proc initRestApi*(
     node: StorageNodeRef,
     conf: StorageConf,
     repoStore: RepoStore,
+    autonat: Option[AutonatV2Service],
+    autoRelay: Option[AutoRelayService],
+    natMapper: Option[NatPortMapper],
     corsAllowedOrigin: ?string,
 ): RestRouter =
   var router = RestRouter.init(validate, corsAllowedOrigin)
 
   initDataApi(node, repoStore, router)
   initNodeApi(node, conf, router)
-  initDebugApi(node, router)
+  initDebugApi(node, autonat, autoRelay, natMapper, router)
 
   return router

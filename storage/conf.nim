@@ -54,6 +54,8 @@ export
   DefaultQuotaBytes, DefaultBlockTtl, DefaultBlockInterval, DefaultNumBlocksPerInterval,
   DefaultBlockRetries
 
+const DefaultNatScheduleInterval* = 2.minutes
+
 type ThreadCount* = distinct Natural
 
 proc `==`*(a, b: ThreadCount): bool {.borrow.}
@@ -157,10 +159,9 @@ type
     nat* {.
       desc:
         "Specify method to use for determining public address. " &
-        "Must be one of: any, none, upnp, pmp, extip:<IP>. " &
-        "If connecting to peers on a local network only, use 'none'.",
+        "Must be one of: auto, extip:<IP>.",
       defaultValue: defaultNatConfig(),
-      defaultValueDesc: "any",
+      defaultValueDesc: "auto",
       name: "nat"
     .}: NatConfig
 
@@ -343,11 +344,130 @@ type
       desc: "Logs to file", defaultValue: string.none, name: "log-file", hidden
     .}: Option[string]
 
+    natScheduleInterval* {.
+      desc: "Interval between AutoNAT reachability checks",
+      defaultValue: DefaultNatScheduleInterval,
+      defaultValueDesc: $DefaultNatScheduleInterval,
+      name: "nat-schedule-interval"
+    .}: Duration
+
+    natNumPeersToAsk* {.
+      desc: "Number of peers to contact per AutoNAT round",
+      defaultValue: 3,
+      name: "nat-num-peers-to-ask"
+    .}: int
+
+    natMaxQueueSize* {.
+      desc: "Number of past AutoNAT results kept to calculate confidence",
+      defaultValue: 3,
+      name: "nat-max-queue-size"
+    .}: int
+
+    natMinConfidence* {.
+      # With maxQueueSize=3, 0.6 confirms reachability on a 2/3 majority
+      # (2/3=0.667) instead of a 3/3 unanimous round, tolerating one inconsistent
+      # peer.
+      desc: "Minimum confidence threshold to confirm reachability",
+      defaultValue: 0.6,
+      name: "nat-min-confidence"
+    .}: float
+
+    natObservedAddrMinCount* {.
+      desc:
+        "Minimum number of times that an address must show up in identify replies" &
+        "before it is used as the node's dialable address",
+      defaultValue: 1,
+      name: "nat-observed-addr-min-count"
+    .}: int
+
+    natMaxRelays* {.
+      desc: "Maximum number of relay servers to reserve slots on simultaneously",
+      defaultValue: 2,
+      name: "nat-max-relays"
+    .}: int
+
+    natPortMappingDiscoverTimeout* {.
+      desc: "Timeout in milliseconds for UPnP/NAT-PMP/PCP device discovery",
+      defaultValue: 500,
+      name: "nat-port-mapping-discover-timeout"
+    .}: int
+
+    natPortMappingTimeout* {.
+      desc: "Timeout in milliseconds for creating a port mapping on the router",
+      defaultValue: 500,
+      name: "nat-port-mapping-timeout"
+    .}: int
+
+    natPortMappingRecheckPeriod* {.
+      desc: "Period in milliseconds between rechecks of existing port mappings",
+      defaultValue: 300000,
+      name: "nat-port-mapping-recheck-period"
+    .}: int
+
+    autonatServer* {.
+      desc: "Enable AutoNAT server to help other nodes check their reachability",
+      defaultValue: false,
+      name: "autonat-server",
+      hidden
+    .}: bool
+
+    isRelayServer* {.
+      desc: "Enable circuit relay server (hop) - use on publicly reachable nodes only",
+      defaultValue: false,
+      name: "relay-server",
+      hidden
+    .}: bool
+
 func defaultAddress*(conf: StorageConf): IpAddress =
   result = static parseIpAddress("127.0.0.1")
 
 func defaultNatConfig*(): NatConfig =
-  result = NatConfig(hasExtIp: false, nat: NatStrategy.NatAny)
+  result = NatConfig(hasExtIp: false, nat: NatStrategy.NatAuto)
+
+func validateAutonatConfig*(config: StorageConf): ?!void =
+  # An autonat or relay server must be Reachable, assumed with extIp.
+  # In other words, a node cannot be autonat server AND autonat client.
+  # Currently, only bootstrap nodes should be autonat servers.
+  if config.autonatServer and not config.nat.hasExtIp:
+    return failure "--autonat-server requires --nat=extip:<IP>"
+
+  if config.isRelayServer and not config.nat.hasExtIp:
+    return failure "--relay-server requires --nat=extip:<IP>"
+
+  if config.noBootstrapNode and not config.nat.hasExtIp:
+    return failure(
+      "--no-bootstrap-node requires --nat=extip:<IP>: without bootstrap peers " &
+        "AutoNAT has no one to probe and the node can never become reachable"
+    )
+
+  if config.natMaxQueueSize < 1:
+    return failure "--nat-max-queue-size must be at least 1"
+
+  if config.natNumPeersToAsk < 1:
+    return failure "--nat-num-peers-to-ask must be at least 1"
+
+  if config.natObservedAddrMinCount < 1:
+    return failure "--nat-observed-addr-min-count must be at least 1"
+
+  if config.natMinConfidence < 0.0 or config.natMinConfidence > 1.0:
+    return failure "--nat-min-confidence must be between 0 and 1"
+
+  if config.natScheduleInterval <= 0.seconds:
+    return failure "--nat-schedule-interval must be greater than 0"
+
+  if config.natMaxRelays < 1:
+    return failure "--nat-max-relays must be at least 1"
+
+  if config.natPortMappingDiscoverTimeout < 1:
+    return failure "--nat-port-mapping-discover-timeout must be greater than 0"
+
+  if config.natPortMappingTimeout < 1:
+    return failure "--nat-port-mapping-timeout must be greater than 0"
+
+  if config.natPortMappingRecheckPeriod < 1:
+    return failure "--nat-port-mapping-recheck-period must be greater than 0"
+
+  success()
 
 proc getStorageVersion(): string =
   let tag = strip(staticExec("git describe --tags --abbrev=0"))
@@ -413,14 +533,8 @@ proc parseCmdArg*(T: type SignedPeerRecord, uri: string): T =
 
 func parse*(T: type NatConfig, p: string): Result[NatConfig, string] =
   case p.toLowerAscii
-  of "any":
-    return ok(NatConfig(hasExtIp: false, nat: NatStrategy.NatAny))
-  of "none":
-    return ok(NatConfig(hasExtIp: false, nat: NatStrategy.NatNone))
-  of "upnp":
-    return ok(NatConfig(hasExtIp: false, nat: NatStrategy.NatUpnp))
-  of "pmp":
-    return ok(NatConfig(hasExtIp: false, nat: NatStrategy.NatPmp))
+  of "auto":
+    return ok(NatConfig(hasExtIp: false, nat: NatStrategy.NatAuto))
   else:
     if p.startsWith("extip:"):
       try:
@@ -430,7 +544,7 @@ func parse*(T: type NatConfig, p: string): Result[NatConfig, string] =
         let error = "Not a valid IP address: " & p[6 ..^ 1]
         return err(error)
     else:
-      return err("Not a valid NAT option: " & p)
+      return err("Not a valid NAT option: " & p & ". Valid options: auto, extip:<IP>")
 
 proc parseCmdArg*(T: type NatConfig, p: string): T =
   let res = NatConfig.parse(p)

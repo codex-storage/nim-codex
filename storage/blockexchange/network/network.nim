@@ -325,14 +325,14 @@ proc new*(
   ##
 
   # libp2p now requires a non-nil handler at construction; the real one is set
-  # by self.init() below. This nullHander only exists until then.
-  proc nullHander(
+  # by self.init() below. This nullHandler only exists until then.
+  proc nullHandler(
       conn: Connection, proto: string
   ): Future[void] {.async: (raises: [CancelledError]).} =
     discard
 
   let self = lp_protocol.new(
-    BlockExcNetwork, @[Codec], nullHander, maxIncomingStreamsTotal = maxInflight
+    BlockExcNetwork, @[Codec], nullHandler, maxIncomingStreamsTotal = maxInflight
   )
   self.switch = switch
   self.getConn = connProvider

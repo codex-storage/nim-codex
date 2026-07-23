@@ -1,6 +1,5 @@
 ## This file contains the lifecycle request type that will be handled.
 
-import std/[options]
 import chronos
 import chronicles
 import confutils
@@ -12,6 +11,7 @@ import ../../../storage/rest/json
 import ../../../storage/node
 
 from ../../../storage/storage import StorageServer, config, node
+import ../../../storage/discovery
 
 logScope:
   topics = "libstorage libstorageinfo"
@@ -42,11 +42,7 @@ proc getRepo(
 proc getSpr(
     storage: ptr StorageServer
 ): Future[Result[string, string]] {.async: (raises: []).} =
-  let spr = storage[].node.discovery.dhtRecord
-  if spr.isNone:
-    return err("Failed to get SPR: no SPR record found.")
-
-  return ok(spr.get.toURI)
+  return ok(storage[].node.discovery.getSpr().toURI)
 
 proc getPeerId(
     storage: ptr StorageServer

@@ -24,6 +24,7 @@ import pkg/codexdht/discv5/[routing_table, protocol as discv5]
 from pkg/nimcrypto import keccak256
 
 import ./rng as storage_rng
+import ./utils/addrutils
 import ./errors
 import ./logutils
 import ./dht_proxy/client as dht_proxy_client
@@ -41,11 +42,13 @@ type Discovery* = ref object of RootObj
   protocol*: discv5.Protocol # dht protocol
   key: PrivateKey # private key
   peerId: PeerId # the peer id of the local node
-  announceAddrs*: seq[MultiAddress] # addresses announced as part of the provider records
+  providerAddrs*: seq[MultiAddress]
+    # TCP addresses as part of the provider records, exposed for debugging
   providerRecord*: ?SignedPeerRecord
     # record to advertice node connection information, this carry any
     # address that the node can be connected on
-  dhtRecord*: ?SignedPeerRecord # record to advertice DHT connection information
+  discoveryAddrs*: seq[MultiAddress]
+    # UDP addresses as part of the local record, exposed for debugging
   isStarted: bool
   store: Datastore
   mixProto*: MixProtocol
@@ -203,33 +206,55 @@ method removeProvider*(
     warn "Error removing provider", peerId = peerId, exc = exc.msg
     raiseAssert("Unexpected Exception in removeProvider")
 
-proc updateAnnounceRecord*(d: Discovery, addrs: openArray[MultiAddress]) =
-  ## Update providers record
-  ##
+proc getSpr*(d: Discovery): SignedPeerRecord =
+  ## Expose the discovery addresses (UDP) and provider addresses (TCP).
+  ## TCP addresses are needed because Autonat requires to connect to
+  ## Autonat servers and we are currently using the provider record for that.
+  ## We might get rid of that if we add a new configuration option that gives
+  ## the Autonat servers the TCP addresses directly (as Mix options do), or
+  ## once we get proper service discovery/migrate to the libp2p Kad DHT.
+  return SignedPeerRecord
+    .init(d.key, PeerRecord.init(d.peerId, d.providerAddrs & d.discoveryAddrs))
+    .expect("Should construct signed record")
 
-  d.announceAddrs = @addrs
+proc announceDirectAddrs*(
+    d: Discovery, providerAddrs: openArray[MultiAddress], udpPort: Port
+) =
+  # UDP addresses are derived from TCP addresses by remapping protocol and port.
+  let tcpAddrs = @providerAddrs
+  let udpAddrs =
+    tcpAddrs.mapIt(it.remapAddr(protocol = some("udp"), port = some(udpPort)))
+
+  info "Updating provider and discovery records", tcpAddrs, udpAddrs
+
+  d.providerAddrs = tcpAddrs
+  d.providerRecord = SignedPeerRecord
+    .init(d.key, PeerRecord.init(d.peerId, tcpAddrs))
+    .expect("Should construct signed record").some
+
+  info "Provider record updated",
+    addrs = d.providerAddrs, spr = d.providerRecord.get.toURI
+
+  d.discoveryAddrs = udpAddrs
+  if not d.protocol.isNil:
+    let spr = SignedPeerRecord
+      .init(d.key, PeerRecord.init(d.peerId, udpAddrs))
+      .expect("Should construct signed record").some
+    d.protocol.updateRecord(spr).expect("Should update SPR")
+
+proc announceRelayAddrs*(d: Discovery, addrs: openArray[MultiAddress]) =
+  ## Updates the announce addresses and the SPR with the relay circuit addresses.
+  ## Unlike announceDirectAddrs, no UDP address is derived so discoveryAddrs is left untouched.
+  d.providerAddrs = @addrs
+
+  info "Updating announce record", addrs = d.providerAddrs
 
   d.providerRecord = SignedPeerRecord
-    .init(d.key, PeerRecord.init(d.peerId, d.announceAddrs))
+    .init(d.key, PeerRecord.init(d.peerId, d.providerAddrs))
     .expect("Should construct signed record").some
 
-  info "Updating announce record",
-    addrs = d.announceAddrs, spr = d.providerRecord.get.toURI
-
-  if not d.protocol.isNil:
-    d.protocol.updateRecord(d.providerRecord).expect("Should update SPR")
-
-proc updateDhtRecord*(d: Discovery, addrs: openArray[MultiAddress]) =
-  ## Update providers record
-  ##
-
-  info "Updating Dht record", addrs = addrs
-  d.dhtRecord = SignedPeerRecord
-    .init(d.key, PeerRecord.init(d.peerId, @addrs))
-    .expect("Should construct signed record").some
-
-  if not d.protocol.isNil:
-    d.protocol.updateRecord(d.dhtRecord).expect("Should update SPR")
+  info "Provider record updated",
+    addrs = d.providerAddrs, spr = d.providerRecord.get.toURI
 
 proc start*(d: Discovery) {.async: (raises: []).} =
   try:
@@ -274,7 +299,8 @@ proc new*(
     key: PrivateKey,
     bindIp = IPv4_any(),
     bindPort = 0.Port,
-    announceAddrs: openArray[MultiAddress],
+    providerAddrs: openArray[MultiAddress] = [],
+    discoveryPort = 0.Port,
     bootstrapNodes: openArray[SignedPeerRecord] = [],
     dhtMixProxies: openArray[SignedPeerRecord] = [],
     store: Datastore = SQLiteDatastore.new(Memory).expect("Should not fail!"),
@@ -290,7 +316,9 @@ proc new*(
     dhtMixProxies: @dhtMixProxies,
   )
 
-  self.updateAnnounceRecord(announceAddrs)
+  # Called even when providerAddrs is empty: newProtocol below requires
+  # providerRecord to be set, and it will be updated with real addresses in start().
+  self.announceDirectAddrs(providerAddrs, udpPort = discoveryPort)
 
   let discoveryConfig =
     DiscoveryConfig(tableIpLimits: tableIpLimits, bitsPerHop: DefaultBitsPerHop)

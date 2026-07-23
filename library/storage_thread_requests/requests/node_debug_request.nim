@@ -13,7 +13,8 @@ import ../../../storage/conf
 import ../../../storage/rest/json
 import ../../../storage/node
 
-from ../../../storage/storage import StorageServer, node
+from ../../../storage/storage import StorageServer, node, config
+import ../../../storage/discovery
 
 logScope:
   topics = "libstorage libstoragedebug"
@@ -48,7 +49,10 @@ proc destroyShared(self: ptr NodeDebugRequest) =
 proc getDebug(
     storage: ptr StorageServer
 ): Future[Result[string, string]] {.async: (raises: []).} =
-  let nodeInfo = %DebugInfo.init(storage[].node)
+  let nodeInfo = %DebugInfo.init(
+    storage[].node, storage[].autonatService, storage[].autoRelayService,
+    storage[].natMapper,
+  )
   return ok($nodeInfo)
 
 proc getPeer(

@@ -113,6 +113,10 @@ task testIntegration, "Run integration tests":
   # test "testIntegration", params = "-d:chronicles_sinks=textlines[notimestamps,stdout],textlines[dynamic] " &
   #   "-d:chronicles_enabled_topics:integration:TRACE"
 
+task testNatIntegration,
+  "Run NAT real-topology scenarios (needs the storage-nat image + podman-compose)":
+  test "testNatIntegration"
+
 task testLibstorage, "Run libstorage Nim tests":
   test "testLibstorage", outName = "testLibstorage"
 

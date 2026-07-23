@@ -7,7 +7,6 @@ import pkg/storage/chunker
 import pkg/storage/stores
 
 import ../../asynctest
-import ../helpers/switchutils
 
 type CountingStore* = ref object of NetworkStore
   lookups*: Table[Cid, int]
@@ -96,7 +95,7 @@ template setupAndTearDown*() {.dirty.} =
 
     blockDiscovery = Discovery.new(
       switch.peerInfo.privateKey,
-      announceAddrs = @[
+      providerAddrs = @[
         MultiAddress.init("/ip4/127.0.0.1/tcp/0").expect("Should return multiaddress")
       ],
     )

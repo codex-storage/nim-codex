@@ -17,6 +17,12 @@ import pkg/chronos
 import pkg/taskpools
 import pkg/presto
 import pkg/libp2p
+import pkg/libp2p/connmanager
+import pkg/libp2p/protocols/connectivity/autonatv2/[service, client]
+import pkg/libp2p/protocols/connectivity/relay/client as relayClientModule
+import pkg/libp2p/protocols/connectivity/relay/relay as relayModule
+import pkg/libp2p/services/autorelayservice
+import pkg/libp2p/transports/tcptransport
 import pkg/libp2p_mix
 import pkg/confutils
 import pkg/confutils/defs
@@ -36,11 +42,11 @@ import ./utils/fileutils
 import ./utils/mixidentity
 import ./discovery
 import ./utils/addrutils
-import ./utils/natutils
 import ./namespaces
 import ./storagetypes
 import ./logutils
 import ./nat
+import ./utils/natutils
 
 logScope:
   topics = "storage node"
@@ -54,6 +60,12 @@ type
     repoStore: RepoStore
     maintenance: BlockMaintainer
     taskpool: Taskpool
+    # Expose to make reachability accessible from rest api
+    autonatService*: Option[AutonatV2Service]
+    autoRelayService*: Option[AutoRelayService]
+    natMapper*: Option[NatPortMapper]
+    holePunchHandler: Option[connmanager.PeerEventHandler]
+    bootstrapNodes: seq[SignedPeerRecord]
     isStarted: bool
 
   StoragePrivateKey* = libp2p.PrivateKey # alias
@@ -78,6 +90,13 @@ proc start*(s: StorageServer) {.async.} =
   s.maintenance.start()
 
   await s.storageNode.switch.start()
+
+  # Activate SO_REUSEPORT for hole punching in tcptransport.nim.
+  # Without that, hole punching would use an ephemeral port assigned by the OS.
+  # NotReachable has nothing to do with AutoNAT Reachability
+  if s.holePunchHandler.isSome:
+    for t in s.storageNode.switch.transports:
+      t.networkReachability = NetworkReachability.NotReachable
 
   if s.config.mixEnabled:
     let
@@ -129,24 +148,68 @@ proc start*(s: StorageServer) {.async.} =
 
     s.storageNode.engine.network.excludeRelays(relayPool.keys.toSeq)
 
-  let (announceAddrs, discoveryAddrs) = nattedAddress(
-    s.config.nat, s.storageNode.switch.peerInfo.addrs, s.config.discoveryPort
-  )
+  if s.natMapper.isSome:
+    s.natMapper.get.start()
 
-  var hasPublicAddr = false
-  for announceAddr in announceAddrs:
-    let (maybeIp, _) = getAddressAndPort(announceAddr)
-    if maybeIp.isSome and maybeIp.get.isGlobalUnicast():
-      hasPublicAddr = true
-      break
+  # When listenPort is 0 the OS assigns a random port. For UDP, the port
+  # doesn't change so there is no need to update it.
+  if s.natMapper.isSome and s.config.listenPort == Port(0):
+    for listenAddr in s.storageNode.switch.peerInfo.listenAddrs:
+      let maybePort = getTcpPort(listenAddr)
+      if maybePort.isSome:
+        s.natMapper.get.tcpPort = maybePort.get
+        break
 
-  if not hasPublicAddr:
-    warn "Unable to determine a public IP address. This node will only be reachable on a private network."
+  # The addresses are announced during the start process
+  # only with extIp because they should be Reachable.
+  # For other nodes, wait for AutoNat to announce addresses and update SPR.
+  if s.config.nat.hasExtIp:
+    if s.storageNode.switch.peerInfo.addrs.len == 0:
+      raise
+        newException(StorageError, "extip is set but switch has no listen addresses")
 
-  s.storageNode.discovery.updateAnnounceRecord(announceAddrs)
-  s.storageNode.discovery.updateDhtRecord(discoveryAddrs)
+    # extip means that we assume the IP is reachable.
+    # So we just take the first peer addr and remap it with extip to keep the port only.
+    let providerAddrs = @[
+      s.storageNode.switch.peerInfo.addrs[0].remapAddr(
+        ip = some(s.config.nat.extIp), port = none(Port)
+      )
+    ]
+    s.storageNode.discovery.announceDirectAddrs(
+      providerAddrs, udpPort = s.config.discoveryPort
+    )
+  else:
+    # Other nodes wait for AutoNAT to announce addresses and update SPR.
+    # They start in client mode to avoid polluting DHT with NotReachable records;
+    # it will be flipped off once AutoNAT confirms reachability.
+    s.storageNode.discovery.protocol.clientMode = true
 
   await s.storageNode.start()
+
+  # Connect to the Autonat servers (currently bootsrap nodes) in order to
+  # have connected peers for Autonat. The dials are run concurrently in case of
+  # a dead autonat server that could timeout.
+  proc connectAutonatServer(
+      spr: SignedPeerRecord
+  ) {.async: (raises: [CancelledError]).} =
+    try:
+      let addrs = spr.data.addresses.mapIt(it.address)
+      await s.storageNode.switch.connect(spr.data.peerId, addrs)
+    except CancelledError as exc:
+      raise exc
+    except CatchableError as e:
+      warn "Cannot connect to bootstrap node", error = e.msg
+
+  # noCancel: cancelling allFutures does not cancel the
+  # connectAutonatServer futures.
+  await noCancel allFutures(
+    findAutonatServers(s.bootstrapNodes).mapIt(connectAutonatServer(it))
+  )
+
+  # AutoNAT is not in switch.services because we want to start it
+  # after the bootstrap connections to have connected peers for the first probe.
+  if s.autonatService.isSome:
+    await s.autonatService.get.start(s.storageNode.switch)
 
   if s.restServer != nil:
     s.restServer.start()
@@ -160,8 +223,13 @@ proc stop*(s: StorageServer) {.async.} =
 
   notice "Stopping Storage node"
 
-  {.gcsafe.}:
-    stopNat()
+  if s.natMapper.isSome:
+    s.natMapper.get.stop()
+
+  if s.holePunchHandler.isSome:
+    s.storageNode.switch.removePeerEventHandler(
+      s.holePunchHandler.get, PeerEventKind.Joined
+    )
 
   var futures = @[
     s.storageNode.switch.stop(),
@@ -169,6 +237,15 @@ proc stop*(s: StorageServer) {.async.} =
     s.repoStore.stop(),
     s.maintenance.stop(),
   ]
+
+  if s.autoRelayService.isSome and s.autoRelayService.get.isRunning:
+    proc stopAutoRelay(): Future[void] {.async: (raises: []).} =
+      await noCancel s.autoRelayService.get.stop(s.storageNode.switch)
+
+    futures.add(stopAutoRelay())
+
+  if s.autonatService.isSome:
+    futures.add(s.autonatService.get.stop(s.storageNode.switch))
 
   if s.restServer != nil:
     futures.add(s.restServer.stop())
@@ -236,10 +313,22 @@ proc new*(
     privateKey: StoragePrivateKey,
     logFile: Option[IoHandle] = IoHandle.none,
 ): StorageServer =
-  ## create StorageServer including setting up datastore, repostore, etc
+  ## create StorageServer including setting up datastore, repostore, etc.
+
+  if err =? config.validateAutonatConfig().errorOption:
+    raise newException(StorageError, err.msg)
+
+  # Switch
   let listenMultiAddr = getMultiAddrWithIpAndTcpPort(config.listenIp, config.listenPort)
 
-  let switch = SwitchBuilder
+  let relayClient = RelayClient.new()
+  let relay: Relay =
+    if config.isRelayServer:
+      Relay.new()
+    else:
+      relayClient
+
+  var switchBuilder = SwitchBuilder
     .new()
     .withPrivateKey(privateKey)
     .withAddresses(@[listenMultiAddr])
@@ -251,10 +340,81 @@ proc new*(
     .withMaxConnections(config.maxPeers)
     .withAgentVersion(config.agentString)
     .withSignedPeerRecord(true)
+    .withCircuitRelay(relay)
+
+  let bootstrapNodes =
+    if config.noBootstrapNode:
+      # Sanity checks that the user isn't doing anything funny.
+      if config.bootstrapNodes.len > 0:
+        error "Cannot specify bootstrap nodes when using no-bootstrap flag"
+        raise newException(
+          ValueError, "Cannot specify bootstrap nodes when using no-bootstrap flag"
+        )
+
+      warn "Node has been marked with --no-bootstrap-node and will NOT be bootstrapped"
+      seq[SignedPeerRecord](@[])
+    elif config.bootstrapNodes.len > 0:
+      warn "Overriding network preset using custom bootstrap nodes",
+        nodes = config.bootstrapNodes
+      config.bootstrapNodes
+    else:
+      info "Bootstrapping node using a predefined network", network = $config.network
+      config.network.bootstrapNodes
+
+  var autonatConfig = none(AutonatV2ServiceConfig)
+  if config.autonatServer:
+    info "AutoNAT server enabled"
+    switchBuilder = switchBuilder.withAutonatV2Server()
+  elif not config.nat.hasExtIp:
+    info "AutoNAT client enabled",
+      scheduleInterval = config.natScheduleInterval,
+      numPeersToAsk = config.natNumPeersToAsk,
+      maxQueueSize = config.natMaxQueueSize,
+      minConfidence = config.natMinConfidence
+    autonatConfig = some(
+      AutonatV2ServiceConfig.new(
+        scheduleInterval = Opt.some(config.natScheduleInterval),
+        askNewConnectedPeers = false,
+        numPeersToAsk = config.natNumPeersToAsk,
+        maxQueueSize = config.natMaxQueueSize,
+        minConfidence = config.natMinConfidence,
+        enableDialableCandidates = true,
+      )
+    )
+
+    let observedAddrMinCount = min(config.natObservedAddrMinCount, bootstrapNodes.len)
+    switchBuilder = switchBuilder.withObservedAddrManager(
+      ObservedAddrManager.new(minCount = observedAddrMinCount)
+    )
+    # libp2p keeps the private address in peerInfo.addrs.
+    # Since Autonat V2 uses the observed public address,
+    # we can filter the private addresses to keep only the dialable
+    # addresses.
+    switchBuilder = switchBuilder.withAddressPolicy(dialableAddressPolicy)
+
+  let switch = switchBuilder
     .withTcpTransport({ServerFlags.ReuseAddr, ServerFlags.TcpNoDelay})
     .build()
 
   var taskPool: Taskpool
+
+  # AutoNAT's first reachability probe fires immediately on start.
+  # Wired via withAutonatV2 it lands in switch.services and runs at switch.start,
+  # before bootstrap, on an empty peer set.
+  # We build and own it here so we can start it ourselves after bootstrap,
+  # with the bootstrap peers connected.
+  let autonatService: Option[AutonatV2Service] =
+    if autonatConfig.isSome:
+      let client = AutonatV2Client.new(switch.rng)
+      client.setup(switch)
+      switch.mount(client)
+      let service = AutonatV2Service.new(switch.rng, client, autonatConfig.get)
+      service.setup(switch)
+      some(service)
+    else:
+      none(AutonatV2Service)
+
+  # Storage infrastructure
 
   try:
     if config.numThreads == ThreadCount(0):
@@ -280,34 +440,16 @@ proc new*(
     error "Failed to initialize discovery datastore",
       path = providersPath, err = discoveryStoreRes.error.msg
 
-  let bootstrapNodes =
-    if config.noBootstrapNode:
-      # Sanity checks that the user isn't doing anything funny.
-      if config.bootstrapNodes.len > 0:
-        error "Cannot specify bootstrap nodes when using no-bootstrap flag"
-        raise newException(
-          ValueError, "Cannot specify bootstrap nodes when using no-bootstrap flag"
-        )
-
-      warn "Node has been marked with --no-bootstrap-node and will NOT be bootstrapped"
-      seq[SignedPeerRecord](@[])
-    elif config.bootstrapNodes.len > 0:
-      warn "Overriding network preset using custom bootstrap nodes",
-        nodes = config.bootstrapNodes
-      config.bootstrapNodes
-    else:
-      info "Bootstrapping node using a predefined network", network = $config.network
-      config.network.bootstrapNodes
-
   let
     discoveryStore =
       Datastore(discoveryStoreRes.expect("Should create discovery datastore!"))
 
     discovery = Discovery.new(
       switch.peerInfo.privateKey,
-      announceAddrs = @[listenMultiAddr],
+      providerAddrs = @[],
       bindPort = config.discoveryPort,
       bootstrapNodes = bootstrapNodes,
+      discoveryPort = config.discoveryPort,
       dhtMixProxies = config.dhtMixProxies,
       store = discoveryStore,
     )
@@ -369,20 +511,67 @@ proc new*(
       taskPool = taskPool,
     )
 
+  switch.mount(network)
+  switch.mount(manifestProto)
+
+  # NAT services
+  var natMapper: Option[NatPortMapper]
+  var autoRelayService: Option[AutoRelayService]
+  var holePunchHandler: Option[connmanager.PeerEventHandler]
+
+  if autonatService.isSome:
+    let relayService = AutoRelayService.new(
+      maxNumRelays = config.natMaxRelays,
+      client = relayClient,
+      onReservation = proc(addresses: seq[MultiAddress]) {.gcsafe, raises: [].} =
+        discovery.announceRelayReservation(addresses),
+      rng = random.Rng.instance().libp2pRng,
+    )
+
+    relayService.setup(switch)
+    autoRelayService = some(relayService)
+
+    natMapper = some(
+      NatPortMapper(
+        natConfig: config.nat,
+        tcpPort: config.listenPort,
+        discoveryPort: config.discoveryPort,
+        discoverTimeout: config.natPortMappingDiscoverTimeout,
+        mappingTimeout: config.natPortMappingTimeout,
+        recheckPeriod: config.natPortMappingRecheckPeriod,
+      )
+    )
+
+    autonatService.get.setStatusAndConfidenceHandler(
+      proc(
+          networkReachability: NetworkReachability,
+          confidence: Opt[float],
+          addrs: Opt[MultiAddress],
+      ) {.async: (raises: [CancelledError]).} =
+        debug "AutoNAT status", reachability = networkReachability, confidence
+        await natMapper.get.handleNatStatus(
+          networkReachability, addrs, config.discoveryPort, discovery, switch,
+          relayService,
+        )
+    )
+
+    holePunchHandler = some(setupHolePunching(switch))
+
+  # REST server
   var restServer: RestServerRef = nil
 
   if config.apiBindAddress.isSome:
     restServer = RestServerRef
       .new(
-        storageNode.initRestApi(config, repoStore, config.apiCorsAllowedOrigin),
+        storageNode.initRestApi(
+          config, repoStore, autonatService, autoRelayService, natMapper,
+          config.apiCorsAllowedOrigin,
+        ),
         initTAddress(config.apiBindAddress.get(), config.apiPort),
         bufferSize = (1024 * 64),
         maxRequestBodySize = int.high,
       )
       .expect("Should create rest server!")
-
-  switch.mount(network)
-  switch.mount(manifestProto)
 
   StorageServer(
     config: config,
@@ -392,4 +581,9 @@ proc new*(
     maintenance: maintenance,
     taskPool: taskPool,
     logFile: logFile,
+    autonatService: autonatService,
+    autoRelayService: autoRelayService,
+    natMapper: natMapper,
+    holePunchHandler: holePunchHandler,
+    bootstrapNodes: bootstrapNodes,
   )

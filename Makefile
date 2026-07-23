@@ -82,14 +82,17 @@ endif
 	coverage \
 	deps \
 	libbacktrace \
+	libplum \
 	test \
 	testAll \
 	testIntegration \
 	testLibstorageC \
 	testLibstorage \
-	update \
+	buildNatImage \
+	testNatIntegration \
 	updatePresetFile \
-	presets
+	presets \
+	update
 
 ifeq ($(NIM_PARAMS),)
 # "variables.mk" was not included, so we update the submodules.
@@ -127,7 +130,7 @@ else
 NIM_PARAMS := $(NIM_PARAMS) -d:release
 endif
 
-deps: | deps-common nat-libs
+deps: | deps-common nat-libs libplum
 ifneq ($(USE_LIBBACKTRACE), 0)
 deps: | libbacktrace
 endif
@@ -153,6 +156,17 @@ test: | build deps
 testIntegration: | build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
 		$(ENV_SCRIPT) nim testIntegration $(TEST_PARAMS) $(NIM_PARAMS) build.nims
+
+DOCKER := $(or $(shell which podman 2>/dev/null), $(shell which docker 2>/dev/null))
+
+# NAT real-topology scenarios (podman-compose), all sharing one image built here.
+# Runs every scenario; limit it with STORAGE_INTEGRATION_TEST_INCLUDES (test file
+# paths), as testIntegration does.
+buildNatImage:
+	$(DOCKER) build -t localhost/storage-nat -f tests/integration/nat/Dockerfile .
+
+testNatIntegration: | deps buildNatImage
+	$(ENV_SCRIPT) nim testNatIntegration $(NIM_PARAMS) build.nims
 
 BOOTSTRAP_HEALTH_CHECK_PARAMS :=
 ifdef CI
@@ -191,6 +205,23 @@ testAll: | build deps
 	echo -e $(BUILD_MSG) "build/$@" && \
 		$(ENV_SCRIPT) nim testAll $(NIM_PARAMS) build.nims
 	$(MAKE) $(if $(ncpu),-j$(ncpu),) testLibstorage
+
+LIBPLUM_DIR := vendor/nim-libplum/vendor/libplum
+LIBPLUM_BUILD_DIR := $(LIBPLUM_DIR)/build
+LIBPLUM_CMAKE_FLAGS := -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF
+
+libplum:
+ifeq ($(detected_OS), Windows)
+ifneq ($(MSYSTEM),)
+	cmake -B $(LIBPLUM_BUILD_DIR) $(LIBPLUM_CMAKE_FLAGS) -G"MSYS Makefiles" $(LIBPLUM_DIR) $(HANDLE_OUTPUT)
+else
+	cmake -B $(LIBPLUM_BUILD_DIR) $(LIBPLUM_CMAKE_FLAGS) $(LIBPLUM_DIR) $(HANDLE_OUTPUT)
+endif
+else
+	cmake -B $(LIBPLUM_BUILD_DIR) $(LIBPLUM_CMAKE_FLAGS) $(LIBPLUM_DIR) $(HANDLE_OUTPUT)
+endif
+	+ $(MAKE) -C $(LIBPLUM_BUILD_DIR) $(HANDLE_OUTPUT)
+	cp $(LIBPLUM_BUILD_DIR)/libplum.a $(LIBPLUM_DIR)/libplum.a
 
 # nim-libbacktrace
 LIBBACKTRACE_MAKE_FLAGS := -C vendor/nim-libbacktrace --no-print-directory BUILD_CXX_LIB=0
