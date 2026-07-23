@@ -186,10 +186,10 @@ proc start*(s: StorageServer) {.async.} =
 
   await s.storageNode.start()
 
-  # Connect to the bootstrap nodes in order to have connected peers
-  # for Autonat. The dials are run concurrently in case of
-  # a dead bootstrap node that could timeout.
-  proc connectBootstrapNode(
+  # Connect to the Autonat servers (currently bootsrap nodes) in order to
+  # have connected peers for Autonat. The dials are run concurrently in case of
+  # a dead autonat server that could timeout.
+  proc connectAutonatServer(
       spr: SignedPeerRecord
   ) {.async: (raises: [CancelledError]).} =
     try:
@@ -201,9 +201,9 @@ proc start*(s: StorageServer) {.async.} =
       warn "Cannot connect to bootstrap node", error = e.msg
 
   # noCancel: cancelling allFutures does not cancel the
-  # connectBootstrapNode futures.
+  # connectAutonatServer futures.
   await noCancel allFutures(
-    findReachableNodes(s.bootstrapNodes).mapIt(connectBootstrapNode(it))
+    findAutonatServers(s.bootstrapNodes).mapIt(connectAutonatServer(it))
   )
 
   # AutoNAT is not in switch.services because we want to start it

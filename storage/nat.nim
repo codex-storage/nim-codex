@@ -256,10 +256,11 @@ proc peerConnections*(switch: Switch): JsonNode =
     entry["direct"] = newJBool(muxers.anyIt(not isRelayed(it.connection)))
     result.add(entry)
 
-proc findReachableNodes*(bootstrapNodes: seq[SignedPeerRecord]): seq[SignedPeerRecord] =
-  ## Returns the list of nodes known to be directly reachable.
+proc findAutonatServers*(bootstrapNodes: seq[SignedPeerRecord]): seq[SignedPeerRecord] =
+  ## Returns the list of Autonat servers.
+  ## The nodes are expected to be directly reachable.
   ## Currently returns bootstrap nodes. In the future, any network participant
-  ## confirmed reachable by AutoNAT could be included.
+  ## confirmed reachable by AutoNAT and running as AutonatServer could be included.
   bootstrapNodes
 
 proc announceRelayReservation*(
