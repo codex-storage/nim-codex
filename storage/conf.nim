@@ -352,7 +352,7 @@ type
     .}: Duration
 
     natNumPeersToAsk* {.
-      desc: "Number of peers to ask per AutoNAT round",
+      desc: "Number of peers to contact per AutoNAT round",
       defaultValue: 3,
       name: "nat-num-peers-to-ask"
     .}: int
