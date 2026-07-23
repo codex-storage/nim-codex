@@ -321,7 +321,10 @@ extern "C"
     //  "totalBlocks": 100000,
     //  "quotaMaxBytes": 0,
     //  "quotaUsedBytes": 0,
-    //  "quotaReservedBytes": 0
+    //  "quotaReservedBytes": 0,
+    //  "usage": [
+    //   { "mimetype": "video/mp4", "bytesLocal": 1536, "count": 2 }
+    //  ]
     // }
     int storage_space(
         void *ctx,
