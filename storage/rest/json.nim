@@ -65,8 +65,6 @@ type
     id* {.serialize.}: PeerId
     # peer addresses known by the libp2p switch
     addrs* {.serialize.}: seq[MultiAddress]
-    # local data directory
-    repo* {.serialize.}: string
     # signed peer record (URI form)
     spr* {.serialize.}: Option[SignedPeerRecord]
     # provider record (the one we announce for content we provide)
