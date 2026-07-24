@@ -12,7 +12,6 @@
 import std/sequtils
 import std/mimetypes
 import std/os
-import std/tables
 
 import pkg/questionable
 import pkg/questionable/results
