@@ -8,8 +8,6 @@
 ## - SPACE: get the amount of space used by the local node.
 ## - EXISTS: check the existence of a cid in a node (local store).
 
-import std/tables
-
 import chronos
 import chronicles
 import serde/json as serde
