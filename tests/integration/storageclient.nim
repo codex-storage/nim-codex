@@ -220,6 +220,17 @@ proc list*(
 
   RestContentList.fromJson(await response.body)
 
+proc space*(
+    client: StorageClient
+): Future[?!RestRepoStore] {.async: (raises: [CancelledError, HttpError]).} =
+  let url = client.baseurl & "/space"
+  let response = await client.get(url)
+
+  if response.status != 200:
+    return failure($response.status)
+
+  RestRepoStore.fromJson(await response.body)
+
 proc hasBlock*(
     client: StorageClient, cid: Cid
 ): Future[?!bool] {.async: (raises: [CancelledError, HttpError]).} =
