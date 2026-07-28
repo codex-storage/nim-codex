@@ -2,7 +2,8 @@
   description = "Logos Storage build flake";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
+    # A commit from nixpkgs 25.11 release: https://github.com/NixOS/nixpkgs/tree/release-25.11
+    nixpkgs.url = "github:NixOS/nixpkgs/535f3e6942cb1cead3929c604320d3db54b542b9";
   };
 
   outputs = { self, nixpkgs }:
@@ -39,7 +40,7 @@
             packages.${system}.libstorage
           ];
           # Not using buildInputs to override fakeGit and fakeCargo.
-          nativeBuildInputs = with pkgs; [ git cargo nodejs_18 ];
+          nativeBuildInputs = with pkgs; [ git cargo nodejs_20 ];
         };
       });
 
