@@ -28,7 +28,7 @@ let
   tools = callPackage ./tools.nix {};
 
   # Pin GCC/CLang versions
-  stdenv = if pkgs.stdenv.isLinux then pkgs.gcc13Stdenv else pkgs.clang16Stdenv;
+  stdenv = if pkgs.stdenv.isLinux then pkgs.gcc13Stdenv else pkgs.clang18Stdenv;
 
 in stdenv.mkDerivation rec {
   pname = "storage";

@@ -2,11 +2,10 @@
   description = "Logos Storage build flake";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
-    circom-compat = {
-      url = "github:logos-storage/circom-compat-ffi";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+    # A commit from nixpkgs 25.11 release: https://github.com/NixOS/nixpkgs/tree/release-25.11
+    nixpkgs.url = "github:NixOS/nixpkgs/535f3e6942cb1cead3929c604320d3db54b542b9";
+    # No follows: its fetchurl overlay doesn't evaluate against nixpkgs 25.11.
+    circom-compat.url = "github:logos-storage/circom-compat-ffi/3cca4e91054a4d2bb5335feb19138362ce0fe417";
   };
 
   outputs = { self, nixpkgs, circom-compat}:
@@ -46,7 +45,7 @@
             circom-compat.packages.${system}.default
           ];
           # Not using buildInputs to override fakeGit and fakeCargo.
-          nativeBuildInputs = with pkgs; [ git cargo nodejs_18 ];
+          nativeBuildInputs = with pkgs; [ git cargo nodejs_20 ];
         };
       });
 
