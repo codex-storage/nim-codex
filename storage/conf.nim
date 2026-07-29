@@ -501,11 +501,10 @@ proc parseCmdArg*(
     if res.isOk:
       ma = res.get()
     else:
-      fatal "Invalid MultiAddress", input = input, error = res.error()
-      quit QuitFailure
+      raise
+        newException(ValueError, "Invalid MultiAddress " & input & ": " & res.error())
   except LPError as exc:
-    fatal "Invalid MultiAddress uri", uri = input, error = exc.msg
-    quit QuitFailure
+    raise newException(ValueError, "Invalid MultiAddress uri " & input & ": " & exc.msg)
   ma
 
 proc parse*(T: type ThreadCount, p: string): Result[ThreadCount, string] =
@@ -517,18 +516,18 @@ proc parse*(T: type ThreadCount, p: string): Result[ThreadCount, string] =
   except ValueError as e:
     return err("Invalid number of threads: " & p & ", error=" & e.msg)
 
-proc parseCmdArg*(T: type ThreadCount, input: string): T =
+proc parseCmdArg*(T: type ThreadCount, input: string): T {.raises: [ValueError].} =
   let val = ThreadCount.parse(input)
   if val.isErr:
-    fatal "Cannot parse the thread count.", input = input, error = val.error()
-    quit QuitFailure
+    raise newException(ValueError, val.error())
   return val.get()
 
-proc parseCmdArg*(T: type SignedPeerRecord, uri: string): T =
+proc parseCmdArg*(T: type SignedPeerRecord, uri: string): T {.raises: [ValueError].} =
   let res = SignedPeerRecord.parse(uri)
   if res.isErr:
-    fatal "Cannot parse the signed peer.", error = res.error(), input = uri
-    quit QuitFailure
+    raise newException(
+      ValueError, "Cannot parse the signed peer " & uri & ": " & res.error()
+    )
   return res.get()
 
 func parse*(T: type NatConfig, p: string): Result[NatConfig, string] =
@@ -546,11 +545,10 @@ func parse*(T: type NatConfig, p: string): Result[NatConfig, string] =
     else:
       return err("Not a valid NAT option: " & p & ". Valid options: auto, extip:<IP>")
 
-proc parseCmdArg*(T: type NatConfig, p: string): T =
+proc parseCmdArg*(T: type NatConfig, p: string): T {.raises: [ValueError].} =
   let res = NatConfig.parse(p)
   if res.isErr:
-    fatal "Cannot parse the NAT config.", error = res.error(), input = p
-    quit QuitFailure
+    raise newException(ValueError, res.error())
   return res.get()
 
 proc completeCmdArg*(T: type NatConfig, val: string): seq[string] =
@@ -563,50 +561,44 @@ func parse*(T: type NBytes, p: string): Result[NBytes, string] =
     return err("Invalid number of bytes: " & p)
   return ok(NBytes(num))
 
-proc parseCmdArg*(T: type NBytes, val: string): T =
+proc parseCmdArg*(T: type NBytes, val: string): T {.raises: [ValueError].} =
   let res = NBytes.parse(val)
   if res.isErr:
-    fatal "Cannot parse NBytes.", error = res.error(), input = val
-    quit QuitFailure
+    raise newException(ValueError, res.error())
   return res.get()
 
-proc parseCmdArg*(T: type Duration, val: string): T =
+proc parseCmdArg*(T: type Duration, val: string): T {.raises: [ValueError].} =
   var dur: Duration
   let count = parseDuration(val, dur)
   if count == 0:
-    fatal "Cannot parse duration", dur = dur
-    quit QuitFailure
+    raise newException(ValueError, "Invalid duration: " & val)
   dur
 
-proc parseCmdArg*(T: type NetworkPreset, p: string): NetworkPreset =
+proc parseCmdArg*(
+    T: type NetworkPreset, p: string
+): NetworkPreset {.raises: [ValueError].} =
   let res = NetworkPresets.find(p)
   if res.isNone:
-    fatal "Invalid network preset.", input = p
-    quit QuitFailure
+    raise newException(ValueError, "Invalid network preset: " & p)
   return res.get()
 
-proc readValue*(r: var TomlReader, val: var SignedPeerRecord) =
-  without uri =? r.readValue(string).catch, err:
-    error "invalid SignedPeerRecord configuration value", error = err.msg
-    quit QuitFailure
-
+proc readValue*(
+    r: var TomlReader, val: var SignedPeerRecord
+) {.raises: [SerializationError, IOError].} =
+  let uri = r.readValue(string)
   try:
     val = SignedPeerRecord.parseCmdArg(uri)
-  except LPError as err:
-    fatal "Invalid SignedPeerRecord uri", uri = uri, error = err.msg
-    quit QuitFailure
+  except CatchableError as err:
+    raise newException(SerializationError, err.msg)
 
-proc readValue*(r: var TomlReader, val: var MultiAddress) =
-  without input =? r.readValue(string).catch, err:
-    error "invalid MultiAddress configuration value", error = err.msg
-    quit QuitFailure
-
-  let res = MultiAddress.init(input)
-  if res.isOk:
-    val = res.get()
-  else:
-    fatal "Invalid MultiAddress", input = input, error = res.error()
-    quit QuitFailure
+proc readValue*(
+    r: var TomlReader, val: var MultiAddress
+) {.raises: [SerializationError, IOError].} =
+  let input = r.readValue(string)
+  try:
+    val = MultiAddress.parseCmdArg(input)
+  except CatchableError as err:
+    raise newException(SerializationError, err.msg)
 
 proc readValue*(
     r: var TomlReader, val: var NBytes
@@ -615,8 +607,7 @@ proc readValue*(
   var str = r.readValue(string)
   let count = parseSize(str, value, alwaysBin = true)
   if count == 0:
-    error "invalid number of bytes for configuration value", value = str
-    quit QuitFailure
+    raise newException(SerializationError, "Invalid number of bytes: " & str)
   val = NBytes(value)
 
 proc readValue*(
@@ -635,8 +626,7 @@ proc readValue*(
   var dur: Duration
   let count = parseDuration(str, dur)
   if count == 0:
-    error "Invalid duration parse", value = str
-    quit QuitFailure
+    raise newException(SerializationError, "Invalid duration: " & str)
   val = dur
 
 proc readValue*(
