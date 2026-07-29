@@ -104,6 +104,7 @@ proc createStorage(
       version = storageFullVersion,
       envVarsPrefix = "storage",
       cmdLine = @[],
+      quitOnFailure = false,
       secondarySources = proc(
           config: StorageConf, sources: auto
       ) {.gcsafe, raises: [ConfigurationError].} =
