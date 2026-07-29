@@ -20,7 +20,9 @@ asyncchecksuite "Libstorage - config":
     let res = await request.process(addr server)
 
     check res.isErr
-    check "unable to load configuration" in res.error
+
+    if res.isErr:
+      check "unable to load configuration" in res.error
 
   test "rejects an unknown option":
     let request =
@@ -28,7 +30,9 @@ asyncchecksuite "Libstorage - config":
     let res = await request.process(addr server)
 
     check res.isErr
-    check "unable to load configuration" in res.error
+
+    if res.isErr:
+      check "unable to load configuration" in res.error
 
   test "accepts a valid config":
     let dataDir = getTempDir() / "libstorage-config" / $getMonoTime()
