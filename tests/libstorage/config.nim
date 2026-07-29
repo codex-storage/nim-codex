@@ -1,3 +1,4 @@
+import std/json
 import std/monotimes
 import std/os
 import std/strutils
@@ -40,7 +41,8 @@ asyncchecksuite "Libstorage - config":
     defer:
       removeDir(dataDir)
 
-    let config = """{"data-dir": "$1"}""" % [dataDir]
+    # %* escapes the path so that it can be used in JSON.
+    let config = $ %*{"data-dir": dataDir}
     let request = NodeLifecycleRequest.createShared(CREATE_NODE, config.cstring)
     let res = await request.process(addr server)
 
