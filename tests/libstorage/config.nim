@@ -36,7 +36,7 @@ asyncchecksuite "Libstorage - config":
     defer:
       removeDir(dataDir)
 
-    let config = """{"data-dir": "$1", "log-level": "DEBUG"}""" % [dataDir]
+    let config = """{"data-dir": "$1"}""" % [dataDir]
     let request = NodeLifecycleRequest.createShared(CREATE_NODE, config.cstring)
     let res = await request.process(addr server)
 
