@@ -1,3 +1,5 @@
+import std/monotimes
+import std/os
 import std/strutils
 
 import pkg/chronos
@@ -29,8 +31,16 @@ asyncchecksuite "Libstorage - config":
     check "unable to load configuration" in res.error
 
   test "accepts a valid config":
-    let request =
-      NodeLifecycleRequest.createShared(CREATE_NODE, """{"log-level": "DEBUG"}""")
+    let dataDir = getTempDir() / "libstorage-config" / $getMonoTime()
+
+    defer:
+      removeDir(dataDir)
+
+    let config = """{"data-dir": "$1", "log-level": "DEBUG"}""" % [dataDir]
+    let request = NodeLifecycleRequest.createShared(CREATE_NODE, config.cstring)
     let res = await request.process(addr server)
 
     check res.isOk
+
+    let closeRequest = NodeLifecycleRequest.createShared(CLOSE_NODE)
+    check (await closeRequest.process(addr server)).isOk
