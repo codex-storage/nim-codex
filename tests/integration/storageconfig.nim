@@ -61,9 +61,6 @@ proc buildConfig(
     return StorageConf.load(cmdLine = config.cliArgs, quitOnFailure = false)
   except ConfigurationError as e:
     raiseStorageConfigError msg & e.msg.postFix
-  except Exception as e:
-    ## TODO: remove once proper exception handling added to nim-confutils
-    raiseStorageConfigError msg & e.msg.postFix
 
 proc addCliOption*(
     config: var StorageConfig, group = StartUpCmd.noCmd, cliOption: CliOption
