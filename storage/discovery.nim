@@ -25,6 +25,7 @@ from pkg/nimcrypto import keccak256
 
 import ./rng as storage_rng
 import ./utils/addrutils
+import ./utils/mixidentity
 import ./errors
 import ./logutils
 import ./dht_proxy/client as dht_proxy_client
@@ -218,6 +219,22 @@ proc getSpr*(d: Discovery): SignedPeerRecord =
     .init(d.key, PeerRecord.init(d.peerId, d.providerAddrs & d.discoveryAddrs))
     .expect("Should construct signed record")
 
+proc updateLocalMultiAddr(d: Discovery) =
+  ## This is called when announce addresses change, to update the local Mix address
+  ## when Autonat provides the dialable address in the callback.
+  if d.mixProto.isNil:
+    return
+
+  let mixAddr = pickMixCompatibleMultiAddr(d.providerAddrs).valueOr:
+    warn "No Mix-compatible address among announced addrs", addrs = d.providerAddrs
+    mixUnsetMultiAddr()
+
+  let res = d.mixProto.setLocalMultiAddr(mixAddr)
+  if res.isErr:
+    error "Failed to update Mix local address", address = mixAddr, err = res.error
+  else:
+    info "Mix local address updated", address = mixAddr
+
 proc announceDirectAddrs*(
     d: Discovery, providerAddrs: openArray[MultiAddress], udpPort: Port
 ) =
@@ -244,6 +261,9 @@ proc announceDirectAddrs*(
       .expect("Should construct signed record").some
     d.protocol.updateRecord(spr).expect("Should update SPR")
 
+  # Not gated on addrsChanged: clearing the announce must reset Mix too.
+  d.updateLocalMultiAddr()
+
   if addrsChanged and not d.onAddrChange.isNil:
     d.onAddrChange()
 
@@ -261,6 +281,8 @@ proc announceRelayAddrs*(d: Discovery, addrs: openArray[MultiAddress]) =
 
   info "Provider record updated",
     addrs = d.providerAddrs, spr = d.providerRecord.get.toURI
+
+  d.updateLocalMultiAddr()
 
   if addrsChanged and not d.onAddrChange.isNil:
     d.onAddrChange()

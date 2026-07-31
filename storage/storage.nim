@@ -107,8 +107,16 @@ proc start*(s: StorageServer) {.async.} =
         raise newException(
           StorageError, "Failed to load or generate Mix keys: " & error.msg
         )
-      mixAddr = pickMixCompatibleMultiAddr(switch.peerInfo.addrs).valueOr:
-        raise newException(StorageError, "No Mix-compatible address among listen addrs")
+      mixAddr =
+        if s.config.nat.hasExtIp:
+          pickMixCompatibleMultiAddr(switch.peerInfo.addrs).valueOr:
+            raise newException(
+              StorageError, "No Mix-compatible address among announced addrs"
+            )
+        else:
+          # We define a placeholder waiting for AutoNAT to provide a reachable address or a relay address.
+          # The Mix lookup will not be performed while the mixAddr value is mixUnsetMultiAddr().
+          mixUnsetMultiAddr()
       mixNodeInfo = buildMixNodeInfo(
         mixPub, mixPriv, switch.peerInfo.peerId, mixAddr, switch.peerInfo.privateKey
       ).valueOr:

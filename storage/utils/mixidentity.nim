@@ -12,6 +12,7 @@
 import std/[json, os, tables]
 
 import pkg/libp2p
+import pkg/libp2p/wire
 import pkg/libp2p/crypto/crypto
 import pkg/libp2p/crypto/secp
 import pkg/libp2p_mix
@@ -26,11 +27,24 @@ const PoolFormatVersion = 1
 
 const MixIdentityFileSize = 2 * FieldElementSize
 
+proc mixUnsetMultiAddr*(): MultiAddress =
+  ## Stands in for "no dialable address known". Mix encodes it, so it can be
+  ## stored through setLocalMultiAddr, but dialing 0.0.0.0:0 always fails.
+  ## Use a proc here to avoid GC-safe compilation issues.
+  MultiAddress.init("/ip4/0.0.0.0/tcp/0").expect("valid")
+
 proc pickMixCompatibleMultiAddr*(addrs: openArray[MultiAddress]): Opt[MultiAddress] =
-  ## Mix only supports /ip4/*/tcp/* or /ip4/*/udp/*/quic-v1 multiaddrs.
+  ## Mix only supports /ip4/*/tcp/* or /ip4/*/udp/*/quic-v1 multiaddrs,
+  ## either direct or in a circuit relay.
   for ma in addrs:
-    if TCP_IP.match(ma) or QUIC_V1_IP.match(ma):
+    if TCP_IP4.match(ma) or QUIC_V1_IP4.match(ma):
       return Opt.some(ma)
+
+    if ma.isCircuitRelayMA() and
+    # Check for the prefix of the relay address, which must be /ip4/*/tcp/* or /ip4/*/udp/*/quic-v1
+    (TCP_IP4.matchPartial(ma) or QUIC_V1_IP4.matchPartial(ma)):
+      return Opt.some(ma)
+
   Opt.none(MultiAddress)
 
 proc loadOrGenerateMixKeys*(

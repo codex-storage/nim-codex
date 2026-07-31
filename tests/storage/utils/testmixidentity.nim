@@ -2,6 +2,7 @@ import std/tables
 
 import pkg/unittest2
 import pkg/libp2p/peerid
+import pkg/libp2p/multiaddress
 import pkg/storage/utils/mixidentity {.all.}
 
 const SamplePoolJson = """
@@ -72,3 +73,64 @@ suite "mixidentity / loadRelayPubInfoTableFromJson":
 """
     let res = loadRelayPubInfoTableFromJson(json)
     check res.isErr
+
+suite "mixidentity / pickMixCompatibleMultiAddr":
+  let
+    tcpAddr = MultiAddress.init("/ip4/1.2.3.4/tcp/4001").expect("valid")
+    quicAddr = MultiAddress.init("/ip4/1.2.3.4/udp/4001/quic-v1").expect("valid")
+    udpAddr = MultiAddress.init("/ip4/1.2.3.4/udp/4001").expect("valid")
+    ip6Addr = MultiAddress.init("/ip6/::1/tcp/4001").expect("valid")
+    circuitAddr = MultiAddress
+      .init(
+        "/ip4/5.6.7.8/tcp/4002/p2p/16Uiu2HAmQu456Ae52JqPuqog6wCex47LLvNY8oHMBC4GRRtaStHs/p2p-circuit"
+      )
+      .expect("valid")
+
+  test "picks a TCP address":
+    let picked = pickMixCompatibleMultiAddr(@[tcpAddr])
+
+    check picked.isSome
+
+    if picked.isSome:
+      check $picked.get == $tcpAddr
+
+  test "picks a QUIC-v1 address":
+    let picked = pickMixCompatibleMultiAddr(@[quicAddr])
+
+    check picked.isSome
+
+    if picked.isSome:
+      check $picked.get == $quicAddr
+
+  test "returns none on an empty list":
+    check pickMixCompatibleMultiAddr(newSeq[MultiAddress]()).isNone
+
+  test "skips a plain UDP address":
+    check pickMixCompatibleMultiAddr(@[udpAddr]).isNone
+
+  test "picks the placeholder":
+    let picked = pickMixCompatibleMultiAddr(@[mixUnsetMultiAddr()])
+
+    check picked.isSome
+
+    if picked.isSome:
+      check $picked.get == $mixUnsetMultiAddr()
+
+  test "returns the first compatible address, skipping the others":
+    let picked = pickMixCompatibleMultiAddr(@[udpAddr, tcpAddr, quicAddr])
+
+    check picked.isSome
+
+    if picked.isSome:
+      check $picked.get == $tcpAddr
+
+  test "skips an IPv6 address":
+    check pickMixCompatibleMultiAddr(@[ip6Addr]).isNone
+
+  test "picks a circuit-relay address":
+    let picked = pickMixCompatibleMultiAddr(@[circuitAddr])
+
+    check picked.isSome
+
+    if picked.isSome:
+      check $picked.get == $circuitAddr

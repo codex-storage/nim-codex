@@ -62,6 +62,13 @@ proc requestLookup(
   except CatchableError as exc:
     return failure("Client error: " & exc.msg)
 
+proc isReady(mixProto: MixProtocol): bool =
+  ## Returns true if the MixProtocol is ready to be used for lookups.
+  ## mixUnsetMultiAddr() is set in the setup for nat:auto, and restored whenever
+  ## the announce no longer carries a usable address. The Mix lookup cannot be
+  ## performed until Autonat provides a Reachable address or a Relay address.
+  return $mixProto.localMixPubInfo.multiAddr != $mixUnsetMultiAddr()
+
 proc lookupProviders*(
     mixProto: MixProtocol, proxy: PeerRecord, cid: Cid
 ): Future[?!seq[SignedPeerRecord]] {.async: (raises: [CancelledError]).} =
@@ -73,6 +80,11 @@ proc lookupProviders*(
     return failure(
       "No Mix-compatible address on proxy " & $proxy.peerId & " (advertised: [" & dump &
         "])"
+    )
+
+  if not mixProto.isReady:
+    return failure(
+      "MixProtocol is not ready, multiAddr=" & $mixProto.localMixPubInfo.multiAddr
     )
 
   let
