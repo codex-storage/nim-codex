@@ -261,7 +261,6 @@ proc announceDirectAddrs*(
       .expect("Should construct signed record").some
     d.protocol.updateRecord(spr).expect("Should update SPR")
 
-  # Not gated on addrsChanged: clearing the announce must reset Mix too.
   d.updateLocalMultiAddr()
 
   if addrsChanged and not d.onAddrChange.isNil:
