@@ -181,21 +181,40 @@ proc process*(
       error "Failed to CREATE_NODE.", error = error
       return err($error)
   of START_NODE:
+    if storage[].isNil:
+      const msg = "Failed to START_NODE, the node is not created."
+      error msg
+      return err(msg)
     try:
       await storage[].start()
     except Exception as e:
       error "Failed to START_NODE.", error = e.msg
       return err(e.msg)
   of STOP_NODE:
+    if storage[].isNil:
+      const msg = "Failed to STOP_NODE, the node is not created."
+      error msg
+      return err(msg)
     try:
       await storage[].stop()
     except Exception as e:
       error "Failed to STOP_NODE.", error = e.msg
       return err(e.msg)
   of CLOSE_NODE:
+    if storage[].isNil:
+      const msg = "Failed to CLOSE_NODE, the node is not created."
+      error msg
+      return err(msg)
+
+    # Set to nil. Even if the close fails, it could fail partially
+    # and we don't want to keep a reference to a node that is in an unknown state.
+    defer:
+      storage[] = nil
+
     try:
       await storage[].close()
     except Exception as e:
       error "Failed to CLOSE_NODE.", error = e.msg
       return err(e.msg)
+
   return ok("")

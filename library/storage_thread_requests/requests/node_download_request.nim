@@ -299,6 +299,11 @@ proc process*(
   defer:
     destroyShared(self)
 
+  if storage[].isNil:
+    const msg = "Failed to process: the node is not created."
+    error msg
+    return err(msg)
+
   case self.operation
   of NodeDownloadMsgType.INIT:
     let res = (await init(storage, self.cid, self.chunkSize, self.local))

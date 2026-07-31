@@ -48,11 +48,13 @@ logScope:
 template checkLibstorageParams*(
     ctx: ptr StorageContext, callback: StorageCallback, userData: pointer
 ) =
-  if not isNil(ctx):
-    ctx[].userData = userData
-
   if isNil(callback):
     return RET_MISSING_CALLBACK
+
+  if isNil(ctx):
+    return callback.error("The context is not created.", userData)
+
+  ctx[].userData = userData
 
 proc malloc(size: csize_t): pointer {.importc, header: "<stdlib.h>".}
 
@@ -277,6 +279,10 @@ proc storage_close(
 
 proc storage_destroy(ctx: ptr StorageContext): cint {.dynlib, exportc.} =
   initializeLibrary()
+
+  if isNil(ctx):
+    return RET_ERR
+
   let res = storage_context.destroyStorageContext(ctx)
   if res.isErr: RET_ERR else: RET_OK
 
@@ -578,5 +584,9 @@ proc storage_set_event_callback(
     ctx: ptr StorageContext, callback: StorageCallback, userData: pointer
 ) {.dynlib, exportc.} =
   initializeLibrary()
+
+  if isNil(ctx):
+    return
+
   ctx[].eventCallback = cast[pointer](callback)
   ctx[].eventUserData = userData

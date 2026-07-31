@@ -24,6 +24,11 @@ proc process*(
   defer:
     destroyShared(self)
 
+  if storage[].isNil:
+    const msg = "Failed to process: the node is not created."
+    error msg
+    return err(msg)
+
   let previous = storage[].node.togglePrivateQueries(self.privateQueries).valueOr:
     return err(error.msg)
   return ok($previous)

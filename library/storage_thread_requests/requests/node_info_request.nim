@@ -55,6 +55,12 @@ proc process*(
   defer:
     destroyShared(self)
 
+  # METRICS does not need a node.
+  if storage[].isNil and self.operation != METRICS:
+    const msg = "Failed to process: the node is not created."
+    error msg
+    return err(msg)
+
   case self.operation
   of REPO:
     let res = (await getRepo(storage))
