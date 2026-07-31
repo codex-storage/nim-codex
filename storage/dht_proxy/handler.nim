@@ -44,13 +44,7 @@ proc handleFindProviders(
 
   var encoded = newSeqOfCap[seq[byte]](providers.len)
   for spr in providers:
-    let bytes = spr.encode().valueOr:
-      warn "Failed to encode SignedPeerRecord", err = error
-      continue
-    encoded.add(bytes)
-
-  if encoded.len == 0:
-    return LookupResponse(code: LookupCode.ErrInternal)
+    encoded.add(spr.encode())
 
   let packed = packProviders(encoded, MaxLookupResponseBytes).valueOr:
     return LookupResponse(code: error)
