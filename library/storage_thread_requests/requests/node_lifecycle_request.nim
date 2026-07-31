@@ -179,18 +179,30 @@ proc process*(
       error "Failed to CREATE_NODE.", error = error
       return err($error)
   of START_NODE:
+    if storage[].isNil:
+      const msg = "Failed to START_NODE, the node is not created."
+      error msg
+      return err(msg)
     try:
       await storage[].start()
     except Exception as e:
       error "Failed to START_NODE.", error = e.msg
       return err(e.msg)
   of STOP_NODE:
+    if storage[].isNil:
+      const msg = "Failed to STOP_NODE, the node is not created."
+      error msg
+      return err(msg)
     try:
       await storage[].stop()
     except Exception as e:
       error "Failed to STOP_NODE.", error = e.msg
       return err(e.msg)
   of CLOSE_NODE:
+    if storage[].isNil:
+      const msg = "Failed to CLOSE_NODE, the node is not created."
+      error msg
+      return err(msg)
     try:
       await storage[].close()
     except Exception as e:

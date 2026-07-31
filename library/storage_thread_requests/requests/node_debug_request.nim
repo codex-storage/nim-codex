@@ -96,6 +96,11 @@ proc process*(
   defer:
     destroyShared(self)
 
+  if storage[].isNil:
+    const msg = "Failed to process: the node is not created."
+    error msg
+    return err(msg)
+
   case self.operation
   of NodeDebugMsgType.DEBUG:
     let res = (await getDebug(storage))

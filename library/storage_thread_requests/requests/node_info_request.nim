@@ -55,6 +55,11 @@ proc process*(
   defer:
     destroyShared(self)
 
+  if storage[].isNil:
+    const msg = "Failed to process: the node is not created."
+    error msg
+    return err(msg)
+
   case self.operation
   of REPO:
     let res = (await getRepo(storage))
