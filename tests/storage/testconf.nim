@@ -150,33 +150,33 @@ suite "Conf - validateAutonatConfig":
 
 suite "Conf - parseCmdArg":
   test "rejects an invalid NAT config":
-    expect ValueError:
+    expect ConfigurationError:
       discard parseCmdArg(NatConfig, "none")
 
   test "rejects an invalid thread count":
-    expect ValueError:
+    expect ConfigurationError:
       discard parseCmdArg(ThreadCount, "abc")
 
   test "rejects a thread count below two":
-    expect ValueError:
+    expect ConfigurationError:
       discard parseCmdArg(ThreadCount, "1")
 
   test "rejects an invalid duration":
-    expect ValueError:
+    expect ConfigurationError:
       discard parseCmdArg(Duration, "forever")
 
   test "rejects an invalid number of bytes":
-    expect ValueError:
+    expect ConfigurationError:
       discard parseCmdArg(NBytes, "many")
 
   test "rejects an invalid network preset":
-    expect ValueError:
+    expect ConfigurationError:
       discard parseCmdArg(NetworkPreset, "unknown")
 
   test "rejects an invalid multiaddress":
-    expect ValueError:
+    expect ConfigurationError:
       discard parseCmdArg(MultiAddress, "not-a-multiaddress")
 
   test "rejects an invalid signed peer record":
-    expect ValueError:
+    expect ConfigurationError:
       discard parseCmdArg(SignedPeerRecord, "not-an-spr")
