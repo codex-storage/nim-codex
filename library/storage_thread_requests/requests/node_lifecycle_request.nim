@@ -104,6 +104,7 @@ proc createStorage(
       version = storageFullVersion,
       envVarsPrefix = "storage",
       cmdLine = @[],
+      quitOnFailure = false,
       secondarySources = proc(
           config: StorageConf, sources: auto
       ) {.gcsafe, raises: [ConfigurationError].} =
@@ -112,7 +113,8 @@ proc createStorage(
       ,
     )
   except ConfigurationError as e:
-    return err("Failed to create Storage: unable to load configuration: " & e.msg)
+    # We cannot use e.msg because it is not populated by config-utils
+    return err("Failed to create Storage: unable to load configuration.")
 
   let logFile = conf.setupLogging()
 

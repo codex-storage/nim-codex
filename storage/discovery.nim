@@ -54,6 +54,7 @@ type Discovery* = ref object of RootObj
   mixProto*: MixProtocol
   dhtMixProxies*: seq[SignedPeerRecord]
   privateQueries: bool
+  onAddrChange*: proc() {.gcsafe, raises: [].}
 
 proc toNodeId*(cid: Cid): NodeId =
   ## Cid to discovery id
@@ -222,6 +223,7 @@ proc announceDirectAddrs*(
 ) =
   # UDP addresses are derived from TCP addresses by remapping protocol and port.
   let tcpAddrs = @providerAddrs
+  let addrsChanged = tcpAddrs.len > 0 and tcpAddrs.sorted() != d.providerAddrs.sorted()
   let udpAddrs =
     tcpAddrs.mapIt(it.remapAddr(protocol = some("udp"), port = some(udpPort)))
 
@@ -242,9 +244,13 @@ proc announceDirectAddrs*(
       .expect("Should construct signed record").some
     d.protocol.updateRecord(spr).expect("Should update SPR")
 
+  if addrsChanged and not d.onAddrChange.isNil:
+    d.onAddrChange()
+
 proc announceRelayAddrs*(d: Discovery, addrs: openArray[MultiAddress]) =
   ## Updates the announce addresses and the SPR with the relay circuit addresses.
   ## Unlike announceDirectAddrs, no UDP address is derived so discoveryAddrs is left untouched.
+  let addrsChanged = addrs.len > 0 and addrs.sorted() != d.providerAddrs.sorted()
   d.providerAddrs = @addrs
 
   info "Updating announce record", addrs = d.providerAddrs
@@ -255,6 +261,9 @@ proc announceRelayAddrs*(d: Discovery, addrs: openArray[MultiAddress]) =
 
   info "Provider record updated",
     addrs = d.providerAddrs, spr = d.providerRecord.get.toURI
+
+  if addrsChanged and not d.onAddrChange.isNil:
+    d.onAddrChange()
 
 proc start*(d: Discovery) {.async: (raises: []).} =
   try:
