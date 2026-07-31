@@ -203,9 +203,14 @@ proc process*(
       const msg = "Failed to CLOSE_NODE, the node is not created."
       error msg
       return err(msg)
+
+    # Set to nil. Even if the close fails, it could fail partially
+    # and we don't want to keep a reference to a node that is in an unknown state.
+    defer:
+      storage[] = nil
+
     try:
       await storage[].close()
-      storage[] = nil
     except Exception as e:
       error "Failed to CLOSE_NODE.", error = e.msg
       return err(e.msg)
