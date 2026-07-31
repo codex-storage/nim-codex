@@ -147,3 +147,36 @@ suite "Conf - validateAutonatConfig":
     config.natPortMappingRecheckPeriod = 0
 
     check config.validateAutonatConfig().isErr
+
+suite "Conf - parseCmdArg":
+  test "rejects an invalid NAT config":
+    expect ConfigurationError:
+      discard parseCmdArg(NatConfig, "none")
+
+  test "rejects an invalid thread count":
+    expect ConfigurationError:
+      discard parseCmdArg(ThreadCount, "abc")
+
+  test "rejects a thread count below two":
+    expect ConfigurationError:
+      discard parseCmdArg(ThreadCount, "1")
+
+  test "rejects an invalid duration":
+    expect ConfigurationError:
+      discard parseCmdArg(Duration, "forever")
+
+  test "rejects an invalid number of bytes":
+    expect ConfigurationError:
+      discard parseCmdArg(NBytes, "many")
+
+  test "rejects an invalid network preset":
+    expect ConfigurationError:
+      discard parseCmdArg(NetworkPreset, "unknown")
+
+  test "rejects an invalid multiaddress":
+    expect ConfigurationError:
+      discard parseCmdArg(MultiAddress, "not-a-multiaddress")
+
+  test "rejects an invalid signed peer record":
+    expect ConfigurationError:
+      discard parseCmdArg(SignedPeerRecord, "not-an-spr")
