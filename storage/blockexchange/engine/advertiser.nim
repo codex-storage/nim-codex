@@ -45,6 +45,7 @@ type Advertiser* = ref object of RootObj
 
   advertiseLocalStoreLoopSleep: Duration # Advertise loop sleep
   inFlightAdvReqs*: Table[Cid, Future[void]] # Inflight advertise requests
+  addrChanged: AsyncEvent # Fired when the announced addresses change
 
 proc addCidToQueue(b: Advertiser, cid: Cid) {.async: (raises: [CancelledError]).} =
   if cid notin b.advertiseQueue:
@@ -70,6 +71,8 @@ proc advertiseBlock(b: Advertiser, cid: Cid) {.async: (raises: [CancelledError])
 proc advertiseLocalStoreLoop(b: Advertiser) {.async: (raises: []).} =
   try:
     while b.advertiserRunning:
+      b.addrChanged.clear()
+
       if cidsIter =? await b.localStore.listBlocks(blockType = BlockType.Manifest):
         trace "Advertiser begins iterating blocks..."
         for c in cidsIter:
@@ -77,7 +80,7 @@ proc advertiseLocalStoreLoop(b: Advertiser) {.async: (raises: []).} =
             await b.advertiseBlock(cid)
         trace "Advertiser iterating blocks finished."
 
-      await sleepAsync(b.advertiseLocalStoreLoopSleep)
+      discard await b.addrChanged.wait().withTimeout(b.advertiseLocalStoreLoopSleep)
   except CancelledError:
     warn "Cancelled advertise local store loop"
 
@@ -125,6 +128,8 @@ proc start*(b: Advertiser) {.async: (raises: []).} =
   b.localStore.onBlockStored = onBlock.some
 
   b.advertiserRunning = true
+  b.discovery.onAddrChange = proc() {.gcsafe, raises: [].} =
+    b.addrChanged.fire()
   for i in 0 ..< b.concurrentAdvReqs:
     let fut = b.processQueueLoop()
     b.trackedFutures.track(fut)
@@ -144,6 +149,7 @@ proc stop*(b: Advertiser) {.async: (raises: []).} =
   b.advertiserRunning = false
   # Stop incoming tasks from callback and localStore loop
   b.localStore.onBlockStored = CidCallback.none
+  b.discovery.onAddrChange = nil
   trace "Stopping advertise loop and tasks"
   await b.trackedFutures.cancelTracked()
   trace "Advertiser loop and tasks stopped"
@@ -165,4 +171,5 @@ proc new*(
     trackedFutures: TrackedFutures.new(),
     inFlightAdvReqs: initTable[Cid, Future[void]](),
     advertiseLocalStoreLoopSleep: advertiseLocalStoreLoopSleep,
+    addrChanged: newAsyncEvent(),
   )
