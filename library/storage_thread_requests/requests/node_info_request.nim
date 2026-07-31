@@ -55,7 +55,8 @@ proc process*(
   defer:
     destroyShared(self)
 
-  if storage[].isNil:
+  # METRICS does not need a node.
+  if storage[].isNil and self.operation != METRICS:
     const msg = "Failed to process: the node is not created."
     error msg
     return err(msg)

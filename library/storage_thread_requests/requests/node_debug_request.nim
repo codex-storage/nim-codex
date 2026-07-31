@@ -96,7 +96,8 @@ proc process*(
   defer:
     destroyShared(self)
 
-  if storage[].isNil:
+  # LOG_LEVE does not requires a node.
+  if storage[].isNil and self.operation != NodeDebugMsgType.LOG_LEVEL:
     const msg = "Failed to process: the node is not created."
     error msg
     return err(msg)

@@ -205,7 +205,9 @@ proc process*(
       return err(msg)
     try:
       await storage[].close()
+      storage[] = nil
     except Exception as e:
       error "Failed to CLOSE_NODE.", error = e.msg
       return err(e.msg)
+
   return ok("")
