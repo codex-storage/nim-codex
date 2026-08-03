@@ -47,6 +47,7 @@ import ./storagetypes
 import ./logutils
 import ./nat
 import ./utils/natutils
+import ./mix
 
 logScope:
   topics = "storage node"
@@ -138,6 +139,13 @@ proc start*(s: StorageServer) {.async.} =
         DhtProxyProtocol.new(s.storageNode.discovery)
     await dhtProxyProto.start()
     switch.mount(dhtProxyProto)
+
+    let mixTransport = newMixTransport(switch = switch, mix = mixProto)
+    let res = await mixTransport.start()
+
+    if res.isErr:
+      raise
+        newException(StorageError, "Failed to start Mix transport: " & res.error.msg)
 
     s.storageNode.discovery.mixProto = mixProto
 
