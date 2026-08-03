@@ -1,5 +1,7 @@
 import std/json
 
+import pkg/questionable/results
+
 import ../multinodes
 
 multinodesuite "Mix startup":
