@@ -80,6 +80,17 @@ func node*(self: StorageServer): StorageNodeRef =
 func repoStore*(self: StorageServer): RepoStore =
   return self.repoStore
 
+proc startMixTransport*(s: StorageServer, mixProto: MixProtocol) {.async: (raises: [CancelledError, StorageError]).} =
+  if not s.config.mixEnabled or mixProto.isNil:
+    return
+
+  let switch = s.storageNode.switch
+
+  let mixTransport = newMixTransport(switch, mixProto)
+  (await mixTransport.start()).isOkOr:
+    raise newException(StorageError, "Failed to start Mix transport: " & error.msg)
+  s.storageNode.engine.network.mixTransport = some(mixTransport)
+
 proc start*(s: StorageServer) {.async.} =
   if s.isStarted:
     warn "Storage server already started, skipping"
@@ -140,13 +151,6 @@ proc start*(s: StorageServer) {.async.} =
     await dhtProxyProto.start()
     switch.mount(dhtProxyProto)
 
-    let mixTransport = newMixTransport(switch = switch, mix = mixProto)
-    let res = await mixTransport.start()
-
-    if res.isErr:
-      raise
-        newException(StorageError, "Failed to start Mix transport: " & res.error.msg)
-
     s.storageNode.discovery.mixProto = mixProto
 
     if s.config.dhtMixProxies.len > 0:
@@ -155,6 +159,8 @@ proc start*(s: StorageServer) {.async.} =
           newException(StorageError, "Failed to enable private queries: " & error.msg)
 
     s.storageNode.engine.network.excludeRelays(relayPool.keys.toSeq)
+
+    await s.startMixTransport(mixProto)
 
   if s.natMapper.isSome:
     s.natMapper.get.start()
