@@ -231,6 +231,9 @@ proc updateLocalMultiAddr(d: Discovery) =
 
   let res = d.mixProto.setLocalMultiAddr(mixAddr)
   if res.isErr:
+    # This case should not happen.
+    # We checked above that the mix addr is valid,
+    # and setLocalMultiAddr should only fail if the address is invalid.
     error "Failed to update Mix local address", address = mixAddr, err = res.error
   else:
     info "Mix local address updated", address = mixAddr
