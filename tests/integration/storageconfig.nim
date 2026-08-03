@@ -239,6 +239,14 @@ proc withExtIp*(
   startConfig.configs[idx].addCliOption("--nat", "extip:" & ip)
   return startConfig
 
+proc withMixEnabled*(
+    self: StorageConfigs
+): StorageConfigs {.raises: [StorageConfigError].} =
+  var startConfig = self
+  for config in startConfig.configs.mitems:
+    config.addCliOption("--mix-enabled")
+  return startConfig
+
 # For testing, a node with extip (not behind nat) with autonat server
 # enabled is a bootstrap node
 proc isBootstrapNode*(config: StorageConfig): bool {.raises: [].} =
