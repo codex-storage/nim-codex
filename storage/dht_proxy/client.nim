@@ -64,9 +64,10 @@ proc requestLookup(
 
 proc isReady(mixProto: MixProtocol): bool =
   ## Returns true if the MixProtocol is ready to be used for lookups.
-  ## mixUnsetMultiAddr() is set in the setup for nat:auto, and restored whenever
-  ## the announce no longer carries a usable address. The Mix lookup cannot be
-  ## performed until Autonat provides a Reachable address or a Relay address.
+  ## mixUnsetMultiAddr() is set as a placeholder in the setup and updated whenever
+  ## the announce no longer carries a usable address.
+  ## The Mix lookup cannot be performed until Autonat provides a Reachable
+  ## address or a Relay address.
   return $mixProto.localMixPubInfo.multiAddr != $mixUnsetMultiAddr()
 
 proc lookupProviders*(
