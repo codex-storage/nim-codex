@@ -18,7 +18,8 @@ import ../../../storage/stores/repostore
 
 from ../../../storage/storage import StorageServer, node, repoStore
 from ../../../storage/node import
-  iterateManifests, fetchManifest, fetchDatasetAsyncTask, delete, hasLocalBlock
+  iterateManifests, fetchManifest, fetchDatasetAsyncTask, delete, hasLocalBlock,
+  datasetUsageByType, DatasetTypeUsage
 from libp2p import Cid, init, `$`
 
 logScope:
@@ -35,11 +36,17 @@ type NodeStorageRequest* = object
   operation: NodeStorageMsgType
   cid: cstring
 
+type DatasetUsageEntry = object
+  mimetype {.serialize.}: string
+  bytesLocal {.serialize.}: NBytes
+  count {.serialize.}: int
+
 type StorageSpace = object
   totalBlocks* {.serialize.}: Natural
   quotaMaxBytes* {.serialize.}: NBytes
   quotaUsedBytes* {.serialize.}: NBytes
   quotaReservedBytes* {.serialize.}: NBytes
+  usage* {.serialize.}: seq[DatasetUsageEntry]
 
 proc createShared*(
     T: type NodeStorageRequest, op: NodeStorageMsgType, cid: cstring = ""
@@ -119,11 +126,27 @@ proc space(
     storage: ptr StorageServer
 ): Future[Result[string, string]] {.async: (raises: []).} =
   let repoStore = storage[].repoStore
+  let node = storage[].node
+
+  var usageList: seq[DatasetUsageEntry]
+  try:
+    let usageRes = await node.datasetUsageByType()
+    if usageRes.isErr:
+      return err("Failed to get space usage: " & usageRes.error.msg)
+
+    for mimetype, entry in usageRes.get:
+      usageList.add DatasetUsageEntry(
+        mimetype: mimetype, bytesLocal: entry.bytesLocal, count: entry.count
+      )
+  except CancelledError:
+    return err("Failed to get space usage: cancelled operation.")
+
   let space = StorageSpace(
     totalBlocks: repoStore.totalBlocks,
     quotaMaxBytes: repoStore.quotaMaxBytes,
     quotaUsedBytes: repoStore.quotaUsedBytes,
     quotaReservedBytes: repoStore.quotaReservedBytes,
+    usage: usageList,
   )
   return ok(serde.toJson(space))
 

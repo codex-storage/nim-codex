@@ -34,7 +34,9 @@ proc makeRandomBlocks*(
 
     result.add(Block.new(chunk).tryGet())
 
-proc makeDataset*(blocks: seq[Block]): ?!TestDataset =
+proc makeDataset*(
+    blocks: seq[Block], mimetype: Option[string] = string.none
+): ?!TestDataset =
   if blocks.len == 0:
     return failure("Blocks list was empty")
 
@@ -47,6 +49,7 @@ proc makeDataset*(blocks: seq[Block]): ?!TestDataset =
       treeCid = treeCid,
       blockSize = NBytes(blockSize),
       datasetSize = NBytes(datasetSize),
+      mimetype = mimetype,
     )
     manifestBlock = ?Block.new(?manifest.encode(), codec = ManifestCodec)
 
