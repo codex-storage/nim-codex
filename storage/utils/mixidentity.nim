@@ -28,8 +28,7 @@ const PoolFormatVersion = 1
 const MixIdentityFileSize = 2 * FieldElementSize
 
 proc mixUnsetMultiAddr*(): MultiAddress =
-  ## Stands in for "no dialable address known". Mix encodes it, so it can be
-  ## stored through setLocalMultiAddr, but dialing 0.0.0.0:0 always fails.
+  ## Placeholder multiaddr for a mix node that has not yet been assigned a real multiaddr.
   ## Use a proc here to avoid GC-safe compilation issues.
   MultiAddress.init("/ip4/0.0.0.0/tcp/0").expect("valid")
 
