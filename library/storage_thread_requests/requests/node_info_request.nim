@@ -98,4 +98,4 @@ proc process*(
       # an infinite number of objects (could be related to some assumption
       # failure above).
       # FIXME figure out what's going on and add this back.
-      return ok($defaultRegistry.toJson(exclude = @["nim_runtime_info"]))
+      return ok($defaultRegistry.toJson(exclude = @["nim_runtime_info"], prefix = true))

@@ -39,8 +39,12 @@ func addMetricsPrefix*(name: string): string =
     else:
       break
 
-  # This is the only part where we should be doing copies.
-  return "logos_storage_" & name[slice_idx .. ^1]
+  return
+    if slice_idx == name.len:
+      name
+    else:
+      # This is the only part where we should be doing copies.
+      "logos_storage_" & name[slice_idx .. ^1]
 
 proc toJson(collector: Collector, metrics: var seq[JsonNode], prefix: bool = false) =
   # We know the closure won't outlive `metrics` so this is

@@ -44,6 +44,10 @@ suite "Metrics":
     check "logos_storage_count" == addMetricsPrefix("storage_count")
     check "logos_storage_count" == addMetricsPrefix("logos_count")
 
+  test "should not modify name if it is made of prefix fragments alone":
+    check "logos_storage_" == addMetricsPrefix("logos_storage_")
+    check "storage" == addMetricsPrefix("storage")
+
   test "should serialize Nim metrics to Logos Metrics format":
     myCounter.inc(labelValues = ["screws"])
     myCounter.inc(labelValues = ["washers"])
