@@ -80,7 +80,9 @@ func node*(self: StorageServer): StorageNodeRef =
 func repoStore*(self: StorageServer): RepoStore =
   return self.repoStore
 
-proc startMixTransport*(s: StorageServer, mixProto: MixProtocol) {.async: (raises: [CancelledError, StorageError]).} =
+proc startMixTransport*(
+    s: StorageServer, mixProto: MixProtocol
+) {.async: (raises: [CancelledError, StorageError]).} =
   if not s.config.mixEnabled or mixProto.isNil:
     return
 
