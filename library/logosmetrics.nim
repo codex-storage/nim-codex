@@ -17,7 +17,30 @@ proc jsonType(collector: Collector): string =
 
   return "unknown"
 
-proc toJson(collector: Collector, metrics: var seq[JsonNode]) =
+const RedundantFragments = ["logos", "storage", "_"]
+
+func addMetricsPrefix*(name: string): string =
+  ## Adds the standard Logos metrics prefix (`logos_storage_`) to a metric name.
+  ## Drops repeat prefix fragments (`logos`, `storage`) before adding the prefix.
+  var slice_idx: int
+  while true:
+    var hasFrag = false
+    for fragment in RedundantFragments:
+      if name.continuesWith(fragment, slice_idx):
+        slice_idx += fragment.len
+        hasFrag = true
+        break
+    if not hasFrag:
+      break
+
+  return
+    if slice_idx == name.len:
+      name
+    else:
+      # This is the only part where we should be doing copies.
+      "logos_storage_" & name[slice_idx .. ^1]
+
+proc toJson(collector: Collector, metrics: var seq[JsonNode], prefix: bool = false) =
   # We know the closure won't outlive `metrics` so this is
   # an acceptable hack.
   let metricsPtr = addr metrics
@@ -40,18 +63,34 @@ proc toJson(collector: Collector, metrics: var seq[JsonNode]) =
       labelMap[labels[i]] = %labelValues[i]
 
     metricsPtr[].add(
-      %*{"name": name, "type": typ, "help": help, "value": value, "labels": labelMap}
+      %*{
+        "name":
+          if prefix:
+            addMetricsPrefix(name)
+          else:
+            name,
+        "type": typ,
+        "help": help,
+        "value": value,
+        "labels": labelMap,
+      }
     )
 
   collector.collect(serializeMetric)
 
-# Serializes all collectors in a given registry to a Logos openmetrics-compatible
-# format. Allows including only specific collectors by name.
 proc toJson*(
     registry: Registry,
     exclude: openArray[string] = [],
     includeOnly: openArray[string] = [],
+    prefix: bool = false,
 ): JsonNode =
+  ## Serializes all collectors in a given registry to a Logos openmetrics-compatible
+  ## format. Allows including only specific collectors by name. Optionally, adds a
+  ## standardized prefix to all metrics on output.
+  ##
+  ## See also:
+  ##   - `addMetricsPrefix`
+  ##
   var metrics = newSeq[JsonNode]()
   withLock registry.lock:
     for collector in registry.collectors:
@@ -61,6 +100,6 @@ proc toJson*(
       if includeOnly.len > 0:
         if collector.name notin includeOnly:
           continue
-      collector.toJson(metrics)
+      collector.toJson(metrics, prefix)
 
   result = %*{"metrics": metrics}

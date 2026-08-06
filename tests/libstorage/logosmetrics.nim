@@ -1,5 +1,7 @@
 import std/json
 import std/times
+import std/sequtils
+import std/sets
 
 import pkg/unittest2
 import pkg/metrics
@@ -31,6 +33,21 @@ method collect(collector: BadCollector, output: MetricHandler) =
   )
 
 suite "Metrics":
+  test "should add prefix to unprefixed metrics":
+    check "logos_storage_count" == addMetricsPrefix("count")
+
+  test "should drop leading underscores":
+    check "logos_storage_count" == addMetricsPrefix("_count")
+
+  test "should drop repeated prefixes":
+    check "logos_storage_count" == addMetricsPrefix("logos_storage_count")
+    check "logos_storage_count" == addMetricsPrefix("storage_count")
+    check "logos_storage_count" == addMetricsPrefix("logos_count")
+
+  test "should not modify name if it is made of prefix fragments alone":
+    check "logos_storage_" == addMetricsPrefix("logos_storage_")
+    check "storage" == addMetricsPrefix("storage")
+
   test "should serialize Nim metrics to Logos Metrics format":
     myCounter.inc(labelValues = ["screws"])
     myCounter.inc(labelValues = ["washers"])
@@ -146,3 +163,18 @@ suite "Metrics":
           },
         ]
       }
+
+  test "should prefix metrics when requested":
+    let
+      metrics = defaultRegistry.toJson(
+        includeOnly = @["myCounter", "myGauge", "myHistogram"], prefix = true
+      )
+      names = metrics["metrics"].mapIt(it["name"].getStr()).toHashSet()
+
+    check names ==
+      [
+        "logos_storage_myCounter_total", "logos_storage_myCounter_created",
+        "logos_storage_myGauge", "logos_storage_myHistogram_sum",
+        "logos_storage_myHistogram_count", "logos_storage_myHistogram_bucket",
+        "logos_storage_myHistogram_created",
+      ].toHashSet()
