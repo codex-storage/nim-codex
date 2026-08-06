@@ -17,26 +17,20 @@ proc jsonType(collector: Collector): string =
 
   return "unknown"
 
-# Sadly strutils startsWith cannot operate on a slice without us
-# making a copy each time, so we implement a version that operates
-# on an offset.
-func startsWith(s: string, prefix: string, offset: int): bool =
-  return
-    prefix.len <= (s.len - offset) and
-    (prefix.len == 0 or equalMem(addr s[offset], addr prefix[0], prefix.len))
+const RedundantFragments = ["logos", "storage", "_"]
 
 func addMetricsPrefix*(name: string): string =
   ## Adds the standard Logos metrics prefix (`logos_storage_`) to a metric name.
   ## Drops repeat prefix fragments (`logos`, `storage`) before adding the prefix.
   var slice_idx: int
   while true:
-    if name.startsWith("logos", slice_idx):
-      slice_idx += "logos".len
-    elif name.startsWith("storage", slice_idx):
-      slice_idx += "storage".len
-    elif name.startsWith("_", slice_idx):
-      slice_idx += 1
-    else:
+    var hasFrag = false
+    for fragment in RedundantFragments:
+      if name.continuesWith(fragment, slice_idx):
+        slice_idx += fragment.len
+        hasFrag = true
+        break
+    if not hasFrag:
       break
 
   return
