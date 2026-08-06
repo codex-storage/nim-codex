@@ -78,8 +78,8 @@ services:
     command:
       - public_node
       - nonprimary
-      # C fetches A's SPR from this API at startup to join the network (bootstrap_ip)
-      - http://7.7.7.10:8080
+      # C fetches A's SPR from this address at startup to join the network
+      - *bootstrap_ip
 
   node:
     image: localhost/storage-nat
@@ -97,4 +97,4 @@ services:
     command:
       - private_node
       - *router_lan_ip
-      - http://7.7.7.10:8080
+      - *bootstrap_ip

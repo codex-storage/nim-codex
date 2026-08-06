@@ -5,36 +5,38 @@ set -euo pipefail
 
 STORAGE_BINARY=${STORAGE_BINARY:-/app/build/storage}
 
+# In-memory configuration for the node.
+config_opts=()
+
 echoerr() {
   echo "$@" >&2
 }
 
-echoerr "Starting node..."
-
-# Base command, shared by all node types.
-storage_cmd=(
-  ${STORAGE_BINARY}
-  --listen-ip=0.0.0.0
-  # api-bindaddr=0.0.0.0 so the published host port reaches the REST API.
-  --api-bindaddr=0.0.0.0
-  --listen-port=8070
-  --disc-port=8090
-  --api-port=8080
-  --data-dir=/data
-  --log-level=DEBUG
-)
+base_config() {
+  config_opts+=(
+    "${STORAGE_BINARY}"
+    --listen-ip=0.0.0.0
+    # api-bindaddr=0.0.0.0 so the published host port reaches the REST API.
+    --api-bindaddr=0.0.0.0
+    --listen-port=8070
+    --disc-port=8090
+    --api-port=8080
+    --data-dir=/data
+    --log-level=DEBUG
+  )
+}
 
 add_bootstrap_options() {
-  local bootstrap_api_url="$1" spr=""
-  if [[ -z "$bootstrap_api_url" ]]; then
+  local bootstrap_addr="$1" spr=""
+  if [[ -z "$bootstrap_addr" ]]; then
     echoerr "Node is a primary bootstrap node."
-    storage_cmd+=(--no-bootstrap-node)
+    config_opts+=(--no-bootstrap-node)
     return 0
   fi
 
-  echoerr "Attempt to fetch bootstrap SPR from $bootstrap_api_url ..."
+  echoerr "Attempt to fetch bootstrap SPR from $bootstrap_addr ..."
   for _ in $(seq 1 60); do
-    spr=$(curl -fsS -H 'Accept: text/plain' "$bootstrap_api_url/api/storage/v1/spr" || true)
+    spr=$(curl -fsS -H 'Accept: text/plain' "http://$bootstrap_addr:8080/api/storage/v1/spr" || true)
     [[ -n "$spr" ]] && break
     sleep 1
   done
@@ -44,18 +46,18 @@ add_bootstrap_options() {
     return 1
   fi
   echoerr "Successfully fetched bootstrap SPR: $spr"
-  storage_cmd+=(--bootstrap-node="$spr")
+  config_opts+=(--bootstrap-node="$spr")
 }
 
 public_node() {
   local wan_ip="$1"
-  local bootstrap_api_url="${2:-}"
+  local bootstrap_addr="${2:-}"
   echoerr "Node is on the WAN (public IP is $wan_ip)"
 
-  add_bootstrap_options "$bootstrap_api_url"
+  add_bootstrap_options "$bootstrap_addr"
   if [[ "$wan_ip" != "nonprimary" ]]; then
     echoerr "Primary bootstrap external address: $wan_ip"
-    storage_cmd+=(
+    config_opts+=(
       --autonat-server
       --nat=extip:$wan_ip
     )
@@ -79,7 +81,7 @@ private_node() {
 
   add_bootstrap_options "$bootstrap_api_url"
 
-  storage_cmd+=(
+  config_opts+=(
     --nat-num-peers-to-ask=1
     --nat-max-queue-size=1
     --nat-min-confidence=1.0
@@ -87,28 +89,66 @@ private_node() {
   )
 }
 
-help() {
-  echo "Usage: $0 <public|private> <args> -- [extra_args], where:"
-  echo "  public <wan_ip>: launches a primary bootstrap node."
-  echo "  public nonprimary <primary_api_url>: launches a non-primary, public node"
-  echo "    which bootstraps from the primary and becomes a bootstrap node itself."
-  echo "  private <router_lan_ip> <bootstrap_api_url>: launches a private node"
-  echo "    which uses router_lan_ip as its gateway to the public internet."
-  echo "  extra_args: passed on to the storage binary as they are."
+enable_mix() {
+  local info
+
+  config_opts+=(
+    --mix-enabled
+  )
+
+  rm -rf /tmp/mixinfo.jsonl || true
+
+  for mix_ip in "$@"; do
+    info=$(curl -s "http://$mix_ip:8080/api/storage/v1/debug/info")
+    echo "$info" | jq '{
+      peerid: .table.localNode.peerId,
+      multiAddr: .providerAddresses[0],
+      mixPubKey: .mixPubKey,
+      libp2pPubKey: .libp2pPubKey
+    }' >> /tmp/mixinfo.jsonl
+    cmd+=(--dht-mix-proxy="echo $info | jq .providerRecord")
+  done
+
+  if [[ -s /tmp/mixinfo.jsonl ]]; then
+    mix_pool_json_str=$(cat /tmp/mixinfo.jsonl | jq '{
+      version: 1,
+      relays: [inputs]
+    } | tostring')
+    config_opts+=(--mix-pool-json="$mix_pool_json_str")
+  fi
 }
 
-builder_cmd=()
-while [[ $# -gt 0 ]]; do
-  if [[ "$1" == "--" ]]; then
-    shift
-    break
-  fi
-  builder_cmd+=("$1")
-  shift
-done
+enable_relay() {
+  config_opts+=("--relay-server")
+}
 
-# Builds the actual storage command.
-"${builder_cmd[@]}"
+launch() {
+  echoerr "Starting node..."
+  exec "${config_opts[@]}"
+}
 
-# Launches storage.
-exec "${storage_cmd[@]}" "$@"
+# Added by default.
+base_config
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  # This will run commands separated by % as a chain.
+  while [[ $# -gt 0 ]]; do
+    current_cmd=()
+    while [[ $# -gt 0 ]]; do
+      if [[ "$1" == "%" ]]; then
+        shift
+        break
+      fi
+      current_cmd+=("$1")
+      shift
+    done
+    "${current_cmd[@]}"
+  done
+
+  echoerr "#### Config opts ####"
+  echoerr "${config_opts[@]}"
+  echoerr "#####################"
+
+  # Once we're done, launch the node.
+  launch "$@"
+fi
