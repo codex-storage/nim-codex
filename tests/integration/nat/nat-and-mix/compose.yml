@@ -1,0 +1,201 @@
+# This test exercises the common case of a source node behind a NAT
+# with Mix relays that are reachable on the public internet.
+name: nat-and-mix
+
+x-addresses:
+  # Address space for "the internet". Use a public range
+  # to make sure it plays nice with NAT traversal invariants.
+  wan_subnet: &wan_subnet 7.7.7.0/24
+  # Private network for leecher
+  leecher_lan_subnet: &leecher_lan_subnet 192.168.0.0/24
+  # Private network for seeder
+  seeder_lan_subnet: &seeder_lan_subnet 192.168.1.0/24
+
+  # Mix-Proxy nodes are public.
+  mix_proxy_1_ip: &mix_proxy_1_ip 7.7.7.11
+  mix_proxy_2_ip: &mix_proxy_2_ip 7.7.7.12
+  mix_proxy_3_ip: &mix_proxy_3_ip 7.7.7.13
+  mix_proxy_4_ip: &mix_proxy_4_ip 7.7.7.14
+
+  # Both leecher and seeder are behind NATs.
+  leecher_router_wan_ip: &leecher_router_wan_ip 7.7.7.20
+  leecher_router_lan_ip: &leecher_router_lan_ip 192.168.0.20
+  leecher_lan_ip: &leecher_lan_ip 192.168.0.21
+
+  seeder_router_wan_ip: &seeder_router_wan_ip 7.7.7.30
+  seeder_router_lan_ip: &seeder_router_lan_ip 192.168.1.30
+  seeder_lan_ip: &seeder_lan_ip 192.168.1.31
+
+networks:
+  wan:
+    internal: true
+    ipam:
+      config:
+        - subnet: *wan_subnet
+
+  leecher_lan:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: *leecher_lan_subnet
+
+  seeder_lan:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: *seeder_lan_subnet
+
+services:
+  # Routers
+  seeder_router:
+    image: localhost/storage-nat
+    cap_add: [NET_ADMIN]
+    sysctls:
+      net.ipv4.ip_forward: 1
+    networks:
+      wan:
+        ipv4_address: *seeder_router_wan_ip
+      seeder_lan:
+        ipv4_address: *seeder_router_lan_ip
+    environment:
+      ROUTER_WAN_IP: *seeder_router_wan_ip
+      LAN_SUBNET: *seeder_lan_subnet
+    volumes:
+      - ../router-common.sh:/scripts/router-common.sh:ro,z
+      - ./router-entrypoint.sh:/scripts/router-entrypoint.sh:ro,z
+    entrypoint: ["bash", "/scripts/router-entrypoint.sh"]
+
+  leecher_router:
+    image: localhost/storage-nat
+    cap_add: [NET_ADMIN]
+    sysctls:
+      net.ipv4.ip_forward: 1
+    networks:
+      wan:
+        ipv4_address: *leecher_router_wan_ip
+      leecher_lan:
+        ipv4_address: *leecher_router_lan_ip
+    environment:
+      ROUTER_WAN_IP: *leecher_router_wan_ip
+      LAN_SUBNET: *leecher_lan_subnet
+    volumes:
+      - ../router-common.sh:/scripts/router-common.sh:ro,z
+      - ./router-entrypoint.sh:/scripts/router-entrypoint.sh:ro,z
+    entrypoint: ["bash", "/scripts/router-entrypoint.sh"]
+
+  # Mix-proxy Nodes
+  mix_proxy_1:
+    image: localhost/storage-nat
+    cap_add: [NET_ADMIN]
+    networks:
+      wan:
+        ipv4_address: *mix_proxy_1_ip
+    volumes:
+      - ../node-entrypoint.sh:/scripts/node-entrypoint.sh:ro,z
+    entrypoint: ["bash", "/scripts/node-entrypoint.sh"]
+    command:
+      - public_node
+      - *mix_proxy_1_ip
+      - -%-
+      - enable_relay
+      - -%-
+      - enable_mix
+
+  mix_proxy_2:
+    image: localhost/storage-nat
+    cap_add: [NET_ADMIN]
+    networks:
+      wan:
+        ipv4_address: *mix_proxy_2_ip
+    volumes:
+      - ../node-entrypoint.sh:/scripts/node-entrypoint.sh:ro,z
+    entrypoint: ["bash", "/scripts/node-entrypoint.sh"]
+    command:
+      - public_node
+      - *mix_proxy_2_ip
+      - *mix_proxy_1_ip
+      - -%-
+      - enable_relay
+      - -%-
+      - enable_mix
+
+  mix_proxy_3:
+    image: localhost/storage-nat
+    cap_add: [NET_ADMIN]
+    networks:
+      wan:
+        ipv4_address: *mix_proxy_3_ip
+    volumes:
+      - ../node-entrypoint.sh:/scripts/node-entrypoint.sh:ro,z
+    entrypoint: ["bash", "/scripts/node-entrypoint.sh"]
+    command:
+      - public_node
+      - *mix_proxy_3_ip
+      - *mix_proxy_1_ip
+      - -%-
+      - enable_relay
+      - -%-
+      - enable_mix
+
+  mix_proxy_4:
+    image: localhost/storage-nat
+    cap_add: [NET_ADMIN]
+    networks:
+      wan:
+        ipv4_address: *mix_proxy_4_ip
+    volumes:
+      - ../node-entrypoint.sh:/scripts/node-entrypoint.sh:ro,z
+    entrypoint: ["bash", "/scripts/node-entrypoint.sh"]
+    command:
+      - public_node
+      - *mix_proxy_4_ip
+      - *mix_proxy_1_ip
+      - -%-
+      - enable_relay
+      - -%-
+      - enable_mix
+
+  seeder:
+    image: localhost/storage-nat
+    cap_add: [NET_ADMIN]
+    networks:
+      seeder_lan:
+        ipv4_address: *seeder_lan_ip
+    ports:
+      - "127.0.0.1:18090:8080"
+
+    volumes:
+      - ../node-entrypoint.sh:/scripts/node-entrypoint.sh:ro,z
+    entrypoint: ["bash", "/scripts/node-entrypoint.sh"]
+    command:
+      - private_node
+      - *seeder_router_lan_ip
+      - *mix_proxy_1_ip
+      - -%-
+      - enable_mix
+      - *mix_proxy_1_ip
+      - *mix_proxy_2_ip
+      - *mix_proxy_3_ip
+      - *mix_proxy_4_ip
+
+  leecher:
+    image: localhost/storage-nat
+    cap_add: [NET_ADMIN]
+    networks:
+      leecher_lan:
+        ipv4_address: *leecher_lan_ip
+    ports:
+      - "127.0.0.1:18091:8080"
+    volumes:
+      - ../node-entrypoint.sh:/scripts/node-entrypoint.sh:ro,z
+    entrypoint: ["bash", "/scripts/node-entrypoint.sh"]
+    command:
+      - private_node
+      - *leecher_router_lan_ip
+      - *mix_proxy_1_ip
+      - -%-
+      - enable_mix
+      - *mix_proxy_1_ip
+      - *mix_proxy_2_ip
+      - *mix_proxy_3_ip
+      - *mix_proxy_4_ip

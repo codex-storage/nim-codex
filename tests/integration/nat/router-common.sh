@@ -16,6 +16,11 @@ if ! iptables -t nat -A POSTROUTING -s "$LAN_SUBNET" -o "$wanif" -j MASQUERADE; 
 fi
 iptables -P FORWARD ACCEPT
 
+# By default, drop all incoming traffic on the WAN interface - if we don't do this,
+# the router will issue an RST when external peers try to connect and things like hole
+# punching will fail.
+iptables -A INPUT -i "$wanif" -j DROP
+
 # Block until `compose down`. sleep runs in the background so the SIGTERM trap
 # fires immediately instead of waiting for sleep to return.
 hold_until_stopped() {
