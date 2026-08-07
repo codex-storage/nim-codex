@@ -118,29 +118,15 @@ method findDirect*(
   except CatchableError as exc:
     return failure("Error finding providers for block " & $cid & ": " & exc.msg)
 
-func isMixConfigured(d: Discovery): bool =
-  not d.mixProto.isNil and d.dhtMixProxies.len > 0
-
-func privateQueriesEnabled*(d: Discovery): bool =
-  ## Answers as a single boolean whether or not discovery will currently use a Mixnet
-  ## for anonymizing user queries.
-  d.privateQueries and d.isMixConfigured()
-
 method find*(
     d: Discovery, cid: Cid
 ): Future[seq[SignedPeerRecord]] {.async: (raises: [CancelledError]), base.} =
   let providers =
-    if d.privateQueries:
-      if d.isMixConfigured():
-        (await d.findViaMix(cid)).valueOr:
-          warn "Mix lookup failed", cid, err = error.msg
-          return @[]
-      else:
-        # FIXME Ideally this should return an error. For now we return an empty response
-        #   as that's better than automatically falling back to public queries if the node
-        #   is misconfigured.
-        error "Private queries enabled but no Mix protocol or proxies configured. " &
-          "Returning empty reply."
+    # Note that the invariant checks in `togglePrivateQueries` ensure that
+    # `d.privateQueries` is only true when `d.mixProto` and `d.dhtMixProxies` are set.
+    if d.privateQueries and not d.mixProto.isNil and d.dhtMixProxies.len > 0:
+      (await d.findViaMix(cid)).valueOr:
+        warn "Mix lookup failed", cid, err = error.msg
         return @[]
     else:
       (await d.findDirect(cid)).valueOr:
@@ -342,6 +328,9 @@ proc togglePrivateQueries*(d: Discovery, enabled: bool): ?!bool =
   let old = d.privateQueries
   d.privateQueries = enabled
   success(old)
+
+proc isPrivateQueriesEnabled*(d: Discovery): bool =
+  d.privateQueries
 
 proc new*(
     T: type Discovery,

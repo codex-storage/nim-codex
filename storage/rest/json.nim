@@ -165,5 +165,5 @@ proc init*(
       portMapping: portMappingStr(natMapper),
     ),
     connections: peerConnections(node.switch),
-    privateQueries: node.discovery.privateQueriesEnabled,
+    privateQueries: node.discovery.isPrivateQueriesEnabled,
   )
