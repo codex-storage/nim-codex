@@ -77,8 +77,7 @@ services:
     entrypoint: ["bash", "/scripts/node-entrypoint.sh"]
     command:
       - public_node
-      - nonprimary
-      # C fetches A's SPR from this address at startup to join the network
+      - discover-self-ip
       - *bootstrap_ip
 
   node:

@@ -26,6 +26,22 @@ base_config() {
   )
 }
 
+api_request() {
+  local addr="$1" path="$2" timeout="${3:-60}" interval="${4:-1}"
+  local api_url="http://$addr:8080$path"
+  local deadline=$((SECONDS + timeout))
+
+  while (( SECONDS < deadline )); do
+    if curl -fsS -H 'Accept: text/plain' "$api_url"; then
+      return 0
+    fi
+    echoerr "Retrying request to $api_url in $interval seconds."
+    sleep "$interval"
+  done
+  echoerr "FAILURE: giving up on request to $api_url."
+  return 1
+}
+
 add_bootstrap_options() {
   local bootstrap_addr="$1" spr=""
   if [[ -z "$bootstrap_addr" ]]; then
@@ -35,16 +51,7 @@ add_bootstrap_options() {
   fi
 
   echoerr "Attempt to fetch bootstrap SPR from $bootstrap_addr ..."
-  for _ in $(seq 1 60); do
-    spr=$(curl -fsS -H 'Accept: text/plain' "http://$bootstrap_addr:8080/api/storage/v1/spr" || true)
-    [[ -n "$spr" ]] && break
-    sleep 1
-  done
-
-  if [[ -z "$spr" ]]; then
-    echoerr "ERROR: could not fetch bootstrap SPR" >&2
-    return 1
-  fi
+  spr=$(api_request "$bootstrap_addr" "/api/storage/v1/spr")
   echoerr "Successfully fetched bootstrap SPR: $spr"
   config_opts+=(--bootstrap-node="$spr")
 }
@@ -55,12 +62,16 @@ public_node() {
   echoerr "Node is on the WAN (public IP is $wan_ip)"
 
   add_bootstrap_options "$bootstrap_addr"
-  if [[ "$wan_ip" != "nonprimary" ]]; then
-    echoerr "Primary bootstrap external address: $wan_ip"
+  if [[ "$wan_ip" != "discover-self-ip" ]]; then
+    echoerr "Node external address set to $wan_ip"
     config_opts+=(
-      --autonat-server
       --nat=extip:$wan_ip
+      # By default we're running autonat on those, but not relay as some
+      # tests require no relay.
+      --autonat-server
     )
+  else
+    echoerr "Node will learn its external IP from Identify"
   fi
 }
 
@@ -98,22 +109,24 @@ enable_mix() {
 
   rm -rf /tmp/mixinfo.jsonl || true
 
+  echoerr "Querying mix nodes: $*"
+
   for mix_ip in "$@"; do
-    info=$(curl -s "http://$mix_ip:8080/api/storage/v1/debug/info")
+    info=$(api_request "$mix_ip" "/api/storage/v1/debug/info")
     echo "$info" | jq '{
-      peerid: .table.localNode.peerId,
+      peerId: .table.localNode.peerId,
       multiAddr: .providerAddresses[0],
       mixPubKey: .mixPubKey,
       libp2pPubKey: .libp2pPubKey
     }' >> /tmp/mixinfo.jsonl
-    cmd+=(--dht-mix-proxy="echo $info | jq .providerRecord")
+    config_opts+=(--dht-mix-proxy=$(echo "$info" | jq --raw-output .providerRecord))
   done
 
   if [[ -s /tmp/mixinfo.jsonl ]]; then
-    mix_pool_json_str=$(cat /tmp/mixinfo.jsonl | jq '{
+    mix_pool_json_str=$(jq -n --slurpfile relays /tmp/mixinfo.jsonl '{
       version: 1,
-      relays: [inputs]
-    } | tostring')
+      relays: $relays
+    }')
     config_opts+=(--mix-pool-json="$mix_pool_json_str")
   fi
 }
@@ -131,11 +144,11 @@ launch() {
 base_config
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
-  # This will run commands separated by % as a chain.
+  # This will run commands separated by -%- as a chain.
   while [[ $# -gt 0 ]]; do
     current_cmd=()
     while [[ $# -gt 0 ]]; do
-      if [[ "$1" == "%" ]]; then
+      if [[ "$1" == "-%-" ]]; then
         shift
         break
       fi
