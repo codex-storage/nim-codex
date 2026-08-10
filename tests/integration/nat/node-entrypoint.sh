@@ -6,16 +6,15 @@ set -euo pipefail
 STORAGE_BINARY=${STORAGE_BINARY:-/app/build/storage}
 
 # In-memory configuration for the node.
-config_opts=()
+_config_opts=()
+_opt_uses_identify="false"
 
-opt_uses_identify="false"
-
-echoerr() {
+_echoerr() {
   echo "$@" >&2
 }
 
-base_config() {
-  config_opts+=(
+_base_config() {
+  _config_opts+=(
     "${STORAGE_BINARY}"
     --listen-ip=0.0.0.0
     # api-bindaddr=0.0.0.0 so the published host port reaches the REST API.
@@ -28,7 +27,7 @@ base_config() {
   )
 }
 
-api_request() {
+_api_request() {
   local addr="$1" path="$2" timeout="${3:-60}" interval="${4:-1}"
   local api_url="http://$addr:8080$path"
   local deadline=$((SECONDS + timeout))
@@ -37,60 +36,60 @@ api_request() {
     if curl -fsS -H 'Accept: text/plain' "$api_url"; then
       return 0
     fi
-    echoerr "Retrying request to $api_url in $interval seconds."
+    _echoerr "Retrying request to $api_url in $interval seconds."
     sleep "$interval"
   done
-  echoerr "FAILURE: giving up on request to $api_url."
+  _echoerr "FAILURE: giving up on request to $api_url."
   return 1
 }
 
 add_bootstrap_options() {
   local bootstrap_addr="$1" spr=""
   if [[ -z "$bootstrap_addr" ]]; then
-    echoerr "Node is a primary bootstrap node."
-    config_opts+=(--no-bootstrap-node)
+    _echoerr "Node is a primary bootstrap node."
+    _config_opts+=(--no-bootstrap-node)
     return 0
   fi
 
-  echoerr "Attempt to fetch bootstrap SPR from $bootstrap_addr ..."
-  spr=$(api_request "$bootstrap_addr" "/api/storage/v1/spr")
-  echoerr "Successfully fetched bootstrap SPR: $spr"
-  config_opts+=(--bootstrap-node="$spr")
+  _echoerr "Attempt to fetch bootstrap SPR from $bootstrap_addr ..."
+  spr=$(_api_request "$bootstrap_addr" "/api/storage/v1/spr")
+  _echoerr "Successfully fetched bootstrap SPR: $spr"
+  _config_opts+=(--bootstrap-node="$spr")
 }
 
 public_node() {
   local wan_ip="$1"
   local bootstrap_addr="${2:-}"
-  echoerr "Node is on the WAN (public IP is $wan_ip)"
+  _echoerr "Node is on the WAN (public IP is $wan_ip)"
 
   add_bootstrap_options "$bootstrap_addr"
   if [[ "$wan_ip" != "use-identify" ]]; then
-    echoerr "Node external address set to $wan_ip"
-    config_opts+=(--nat=extip:$wan_ip)
+    _echoerr "Node external address set to $wan_ip"
+    _config_opts+=(--nat=extip:$wan_ip)
   else
-    echoerr "Node will learn its external IP from Identify"
-    opt_uses_identify="true"
+    _echoerr "Node will learn its external IP from Identify"
+    _opt_uses_identify="true"
   fi
 }
 
 private_node() {
   local router_lan_ip="$1"
   local bootstrap_api_url="$2"
-  echoerr "Node is behind NAT (router LAN IP is $router_lan_ip)"
+  _echoerr "Node is behind NAT (router LAN IP is $router_lan_ip)"
   # Redirect the traffic to our router instead of podman's own gateway to put the
   # node behind the NAT. A node on the wan (reachable) leaves ROUTER_LAN_IP unset
   # and keeps its default route.
   ip route replace default via "$router_lan_ip"
 
   if [[ -z "$bootstrap_api_url" ]]; then
-    echoerr "Private nodes require a bootstrap API URL."
+    _echoerr "Private nodes require a bootstrap API URL."
     help
     return 1
   fi
 
   add_bootstrap_options "$bootstrap_api_url"
 
-  config_opts+=(
+  _config_opts+=(
     --nat-num-peers-to-ask=1
     --nat-max-queue-size=1
     --nat-min-confidence=1.0
@@ -101,23 +100,23 @@ private_node() {
 enable_mix() {
   local info
 
-  config_opts+=(
+  _config_opts+=(
     --mix-enabled
   )
 
   rm -rf /tmp/mixinfo.jsonl || true
 
-  echoerr "Querying mix nodes: $*"
+  _echoerr "Querying mix nodes: $*"
 
   for mix_ip in "$@"; do
-    info=$(api_request "$mix_ip" "/api/storage/v1/debug/info")
+    info=$(_api_request "$mix_ip" "/api/storage/v1/debug/info")
     echo "$info" | jq '{
       peerId: .table.localNode.peerId,
       multiAddr: .providerAddresses[0],
       mixPubKey: .mixPubKey,
       libp2pPubKey: .libp2pPubKey
     }' >> /tmp/mixinfo.jsonl
-    config_opts+=(--dht-mix-proxy=$(echo "$info" | jq --raw-output .providerRecord))
+    _config_opts+=(--dht-mix-proxy=$(echo "$info" | jq --raw-output .providerRecord))
   done
 
   if [[ -s /tmp/mixinfo.jsonl ]]; then
@@ -125,13 +124,13 @@ enable_mix() {
       version: 1,
       relays: $relays
     }')
-    config_opts+=(--mix-pool-json="$mix_pool_json_str")
+    _config_opts+=(--mix-pool-json="$mix_pool_json_str")
   fi
 }
 
 enable_nat_servers() {
-  if [[ "$opt_uses_identify" == "true" ]]; then
-    echoerr "Cannot enable AutoNAT/Relay when using Identify for external IP detection"
+  if [[ "$_opt_uses_identify" == "true" ]]; then
+    _echoerr "Cannot enable AutoNAT/Relay when using Identify for external IP detection"
     return 1
   fi
 
@@ -139,28 +138,28 @@ enable_nat_servers() {
   # a convenient default.
   local services="${1:-all}"
   if [[ "$services" == "relay" ]]; then
-    config_opts+=(--relay-server)
+    _config_opts+=(--relay-server)
   elif [[ "$services" == "autonat" ]]; then
-    config_opts+=(--autonat-server)
+    _config_opts+=(--autonat-server)
   elif [[ "$services" == "all" ]]; then
-    config_opts+=(--relay-server --autonat-server)
+    _config_opts+=(--relay-server --autonat-server)
   else
-    echoerr "Invalid argument. Use 'relay' or 'autonat', or no arguments to enable both."
+    _echoerr "Invalid argument. Use 'relay' or 'autonat', or no arguments to enable both."
     return 1
   fi
 }
 
 with_args() {
-  config_opts+=("$@")
+  _config_opts+=("$@")
 }
 
 launch() {
-  echoerr "Starting node..."
-  exec "${config_opts[@]}"
+  _echoerr "Starting node..."
+  exec "${_config_opts[@]}"
 }
 
 # Added by default.
-base_config
+_base_config
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   # This will run commands separated by -%- as a chain.
@@ -177,9 +176,9 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
     "${current_cmd[@]}"
   done
 
-  echoerr "#### Config opts ####"
-  echoerr "${config_opts[@]}"
-  echoerr "#####################"
+  _echoerr "#### Config opts ####"
+  _echoerr "${_config_opts[@]}"
+  _echoerr "#####################"
 
   # Once we're done, launch the node.
   launch "$@"

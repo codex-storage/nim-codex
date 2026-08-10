@@ -55,20 +55,14 @@ services:
     networks:
       wan:
         ipv4_address: *bootstrap_ip
-    entrypoint: ["/app/build/storage"]
+    volumes:
+      - ../node-entrypoint.sh:/scripts/node-entrypoint.sh:ro,z
+    entrypoint: ["bash", "/scripts/node-entrypoint.sh"]
     command:
-      - --listen-ip=0.0.0.0
-      - --api-bindaddr=0.0.0.0
-      - --listen-port=8070
-      - --disc-port=8090
-      - --api-port=8080
-      # bootstrap_ip (anchors can't go inside a string)
-      - --nat=extip:7.7.7.10
-      - --relay-server
-      - --autonat-server
-      - --no-bootstrap-node
-      - --data-dir=/data
-      - --log-level=DEBUG
+      - public_node
+      - *bootstrap_ip
+      - -%-
+      - enable_nat_servers
 
   node:
     image: localhost/storage-nat
@@ -80,10 +74,10 @@ services:
     # B's API, published so the test can poll it
     ports:
       - "127.0.0.1:18081:8080"
-    environment:
-      ROUTER_LAN_IP: *router_lan_ip
-      # B fetches A's SPR from this API at startup to join the network (bootstrap_ip)
-      BOOTSTRAP_API: http://7.7.7.10:8080
     volumes:
       - ../node-entrypoint.sh:/scripts/node-entrypoint.sh:ro,z
     entrypoint: ["bash", "/scripts/node-entrypoint.sh"]
+    command:
+      - private_node
+      - *router_lan_ip
+      - *bootstrap_ip

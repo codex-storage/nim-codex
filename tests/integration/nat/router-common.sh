@@ -54,3 +54,29 @@ hold_until_stopped() {
   sleep infinity &
   wait
 }
+
+forward_port() {
+  local external_port=$1
+  local internal_ip=$2
+  local internal_port=$3
+  local proto=${4:-tcp}
+
+  # Opens external port.
+  iptables -t nat\
+    -A PREROUTING\
+    -i "$wanif"\
+    -p "$proto"\
+    --dport "$external_port"\
+    -j DNAT\
+    --to-destination "$internal_ip:$internal_port"
+
+  # Allows forwarding to the internal IP/port. Note that this works
+  # cause this runs after the DNAT rewrite.
+  iptables -A FORWARD\
+    -i "$wanif"\
+    -p "$proto"\
+    -d "$internal_ip"\
+    --dport "$internal_port"\
+    -m conntrack --ctstate NEW\
+    -j ACCEPT
+}
