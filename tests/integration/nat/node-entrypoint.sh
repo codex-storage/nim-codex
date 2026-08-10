@@ -150,6 +150,10 @@ enable_nat_servers() {
   fi
 }
 
+with_args() {
+  config_opts+=("$@")
+}
+
 launch() {
   echoerr "Starting node..."
   exec "${config_opts[@]}"
