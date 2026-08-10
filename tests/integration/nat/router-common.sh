@@ -80,3 +80,9 @@ forward_port() {
     -m conntrack --ctstate NEW\
     -j ACCEPT
 }
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  echo "router ready (wan iface $wanif)"
+
+  hold_until_stopped
+fi

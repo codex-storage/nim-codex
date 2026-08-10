@@ -68,8 +68,7 @@ services:
       LAN_SUBNET: *lan2_subnet
     volumes:
       - ../router-common.sh:/scripts/router-common.sh:ro,z
-      - ./router-entrypoint.sh:/scripts/router-entrypoint.sh:ro,z
-    entrypoint: ["bash", "/scripts/router-entrypoint.sh"]
+    entrypoint: ["bash", "/scripts/router-common.sh"]
 
   bootstrap:
     image: localhost/storage-nat

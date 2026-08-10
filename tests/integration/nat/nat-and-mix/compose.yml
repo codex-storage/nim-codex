@@ -62,8 +62,7 @@ services:
       LAN_SUBNET: *seeder_lan_subnet
     volumes:
       - ../router-common.sh:/scripts/router-common.sh:ro,z
-      - ./router-entrypoint.sh:/scripts/router-entrypoint.sh:ro,z
-    entrypoint: ["bash", "/scripts/router-entrypoint.sh"]
+    entrypoint: ["bash", "/scripts/router-common.sh"]
 
   leecher_router:
     image: localhost/storage-nat
@@ -80,8 +79,7 @@ services:
       LAN_SUBNET: *leecher_lan_subnet
     volumes:
       - ../router-common.sh:/scripts/router-common.sh:ro,z
-      - ./router-entrypoint.sh:/scripts/router-entrypoint.sh:ro,z
-    entrypoint: ["bash", "/scripts/router-entrypoint.sh"]
+    entrypoint: ["bash", "/scripts/router-common.sh"]
 
   # Mix-proxy Nodes
   mix_proxy_1:
@@ -163,7 +161,6 @@ services:
         ipv4_address: *seeder_lan_ip
     ports:
       - "127.0.0.1:18090:8080"
-
     volumes:
       - ../node-entrypoint.sh:/scripts/node-entrypoint.sh:ro,z
     entrypoint: ["bash", "/scripts/node-entrypoint.sh"]
