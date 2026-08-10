@@ -17,7 +17,7 @@ asyncchecksuite "Mix queries with NATted endpoints":
     leecherApiUrl = "http://127.0.0.1:18091/api/storage/v1"
     suiteName = "Mix queries with NATted endpoints"
     testName =
-      "a leecher behind NAT downloads a file from a seeder" &
+      "a leecher behind NAT downloads a file from a seeder " &
       "also behind a NAT, and does the query over Mix"
     services = [
       "seeder_router", "leecher_router", "mix_proxy_1", "mix_proxy_2", "mix_proxy_3",

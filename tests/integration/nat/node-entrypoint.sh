@@ -83,7 +83,6 @@ private_node() {
 
   if [[ -z "$bootstrap_api_url" ]]; then
     _echoerr "Private nodes require a bootstrap API URL."
-    help
     return 1
   fi
 
@@ -116,7 +115,7 @@ enable_mix() {
       mixPubKey: .mixPubKey,
       libp2pPubKey: .libp2pPubKey
     }' >> /tmp/mixinfo.jsonl
-    _config_opts+=(--dht-mix-proxy=$(echo "$info" | jq --raw-output .providerRecord))
+    _config_opts+=("--dht-mix-proxy=$(echo "$info" | jq --raw-output .providerRecord)")
   done
 
   if [[ -s /tmp/mixinfo.jsonl ]]; then

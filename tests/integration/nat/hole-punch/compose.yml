@@ -50,8 +50,7 @@ services:
       LAN_SUBNET: *lan1_subnet
     volumes:
       - ../router-common.sh:/scripts/router-common.sh:ro,z
-      - ./router-entrypoint.sh:/scripts/router-entrypoint.sh:ro,z
-    entrypoint: ["bash", "/scripts/router-entrypoint.sh"]
+    entrypoint: ["bash", "/scripts/router-common.sh"]
 
   router2:
     image: localhost/storage-nat
