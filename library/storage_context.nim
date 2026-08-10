@@ -117,9 +117,8 @@ proc sendRequestToStorageThread*(
     return
       err("Failed to send request to the Logos Storage thread: fireSync timed out.")
 
-  # From here the request is owned by the Logos Storage thread, which frees it
-  # in handleRes: returning an error would fire the callback a second time,
-  # on a context the client has already freed.
+  # From here the Logos Storage thread will call the callback: returning an
+  # error would fire it a second time, on a context the client has already freed.
   let res = ctx.reqReceivedSignal.waitSync(timeout)
   if res.isErr():
     error "Failed to get the signal from Logos Storage thread.", error = res.error
