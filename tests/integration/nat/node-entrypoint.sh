@@ -8,6 +8,8 @@ STORAGE_BINARY=${STORAGE_BINARY:-/app/build/storage}
 # In-memory configuration for the node.
 config_opts=()
 
+opt_uses_identify="false"
+
 echoerr() {
   echo "$@" >&2
 }
@@ -22,7 +24,7 @@ base_config() {
     --disc-port=8090
     --api-port=8080
     --data-dir=/data
-    --log-level=DEBUG
+    '--log-level=DEBUG;trace:libp2p,mix'
   )
 }
 
@@ -62,16 +64,12 @@ public_node() {
   echoerr "Node is on the WAN (public IP is $wan_ip)"
 
   add_bootstrap_options "$bootstrap_addr"
-  if [[ "$wan_ip" != "discover-self-ip" ]]; then
+  if [[ "$wan_ip" != "use-identify" ]]; then
     echoerr "Node external address set to $wan_ip"
-    config_opts+=(
-      --nat=extip:$wan_ip
-      # By default we're running autonat on those, but not relay as some
-      # tests require no relay.
-      --autonat-server
-    )
+    config_opts+=(--nat=extip:$wan_ip)
   else
     echoerr "Node will learn its external IP from Identify"
+    opt_uses_identify="true"
   fi
 }
 
@@ -131,8 +129,25 @@ enable_mix() {
   fi
 }
 
-enable_relay() {
-  config_opts+=("--relay-server")
+enable_nat_servers() {
+  if [[ "$opt_uses_identify" == "true" ]]; then
+    echoerr "Cannot enable AutoNAT/Relay when using Identify for external IP detection"
+    return 1
+  fi
+
+  # A bit long-winded but will catch typos and invalid values, and has
+  # a convenient default.
+  local services="${1:-all}"
+  if [[ "$services" == "relay" ]]; then
+    config_opts+=(--relay-server)
+  elif [[ "$services" == "autonat" ]]; then
+    config_opts+=(--autonat-server)
+  elif [[ "$services" == "all" ]]; then
+    config_opts+=(--relay-server --autonat-server)
+  else
+    echoerr "Invalid argument. Use 'relay' or 'autonat', or no arguments to enable both."
+    return 1
+  fi
 }
 
 launch() {

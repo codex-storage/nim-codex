@@ -9,19 +9,45 @@ set -euo pipefail
 # defined in the compose file.
 wanif=$(ip -o -4 addr show | awk -v ip="$ROUTER_WAN_IP" '$0 ~ ip {print $2; exit}')
 
+# Actual NAT (masquerading) rule.
 if ! iptables -t nat -A POSTROUTING -s "$LAN_SUBNET" -o "$wanif" -j MASQUERADE; then
   echo "ERROR: iptables NAT failed. Load netfilter modules on the host:" >&2
   echo "       sudo modprobe iptable_nat nf_conntrack" >&2
   exit 1
 fi
-iptables -P FORWARD ACCEPT
 
-# By default, drop all incoming traffic on the WAN interface - if we don't do this,
-# the router will issue an RST when external peers try to connect and things like hole
+# Setting a router that looks like a typical home router requires a few more things:
+
+# 1. By default, never forward anything. This prevents us from doing things like
+#    forwarding packets from the public WAN into the LAN (which would completely
+#    de-characterize our NAT box) by accident.
+iptables -P FORWARD DROP
+
+# 2. Traffic originating FROM the LAN subnet, however, should be allowed to flow
+#    to the WAN. The "NEW" in the --ctstate is what actually allows new connections
+#    to be established.
+iptables -A FORWARD\
+  -s "$LAN_SUBNET"\
+  -o "$wanif"\
+  -m conntrack --ctstate NEW,ESTABLISHED,RELATED \
+  -j ACCEPT
+
+# 3. For WAN-to-LAN traffic, we only allow packets that are part of an
+#    established connection - this is what allows us to receive traffic from
+#    the internet.
+iptables -A FORWARD\
+  -d "$LAN_SUBNET"\
+  -i "$wanif"\
+  -m conntrack --ctstate ESTABLISHED,RELATED \
+  -j ACCEPT
+
+# Finally, NAT boxes silently drop all incoming traffic on the WAN interface
+# by default - if we don't do this, in fact, the router will issue an RST
+# (connection refused) when external peers try to connect, and things like hole
 # punching will fail.
 iptables -A INPUT -i "$wanif" -j DROP
 
-# Block until `compose down`. sleep runs in the background so the SIGTERM trap
+# Blocks until `compose down`. `sleep` runs in the background so the SIGTERM trap
 # fires immediately instead of waiting for sleep to return.
 hold_until_stopped() {
   trap 'exit 0' TERM INT

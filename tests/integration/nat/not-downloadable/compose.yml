@@ -59,6 +59,9 @@ services:
     command:
       - public_node
       - *bootstrap_ip
+      - -%-
+      - enable_nat_servers
+      - autonat
     volumes:
       - ../node-entrypoint.sh:/scripts/node-entrypoint.sh:ro,z
 
@@ -77,9 +80,8 @@ services:
     entrypoint: ["bash", "/scripts/node-entrypoint.sh"]
     command:
       - public_node
-      - discover-self-ip
+      - use-identify
       - *bootstrap_ip
-
   node:
     image: localhost/storage-nat
     cap_add: [NET_ADMIN]

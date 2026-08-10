@@ -97,7 +97,7 @@ services:
       - public_node
       - *mix_proxy_1_ip
       - -%-
-      - enable_relay
+      - enable_nat_servers
       - -%-
       - enable_mix
 
@@ -115,7 +115,7 @@ services:
       - *mix_proxy_2_ip
       - *mix_proxy_1_ip
       - -%-
-      - enable_relay
+      - enable_nat_servers
       - -%-
       - enable_mix
 
@@ -133,7 +133,7 @@ services:
       - *mix_proxy_3_ip
       - *mix_proxy_1_ip
       - -%-
-      - enable_relay
+      - enable_nat_servers
       - -%-
       - enable_mix
 
@@ -151,7 +151,7 @@ services:
       - *mix_proxy_4_ip
       - *mix_proxy_1_ip
       - -%-
-      - enable_relay
+      - enable_nat_servers
       - -%-
       - enable_mix
 
