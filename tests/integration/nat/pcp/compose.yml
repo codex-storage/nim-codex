@@ -73,13 +73,6 @@ services:
     # B's API, published so the test can poll it
     ports:
       - "127.0.0.1:18083:8080"
-    environment:
-      ROUTER_LAN_IP: *router_lan_ip
-      # B fetches A's SPR from this API at startup to join the network (bootstrap_ip)
-      BOOTSTRAP_API: http://7.7.7.10:8080
-      EXTRA_STORAGE_ARGS: >-
-        --nat-port-mapping-discover-timeout=5000
-        --nat-port-mapping-timeout=5000
     volumes:
       - ../node-entrypoint.sh:/scripts/node-entrypoint.sh:ro,z
     entrypoint: ["bash", "/scripts/node-entrypoint.sh"]
