@@ -168,17 +168,29 @@ proc setCorsHeaders(resp: HttpResponseRef, httpMethod: string, origin: string) =
   resp.setHeader("Access-Control-Allow-Methods", httpMethod & ", OPTIONS")
   resp.setHeader("Access-Control-Max-Age", "86400")
 
-proc getFilenameFromContentDisposition(contentDisposition: string): ?string =
-  if not ("filename=" in contentDisposition):
+proc getFilenameFromContentDisposition*(contentDisposition: string): ?string =
+  let idx = contentDisposition.find("filename=")
+  if idx == -1:
     return string.none
 
-  let parts = contentDisposition.split("filename=\"")
-
-  if parts.len < 2:
+  var val = contentDisposition[idx + "filename=".len .. ^1].strip()
+  if val.len == 0:
     return string.none
 
-  let filename = parts[1].strip()
-  return filename[0 ..^ 2].some
+  if val.startsWith("\""):
+    let endQuote = val.find("\"", 1)
+    if endQuote > 1:
+      return val[1 .. endQuote - 1].some
+    else:
+      return string.none
+  else:
+    let semiIdx = val.find(";")
+    if semiIdx != -1:
+      val = val[0 .. semiIdx - 1].strip()
+    if val.len > 0:
+      return val.some
+    else:
+      return string.none
 
 proc initDataApi(node: StorageNodeRef, repoStore: RepoStore, router: var RestRouter) =
   let allowedOrigin = router.allowedOrigin # prevents capture inside of api defintion
