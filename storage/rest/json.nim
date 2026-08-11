@@ -83,6 +83,8 @@ type
     nat* {.serialize.}: NatDebugInfo
     # active peer connections
     connections* {.serialize.}: JsonNode
+    # are DHT queries going over mix?
+    privateQueries* {.serialize.}: bool
 
 proc init*(_: type RestContentList, content: seq[RestContent]): RestContentList =
   RestContentList(content: content)
@@ -163,4 +165,5 @@ proc init*(
       portMapping: portMappingStr(natMapper),
     ),
     connections: peerConnections(node.switch),
+    privateQueries: node.discovery.isPrivateQueriesEnabled,
   )

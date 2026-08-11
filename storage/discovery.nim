@@ -122,6 +122,10 @@ method find*(
     d: Discovery, cid: Cid
 ): Future[seq[SignedPeerRecord]] {.async: (raises: [CancelledError]), base.} =
   let providers =
+    # Note that the invariant checks in `togglePrivateQueries` ensure that
+    # `d.privateQueries` is only true when `d.mixProto` and `d.dhtMixProxies`
+    # are set; i.e., it never happens that privateQueries is set to true but
+    # we branch onto the else case which is non-private.
     if d.privateQueries and not d.mixProto.isNil and d.dhtMixProxies.len > 0:
       (await d.findViaMix(cid)).valueOr:
         warn "Mix lookup failed", cid, err = error.msg
@@ -326,6 +330,9 @@ proc togglePrivateQueries*(d: Discovery, enabled: bool): ?!bool =
   let old = d.privateQueries
   d.privateQueries = enabled
   success(old)
+
+proc isPrivateQueriesEnabled*(d: Discovery): bool =
+  d.privateQueries
 
 proc new*(
     T: type Discovery,
