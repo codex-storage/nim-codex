@@ -104,21 +104,25 @@ proc sendRequestToStorageThread*(
   # Notify the Logos Storage thread that a request is available
   let fireSyncRes = ctx.reqSignal.fireSync()
   if fireSyncRes.isErr():
+    # We do not free the request here: it is already published in the channel,
+    # and freeing it would leave a dangling pointer if the code later retries
+    # to wake up the thread.
     return err(
       "Failed to send request to the Logos Storage thread: unable to fireSync: " &
         $fireSyncRes.error
     )
 
   if fireSyncRes.get() == false:
+    # Same as above: we do not free the request here.
     return
       err("Failed to send request to the Logos Storage thread: fireSync timed out.")
 
-  # Wait until the Logos Storage thread properly received the request
+  # From here the Logos Storage thread will call the callback: returning an
+  # error would fire it a second time, on a context the client has already freed.
   let res = ctx.reqReceivedSignal.waitSync(timeout)
   if res.isErr():
-    return err(
-      "Failed to send request to the Logos Storage thread: unable to receive reqReceivedSignal signal."
-    )
+    error "Failed to get the signal from Logos Storage thread.", error = res.error
+    return ok()
 
   ## Notice that in case of "ok", the deallocShared(req) is performed by the Logos Storage thread in the
   ## process proc. See the 'storage_thread_request.nim' module for more details.
