@@ -43,11 +43,10 @@
 /**
  * @defgroup return_codes Return Codes
  * @ingroup libstorage
- * @brief Standardized return values for API functions.
- *
- * These defines are used to indicate the status of a function call.
- * - Synchronous functions return the final state immediately.
- * - Asynchronous functions may return RET_PROGRESS before a final state.
+ * @brief Standardized return values for API functions. These defines are used
+ * to indicate the status of a function call:
+ *   - Synchronous functions return the final state immediately.
+ *   - Asynchronous functions may return RET_PROGRESS before a final state.
  */
 
 /**
