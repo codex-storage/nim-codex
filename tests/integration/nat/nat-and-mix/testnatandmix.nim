@@ -60,3 +60,10 @@ asyncchecksuite "Mix queries with NATted endpoints":
     let contents = "private queries for the win"
     let cid = (await seederClient.upload(contents)).get
     check (await leecherClient.download(cid)).get == contents
+
+    # Double-check that the leecher is selecting Mix nodes.
+    check eventuallySafe(
+      "Selected mix node for surbs:" in serviceLogs(composeFile, "leecher"),
+      timeout = 60_000,
+      pollInterval = 2_000,
+    )
