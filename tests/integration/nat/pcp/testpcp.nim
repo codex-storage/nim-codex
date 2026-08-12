@@ -13,9 +13,6 @@ proc announcesDirectAddr(info: JsonNode): bool =
   ## A reachable node announces at least one direct (non-circuit) address.
   info{"providerAddresses"}.getElems.anyIt("p2p-circuit" notin it.getStr)
 
-# Port mapping is disabled in storage/nat.nim
-const skipScenario = true
-
 asyncchecksuite "NAT pcp":
   let
     composeFile = currentSourcePath.parentDir / "compose.yml"
@@ -27,21 +24,15 @@ asyncchecksuite "NAT pcp":
   var client: StorageClient
 
   setup:
-    if not skipScenario:
-      compose(composeFile, "up -d")
-      client = StorageClient.new(nodeApiUrl)
+    compose(composeFile, "up -d")
+    client = StorageClient.new(nodeApiUrl)
 
   teardown:
-    if not skipScenario:
-      await client.close()
-      saveContainerLogs(composeFile, suiteName, testName, startTime, services)
-      compose(composeFile, "down -v")
+    await client.close()
+    saveContainerLogs(composeFile, suiteName, testName, startTime, services)
+    compose(composeFile, "down -v")
 
   test testName:
-    if skipScenario:
-      skip()
-      return
-
     # Reachable is the settling signal: wait for it, then assert each expected
     # property separately so a failure points at the exact condition.
     check eventuallyInfo(client, info{"nat"}{"reachability"}.getStr == "Reachable")

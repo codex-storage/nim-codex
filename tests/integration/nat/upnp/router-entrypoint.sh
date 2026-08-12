@@ -24,6 +24,18 @@ table inet filter {
 }
 EOF
 
+# The prerouting_miniupnpd chain above is where miniupnp puts its DNAT rules.
+# The FORWARD rules, however, are added to the miniupnpd chain which is not
+# jumped from anywhere. Yet, even if we were to jump from FORWARD to miniupnpd,
+# the rules there would still be useless because the iptables FORWARD chain is
+# set to DROP in `router-common.sh`. We therefore need to add a general "allow
+# DNATed packets" to the forward chain or mapped ports won't work.
+iptables -A FORWARD -m conntrack --ctstate DNAT -j ACCEPT
+
+# FIXME this is a bit of a mess. :-) Ideally there should be a way to just let
+#   miniupnpd manage everything, we'll need to revisit router-common.sh to make
+#   that happen.
+
 conf=/tmp/miniupnpd.conf
 cat > "$conf" <<EOF
 ext_ifname=$wanif
