@@ -41,10 +41,10 @@ iptables -A FORWARD\
   -m conntrack --ctstate ESTABLISHED,RELATED \
   -j ACCEPT
 
-# Finally, NAT boxes silently drop all incoming traffic on the WAN interface
-# by default - if we don't do this, in fact, the router will issue an RST
-# (connection refused) when external peers try to connect, and things like hole
-# punching will fail.
+# Finally, NAT boxes silently drop all INPUT traffic (directed at the router's IP)
+# on the WAN interface by default - if we don't do this, in fact, the router will
+# issue an RST (connection refused) when external peers try to connect, and things
+# like hole punching will fail.
 iptables -A INPUT -i "$wanif" -j DROP
 
 # Blocks until `compose down`. `sleep` runs in the background so the SIGTERM trap
@@ -61,7 +61,7 @@ forward_port() {
   local internal_port=$3
   local proto=${4:-tcp}
 
-  # Opens external port.
+  # Adds the rule to rewrite the destination IP/port.
   iptables -t nat\
     -A PREROUTING\
     -i "$wanif"\
@@ -70,14 +70,14 @@ forward_port() {
     -j DNAT\
     --to-destination "$internal_ip:$internal_port"
 
-  # Allows forwarding to the internal IP/port. Note that this works
-  # cause this runs after the DNAT rewrite.
+  # Allows forwarding of the rewritten packet to the internal
+  # IP/port.
   iptables -A FORWARD\
     -i "$wanif"\
     -p "$proto"\
     -d "$internal_ip"\
     --dport "$internal_port"\
-    -m conntrack --ctstate NEW\
+    -m conntrack --ctstate DNAT\
     -j ACCEPT
 }
 
