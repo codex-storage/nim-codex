@@ -39,5 +39,7 @@ B is `NotReachable` and announces its circuit address, while C is `Reachable`.
 B uploads a file, then C fetches it over the network through the relay and gets
 the same content back.
 
+A second check ensures that the relay server does not expose private addresses.
+
 Per-run container logs (router, bootstrap, client, node) are written before teardown to
 `tests/integration/logs/<timestamp>__NAT_relay_download/<test>/<service>.log`.

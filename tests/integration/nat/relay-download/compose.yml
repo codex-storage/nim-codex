@@ -54,6 +54,8 @@ services:
     networks:
       wan:
         ipv4_address: *bootstrap_ip
+    ports:
+      - "127.0.0.1:18092:8080"
     volumes:
       - ../node-entrypoint.sh:/scripts/node-entrypoint.sh:ro,z
     entrypoint: ["bash", "/scripts/node-entrypoint.sh"]
