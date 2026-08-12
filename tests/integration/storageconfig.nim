@@ -247,6 +247,14 @@ proc withMixEnabled*(
     config.addCliOption("--mix-enabled")
   return startConfig
 
+proc withListenPort*(
+    self: StorageConfigs, idx: int, port: int
+): StorageConfigs {.raises: [StorageConfigError].} =
+  self.checkBounds idx
+  var startConfig = self
+  startConfig.configs[idx].addCliOption("--listen-port", $port)
+  return startConfig
+
 # For testing, a node with extip (not behind nat) with autonat server
 # enabled is a bootstrap node
 proc isBootstrapNode*(config: StorageConfig): bool {.raises: [].} =
