@@ -224,6 +224,7 @@ jobs:
             "vendor/nim-nat-traversal/vendor/libnatpmp-upstream/libnatpmp.a" \
             "vendor/nim-nat-traversal/vendor/miniupnp/miniupnpc/build/libminiupnpc.a" \
             "vendor/nim-libbacktrace/install/usr/lib/libbacktrace.a" \
+            "vendor/nim-libplum/vendor/libplum/libplum.a" \
             "library/${{ env.c_bindings_lib_base }}.h"
 
       - name: Upload ${{ env.c_bindings_lib_base }} static to workflow artifacts
