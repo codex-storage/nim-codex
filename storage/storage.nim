@@ -91,6 +91,29 @@ proc start*(s: StorageServer) {.async.} =
 
   await s.storageNode.switch.start()
 
+  var realPort = Port(0)
+
+  for listenAddr in s.storageNode.switch.peerInfo.listenAddrs:
+    let maybePort = getTcpPort(listenAddr)
+    if maybePort.isSome:
+      realPort = maybePort.get
+      break
+
+  if realPort == Port(0):
+    raise newException(StorageError, "Failed to determine the real TCP port")
+
+  if s.config.nat.hasExtIp:
+    # extip means that we assume the IP is reachable.
+    let extIpAddr = getMultiAddrWithIpAndTcpPort(s.config.nat.extIp, realPort)
+
+    # Feed switch.peerInfo.addrs with extIp value only.
+    # For example, we want to make sure that relay servers will
+    # contain only the extIp, no private addresses.
+    let peerInfo = s.storageNode.switch.peerInfo
+    peerInfo.announcedAddrs = @[extIpAddr]
+    # We force the update to take in consideration the announcedAddrs
+    await peerInfo.update()
+
   # Activate SO_REUSEPORT for hole punching in tcptransport.nim.
   # Without that, hole punching would use an ephemeral port assigned by the OS.
   # NotReachable has nothing to do with AutoNAT Reachability
@@ -109,7 +132,7 @@ proc start*(s: StorageServer) {.async.} =
         )
       # We define a placeholder here.
       # For nat:extip, the address will be updated when calling `announceDirectAddrs` below.
-      # For nat:any, the node waits for AutoNAT to provide a reachable address or a relay address.
+      # For nat:auto, the node waits for AutoNAT to provide a reachable address or a relay address.
       # The Mix lookup will not be performed while the mixAddr value is mixUnsetMultiAddr().
       mixAddr = mixUnsetMultiAddr()
       mixNodeInfo = buildMixNodeInfo(
@@ -157,29 +180,21 @@ proc start*(s: StorageServer) {.async.} =
   # When listenPort is 0 the OS assigns a random port. For UDP, the port
   # doesn't change so there is no need to update it.
   if s.natMapper.isSome and s.config.listenPort == Port(0):
-    for listenAddr in s.storageNode.switch.peerInfo.listenAddrs:
-      let maybePort = getTcpPort(listenAddr)
-      if maybePort.isSome:
-        s.natMapper.get.tcpPort = maybePort.get
-        break
+    s.natMapper.get.tcpPort = realPort
 
   # The addresses are announced during the start process
   # only with extIp because they should be Reachable.
   # For other nodes, wait for AutoNat to announce addresses and update SPR.
   if s.config.nat.hasExtIp:
-    if s.storageNode.switch.peerInfo.addrs.len == 0:
-      raise
-        newException(StorageError, "extip is set but switch has no listen addresses")
-
     # extip means that we assume the IP is reachable.
-    # So we just take the first peer addr and remap it with extip to keep the port only.
-    let providerAddrs = @[
-      s.storageNode.switch.peerInfo.addrs[0].remapAddr(
-        ip = some(s.config.nat.extIp), port = none(Port)
-      )
-    ]
+    let extIpAddr = getMultiAddrWithIpAndTcpPort(s.config.nat.extIp, realPort)
+
+    # The addresses are announced during the start process
+    # only with extIp because they should be Reachable.
+    # For other nodes, wait for AutoNat to announce addresses and update SPR.
+    # Announced here and not above because Mix needs discovery.mixProto to be set.
     s.storageNode.discovery.announceDirectAddrs(
-      providerAddrs, udpPort = s.config.discoveryPort
+      @[extIpAddr], udpPort = s.config.discoveryPort
     )
   else:
     # Other nodes wait for AutoNAT to announce addresses and update SPR.
