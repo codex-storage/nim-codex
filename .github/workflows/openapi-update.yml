@@ -1,0 +1,35 @@
+name: OpenAPI Update
+
+on:
+  push:
+    branches: [master]
+    paths: [openapi.yaml]
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      openapi_url:
+        description: "OpenAPI URL that should be used"
+        required: true
+        type: string
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set openapi_url
+        id: openapi
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "url=${{ github.event.inputs.openapi_url }}" >> $GITHUB_OUTPUT
+          else
+            echo "url=https://raw.githubusercontent.com/logos-storage/logos-storage-nim/${{ github.sha }}/openapi.yaml" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Repository Dispatch
+        uses: peter-evans/repository-dispatch@v4
+        with:
+          token: ${{ secrets.DISPATCH_PAT }}
+          repository: logos-storage/logos-storage-nim-cs-dist-tests
+          event-type: openapi-update
+          client-payload: '{"openapi_url": "${{ steps.openapi.outputs.url }}"}'
