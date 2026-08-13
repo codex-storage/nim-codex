@@ -183,6 +183,13 @@ proc probeRecords(
         reason: v.reason,
       )
 
+proc printRecord(spr: SignedPeerRecord) =
+  echo "PeerId: ", spr.data.peerId
+  echo "SequenceNo: ", spr.data.seqNo
+  echo "Addresses: "
+  for address in spr.data.addresses:
+    echo " * ", address
+
 const
   TableHeader = "FLEET        RESULT  ADDRESS                                    REASON"
   TableRule = '-'.repeat(TableHeader.len)
@@ -279,6 +286,8 @@ Options:
                      human-readable table; "json" is a pretty-printed summary.
   --out <file>       Write the output to <file> instead of stdout. The content
                      is whichever --format is selected (table or json).
+  --decode-only      Only decode and print SPRs to screen, does not probe (only
+                     valid when a single SPR is provided as argument).
   --help, -h         Show this help and exit.
 
 Arguments:
@@ -296,6 +305,7 @@ when isMainModule:
     singleSpr = ""
     format = ofTable
     outFile = ""
+    decodeOnly = false
 
   let params = commandLineParams()
   var i = 0
@@ -314,8 +324,13 @@ when isMainModule:
       format = parseFormat(nextValue(params, i, "--format"))
     of "--out":
       outFile = nextValue(params, i, "--out")
+    of "--decode-only":
+      decodeOnly = true
     else:
       if params[i].startsWith("spr:"):
+        # We could ping multiple but currently not doing it, so guard against it.
+        if singleSpr.len > 0:
+          quit("Error: multiple SPRs provided", QuitFailure)
         singleSpr = params[i]
       else:
         quit("Error: unknown argument: " & params[i], QuitFailure)
@@ -327,9 +342,17 @@ when isMainModule:
     let parsed = SignedPeerRecord.parse(singleSpr)
     if parsed.isErr:
       quit("Error: " & parsed.error, QuitFailure)
+
+    if decodeOnly:
+      printRecord(parsed.get)
+      quit(QuitSuccess)
+
     let v = waitFor probe(parsed.get, timeout)
     echo (if v.alive: "ALIVE: " else: "DEAD: "), v.reason
     quit(if v.alive: QuitSuccess else: QuitFailure)
+
+  if decodeOnly:
+    quit("Error: --decodeOnly is only valid with a single SPR.", QuitFailure)
 
   let rows = waitFor probeRecords(source, networkFilters, timeout)
 
