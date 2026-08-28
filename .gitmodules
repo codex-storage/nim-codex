@@ -200,3 +200,9 @@
 [submodule "vendor/nim-libp2p-mix"]
 	path = vendor/nim-libp2p-mix
 	url = https://github.com/logos-co/nim-libp2p-mix
+[submodule "vendor/nim-ffi"]
+	path = vendor/nim-ffi
+	url = https://github.com/logos-messaging/nim-ffi.git
+[submodule "vendor/nim-cbor-serialization"]
+	path = vendor/nim-cbor-serialization
+	url = https://github.com/vacp2p/nim-cbor-serialization.git
