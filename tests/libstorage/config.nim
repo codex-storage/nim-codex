@@ -8,17 +8,13 @@ import pkg/results
 
 import ../asynctest
 import ../checktest
-import ../../library/storage_thread_requests/requests/node_lifecycle_request
+import ../../library/node_factory
 
-from ../../storage/storage import StorageServer
+from ../../storage/storage import StorageServer, close
 
 asyncchecksuite "Libstorage - config":
-  var server: StorageServer
-
   test "rejects malformed JSON":
-    let request =
-      NodeLifecycleRequest.createShared(CREATE_NODE, """{"log-level": "debug"""")
-    let res = await request.process(addr server)
+    let res = await createStorage("""{"log-level": "debug"""")
 
     check res.isErr
 
@@ -26,9 +22,7 @@ asyncchecksuite "Libstorage - config":
       check "unable to load configuration" in res.error
 
   test "rejects an unknown option":
-    let request =
-      NodeLifecycleRequest.createShared(CREATE_NODE, """{"unknown": "debug"}""")
-    let res = await request.process(addr server)
+    let res = await createStorage("""{"unknown": "debug"}""")
 
     check res.isErr
 
@@ -42,11 +36,9 @@ asyncchecksuite "Libstorage - config":
       removeDir(dataDir)
 
     # %* escapes the path so that it can be used in JSON.
-    let config = $ %*{"data-dir": dataDir}
-    let request = NodeLifecycleRequest.createShared(CREATE_NODE, config.cstring)
-    let res = await request.process(addr server)
+    let res = await createStorage($ %*{"data-dir": dataDir})
 
     check res.isOk
 
-    let closeRequest = NodeLifecycleRequest.createShared(CLOSE_NODE)
-    check (await closeRequest.process(addr server)).isOk
+    if res.isOk:
+      await res.get().close()
