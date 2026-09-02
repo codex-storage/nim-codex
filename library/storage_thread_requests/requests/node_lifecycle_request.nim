@@ -27,8 +27,6 @@ from ../../../storage/storage import StorageServer, new, start, stop, close
 logScope:
   topics = "libstorage libstoragelifecycle"
 
-const LibstorageDefaultConfig = """{"api-enabled": false}"""
-
 type NodeLifecycleMsgType* = enum
   CREATE_NODE
   START_NODE
@@ -110,7 +108,7 @@ proc createStorage(
       ) {.gcsafe, raises: [ConfigurationError].} =
         if configJson.len > 0:
           sources.addConfigFileContent(Json, $(configJson))
-        sources.addConfigFileContent(Json, LibstorageDefaultConfig),
+      ,
     )
   except ConfigurationError as e:
     # We cannot use e.msg because it is not populated by config-utils

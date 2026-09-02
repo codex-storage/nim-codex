@@ -257,7 +257,7 @@ type
     .}: string
 
     apiEnabled* {.
-      desc: "Enable the REST API", defaultValue: true, name: "api-enabled", hidden
+      desc: "Enable the REST API", defaultValue: false, name: "api-enabled", hidden
     .}: bool
 
     apiBindAddress* {.
