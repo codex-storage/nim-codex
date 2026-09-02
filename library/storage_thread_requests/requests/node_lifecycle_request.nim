@@ -27,7 +27,7 @@ from ../../../storage/storage import StorageServer, new, start, stop, close
 logScope:
   topics = "libstorage libstoragelifecycle"
 
-const LibstorageDisableRestApi* {.booldefine.} = true
+const LibstorageDefaultConfig = """{"api-enabled": false}"""
 
 type NodeLifecycleMsgType* = enum
   CREATE_NODE
@@ -110,7 +110,7 @@ proc createStorage(
       ) {.gcsafe, raises: [ConfigurationError].} =
         if configJson.len > 0:
           sources.addConfigFileContent(Json, $(configJson))
-      ,
+        sources.addConfigFileContent(Json, LibstorageDefaultConfig),
     )
   except ConfigurationError as e:
     # We cannot use e.msg because it is not populated by config-utils
@@ -150,12 +150,6 @@ proc createStorage(
   if privateKey.isErr:
     return err("Failed to create Storage: unable to get the private key.")
   let pk = privateKey.get()
-
-  when LibstorageDisableRestApi:
-    conf.apiBindAddress = string.none
-    debug "Rest API is disabled!"
-  else:
-    debug "Rest API is enabled!"
 
   let server =
     try:

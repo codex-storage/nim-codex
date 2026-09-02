@@ -578,7 +578,7 @@ proc new*(
   # REST server
   var restServer: RestServerRef = nil
 
-  if config.apiBindAddress.isSome:
+  if config.apiEnabled and config.apiBindAddress.isSome:
     restServer = RestServerRef
       .new(
         storageNode.initRestApi(

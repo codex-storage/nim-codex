@@ -64,15 +64,6 @@ else
 endif
 export CXXFLAGS
 
-LIBSTORAGE_PARAMS :=
-# By default, libstorage disables the restapi. To build libstorage with the rest
-# api enabled for remote debugging, use `make DEBUG=1 libstorage`
-ifeq ($(DEBUG),1)
-	LIBSTORAGE_PARAMS := $(LIBSTORAGE_PARAMS) -d:LibstorageDisableRestApi=0
-else ifeq ($(DEBUG),0)
-	LIBSTORAGE_PARAMS := $(LIBSTORAGE_PARAMS) -d:LibstorageDisableRestApi=1
-endif
-
 # we don't want an error here, so we can handle things later, in the ".DEFAULT" target
 -include $(BUILD_SYSTEM_DIR)/makefiles/variables.mk
 
@@ -325,16 +316,16 @@ libstorage:
 
 ifeq ($(STATIC), 1)
 		echo -e $(BUILD_MSG) "build/$@.a" && \
-		$(ENV_SCRIPT) nim libstorageStatic $(NIM_PARAMS) $(LIBSTORAGE_PARAMS) storage.nims
+		$(ENV_SCRIPT) nim libstorageStatic $(NIM_PARAMS) storage.nims
 else ifeq ($(detected_OS),Windows)
 		echo -e $(BUILD_MSG) "build/$@.dll" && \
-		$(ENV_SCRIPT) nim libstorageDynamic $(NIM_PARAMS) $(LIBSTORAGE_PARAMS) storage.nims
+		$(ENV_SCRIPT) nim libstorageDynamic $(NIM_PARAMS) storage.nims
 else ifeq ($(detected_OS),macOS)
 		echo -e $(BUILD_MSG) "build/$@.dylib" && \
-		$(ENV_SCRIPT) nim libstorageDynamic $(NIM_PARAMS) $(LIBSTORAGE_PARAMS) storage.nims
+		$(ENV_SCRIPT) nim libstorageDynamic $(NIM_PARAMS) storage.nims
 else
 		echo -e $(BUILD_MSG) "build/$@.so" && \
-		$(ENV_SCRIPT) nim libstorageDynamic $(NIM_PARAMS) $(LIBSTORAGE_PARAMS) storage.nims
+		$(ENV_SCRIPT) nim libstorageDynamic $(NIM_PARAMS) storage.nims
 endif
 endif # "variables.mk" was not includedMa
 ################

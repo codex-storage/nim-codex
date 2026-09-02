@@ -10,7 +10,7 @@ import ../asynctest
 import ../checktest
 import ../../library/storage_thread_requests/requests/node_lifecycle_request
 
-from ../../storage/storage import StorageServer
+from ../../storage/storage import StorageServer, config
 
 asyncchecksuite "Libstorage - config":
   var server: StorageServer
@@ -47,6 +47,36 @@ asyncchecksuite "Libstorage - config":
     let res = await request.process(addr server)
 
     check res.isOk
+
+    let closeRequest = NodeLifecycleRequest.createShared(CLOSE_NODE)
+    check (await closeRequest.process(addr server)).isOk
+
+  test "disables the REST API by default":
+    let dataDir = getTempDir() / "libstorage-config" / $getMonoTime()
+
+    defer:
+      removeDir(dataDir)
+
+    let config = $ %*{"data-dir": dataDir}
+    let request = NodeLifecycleRequest.createShared(CREATE_NODE, config.cstring)
+    check (await request.process(addr server)).isOk
+
+    check server.config.apiEnabled == false
+
+    let closeRequest = NodeLifecycleRequest.createShared(CLOSE_NODE)
+    check (await closeRequest.process(addr server)).isOk
+
+  test "enables the REST API when the config asks for it":
+    let dataDir = getTempDir() / "libstorage-config" / $getMonoTime()
+
+    defer:
+      removeDir(dataDir)
+
+    let config = $ %*{"data-dir": dataDir, "api-enabled": true}
+    let request = NodeLifecycleRequest.createShared(CREATE_NODE, config.cstring)
+    check (await request.process(addr server)).isOk
+
+    check server.config.apiEnabled == true
 
     let closeRequest = NodeLifecycleRequest.createShared(CLOSE_NODE)
     check (await closeRequest.process(addr server)).isOk
