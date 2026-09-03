@@ -261,7 +261,8 @@ type
       desc: "The REST API bind address",
       defaultValue: string.none,
       defaultValueDesc: DefaultApiBindAddress,
-      name: "api-bindaddr"
+      name: "api-bindaddr",
+      hidden
     .}: Option[string]
 
     apiPort* {.
@@ -269,7 +270,8 @@ type
       defaultValue: 8080.Port,
       defaultValueDesc: "8080",
       name: "api-port",
-      abbr: "p"
+      abbr: "p",
+      hidden
     .}: Port
 
     apiCorsAllowedOrigin* {.
@@ -278,7 +280,8 @@ type
         "'*' will allow all origins, '' will allow none.",
       defaultValue: string.none,
       defaultValueDesc: "Disallow all cross origin requests to download data",
-      name: "api-cors-origin"
+      name: "api-cors-origin",
+      hidden
     .}: Option[string]
 
     repoKind* {.
