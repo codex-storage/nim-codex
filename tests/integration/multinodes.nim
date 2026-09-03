@@ -122,6 +122,7 @@ template multinodesuite*(suiteName: string, body: untyped) =
         withLock(storagePortLock):
           apiPort = await nextFreePort(lastUsedStorageApiPort + nodeIdx)
           discPort = await nextFreePort(lastUsedStorageDiscPort + nodeIdx)
+          config.addCliOption("--api-bindaddr", DefaultApiBindAddress)
           config.addCliOption("--api-port", $apiPort)
           config.addCliOption("--disc-port", $discPort)
           lastUsedStorageApiPort = apiPort

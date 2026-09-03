@@ -38,6 +38,8 @@ when isMainModule:
   when defined(posix):
     import system/ansi_c
 
+  const StandaloneDefaultConfig = "api-bindaddr = \"" & DefaultApiBindAddress & "\""
+
   type StorageStatus {.pure.} = enum
     Stopped
     Stopping
@@ -51,7 +53,8 @@ when isMainModule:
     ) {.gcsafe, raises: [ConfigurationError].} =
       if configFile =? config.configFile:
         sources.addConfigFile(Toml, configFile)
-    ,
+      # Sources are read in order: the config file wins over these defaults
+      sources.addConfigFileContent(Toml, StandaloneDefaultConfig),
   )
 
   let logFile = config.setupLogging()
