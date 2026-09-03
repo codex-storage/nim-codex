@@ -78,6 +78,7 @@ const
   storage_enable_log_counter* {.booldefine.} = false
 
   DefaultThreadCount* = ThreadCount(0)
+  DefaultApiBindAddress* = "127.0.0.1"
 
 type
   StartUpCmd* {.pure.} = enum
@@ -256,13 +257,10 @@ type
       name: "agent-string"
     .}: string
 
-    apiEnabled* {.
-      desc: "Enable the REST API", defaultValue: false, name: "api-enabled", hidden
-    .}: bool
-
     apiBindAddress* {.
       desc: "The REST API bind address",
-      defaultValue: "127.0.0.1".some,
+      defaultValue: string.none,
+      defaultValueDesc: DefaultApiBindAddress,
       name: "api-bindaddr"
     .}: Option[string]
 

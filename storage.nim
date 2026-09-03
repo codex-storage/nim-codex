@@ -38,7 +38,7 @@ when isMainModule:
   when defined(posix):
     import system/ansi_c
 
-  const StandaloneDefaultConfig = "api-enabled = true"
+  const StandaloneDefaultConfig = "api-bindaddr = \"" & DefaultApiBindAddress & "\""
 
   type StorageStatus {.pure.} = enum
     Stopped

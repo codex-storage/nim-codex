@@ -1,5 +1,6 @@
 import std/json
 import std/monotimes
+import std/options
 import std/os
 import std/strutils
 
@@ -11,6 +12,7 @@ import ../checktest
 import ../../library/storage_thread_requests/requests/node_lifecycle_request
 
 from ../../storage/storage import StorageServer, config
+from ../../storage/conf import DefaultApiBindAddress
 
 asyncchecksuite "Libstorage - config":
   var server: StorageServer
@@ -61,7 +63,7 @@ asyncchecksuite "Libstorage - config":
     let request = NodeLifecycleRequest.createShared(CREATE_NODE, config.cstring)
     check (await request.process(addr server)).isOk
 
-    check server.config.apiEnabled == false
+    check server.config.apiBindAddress.isNone
 
     let closeRequest = NodeLifecycleRequest.createShared(CLOSE_NODE)
     check (await closeRequest.process(addr server)).isOk
@@ -72,11 +74,11 @@ asyncchecksuite "Libstorage - config":
     defer:
       removeDir(dataDir)
 
-    let config = $ %*{"data-dir": dataDir, "api-enabled": true}
+    let config = $ %*{"data-dir": dataDir, "api-bindaddr": DefaultApiBindAddress}
     let request = NodeLifecycleRequest.createShared(CREATE_NODE, config.cstring)
     check (await request.process(addr server)).isOk
 
-    check server.config.apiEnabled == true
+    check server.config.apiBindAddress == DefaultApiBindAddress.some
 
     let closeRequest = NodeLifecycleRequest.createShared(CLOSE_NODE)
     check (await closeRequest.process(addr server)).isOk
