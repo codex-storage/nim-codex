@@ -36,6 +36,8 @@ type Advertiser* = ref object of RootObj
   localStore*: BlockStore # Local block store for this instance
   discovery*: Discovery # Discovery interface
 
+  advertiseContent: bool # Announce local content to the DHT
+
   advertiserRunning*: bool # Indicates if discovery is running
   concurrentAdvReqs: int # Concurrent advertise requests
 
@@ -114,6 +116,10 @@ proc start*(b: Advertiser) {.async: (raises: []).} =
 
   trace "Advertiser start"
 
+  if not b.advertiseContent:
+    info "Content advertising is disabled, this node will not become a provider"
+    return
+
   # The advertiser is expected to be started only once.
   if b.advertiserRunning:
     raiseAssert "Advertiser can only be started once — this should not happen"
@@ -142,6 +148,9 @@ proc stop*(b: Advertiser) {.async: (raises: []).} =
   ##
 
   trace "Advertiser stop"
+  if not b.advertiseContent:
+    return
+
   if not b.advertiserRunning:
     warn "Stopping advertiser without starting it"
     return
@@ -160,12 +169,14 @@ proc new*(
     discovery: Discovery,
     concurrentAdvReqs = DefaultConcurrentAdvertRequests,
     advertiseLocalStoreLoopSleep = DefaultAdvertiseLoopSleep,
+    advertiseContent = true,
 ): Advertiser =
   ## Create a advertiser instance
   ##
   Advertiser(
     localStore: localStore,
     discovery: discovery,
+    advertiseContent: advertiseContent,
     concurrentAdvReqs: concurrentAdvReqs,
     advertiseQueue: newAsyncQueue[Cid](concurrentAdvReqs),
     trackedFutures: TrackedFutures.new(),
