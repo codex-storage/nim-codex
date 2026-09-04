@@ -512,7 +512,8 @@ proc new*(
 
     peerStore = PeerContextStore.new()
     downloadManager = DownloadManager.new(retries = config.blockRetries)
-    advertiser = Advertiser.new(repoStore, discovery)
+    advertiser =
+      Advertiser.new(repoStore, discovery, advertiseContent = config.advertiseContent)
     blockDiscovery = DiscoveryEngine.new(repoStore, peerStore, network, discovery)
     engine = BlockExcEngine.new(
       repoStore, network, blockDiscovery, advertiser, peerStore, downloadManager

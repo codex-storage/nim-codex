@@ -330,6 +330,12 @@ type
       name: "block-retries"
     .}: int
 
+    advertiseContent* {.
+      desc: "Announce the content to the DHT and become a provider for this content.",
+      defaultValue: true,
+      name: "advertise-content"
+    .}: bool
+
     discoveryTableIpLimit* {.
       desc: "Maximum number of nodes with the same IP in the discovery routing table",
       defaultValue: 10'u,
