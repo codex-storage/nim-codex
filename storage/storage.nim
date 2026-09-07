@@ -67,6 +67,7 @@ type
     natMapper*: Option[NatPortMapper]
     holePunchHandler: Option[connmanager.PeerEventHandler]
     bootstrapNodes: seq[SignedPeerRecord]
+    mixTransport: MixTransport
     isStarted: bool
 
   StoragePrivateKey* = libp2p.PrivateKey # alias
@@ -86,12 +87,14 @@ proc startMixTransport*(
   if not s.config.mixEnabled or mixProto.isNil:
     return
 
-  let switch = s.storageNode.switch
-
-  let mixTransport = newMixTransport(switch, mixProto)
+  let mixTransport = newMixTransport(mixProto)
+  s.storageNode.engine.network.attachMixTransport(mixTransport)
+  s.storageNode.manifestProtocol.attachMixTransport(mixTransport)
   (await mixTransport.start()).isOkOr:
-    raise newException(StorageError, "Failed to start Mix transport: " & error.msg)
-  s.storageNode.engine.network.mixTransport = some(mixTransport)
+    s.storageNode.engine.network.detachMixTransport()
+    s.storageNode.manifestProtocol.detachMixTransport()
+    raise newException(StorageError, "Failed to start MixTransport: " & error)
+  s.mixTransport = mixTransport
 
 proc start*(s: StorageServer) {.async.} =
   if s.isStarted:
@@ -246,6 +249,14 @@ proc stop*(s: StorageServer) {.async.} =
     s.storageNode.switch.removePeerEventHandler(
       s.holePunchHandler.get, PeerEventKind.Joined
     )
+
+  if not s.mixTransport.isNil:
+    try:
+      await s.mixTransport.stop()
+    finally:
+      s.storageNode.engine.network.detachMixTransport()
+      s.storageNode.manifestProtocol.detachMixTransport()
+      s.mixTransport = nil
 
   var futures = @[
     s.storageNode.switch.stop(),
@@ -470,7 +481,7 @@ proc new*(
       store = discoveryStore,
     )
 
-    network = BlockExcNetwork.new(switch)
+    network = BlockExcNetwork.new(switch, useMixSessionEvents = config.mixEnabled)
 
     repoData =
       case config.repoKind
@@ -602,4 +613,5 @@ proc new*(
     natMapper: natMapper,
     holePunchHandler: holePunchHandler,
     bootstrapNodes: bootstrapNodes,
+    mixTransport: nil,
   )
