@@ -149,7 +149,7 @@ in stdenv.mkDerivation rec {
   postPatch = lib.optionalString isWindows ''
     chmod -R +w .
 
-    # ---- The compile-time DirSep trap, three vendored instances -----------
+    # ---- The compile-time DirSep trap ------------------------------------
     #
     # Nim's os.parentDir normalises to the TARGET's DirSep, which is '\' the
     # moment os=Windows -- and it rewrites the WHOLE path, not just the
@@ -163,73 +163,51 @@ in stdenv.mkDerivation rec {
     # already correct -- that is what nim-bearssl, nim-blscurve, nim-secp256k1,
     # nim-zlib, nim-lsquic and boringssl's own srcPath use. nim-nat-traversal
     # has learned the lesson explicitly and appends .replace('\\', '/').
-    # Only plain `parentDir` is unsafe, and only three files on this build's
-    # code path use it.
+    # Only plain `parentDir` is unsafe. nim-leveldbstatic used it too and was
+    # fixed upstream, leaving nim-boringssl as the last one on this code path.
     #
     # All of this is invisible on MSYS2, where the filesystem accepts either
     # separator -- which is why upstream CI has never seen any of it.
 
-    # (a) nim-leveldbstatic/leveldbstatic/raw.nim -- `root` feeds every
-    #     {.compile.} and {.passc: "-I".} line in the file, so it mangles the
-    #     entire LevelDB build, not just one lookup. Nim 2.2's normalizePath
-    #     takes no dirSep argument, so pin the value: the build always runs
-    #     from the source root and a string literal is never re-normalised.
-    R=vendor/nim-leveldbstatic/leveldbstatic/raw.nim
-    sed -i "s|root = currentSourcePath.parentDir.parentDir|root = \"$(pwd)/vendor/nim-leveldbstatic\"|" $R
-    sed -i 's|root/"vendor"/"util"/"env_windows.cc"|root \& "/vendor/util/env_windows.cc"|' $R
-    sed -i 's|root/"vendor"/"util"/"env_posix.cc"|root \& "/vendor/util/env_posix.cc"|'     $R
-    sed -i 's|\$(root/"vendor")|root \& "/vendor"|'                                         $R
-    sed -i 's|\$(root/"build")|root \& "/build"|'                                           $R
-    sed -i 's|buildDir/"Makefile"|buildDir \& "/Makefile"|'                                 $R
-
-    # (b) nim-leveldbstatic/leveldbstatic.nim -- reads its own .nimble at
-    #     compile time to report a version. fileExists() on the mangled parent
-    #     path merely returns false; it is the staticRead of the mangled local
-    #     path that aborts the compile.
-    L=vendor/nim-leveldbstatic/leveldbstatic.nim
-    sed -i "s|const parentConfig = sourcePath.parentDir.parentDir / configFile|const parentConfig = \"$(pwd)/vendor/\" \& configFile|" $L
-    sed -i "s|const localConfig = sourcePath.parentDir / configFile|const localConfig = \"$(pwd)/vendor/nim-leveldbstatic/\" \& configFile|" $L
-
-    # (c) nim-boringssl/boringssl.nim -- baseDir feeds linkAsmFiles, which
-    #     assembles 25 .asm files with nasm on the Windows branch. Rewritten to
-    #     the rsplit idiom the same file already uses for srcPath (line 21), so
-    #     no new import is needed and the expression stays platform-neutral.
+    # nim-boringssl/boringssl.nim -- baseDir feeds linkAsmFiles, which
+    # assembles 25 .asm files with nasm on the Windows branch. Rewritten to
+    # the rsplit idiom the same file already uses for srcPath (line 21), so
+    # no new import is needed and the expression stays platform-neutral.
     sed -i "s|const baseDir = currentSourcePath.parentDir|const baseDir = currentSourcePath.rsplit({DirSep, AltSep}, 1)[0]|" \
       vendor/nim-boringssl/boringssl.nim
-    #     Fixing baseDir is necessary but NOT sufficient: nim's `/` operator
-    #     re-mangles the whole path at each use, so the two staticRead calls
-    #     feeding nasm's prefix includes still resolve to
-    #     \boringssl\gen\..._win_asm.inc. That file already wraps its OTHER
-    #     joins in normalizePath(dirSep = '/'); rewrite only the ones that are
-    #     not, to plain concatenation.
+    # Fixing baseDir is necessary but NOT sufficient: nim's `/` operator
+    # re-mangles the whole path at each use, so the two staticRead calls
+    # feeding nasm's prefix includes still resolve to
+    # \boringssl\gen\..._win_asm.inc. That file already wraps its OTHER
+    # joins in normalizePath(dirSep = '/'); rewrite only the ones that are
+    # not, to plain concatenation.
     sed -i "/normalizePath/!s|baseDir /|baseDir \& \"/\" \&|" \
       vendor/nim-boringssl/boringssl.nim
 
     # Fail loudly if upstream moved any of these out from under the patch --
     # a silently-unapplied sed would resurface hours later as an unrelated
     # "cannot open file" deep in the compile.
-    for f in "$R:parentDir" "$L:sourcePath.parentDir" \
-             "vendor/nim-boringssl/boringssl.nim:currentSourcePath.parentDir" \
+    for f in "vendor/nim-boringssl/boringssl.nim:currentSourcePath.parentDir" \
              "vendor/nim-boringssl/boringssl.nim:[^(]baseDir /"; do
       if grep -q "''${f#*:}" "''${f%%:*}"; then
         echo "error: DirSep patch did not apply to ''${f%%:*}" >&2; exit 1
       fi
     done
 
-    # (d) nim-libplum/libplum/plum.nim -- a BARE `raise` re-raising inside
-    #     `except CancelledError`, in a proc declared
-    #     `{.async: (raises: [CancelledError]).}`. Nim infers a bare re-raise
-    #     conservatively, and under --os:windows that inference widens to
-    #     Exception, so the compile fails with
-    #         Error: Exception can raise an unlisted exception: Exception
-    #     Naming the caught exception and re-raising it by name pins the type
-    #     to the one already declared. Behaviour is identical -- `raise exc` in
-    #     an except branch re-raises the same object -- and the edit is
-    #     platform-neutral, so it is a candidate to send upstream rather than
-    #     something Windows needs specially.
+    # nim-libplum/libplum/plum.nim -- a BARE `raise` re-raising inside
+    # `except CancelledError`, in a proc declared
+    # `{.async: (raises: [CancelledError]).}`. Nim infers a bare re-raise
+    # conservatively, and under --os:windows that inference widens to
+    # Exception, so the compile fails with
+    #     Error: Exception can raise an unlisted exception: Exception
+    # Naming the caught exception and re-raising it by name pins the type
+    # to the one already declared. Behaviour is identical -- `raise exc` in
+    # an except branch re-raises the same object -- and the edit is
+    # platform-neutral, so it is a candidate to send upstream rather than
+    # something Windows needs specially.
     #
-    #     Not caused by the -d:debug that USE_LIBBACKTRACE=0 implies: adding
-    #     -d:release changes nothing here (measured).
+    # Not caused by the -d:debug that USE_LIBBACKTRACE=0 implies: adding
+    # -d:release changes nothing here (measured).
     P=vendor/nim-libplum/libplum/plum.nim
     sed -i 's|^  except CancelledError:$|  except CancelledError as exc:|' $P
     sed -i 's|^    raise$|    raise exc|' $P
