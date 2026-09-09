@@ -194,27 +194,6 @@ in stdenv.mkDerivation rec {
       fi
     done
 
-    # nim-libplum/libplum/plum.nim -- a BARE `raise` re-raising inside
-    # `except CancelledError`, in a proc declared
-    # `{.async: (raises: [CancelledError]).}`. Nim infers a bare re-raise
-    # conservatively, and under --os:windows that inference widens to
-    # Exception, so the compile fails with
-    #     Error: Exception can raise an unlisted exception: Exception
-    # Naming the caught exception and re-raising it by name pins the type
-    # to the one already declared. Behaviour is identical -- `raise exc` in
-    # an except branch re-raises the same object -- and the edit is
-    # platform-neutral, so it is a candidate to send upstream rather than
-    # something Windows needs specially.
-    #
-    # Not caused by the -d:debug that USE_LIBBACKTRACE=0 implies: adding
-    # -d:release changes nothing here (measured).
-    P=vendor/nim-libplum/libplum/plum.nim
-    sed -i 's|^  except CancelledError:$|  except CancelledError as exc:|' $P
-    sed -i 's|^    raise$|    raise exc|' $P
-    if grep -q '^    raise$' $P; then
-      echo "error: libplum bare-raise patch did not apply" >&2; exit 1
-    fi
-
     # 2. buildLevelDb() shells out to cmake AT COMPILE TIME, and its Windows
     #    branch asks for -G"MSYS Makefiles", a generator a Nix builder does not
     #    have. Correcting the generator is not enough either: leveldb's own
