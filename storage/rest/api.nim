@@ -25,7 +25,6 @@ import pkg/libp2p
 import pkg/libp2p/routing_record
 import pkg/libp2p/protocols/connectivity/autonatv2/service
 import pkg/libp2p/services/autorelayservice
-import pkg/codexdht/discv5/spr
 
 import ../logutils
 import ../node
@@ -488,15 +487,16 @@ proc initNodeApi(node: StorageNodeRef, conf: StorageConf, router: var RestRouter
     var headers = buildCorsHeaders("GET", allowedOrigin)
 
     try:
-      let spr = node.discovery.getSpr()
+      let spr = node.discovery.getSpr().valueOr:
+        trace "Unable to build the signed peer record", err = error.msg
+        return RestApiResponse.error(Http500, headers = headers)
 
       if $preferredContentType().get() == "text/plain":
-        return RestApiResponse.response(
-          spr.toURI, contentType = "text/plain", headers = headers
-        )
+        return
+          RestApiResponse.response(spr, contentType = "text/plain", headers = headers)
       else:
         return RestApiResponse.response(
-          $ %*{"spr": spr.toURI}, contentType = "application/json", headers = headers
+          $ %*{"spr": spr}, contentType = "application/json", headers = headers
         )
     except CatchableError as exc:
       trace "Excepting processing request", exc = exc.msg
