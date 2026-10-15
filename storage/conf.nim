@@ -182,7 +182,8 @@ type
         "connecting to the network. When specified, overrides " &
         "the network preset option.",
       abbr: "b",
-      name: "bootstrap-node"
+      name: "bootstrap-node",
+      envVarValueSep: ";"
     .}: seq[SignedPeerRecord]
 
     noBootstrapNode* {.
@@ -201,7 +202,8 @@ type
 
     dhtMixProxies* {.
       desc: "Peers used as dht-proxy destinations when Mix is enabled",
-      name: "dht-mix-proxy"
+      name: "dht-mix-proxy",
+      envVarValueSep: ";"
     .}: seq[SignedPeerRecord]
 
     mixEnabled* {.
