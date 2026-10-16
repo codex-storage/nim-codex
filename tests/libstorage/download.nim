@@ -36,16 +36,17 @@ template withUploadedFile(body: untyped) =
     "mix-enabled": true,
   }
   let node {.inject.} = (await createStorage($conf)).tryGet()
+  defer:
+    await node.close()
 
   await node.start()
+  defer:
+    await node.stop()
 
   let sessionId = (await storage_upload_init(node, input, 0, true)).tryGet()
   let cid {.inject.} = (await storage_upload_file(node, sessionId)).tryGet()
 
   body
-
-  await node.stop()
-  await node.close()
 
 asyncchecksuite "Libstorage - download":
   test "streams a private local download session":
