@@ -41,6 +41,7 @@ logScope:
 const
   ProvideTimeout = 1.minutes
   LookupTimeout = 1.minutes
+  LookupEnoughProviders = 1
 
 type
   Discovery* = ref object of RootObj
@@ -49,6 +50,7 @@ type
     peerId: PeerId # the peer id of the local node
     mixProto*: MixProtocol
     dhtMixProxies*: seq[SignedPeerRecord]
+    lookupTimeout*: Duration # overall timeout of a direct provider lookup
 
   RoutingPeer* = object
     record*: PeerRecord
@@ -117,15 +119,50 @@ method findViaMix*(
 method findDirect*(
     d: Discovery, cid: Cid
 ): Future[?!seq[PeerRecord]] {.base, async: (raises: [CancelledError]).} =
-  try:
-    let providers = await d.kad.getProviders(cid.toKey()).wait(LookupTimeout)
-    var records = providers.toRecords()
-    shuffle(records)
-    return success records
-  except CancelledError as exc:
-    raise exc
-  except CatchableError as exc:
-    return failure("Error finding providers for block " & $cid & ": " & exc.msg)
+  ## Look up providers of `cid` in the DHT. Returns as soon as
+  ## `LookupEnoughProviders` providers have replied, and keeps the providers
+  ## already found if `d.lookupTimeout` passes first. `KadDHT.getProviders` only
+  ## stops early at `replication` (20) providers and its result is lost on
+  ## timeout, so a dataset with fewer hosters was found only when the whole
+  ## lookup happened to finish within `lookupTimeout`. The rest of the lookup
+  ## is cancelled rather than awaited: its RPCs to unresponsive peers would hold
+  ## the result until they time out.
+  let key = cid.toKey()
+  var providers: HashSet[Provider]
+  let enough = newFuture[void]("discovery.findDirect")
+
+  let onReply = proc(
+      peer: PeerId, msgOpt: Opt[Message], state: LookupState
+  ): Future[void] {.async: (raises: []), gcsafe.} =
+    let reply = msgOpt.valueOr:
+      return
+    for provider in reply.providerPeers:
+      let idraw = provider.id.valueOr:
+        continue
+      if PeerId.init(idraw).isOk:
+        providers.incl(provider)
+    if providers.len >= LookupEnoughProviders and not enough.finished:
+      enough.complete()
+
+  let enoughProviders = proc(state: LookupState): bool {.raises: [], gcsafe.} =
+    providers.len >= LookupEnoughProviders
+
+  let lookup =
+    d.kad.iterativeLookup(key, dispatchGetProviders, onReply, enoughProviders)
+  let done =
+    await race(FutureBase(lookup), FutureBase(enough)).withTimeout(d.lookupTimeout)
+  if not lookup.finished:
+    lookup.cancelSoon()
+  if not done:
+    if providers.len == 0:
+      return
+        failure("Error finding providers for block " & $cid & ": Timeout exceeded!")
+    debug "Provider lookup timed out, using providers found so far",
+      cid, found = providers.len
+
+  var records = providers.toRecords()
+  shuffle(records)
+  return success records
 
 method find*(
     d: Discovery, cid: Cid, useMix: bool = false
@@ -227,12 +264,16 @@ proc new*(
     dhtMixProxies: openArray[SignedPeerRecord] = [],
     isServer = true,
     addressPolicy: PeerAddressPolicy = defaultAddressPolicy,
+    lookupTimeout = LookupTimeout,
 ): Discovery =
   ## Create a new Discovery node instance backed by the libp2p Kademlia DHT
   ##
 
   var self = Discovery(
-    switch: switch, peerId: switch.peerInfo.peerId, dhtMixProxies: @dhtMixProxies
+    switch: switch,
+    peerId: switch.peerInfo.peerId,
+    dhtMixProxies: @dhtMixProxies,
+    lookupTimeout: lookupTimeout,
   )
 
   self.kad = KadDHT.new(

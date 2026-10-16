@@ -1,5 +1,6 @@
 import std/sequtils
 import pkg/libp2p/multiaddress
+import pkg/libp2p/protocols/kademlia except PeerRecord
 import pkg/libp2p_mix
 
 import ../asynctest
@@ -97,3 +98,76 @@ suite "Discovery - bootstrap addresses":
     )
 
     check $privateAddr notin disc.bootstrapAddrs
+
+proc holdConnection(
+    server: StreamServer, transp: StreamTransport
+) {.async: (raises: []).} =
+  ## Accept the connection and never say a word.
+  try:
+    await sleepAsync(1.hours)
+  except CancelledError:
+    discard
+  await transp.closeWait()
+
+asyncchecksuite "Discovery - findDirect":
+  const
+    DeadPeers = 6
+    ShortLookupTimeout = 3.seconds
+
+  var
+    provider, seeker: Switch
+    providerDisc, seekerDisc: Discovery
+    silent: seq[StreamServer]
+    cid: Cid
+
+  setup:
+    cid = Cid.example
+    provider = newStandardSwitch()
+    seeker = newStandardSwitch()
+    providerDisc = Discovery.new(provider)
+    seekerDisc = Discovery.new(seeker, lookupTimeout = ShortLookupTimeout)
+    provider.mount(providerDisc.kad)
+    seeker.mount(seekerDisc.kad)
+    await provider.start()
+    await seeker.start()
+
+    # Peers that accept connections but never answer: every request to them
+    # stalls until it times out, so a complete lookup takes much longer than
+    # `ShortLookupTimeout`.
+    silent = @[]
+    for _ in 0 ..< DeadPeers:
+      let server = createStreamServer(
+        initTAddress("127.0.0.1:0"), holdConnection, flags = {ReuseAddr}
+      )
+      server.start()
+      silent.add(server)
+      let
+        peerId = PeerId.example
+        addrs = @[MultiAddress.init(server.localAddress()).expect("valid")]
+      seeker.peerStore[AddressBook].extend(peerId, addrs)
+      check seekerDisc.kad.rtable.insert(peerId)
+
+    seeker.peerStore[AddressBook].extend(
+      provider.peerInfo.peerId, provider.peerInfo.addrs
+    )
+    check seekerDisc.kad.rtable.insert(provider.peerInfo.peerId)
+
+    await providerDisc.provide(cid)
+
+  teardown:
+    for server in silent:
+      server.stop()
+      await server.closeWait()
+    await seeker.stop()
+    await provider.stop()
+
+  test "returns a provider without waiting for the rest of the lookup":
+    # The silent peers keep the lookup running past the timeout; the provider
+    # found in the meantime must be returned, and right away.
+    let start = Moment.now()
+    let found = await seekerDisc.findDirect(cid)
+    let elapsed = Moment.now() - start
+
+    check found.isSuccess
+    check found.get(@[]).anyIt(it.peerId == provider.peerInfo.peerId)
+    check elapsed < ShortLookupTimeout div 2
