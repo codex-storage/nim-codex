@@ -112,7 +112,7 @@ storage_ctx_destroy(ctx);
 | `storage_ctx_get_advertise` | `cid` | `"true"` or `"false"` |
 | `storage_ctx_set_advertise` | `cid`, `advertise` | the new setting |
 
-`chunkSize` defaults to the block size (`1024 * 64` bytes) when it is 0. `local` restricts a download to the local store. `isPrivate` downloads over the Mix transport, and it must match the setting of an open session for the same `cid`. When `advertise` is `false`, the node does not announce the dataset to the DHT and does not serve it to peers. `download_stream` opens its own session as a direct, advertised download from the network.
+`chunkSize` defaults to the block size (`1024 * 64` bytes) when it is 0. `local` restricts a download to the local store. `isPrivate` downloads over the Mix transport, and it must match the setting of an open session for the same `cid`. When `advertise` is `false`, the node does not announce the dataset to the DHT and does not serve it to peers. When no session is open for the `cid`, `download_stream` opens its own session as a direct, advertised download from the network.
 
 ### Synchronous entry points
 
