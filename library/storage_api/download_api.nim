@@ -158,12 +158,15 @@ proc storage_download_stream(
   let parsed = Cid.init(cid).valueOr:
     return err("Failed to stream: cannot parse cid: " & cid)
 
-  let session = (
-    await self.openDownload(
-      parsed, chunkSize, local = false, isPrivate = false, advertise = true
-    )
-  ).valueOr:
-    return err(error)
+  # Reuse the session of download_init as it is if it exists
+  var session = downloadSessions.getOrDefault($parsed)
+  if session.stream.isNil:
+    session = (
+      await self.openDownload(
+        parsed, chunkSize, local = false, isPrivate = false, advertise = true
+      )
+    ).valueOr:
+      return err(error)
 
   try:
     await noCancel streamData(cid, session.stream, session.chunkSize, filepath)
